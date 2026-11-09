@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import {
   AVISO_SO_ENVIA,
-  SINAL_TIPO,
+  SINAL_TIPOS,
+  lerSinalTipo,
   VALIDADE_PADRAO_DIAS,
   diasParaVencer,
   lerPropostaPublica,
@@ -58,9 +59,13 @@ describe("regras puras", () => {
     expect(somarDias("2026-12-30", 5)).toBe("2027-01-04");
     expect(diasParaVencer("2026-11-11", "2026-11-09")).toBe(2);
   });
-  it("D7: sinal sempre arras confirmatórias, sem escolha", () => {
-    expect(SINAL_TIPO).toBe("confirmatorias");
-    expect(MIG).toMatch(/CHECK \(sinal_tipo = 'confirmatorias'\)/);
+  it("D7 (t_b4e7c368): sinal confirmatórias (padrão) ou penitenciais, gravado no banco", () => {
+    expect(SINAL_TIPOS).toEqual(["confirmatorias", "penitenciais"]);
+    expect(lerSinalTipo("penitenciais")).toBe("penitenciais");
+    expect(lerSinalTipo("qualquer")).toBe("confirmatorias");
+    expect(lerSinalTipo(null)).toBe("confirmatorias");
+    expect(MIG).toMatch(/sinal_tipo text NOT NULL DEFAULT 'confirmatorias'/);
+    expect(MIG).toMatch(/CHECK \(sinal_tipo IN \('confirmatorias', 'penitenciais'\)\)/);
   });
   it("todas as situações; vencida calculada pela validade", () => {
     expect(situacaoVisivel("aguardando_assinaturas", "2026-11-08", "2026-11-09")).toBe("vencida");
@@ -202,7 +207,7 @@ describe("leitura pública em lista fechada", () => {
     expect(s).not.toMatch(/99988877766|INTERNO|"cpf_cnpj"|"telefone"|capture_id/);
     if (r.ok) {
       expect(r.dados.valores.oferta).toBe(480000);
-      expect(r.dados.valores.sinalTipo).toBe("confirmatorias");
+      expect(r.dados.valores.sinalTipo).toBe("penitenciais");
       expect(r.dados.corretor.whatsapp).toBe("https://wa.me/5515988887777");
     }
   });
@@ -274,7 +279,11 @@ describe("migration 20261109120000", () => {
   it("o rollback derruba todas as funções que a migration cria", () => {
     const criadas = [...MIG.matchAll(/CREATE OR REPLACE FUNCTION (public\.[a-z_]+)\(/g)]
       .map((m) => m[1])
-      .filter((n) => n !== "public.platform_set_organization_module");
+      .filter((n) => n !== "public.platform_set_organization_module")
+      // agency_profile_save já existia: o rollback devolve a versão anterior (sem 'endereco').
+      .filter((n) => n !== "public.agency_profile_save");
     for (const f of criadas) expect(RB).toContain(`DROP FUNCTION IF EXISTS ${f}(`);
+    expect(RB).toContain("CREATE OR REPLACE FUNCTION public.agency_profile_save(_data jsonb)");
+    expect(RB).toMatch(/ALTER TABLE public\.organizations DROP COLUMN IF EXISTS endereco/);
   });
 });

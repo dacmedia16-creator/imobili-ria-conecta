@@ -79,10 +79,11 @@ import {
   mascararTelefone,
   situacaoParte,
   textoValidade,
-  CLAUSULAS_PENDENTES,
+  textoDoDetalhe,
 } from "@/lib/proposta-compra-tela";
-import { buildPropostaPdf, conteudoProposta, nomeArquivoProposta } from "@/lib/proposta-compra-pdf";
-import { SITUACOES, TEXTO_PENDENTE } from "@/lib/proposta-compra";
+import { buildPropostaPdf, nomeArquivoProposta, textoDaProposta } from "@/lib/proposta-compra-pdf";
+import { AVISO_TEXTO_ADVOGADO, SITUACOES, TEXTO_APROVADO_ADVOGADO } from "@/lib/proposta-compra";
+import { MARCA_MINUTA, montarTextoProposta, textoPlano } from "@/lib/proposta-compra-texto";
 
 const H = "a".repeat(64);
 const TOKEN = "A".repeat(43);
@@ -244,7 +245,8 @@ describe("regras puras das telas", () => {
       cpf_cnpj: "11122233344",
       telefone: "15999990000",
     });
-    expect(Object.keys(fin)).not.toContain("sinal_tipo");
+    expect(fin.sinal_tipo).toBe("confirmatorias");
+    expect(dadosParaSalvar({ ...f, sinalTipo: "penitenciais" }).sinal_tipo).toBe("penitenciais");
   });
 
   it("valida antes de salvar", () => {
@@ -361,19 +363,29 @@ describe("regras puras das telas", () => {
 describe("PDF da proposta (pdf-lib existente)", () => {
   const detalhe = () => lerDetalhe(detalheRaw({ situacao: "aceita", versao: 2 }));
 
-  it("conteúdo: imóvel, partes, valores (arras confirmatórias) e condições; sem cláusula inventada", () => {
-    const c = conteudoProposta(detalhe());
-    expect(c.imovel[0][1]).toContain("Rua das Acácias, 245");
-    expect(c.compradores.map((x) => x[0])).toEqual(["Comprador", "Cônjuge do comprador"]);
-    expect(c.compradores[0][1]).toContain("111.222.333-44");
-    expect(c.valores.find((x) => x[0] === "Sinal")?.[1]).toContain("arras confirmatórias");
-    expect(c.assinantes.map((x) => x.rotulo)).toEqual([
-      "Comprador",
-      "Cônjuge do comprador",
-      "Vendedor",
-      "Corretor",
+  it("texto oficial: imóvel, partes, valores por extenso, arras confirmatórias (padrão) e marca do advogado", () => {
+    const tx = textoDaProposta(detalhe(), "RE/MAX Teste", "2026-11-09");
+    const t = textoPlano(tx);
+    expect(t).toContain("PROPOSTA DE COMPRA DE IMÓVEL");
+    expect(t).toContain("Rua das Acácias, 245");
+    expect(t).toContain("111.222.333-44");
+    expect(t).toContain("R$ 485.000,00 (quatrocentos e oitenta e cinco mil reais)");
+    expect(t).toContain("arras confirmatórias (arts. 417 a 419 do Código Civil)");
+    expect(t).not.toContain("arras penitenciais");
+    expect(t).toContain("Financiamento bancário (Caixa)");
+    expect(t).toContain("Armários da cozinha ficam.");
+    expect(t).toContain("válida por 5 dias corridos, até 23h59 de 14/11/2026");
+    expect(t).not.toMatch(/pendente de revisão/i);
+    expect(TEXTO_APROVADO_ADVOGADO).toBe(false);
+    expect(tx.marcaInterna).toBe(MARCA_MINUTA);
+    expect(AVISO_TEXTO_ADVOGADO).toMatch(/advogado/);
+    const sig = tx.secoes.find((x) => x.titulo.endsWith("Signatários"))!.itens[0];
+    expect(sig.tipo === "signatarios" && sig.linhas.map((l) => l[0])).toEqual([
+      "João Alves",
+      "Marina Alves",
+      "Carlos Pereira",
+      "Ana Corretora",
     ]);
-    expect(CLAUSULAS_PENDENTES).toHaveLength(5);
   });
 
   it("prévia sem comprovação; PDF final ganha a página 'Comprovação das assinaturas' com o código", async () => {
@@ -431,13 +443,12 @@ describe("PDF da proposta (pdf-lib existente)", () => {
     );
   });
 
-  it("texto do PDF: marca da imobiliária, 'Texto pendente de revisão' e código do documento", async () => {
+  it("texto do PDF: marca da minuta do advogado, comprovação e código do documento", () => {
     const src = readFileSync("src/lib/proposta-compra-pdf.ts", "utf8");
-    expect(src).toContain("TEXTO_PENDENTE.toUpperCase()");
+    expect(src).toContain("tx.marcaInterna.toUpperCase()");
     expect(src).toContain('"Comprovação das assinaturas"');
     expect(src).toContain("Código do documento");
     expect(src).toContain('from "@/lib/owner-feedback-pdf"');
-    expect(TEXTO_PENDENTE).toBe("Texto pendente de revisão");
   });
 });
 
@@ -552,7 +563,9 @@ describe("tela da proposta", () => {
     const form = await screen.findByTestId("form-proposta");
     expect(within(form).getAllByText("preenchido pela captação").length).toBeGreaterThanOrEqual(2);
     expect(within(form).getByText("veio do CRM")).toBeTruthy();
-    expect(within(form).getByTestId("sinal-tipo").textContent).toContain("Arras confirmatórias");
+    expect(within(form).getByTestId("sinal-tipo").textContent).toContain("Confirmatório (padrão da lei)");
+    expect((within(form).getByTestId("sinal-tipo-confirmatorias") as HTMLInputElement).checked).toBe(true);
+    expect((within(form).getByTestId("sinal-tipo-penitenciais") as HTMLInputElement).checked).toBe(false);
     expect(within(form).queryByLabelText(/tipo do sinal/i)).toBeNull();
     fireEvent.change(screen.getByLabelText("Valor oferecido (R$)"), {
       target: { value: "490.000,00" },
@@ -743,15 +756,21 @@ describe("página pública do link", () => {
       "Rua das Acácias, 245",
       "R$ 485.000,00",
       "arras confirmatórias",
-      "Caixa",
-      "15 dia(s)",
-      "Vendedor apresenta as certidões",
-      "Texto pendente de revisão",
+      "Financiamento bancário (Caixa)",
+      "em até 15 dias",
+      "Se as certidões do imóvel",
+      "PROPOSTA DE COMPRA DE IMÓVEL",
+      "Leia a proposta inteira",
+      "Sinal (arras)",
+      "Validade e aceite",
+      "Signatários",
       "João Alves",
       "termina em 44",
     ])
       expect(texto).toContain(t);
     expect(texto).not.toMatch(/\d{3}\.\d{3}\.\d{3}-\d{2}/);
+    expect(texto).toContain(AVISO_TEXTO_ADVOGADO);
+    expect(screen.getByTestId("texto-oficial")).toBeTruthy();
     const botao = within(area).getByTestId("botao-assinar") as HTMLButtonElement;
     expect(botao.disabled).toBe(true);
     fireEvent.change(screen.getByLabelText("Código recebido no WhatsApp"), {

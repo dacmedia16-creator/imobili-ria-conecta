@@ -451,8 +451,8 @@ export function textoDaPublica(d: PropostaPublica): TextoInput {
     prazoContratoDias: d.condicoes.prazoContratoDias,
     certidoes: d.condicoes.certidoes,
     observacoes: d.condicoes.observacoes,
-    termos: d.termos as Termos,
-    cadastro: d.cadastro.nome ? d.cadastro : { ...d.cadastro, nome: d.imobiliaria || undefined },
+    termos: (d.termos ?? {}) as Termos,
+    cadastro: d.cadastro?.nome ? d.cadastro : { ...d.cadastro, nome: d.imobiliaria || undefined },
     documentoData: d.documentoData,
     corretorNome: d.corretor.nome,
     partes: d.partes.map((x) => ({
