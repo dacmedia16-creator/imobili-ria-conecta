@@ -8,8 +8,12 @@ import {
   ESTADOS_CIVIS,
   FORMAS_PAGAMENTO,
   FORMA_LABEL,
+  SINAL_TIPOS,
+  SINAL_TIPO_AJUDA,
   SINAL_TIPO_LABEL,
   precisaConjuge,
+  type TermoNumero,
+  type TermoTexto,
 } from "@/lib/proposta-compra";
 import {
   CERTIDOES_LABEL,
@@ -20,6 +24,16 @@ import {
   type ParteForm,
   type PropostaForm,
 } from "@/lib/proposta-compra-tela";
+
+// Opções iguais às da Campolim (texto oficial, t_b4e7c368).
+const REGIMES = [
+  "comunhão parcial de bens",
+  "comunhão universal de bens",
+  "separação total de bens",
+  "participação final nos aquestos",
+];
+const FORMAS_SINAL = ["PIX", "transferência bancária (TED)", "cheque", "dinheiro"];
+const COMISSAO = ["vendedor(a)", "comprador(a)", "conforme a autorização de venda"];
 
 const SELECT =
   "h-10 w-full rounded-md border border-input bg-background px-3 text-base disabled:opacity-70";
@@ -35,8 +49,9 @@ function Campo({ id, label, children }: { id: string; label: string; children: R
 }
 
 /**
- * "Nova proposta" (t_da0dac53): imóvel e vendedores vêm da captação, comprador do lead do CRM (se houver).
- * O corretor completa o resto. D7: sinal sempre arras confirmatórias (sem campo de escolha).
+ * "Nova proposta" (t_da0dac53; texto oficial t_b4e7c368): imóvel e vendedores vêm da captação, comprador do lead
+ * do CRM (se houver). O corretor completa o resto, inclusive os campos do texto oficial (Campolim ajustado).
+ * D7 revista: o corretor escolhe o tipo de sinal (confirmatório = padrão, ou com direito de arrependimento).
  */
 export function PropostaFormulario({
   form,
@@ -61,8 +76,55 @@ export function PropostaFormulario({
     const partes = form.partes.map((p, j) => (j === i ? { ...p, ...patch } : p));
     onChange({ ...form, partes: ajustarConjuges(partes) });
   };
+  const termo = (k: TermoTexto | TermoNumero) => form.termos[k] ?? "";
+  const setTermo = (k: TermoTexto | TermoNumero, v: string) =>
+    onChange({ ...form, termos: { ...form.termos, [k]: v } });
+  const texto = (k: TermoTexto | TermoNumero, label: string, max: number, ph?: string) => (
+    <Campo id={`termo-${k}`} label={label}>
+      <Input
+        id={`termo-${k}`}
+        disabled={disabled}
+        value={termo(k)}
+        maxLength={max}
+        placeholder={ph}
+        onChange={(e) => setTermo(k, e.target.value)}
+      />
+    </Campo>
+  );
+  const area = (k: TermoTexto, label: string, ph: string) => (
+    <div className="space-y-1 sm:col-span-2">
+      <Label htmlFor={`termo-${k}`}>{label}</Label>
+      <Textarea
+        id={`termo-${k}`}
+        disabled={disabled}
+        value={termo(k)}
+        maxLength={900}
+        placeholder={ph}
+        onChange={(e) => setTermo(k, e.target.value)}
+      />
+    </div>
+  );
+  const lista = (k: TermoTexto, label: string, ops: string[], vazio?: string) => (
+    <Campo id={`termo-${k}`} label={label}>
+      <select
+        id={`termo-${k}`}
+        className={SELECT}
+        disabled={disabled}
+        value={termo(k)}
+        onChange={(e) => setTermo(k, e.target.value)}
+      >
+        {vazio !== undefined && <option value="">{vazio}</option>}
+        {ops.map((o) => (
+          <option key={o} value={o}>
+            {o}
+          </option>
+        ))}
+      </select>
+    </Campo>
+  );
   const temSinal =
     form.formaPagamento === "sinal_financiamento" || form.formaPagamento === "sinal_parcelas";
+  const temFin = form.formaPagamento === "sinal_financiamento";
   const endereco = [
     imovel.endereco,
     imovel.complemento,
@@ -97,6 +159,12 @@ export function PropostaFormulario({
             <span className="text-muted-foreground">Corretor do negócio: </span>
             {corretor ?? "—"}
           </p>
+          {texto(
+            "imovel_descricao",
+            "Descrição do imóvel na proposta",
+            300,
+            imovel.tipo ?? "Ex.: Casa térrea com 3 dormitórios, 2 vagas",
+          )}
         </CardContent>
       </Card>
 
@@ -199,6 +267,36 @@ export function PropostaFormulario({
                   Casado(a) ou união estável: o cônjuge também assina (bloco logo abaixo).
                 </p>
               )}
+              {p.papel === "comprador" && p.tipoPessoa === "fisica" && (
+                <>
+                  {texto("comprador_rg", "RG", 40)}
+                  {texto("comprador_nacionalidade", "Nacionalidade", 60, "brasileira")}
+                  {texto("comprador_profissao", "Profissão", 80)}
+                  {precisaConjuge(p.estadoCivil) &&
+                    lista("comprador_regime", "Regime de bens", REGIMES, "Selecione")}
+                </>
+              )}
+              {p.papel === "comprador" && p.tipoPessoa === "juridica" && (
+                <>
+                  {texto("comprador_representante", "Representante legal (quem assina)", 160)}
+                  {texto("comprador_representante_cpf", "CPF do representante", 14)}
+                  {texto("comprador_cargo", "Cargo", 80, "sócio-administrador")}
+                </>
+              )}
+              {p.papel === "comprador" && (
+                <div className="sm:col-span-2">
+                  {texto("comprador_endereco", "Endereço completo", 300)}
+                </div>
+              )}
+              {p.papel === "vendedor" &&
+                p.ordem === 1 &&
+                temSinal &&
+                texto(
+                  "vendedor_conta",
+                  "Conta do vendedor para o sinal (opcional)",
+                  200,
+                  "Ex.: PIX CPF do vendedor ou banco/agência/conta",
+                )}
             </CardContent>
           </Card>
         );
@@ -247,7 +345,7 @@ export function PropostaFormulario({
                   onChange={(e) => set("sinalValor", e.target.value)}
                 />
               </Campo>
-              <Campo id="sinal-prazo" label="Prazo para pagar o sinal (dias)">
+              <Campo id="sinal-prazo" label="Prazo do sinal (dias úteis após o aceite)">
                 <Input
                   id="sinal-prazo"
                   inputMode="numeric"
@@ -256,12 +354,36 @@ export function PropostaFormulario({
                   onChange={(e) => set("sinalPrazoDias", e.target.value)}
                 />
               </Campo>
-              <p className="text-xs text-muted-foreground sm:col-span-2" data-testid="sinal-tipo">
-                Tipo do sinal: <strong>{SINAL_TIPO_LABEL}</strong> (padrão da imobiliária).
-              </p>
+              {lista("sinal_forma", "Forma do sinal", FORMAS_SINAL)}
             </>
           )}
-          {form.formaPagamento === "sinal_financiamento" && (
+          <fieldset className="space-y-2 sm:col-span-2" data-testid="sinal-tipo">
+            <legend className="text-sm font-medium">Tipo de sinal</legend>
+            {SINAL_TIPOS.map((t) => (
+              <label key={t} className="flex items-start gap-2 text-sm">
+                <input
+                  type="radio"
+                  name="sinal-tipo"
+                  value={t}
+                  className="mt-1 h-4 w-4"
+                  disabled={disabled}
+                  checked={form.sinalTipo === t}
+                  onChange={() => set("sinalTipo", t)}
+                  data-testid={`sinal-tipo-${t}`}
+                />
+                <span>
+                  <strong>{SINAL_TIPO_LABEL[t]}</strong>: {SINAL_TIPO_AJUDA[t]}
+                </span>
+              </label>
+            ))}
+          </fieldset>
+          <p className="text-sm font-medium sm:col-span-2">
+            Restante do pagamento (preencha só o que existir)
+          </p>
+          {texto("proprios_valor", "Recursos próprios (R$)", 20)}
+          {texto("proprios_quando", "Quando", 200, "na assinatura da escritura")}
+          {texto("fgts_valor", "FGTS (R$)", 20)}
+          {temFin && (
             <>
               <Campo id="fin-banco" label="Banco do financiamento">
                 <Input
@@ -282,6 +404,20 @@ export function PropostaFormulario({
                 />
               </Campo>
             </>
+          )}
+          {(temFin || termo("fgts_valor").trim() !== "") &&
+            texto("fin_prazo_dias", "Prazo para aprovar o crédito/FGTS (dias)", 3, "30")}
+          {texto("permuta_valor", "Imóvel/bem dado em permuta (R$)", 20)}
+          {texto("permuta_descricao", "Descrição do bem dado em permuta", 300)}
+          {area(
+            "parcelas",
+            "Parcelas direto com o vendedor",
+            "Ex.: 10 parcelas mensais de R$ 5.000,00, corrigidas pelo IPCA, vencendo todo dia 10, a partir de ...",
+          )}
+          {area(
+            "pagamento_obs",
+            "Outras condições de pagamento",
+            "Ex.: o saldo será pago em até 5 dias úteis após a liberação do financiamento.",
           )}
         </CardContent>
       </Card>
@@ -325,13 +461,27 @@ export function PropostaFormulario({
               ))}
             </select>
           </Campo>
+          {texto(
+            "posse",
+            "Entrega das chaves (posse)",
+            300,
+            "na data da assinatura da escritura, com o imóvel livre e desocupado",
+          )}
+          {lista("comissao_quem", "Comissão de corretagem paga por", COMISSAO)}
+          {texto("local", "Local (cidade/UF do documento)", 80, "da cidade da imobiliária")}
+          {area(
+            "itens",
+            "Itens que permanecem no imóvel",
+            "Ex.: armários planejados da cozinha e dos quartos, 2 aparelhos de ar-condicionado.",
+          )}
           <div className="space-y-1 sm:col-span-2">
-            <Label htmlFor="observacoes">Observações</Label>
+            <Label htmlFor="observacoes">Outras condições</Label>
             <Textarea
               id="observacoes"
               disabled={disabled}
               value={form.observacoes}
               maxLength={2000}
+              placeholder="Ex.: a venda inclui a vaga de garagem nº 12; vistoria antes da entrega das chaves."
               onChange={(e) => set("observacoes", e.target.value)}
             />
           </div>

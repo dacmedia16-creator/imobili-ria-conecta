@@ -29,6 +29,9 @@ export const criarProposta = (captureId: string, leadId: string | null) =>
   rpc<Record<string, unknown>>("proposta_criar", { _capture_id: captureId, _lead_id: leadId });
 export const salvarProposta = (id: string, dados: Record<string, unknown>) =>
   rpc<Record<string, unknown>>("proposta_salvar", { _id: id, _dados: dados });
+/** Rascunho: fixa a data do documento e o cadastro da imobiliária antes de gerar o PDF (t_b4e7c368). */
+export const prepararPdfProposta = (id: string) =>
+  rpc<Record<string, unknown>>("proposta_preparar_pdf", { _id: id });
 export const registrarPdfProposta = (id: string, versao: number, pdfHash: string) =>
   rpc<Record<string, unknown>>("proposta_registrar_pdf", {
     _id: id,

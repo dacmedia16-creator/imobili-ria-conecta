@@ -5,7 +5,7 @@ import {
   PAPEL_LABEL,
   SINAL_TIPO_LABEL,
   SITUACAO_LABEL,
-  TEXTO_PENDENTE,
+  AVISO_TEXTO_ADVOGADO,
   TOKEN_RE,
   textoErroAssinatura,
   type ErroPublico,
@@ -15,7 +15,6 @@ import { assinarPropostaLink, lerPropostaLink } from "@/lib/proposta-compra.func
 import { formatBRL } from "@/lib/formato-moeda";
 import {
   CERTIDOES_LABEL,
-  CLAUSULAS_PENDENTES,
   dataBr,
   dataHoraSp,
 } from "@/lib/proposta-compra-tela";
@@ -232,7 +231,7 @@ function Conteudo({
           {temSinal && (
             <Linha
               rotulo="Sinal"
-              valor={`${v.sinal != null ? formatBRL(v.sinal) : "—"}${v.sinalPrazoDias != null ? `, pago em até ${v.sinalPrazoDias} dia(s) após o aceite` : ""} (${SINAL_TIPO_LABEL.toLowerCase()})`}
+              valor={`${v.sinal != null ? formatBRL(v.sinal) : "—"}${v.sinalPrazoDias != null ? `, pago em até ${v.sinalPrazoDias} dia(s) após o aceite` : ""} (${SINAL_TIPO_LABEL[v.sinalTipo].toLowerCase()})`}
             />
           )}
           {v.formaPagamento === "sinal_financiamento" && (
@@ -266,8 +265,7 @@ function Conteudo({
         className="rounded-xl border border-[#d4a017] bg-[#fff8e1] p-3 text-sm"
         data-testid="clausulas-pendentes-publico"
       >
-        <p className="font-semibold">{TEXTO_PENDENTE}</p>
-        <p className="text-[#5d6678]">{CLAUSULAS_PENDENTES.join(" · ")}</p>
+        <p className="font-semibold">{AVISO_TEXTO_ADVOGADO}</p>
       </section>
 
       {assinou ? (

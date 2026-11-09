@@ -7,14 +7,25 @@ import {
   PAPEIS,
   PAPEL_LABEL,
   SITUACOES,
+  TERMOS_NUMERO,
+  TERMOS_TEXTO,
   VALIDADE_PADRAO_DIAS,
   diasParaVencer,
+  lerCadastro,
+  lerSinalTipo,
+  lerTermos,
   precisaConjuge,
+  type Cadastro,
   type EstadoCivil,
   type FormaPagamento,
   type Papel,
+  type SinalTipo,
   type Situacao,
+  type TermoNumero,
+  type TermoTexto,
+  type Termos,
 } from "@/lib/proposta-compra";
+import type { TextoInput } from "@/lib/proposta-compra-texto";
 
 export const ESTADO_CIVIL_LABEL: Record<EstadoCivil, string> = {
   solteiro: "Solteiro(a)",
@@ -25,20 +36,12 @@ export const ESTADO_CIVIL_LABEL: Record<EstadoCivil, string> = {
   separado: "Separado(a)",
 };
 
+/** Texto oficial: "proteção do comprador/certidões" marcada (padrão) ou não. */
 export const CERTIDOES_LABEL = {
-  vendedor_apresenta: "Vendedor apresenta as certidões",
-  dispensadas: "Dispensadas pelo comprador",
+  vendedor_apresenta: "Proteger o comprador pelas certidões (recomendado)",
+  dispensadas: "Sem a cláusula de proteção pelas certidões",
 } as const;
 export type Certidoes = keyof typeof CERTIDOES_LABEL;
-
-/** Cláusulas jurídicas que ficam como bloco "texto pendente de revisão" (o texto vem do MAX Jurídico). */
-export const CLAUSULAS_PENDENTES = [
-  "Sinal e arras confirmatórias",
-  "Desistência e arrependimento",
-  "Despesas de escritura, ITBI e registro",
-  "Certidões",
-  "Comissão de intermediação",
-] as const;
 
 export const TOM_SITUACAO: Record<
   Situacao,
@@ -95,6 +98,7 @@ export type Imovel = Partial<
     | "matricula"
     | "cartorio"
     | "iptu"
+    | "codigo"
     | "valor_anunciado",
     string
   >
@@ -113,6 +117,7 @@ export type PropostaDetalhe = {
   formaPagamento: FormaPagamento | null;
   sinalValor: number | null;
   sinalPrazoDias: number | null;
+  sinalTipo: SinalTipo;
   financiamentoBanco: string | null;
   financiamentoValor: number | null;
   validadeDias: number;
@@ -120,6 +125,12 @@ export type PropostaDetalhe = {
   prazoContratoDias: number | null;
   certidoes: Certidoes | null;
   observacoes: string | null;
+  termos: Termos;
+  /** Data do documento e cadastro fixados com o PDF (o que vale no texto assinado). */
+  documentoData: string | null;
+  cadastro: Cadastro | null;
+  /** Cadastro de agora (aviso de dado faltando antes de gerar o PDF). */
+  cadastroAtual: Cadastro;
   pdfHash: string | null;
   conteudoHash: string | null;
   enviadaEm: string | null;
@@ -230,11 +241,13 @@ export function lerDetalhe(raw: unknown): PropostaDetalhe {
     "matricula",
     "cartorio",
     "iptu",
+    "codigo",
     "valor_anunciado",
   ] as const) {
     const v = str(im[k]);
     if (v) imovel[k] = v;
   }
+  const docData = str(r.documento_data);
   return {
     id,
     documento: str(r.documento) ?? "",
@@ -248,6 +261,7 @@ export function lerDetalhe(raw: unknown): PropostaDetalhe {
     formaPagamento: umDe(FORMAS_PAGAMENTO, r.forma_pagamento),
     sinalValor: num(r.sinal_valor),
     sinalPrazoDias: num(r.sinal_prazo_dias),
+    sinalTipo: lerSinalTipo(r.sinal_tipo),
     financiamentoBanco: str(r.financiamento_banco),
     financiamentoValor: num(r.financiamento_valor),
     validadeDias: num(r.validade_dias) ?? VALIDADE_PADRAO_DIAS,
@@ -256,6 +270,10 @@ export function lerDetalhe(raw: unknown): PropostaDetalhe {
     certidoes:
       r.certidoes === "vendedor_apresenta" || r.certidoes === "dispensadas" ? r.certidoes : null,
     observacoes: str(r.observacoes),
+    termos: lerTermos(r.termos),
+    documentoData: docData && /^\d{4}-\d{2}-\d{2}$/.test(docData) ? docData : null,
+    cadastro: r.cadastro && typeof r.cadastro === "object" ? lerCadastro(r.cadastro) : null,
+    cadastroAtual: lerCadastro(r.cadastro_atual),
     pdfHash: str(r.pdf_hash),
     conteudoHash: str(r.conteudo_hash),
     enviadaEm: str(r.enviada_em),
@@ -306,12 +324,16 @@ export type PropostaForm = {
   formaPagamento: FormaPagamento | "";
   sinalValor: string;
   sinalPrazoDias: string;
+  /** D7 revista: confirmatórias (padrão) ou penitenciais. */
+  sinalTipo: SinalTipo;
   financiamentoBanco: string;
   financiamentoValor: string;
   validadeDias: string;
   prazoContratoDias: string;
   certidoes: Certidoes | "";
   observacoes: string;
+  /** Campos do texto oficial (textos livres e valores digitados). */
+  termos: Partial<Record<TermoTexto | TermoNumero, string>>;
   partes: ParteForm[];
 };
 
@@ -360,13 +382,84 @@ export function formDoDetalhe(d: PropostaDetalhe): PropostaForm {
     formaPagamento: d.formaPagamento ?? "",
     sinalValor: valorTexto(d.sinalValor),
     sinalPrazoDias: d.sinalPrazoDias == null ? "" : String(d.sinalPrazoDias),
+    sinalTipo: d.sinalTipo,
     financiamentoBanco: d.financiamentoBanco ?? "",
     financiamentoValor: valorTexto(d.financiamentoValor),
     validadeDias: String(d.validadeDias || VALIDADE_PADRAO_DIAS),
     prazoContratoDias: d.prazoContratoDias == null ? "" : String(d.prazoContratoDias),
     certidoes: d.certidoes ?? "",
     observacoes: d.observacoes ?? "",
+    termos: termosForm(d.termos),
     partes: d.partes.map(parteForm).filter((x): x is ParteForm => x !== null),
+  };
+}
+
+const TERMOS_VALOR: readonly TermoNumero[] = ["proprios_valor", "fgts_valor", "permuta_valor"];
+function termosForm(t: Termos): PropostaForm["termos"] {
+  const out: PropostaForm["termos"] = {};
+  for (const k of TERMOS_TEXTO) if (t[k]) out[k] = String(t[k]);
+  for (const k of TERMOS_NUMERO) {
+    const v = t[k];
+    if (v != null) out[k] = TERMOS_VALOR.includes(k) ? valorTexto(v) : String(v);
+  }
+  return out;
+}
+
+/** Termos para proposta_salvar: textos aparados, valores em número (o banco limpa e valida de novo). */
+export function termosParaSalvar(f: PropostaForm): Record<string, string | number | null> {
+  const t = f.termos;
+  const out: Record<string, string | number | null> = {};
+  const pj = f.partes.find((p) => p.papel === "comprador")?.tipoPessoa === "juridica";
+  for (const k of TERMOS_TEXTO) {
+    const v = (t[k] ?? "").trim();
+    out[k] = v || null;
+  }
+  // Campos que não valem para o tipo de comprador saem (PF não tem representante; PJ não tem RG/regime).
+  const fora: TermoTexto[] = pj
+    ? ["comprador_rg", "comprador_nacionalidade", "comprador_profissao", "comprador_regime"]
+    : ["comprador_representante", "comprador_representante_cpf", "comprador_cargo"];
+  for (const k of fora) out[k] = null;
+  const compr = f.partes.find((p) => p.papel === "comprador");
+  if (!pj && !precisaConjuge(compr?.estadoCivil)) out.comprador_regime = null;
+  if (out.comprador_representante_cpf)
+    out.comprador_representante_cpf = String(out.comprador_representante_cpf).replace(/\D/g, "");
+  for (const k of TERMOS_VALOR) out[k] = lerValor(t[k] ?? "") || null;
+  const fp = inteiro(t.fin_prazo_dias ?? "");
+  out.fin_prazo_dias = fp && fp >= 1 && fp <= 365 ? fp : null;
+  return out;
+}
+
+/** Entrada do texto oficial a partir do detalhe (o que foi gravado; cadastro fixado ou o de agora na prévia). */
+export function textoDoDetalhe(d: PropostaDetalhe): TextoInput {
+  return {
+    documento: d.documento,
+    versao: d.versao,
+    imovel: d.imovel,
+    valorOferta: d.valorOferta,
+    formaPagamento: d.formaPagamento,
+    sinalValor: d.sinalValor,
+    sinalPrazoDias: d.sinalPrazoDias,
+    sinalTipo: d.sinalTipo,
+    financiamentoBanco: d.financiamentoBanco,
+    financiamentoValor: d.financiamentoValor,
+    validadeDias: d.validadeDias,
+    prazoContratoDias: d.prazoContratoDias,
+    certidoes: d.certidoes,
+    observacoes: d.observacoes,
+    termos: d.termos,
+    cadastro: d.cadastro ?? d.cadastroAtual,
+    documentoData: d.documentoData,
+    corretorNome: d.corretorNome,
+    partes: d.partes.map((x) => ({
+      papel: x.papel,
+      ordem: x.ordem,
+      tipoPessoa: x.tipoPessoa,
+      nome: x.nome,
+      cpfCnpj: x.cpfCnpj,
+      estadoCivil: x.estadoCivil,
+      telefone: x.telefone,
+      email: x.email,
+    })),
   };
 }
 
@@ -419,12 +512,14 @@ export function dadosParaSalvar(f: PropostaForm): Record<string, unknown> {
     forma_pagamento: forma,
     sinal_valor: temSinal ? lerValor(f.sinalValor) : null,
     sinal_prazo_dias: temSinal ? inteiro(f.sinalPrazoDias) : null,
+    sinal_tipo: f.sinalTipo,
     financiamento_banco: fin ? f.financiamentoBanco.trim() || null : null,
     financiamento_valor: fin ? lerValor(f.financiamentoValor) : null,
     validade_dias: validade && validade >= 1 && validade <= 30 ? validade : VALIDADE_PADRAO_DIAS,
     prazo_contrato_dias: inteiro(f.prazoContratoDias),
     certidoes: f.certidoes || null,
     observacoes: f.observacoes.trim() || null,
+    termos: termosParaSalvar(f),
     partes: ajustarConjuges(f.partes).map((p) => ({
       papel: p.papel,
       ordem: p.ordem,

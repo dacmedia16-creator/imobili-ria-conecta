@@ -57,13 +57,31 @@ export const ESTADOS_CIVIS = [
 ] as const;
 export type EstadoCivil = (typeof ESTADOS_CIVIS)[number];
 
-/** D9 (Denis 09/11): validade padrão de 5 dias CORRIDOS, contados a partir do envio. */
+/** D9 (Denis 09/11): validade padrão de 5 dias CORRIDOS, contados da data do documento. */
 export const VALIDADE_PADRAO_DIAS = 5;
-/** D7 = A (Denis 09/11): sinal sempre como arras confirmatórias. Não é escolha do corretor. */
-export const SINAL_TIPO = "confirmatorias" as const;
-export const SINAL_TIPO_LABEL = "Arras confirmatórias";
-/** Cláusulas jurídicas: o texto vem do MAX Jurídico após revisão do advogado. Sem ele, não publicar. */
-export const TEXTO_PENDENTE = "Texto pendente de revisão";
+/** D7 revista (Denis 09/11, t_b4e7c368): como na Campolim, o corretor escolhe; padrão = confirmatórias. */
+export const SINAL_TIPOS = ["confirmatorias", "penitenciais"] as const;
+export type SinalTipo = (typeof SINAL_TIPOS)[number];
+export const SINAL_TIPO_PADRAO: SinalTipo = "confirmatorias";
+/** Rótulos da tela iguais aos da Campolim. */
+export const SINAL_TIPO_LABEL: Record<SinalTipo, string> = {
+  confirmatorias: "Confirmatório (padrão da lei)",
+  penitenciais: "Com direito de arrependimento",
+};
+export const SINAL_TIPO_AJUDA: Record<SinalTipo, string> = {
+  confirmatorias: "confirma o negócio e faz parte do preço.",
+  penitenciais: "quem desistir perde o sinal (ou devolve em dobro) e nada mais é cobrado.",
+};
+export const lerSinalTipo = (v: unknown): SinalTipo =>
+  v === "penitenciais" ? "penitenciais" : SINAL_TIPO_PADRAO;
+/**
+ * MARCAÇÃO INTERNA (t_b4e7c368): o texto oficial (Campolim ajustado, aprovado por Denis em 09/11) AINDA DEPENDE da
+ * aprovação do advogado. Enquanto for false, a publicação continua bloqueada (além do "sim" de Denis).
+ * Só mude para true com a aprovação registrada do advogado.
+ */
+export const TEXTO_APROVADO_ADVOGADO = false;
+export const AVISO_TEXTO_ADVOGADO =
+  "Texto oficial (Campolim ajustado) ainda depende da aprovação do advogado. Não publicar.";
 
 export const CODIGO_RE = /^[0-9]{6}$/;
 export const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
@@ -152,7 +170,14 @@ export function montarMensagem(d: DadosMensagem): string {
 
 // --- Resposta pública (proposta_publica_ler) — lista fechada --------------------------------------------------
 
-export type ParteVisivel = { papel: Papel; ordem: number; nome: string | null; assinou: boolean };
+export type ParteVisivel = {
+  papel: Papel;
+  ordem: number;
+  nome: string | null;
+  assinou: boolean;
+  tipoPessoa: "fisica" | "juridica";
+  estadoCivil: EstadoCivil | null;
+};
 export type PropostaPublica = {
   imobiliaria: string;
   documento: string;
@@ -168,15 +193,19 @@ export type PropostaPublica = {
     assinadoEm: string | null;
   };
   imovel: Record<
-    "tipo" | "endereco" | "complemento" | "bairro" | "cidade" | "uf" | "matricula" | "cartorio",
+    "tipo" | "endereco" | "complemento" | "bairro" | "cidade" | "uf" | "matricula" | "cartorio" | "iptu",
     string | null
   >;
+  /** Texto oficial: termos sem dado pessoal/bancário (o banco já tira RG, endereço, CPF do representante e conta). */
+  termos: Record<string, string | number>;
+  documentoData: string | null;
+  cadastro: Record<string, string>;
   valores: {
     oferta: number | null;
     formaPagamento: FormaPagamento | null;
     sinal: number | null;
     sinalPrazoDias: number | null;
-    sinalTipo: typeof SINAL_TIPO;
+    sinalTipo: SinalTipo;
     financiamentoBanco: string | null;
     financiamentoValor: number | null;
   };
@@ -202,6 +231,87 @@ const papel = (v: unknown): Papel | null =>
   (PAPEIS as readonly string[]).includes(v as string) ? (v as Papel) : null;
 const obj = (v: unknown): Record<string, unknown> =>
   v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+
+// --- Termos do texto oficial (coluna termos; lista fechada, igual a proposta_termos_limpar) ------------------
+export const TERMOS_TEXTO = [
+  "comprador_rg",
+  "comprador_nacionalidade",
+  "comprador_profissao",
+  "comprador_endereco",
+  "comprador_regime",
+  "comprador_representante",
+  "comprador_representante_cpf",
+  "comprador_cargo",
+  "vendedor_conta",
+  "imovel_descricao",
+  "sinal_forma",
+  "proprios_quando",
+  "permuta_descricao",
+  "parcelas",
+  "pagamento_obs",
+  "itens",
+  "posse",
+  "local",
+  "comissao_quem",
+] as const;
+export const TERMOS_NUMERO = [
+  "proprios_valor",
+  "fgts_valor",
+  "permuta_valor",
+  "fin_prazo_dias",
+] as const;
+export type TermoTexto = (typeof TERMOS_TEXTO)[number];
+export type TermoNumero = (typeof TERMOS_NUMERO)[number];
+export type Termos = Partial<Record<TermoTexto, string> & Record<TermoNumero, number>>;
+/** O que o link público recebe (o banco tira RG, endereço, CPF do representante e conta do vendedor). */
+export const TERMOS_PRIVADOS: readonly TermoTexto[] = [
+  "comprador_rg",
+  "comprador_endereco",
+  "comprador_representante_cpf",
+  "vendedor_conta",
+];
+const TERMOS_PUBLICOS: readonly string[] = [...TERMOS_TEXTO, ...TERMOS_NUMERO].filter(
+  (k) => !(TERMOS_PRIVADOS as readonly string[]).includes(k),
+);
+
+export function lerTermos(
+  raw: unknown,
+  permitidos: readonly string[] = [...TERMOS_TEXTO, ...TERMOS_NUMERO],
+): Termos {
+  const r = obj(raw);
+  const out: Record<string, string | number> = {};
+  for (const k of permitidos) {
+    if ((TERMOS_NUMERO as readonly string[]).includes(k)) {
+      const n = num(r[k]);
+      if (n != null && n > 0) out[k] = n;
+    } else {
+      const s = str(r[k]);
+      if (s) out[k] = s.trim();
+    }
+  }
+  return out as Termos;
+}
+
+export const CADASTRO_CHAVES = [
+  "nome",
+  "razao_social",
+  "cnpj",
+  "creci",
+  "endereco",
+  "cidade",
+  "uf",
+  "corretor_creci",
+] as const;
+export type Cadastro = Partial<Record<(typeof CADASTRO_CHAVES)[number], string>>;
+export function lerCadastro(raw: unknown): Cadastro {
+  const r = obj(raw);
+  const out: Cadastro = {};
+  for (const k of CADASTRO_CHAVES) {
+    const s = str(r[k]);
+    if (s) out[k] = s.trim();
+  }
+  return out;
+}
 
 /** Copia SÓ os campos permitidos (mesmo que o banco mande algo a mais). */
 export function lerPropostaPublica(raw: unknown): LeituraPublica {
@@ -254,13 +364,20 @@ export function lerPropostaPublica(raw: unknown): LeituraPublica {
         uf: str(im.uf),
         matricula: str(im.matricula),
         cartorio: str(im.cartorio),
+        iptu: str(im.iptu),
       },
+      termos: lerTermos(r.termos, TERMOS_PUBLICOS),
+      documentoData: (() => {
+        const d = str(r.documento_data);
+        return d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
+      })(),
+      cadastro: lerCadastro(r.cadastro),
       valores: {
         oferta: num(v.oferta),
         formaPagamento: forma,
         sinal: num(v.sinal),
         sinalPrazoDias: num(v.sinal_prazo_dias),
-        sinalTipo: SINAL_TIPO,
+        sinalTipo: lerSinalTipo(v.sinal_tipo),
         financiamentoBanco: str(v.financiamento_banco),
         financiamentoValor: num(v.financiamento_valor),
       },
@@ -278,6 +395,10 @@ export function lerPropostaPublica(raw: unknown): LeituraPublica {
           ordem: num(x.ordem) ?? 1,
           nome: str(x.nome),
           assinou: x.assinou === true,
+          tipoPessoa: x.tipo_pessoa === "juridica" ? ("juridica" as const) : ("fisica" as const),
+          estadoCivil: (ESTADOS_CIVIS as readonly string[]).includes(x.estado_civil as string)
+            ? (x.estado_civil as EstadoCivil)
+            : null,
         })),
       corretor: { nome: str(cor.nome), whatsapp: waMe(str(cor.telefone)) },
     },

@@ -15,9 +15,13 @@
 --   só o SHA-256 do token. O código de 6 dígitos também é HMAC(id do código, chave) e a tabela guarda só o hash.
 --   O código nunca volta para o navegador do corretor: só o servidor do ADM (service_role) o lê para enviar.
 --
--- Decisões de Denis (09/11): validade padrão 5 dias CORRIDOS (D9), contada a partir do envio; assinatura = link +
--- código de 6 dígitos pelo WhatsApp, sem camada extra (D8); sinal SEMPRE arras confirmatórias, sem campo de
--- escolha (D7 = A; coluna fixa sinal_tipo). Cláusulas jurídicas ficam "texto pendente de revisão" (não estão aqui).
+-- Decisões de Denis (09/11): validade padrão 5 dias CORRIDOS (D9); assinatura = link + código de 6 dígitos pelo
+-- WhatsApp, sem camada extra (D8); D7 REVISTA (09/11, t_b4e7c368): tipo de sinal como na Campolim — arras
+-- confirmatórias (padrão) ou penitenciais, gravado em sinal_tipo. Texto oficial (Campolim ajustado) montado pela tela
+-- (src/lib/proposta-compra-texto.ts) a partir das colunas + termos; ainda depende de aprovação do advogado.
+-- Data do documento: gravada com o PDF (documento_data = hoje); a validade conta dela (validade_ate = data + dias) e o
+-- envio exige PDF do mesmo dia. Dados da imobiliária (nome, razão social, CNPJ, CRECI, endereço) e CRECI do corretor
+-- vêm do cadastro e ficam retratados em `cadastro` quando o PDF é gerado (o texto assinado não muda depois).
 --
 -- Situações gravadas: rascunho, aguardando_assinaturas, aceita, recusada, contraproposta.
 -- "vencida" é calculada na leitura (aguardando_assinaturas com validade_ate < hoje em São Paulo); sem cron novo.
@@ -82,6 +86,41 @@ $$;
 REVOKE ALL ON FUNCTION public.proposta_compra_enabled() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.proposta_compra_enabled() TO authenticated, service_role;
 
+-- 1b) Endereço da imobiliária no cadastro (t_b4e7c368): o texto oficial da proposta usa nome, razão social, CNPJ,
+-- CRECI-J e endereço do cadastro do ADM MAX; o cadastro não tinha endereço. Coluna aditiva, vazia para todas;
+-- o admin preenche em "Dados da imobiliária" (agency_profile_save ganha a chave 'endereco').
+ALTER TABLE public.organizations ADD COLUMN endereco text
+  CONSTRAINT organizations_endereco_check CHECK (endereco IS NULL OR length(btrim(endereco)) BETWEEN 5 AND 200);
+
+CREATE OR REPLACE FUNCTION public.agency_profile_save(_data jsonb) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE _org uuid := public.current_org_id();
+BEGIN
+  IF NOT public.agency_can_edit() THEN
+    RAISE EXCEPTION 'Sem permissão para editar dados da imobiliária' USING ERRCODE='42501';
+  END IF;
+  IF _data IS NULL OR jsonb_typeof(_data) <> 'object' OR
+    EXISTS (SELECT 1 FROM jsonb_object_keys(_data) k WHERE k NOT IN
+      ('razao_social','creci','cidade','uf','cor_primaria','cor_secundaria','logo_path','endereco')) THEN
+    RAISE EXCEPTION 'Campos inválidos' USING ERRCODE='22023';
+  END IF;
+  IF _data ? 'logo_path' AND nullif(_data->>'logo_path','') IS NOT NULL
+    AND (_data->>'logo_path' !~ ('^' || _org::text || '/logo-[A-Za-z0-9-]+[.](png|jpg|webp)$')) THEN
+    RAISE EXCEPTION 'Logo deve pertencer à imobiliária' USING ERRCODE='42501';
+  END IF;
+  UPDATE public.organizations SET
+    razao_social = CASE WHEN _data ? 'razao_social' THEN nullif(btrim(_data->>'razao_social'),'') ELSE razao_social END,
+    creci = CASE WHEN _data ? 'creci' THEN nullif(btrim(_data->>'creci'),'') ELSE creci END,
+    cidade = CASE WHEN _data ? 'cidade' THEN nullif(btrim(_data->>'cidade'),'') ELSE cidade END,
+    uf = CASE WHEN _data ? 'uf' THEN nullif(upper(btrim(_data->>'uf')),'') ELSE uf END,
+    cor_primaria = CASE WHEN _data ? 'cor_primaria' THEN nullif(lower(btrim(_data->>'cor_primaria')),'') ELSE cor_primaria END,
+    cor_secundaria = CASE WHEN _data ? 'cor_secundaria' THEN nullif(lower(btrim(_data->>'cor_secundaria')),'') ELSE cor_secundaria END,
+    logo_path = CASE WHEN _data ? 'logo_path' THEN nullif(_data->>'logo_path','') ELSE logo_path END,
+    endereco = CASE WHEN _data ? 'endereco' THEN nullif(btrim(_data->>'endereco'),'') ELSE endereco END
+  WHERE id=_org;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Imobiliária não encontrada' USING ERRCODE='42501'; END IF;
+END $$;
+
 -- 2) Tabelas (sem acesso direto: RLS ligada e nenhum grant a anon/authenticated; tudo pelas RPCs) ------------------
 CREATE TABLE public.propostas_compra (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -101,9 +140,14 @@ CREATE TABLE public.propostas_compra (
     CHECK (forma_pagamento IN ('a_vista', 'sinal_financiamento', 'sinal_parcelas')),
   sinal_valor numeric(14, 2) CONSTRAINT propostas_compra_sinal_check CHECK (sinal_valor >= 0),
   sinal_prazo_dias integer CONSTRAINT propostas_compra_sinal_prazo_check CHECK (sinal_prazo_dias BETWEEN 0 AND 365),
-  -- D7 = A (Denis 09/11): sempre arras confirmatórias. Não é escolha: a coluna só registra o que valeu.
+  -- D7 revista (Denis 09/11): como na Campolim, confirmatórias (padrão) ou penitenciais (direito de arrependimento).
   sinal_tipo text NOT NULL DEFAULT 'confirmatorias' CONSTRAINT propostas_compra_sinal_tipo_check
-    CHECK (sinal_tipo = 'confirmatorias'),
+    CHECK (sinal_tipo IN ('confirmatorias', 'penitenciais')),
+  -- Campos do texto oficial que não têm coluna própria (lista fechada, limpa por proposta_termos_limpar).
+  termos jsonb NOT NULL DEFAULT '{}'::jsonb CONSTRAINT propostas_compra_termos_check CHECK (jsonb_typeof(termos) = 'object'),
+  -- Data do documento (= dia em que o PDF da versão foi gerado) e retrato do cadastro da imobiliária/corretor.
+  documento_data date,
+  cadastro jsonb CONSTRAINT propostas_compra_cadastro_check CHECK (cadastro IS NULL OR jsonb_typeof(cadastro) = 'object'),
   financiamento_banco text CONSTRAINT propostas_compra_banco_check CHECK (char_length(financiamento_banco) <= 80),
   financiamento_valor numeric(14, 2) CONSTRAINT propostas_compra_financiado_check CHECK (financiamento_valor >= 0),
   -- D9: dias corridos, padrão 5. validade_ate = data do envio (São Paulo) + validade_dias.
@@ -334,8 +378,64 @@ $$;
 CREATE OR REPLACE FUNCTION public.proposta_codigo_documento(_id uuid) RETURNS text
 LANGUAGE sql IMMUTABLE SET search_path TO '' AS $$ SELECT 'PC-' || upper(left(replace(_id::text, '-', ''), 8)) $$;
 
--- Conteúdo assinável da versão (o que vai no texto/PDF). Telefone/e-mail não entram: trocar contato não
--- invalida assinatura. O hash deste JSON é gravado em cada assinatura.
+-- Campos do texto oficial sem coluna própria (t_b4e7c368): lista fechada; vazio sai; chave desconhecida = erro.
+CREATE OR REPLACE FUNCTION public.proposta_termos_limpar(_t jsonb) RETURNS jsonb
+LANGUAGE plpgsql IMMUTABLE SET search_path TO '' AS $$
+DECLARE _k text; _v jsonb; _s text; _max int; _out jsonb := '{}'::jsonb;
+BEGIN
+  IF _t IS NULL OR jsonb_typeof(_t) = 'null' THEN RETURN _out; END IF;
+  IF jsonb_typeof(_t) <> 'object' THEN RAISE EXCEPTION 'Termos inválidos' USING ERRCODE = '22023'; END IF;
+  FOR _k, _v IN SELECT key, value FROM jsonb_each(_t) LOOP
+    CONTINUE WHEN jsonb_typeof(_v) = 'null' OR btrim(_v #>> '{}') = '';
+    _s := btrim(_v #>> '{}');
+    _max := CASE _k WHEN 'comprador_rg' THEN 40 WHEN 'comprador_nacionalidade' THEN 60 WHEN 'comprador_profissao' THEN 80
+      WHEN 'comprador_endereco' THEN 300 WHEN 'comprador_representante' THEN 160 WHEN 'comprador_cargo' THEN 80
+      WHEN 'vendedor_conta' THEN 200 WHEN 'imovel_descricao' THEN 300
+      WHEN 'proprios_quando' THEN 200 WHEN 'permuta_descricao' THEN 300 WHEN 'parcelas' THEN 900
+      WHEN 'pagamento_obs' THEN 900 WHEN 'itens' THEN 900 WHEN 'posse' THEN 300 WHEN 'local' THEN 80 END;
+    IF _max IS NOT NULL THEN
+      IF char_length(_s) > _max THEN RAISE EXCEPTION 'Texto longo demais (%)', _k USING ERRCODE = '22023'; END IF;
+      _out := _out || jsonb_build_object(_k, _s);
+    ELSIF _k IN ('proprios_valor', 'fgts_valor', 'permuta_valor') THEN
+      IF _s !~ '^[0-9]{1,12}([.][0-9]{1,2})?$' THEN RAISE EXCEPTION 'Valor inválido (%)', _k USING ERRCODE = '22023'; END IF;
+      IF _s::numeric > 0 THEN _out := _out || jsonb_build_object(_k, _s::numeric); END IF;
+    ELSIF _k = 'fin_prazo_dias' THEN
+      IF _s !~ '^[0-9]{1,3}$' OR _s::int NOT BETWEEN 1 AND 365 THEN
+        RAISE EXCEPTION 'Prazo de aprovação inválido' USING ERRCODE = '22023';
+      END IF;
+      _out := _out || jsonb_build_object(_k, _s::int);
+    ELSIF _k = 'comprador_representante_cpf' THEN
+      _s := regexp_replace(_s, '[^0-9]', '', 'g');
+      IF _s !~ '^[0-9]{11}$' THEN RAISE EXCEPTION 'CPF do representante inválido' USING ERRCODE = '22023'; END IF;
+      _out := _out || jsonb_build_object(_k, _s);
+    ELSIF (_k = 'comprador_regime' AND _s IN ('comunhão parcial de bens', 'comunhão universal de bens',
+             'separação total de bens', 'participação final nos aquestos'))
+       OR (_k = 'sinal_forma' AND _s IN ('PIX', 'transferência bancária (TED)', 'cheque', 'dinheiro'))
+       OR (_k = 'comissao_quem' AND _s IN ('vendedor(a)', 'comprador(a)', 'conforme a autorização de venda')) THEN
+      _out := _out || jsonb_build_object(_k, _s);
+    ELSE
+      RAISE EXCEPTION 'Campo inválido (%)', _k USING ERRCODE = '22023';
+    END IF;
+  END LOOP;
+  RETURN _out;
+END $$;
+
+-- Retrato do cadastro para o texto (t_b4e7c368): imobiliária (nome, razão social, CNPJ, CRECI, endereço, cidade/UF)
+-- e CRECI do corretor do negócio. Sem dado no cadastro = chave ausente (a tela avisa; nada é inventado).
+CREATE OR REPLACE FUNCTION public.proposta_cadastro(_org uuid, _corretor uuid) RETURNS jsonb
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$
+  SELECT jsonb_strip_nulls(jsonb_build_object(
+    'nome', nullif(btrim(o.nome), ''), 'razao_social', nullif(btrim(o.razao_social), ''),
+    'cnpj', CASE WHEN regexp_replace(coalesce(o.cnpj, ''), '[^0-9]', '', 'g') ~ '^[0-9]{14}$'
+                 THEN regexp_replace(o.cnpj, '[^0-9]', '', 'g') END,
+    'creci', public.creci_real(o.creci), 'endereco', nullif(btrim(o.endereco), ''),
+    'cidade', nullif(btrim(o.cidade), ''), 'uf', nullif(btrim(o.uf), ''),
+    'corretor_creci', (SELECT public.creci_real(pr.creci) FROM public.profiles pr WHERE pr.id = _corretor)))
+  FROM public.organizations o WHERE o.id = _org
+$$;
+
+-- Conteúdo assinável da versão (tudo o que vai no texto/PDF, inclusive celular e e-mail, que aparecem na
+-- qualificação e na tabela de signatários). O hash deste JSON é gravado em cada assinatura.
 CREATE OR REPLACE FUNCTION public.proposta_conteudo(_id uuid) RETURNS jsonb
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$
   SELECT jsonb_build_object(
@@ -344,8 +444,10 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$
     'sinal_prazo_dias', p.sinal_prazo_dias, 'sinal_tipo', p.sinal_tipo, 'financiamento_banco', p.financiamento_banco,
     'financiamento_valor', p.financiamento_valor, 'validade_dias', p.validade_dias,
     'prazo_contrato_dias', p.prazo_contrato_dias, 'certidoes', p.certidoes, 'observacoes', p.observacoes,
+    'termos', p.termos, 'documento_data', p.documento_data, 'cadastro', p.cadastro,
     'partes', coalesce((SELECT jsonb_agg(jsonb_build_object('papel', x.papel, 'ordem', x.ordem, 'tipo_pessoa', x.tipo_pessoa,
-                 'nome', x.nome, 'cpf_cnpj', x.cpf_cnpj, 'estado_civil', x.estado_civil) ORDER BY x.papel, x.ordem)
+                 'nome', x.nome, 'cpf_cnpj', x.cpf_cnpj, 'estado_civil', x.estado_civil, 'telefone', x.telefone,
+                 'email', x.email) ORDER BY x.papel, x.ordem)
                FROM public.proposta_partes x WHERE x.proposta_id = p.id), '[]'::jsonb))
   FROM public.propostas_compra p WHERE p.id = _id
 $$;
@@ -474,7 +576,10 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM public.proposta_partes WHERE proposta_id = _id AND papel = 'corretor') THEN
     _f := array_append(_f, 'corretor');
   END IF;
-  IF _p.pdf_hash IS NULL THEN _f := array_append(_f, 'PDF da proposta (gere a prévia)'); END IF;
+  -- O PDF leva a data do documento e a data-limite da validade: só vale o PDF gerado hoje.
+  IF _p.pdf_hash IS NULL OR _p.documento_data IS DISTINCT FROM public.proposta_hoje() THEN
+    _f := array_append(_f, 'PDF da proposta (gere a prévia)');
+  END IF;
   RETURN _f;
 END $$;
 
@@ -507,6 +612,7 @@ REVOKE ALL ON FUNCTION public.proposta_hoje(), public.proposta_sha(text), public
   public.proposta_estado_civil(text), public.proposta_fone(text), public.proposta_doc(text),
   public.proposta_precisa_conjuge(text), public.proposta_situacao(text, date), public.proposta_codigo_documento(uuid),
   public.proposta_conteudo(uuid), public.proposta_conteudo_hash(uuid),
+  public.proposta_termos_limpar(jsonb), public.proposta_cadastro(uuid, uuid),
   public.proposta_evento(public.propostas_compra, text, text),
   public.proposta_parte_inserir(uuid, uuid, text, integer, text, text, text, text, text, text, uuid, text),
   public.proposta_invalidar(uuid, text, boolean), public.proposta_ctx(), public.proposta_pode_ver(public.propostas_compra),
@@ -532,6 +638,9 @@ BEGIN
     'financiamento_banco', _p.financiamento_banco, 'financiamento_valor', _p.financiamento_valor,
     'validade_dias', _p.validade_dias, 'validade_ate', _p.validade_ate, 'prazo_contrato_dias', _p.prazo_contrato_dias,
     'certidoes', _p.certidoes, 'observacoes', _p.observacoes, 'pdf_hash', _p.pdf_hash,
+    'termos', _p.termos, 'documento_data', _p.documento_data, 'cadastro', _p.cadastro,
+    -- Cadastro de agora (para o aviso de dado faltando antes de gerar o PDF).
+    'cadastro_atual', public.proposta_cadastro(_p.organization_id, _p.corretor_id),
     'conteudo_hash', public.proposta_conteudo_hash(_p.id),
     'enviada_em', _p.enviada_em, 'aceita_em', _p.aceita_em, 'recusada_em', _p.recusada_em,
     'recusa_motivo', _p.recusa_motivo, 'venda_id', _p.venda_id, 'criado_em', _p.criado_em,
@@ -656,8 +765,11 @@ BEGIN
 
   _im := CASE WHEN jsonb_typeof(_c.form_data->'imovel') = 'object' THEN _c.form_data->'imovel' ELSE '{}'::jsonb END;
   _uf := upper(btrim(coalesce(_im->>'estado', '')));
-  INSERT INTO public.propostas_compra (id, organization_id, capture_id, lead_id, corretor_id, imovel, criado_por)
-  VALUES (_id, _org, _c.id, _l.id, _me, jsonb_strip_nulls(jsonb_build_object(
+  -- Padrões do texto oficial (t_b4e7c368): contrato em 15 dias, proteção das certidões marcada, sinal em 2 dias úteis.
+  INSERT INTO public.propostas_compra (id, organization_id, capture_id, lead_id, corretor_id, prazo_contrato_dias,
+    certidoes, sinal_prazo_dias, imovel, criado_por)
+  VALUES (_id, _org, _c.id, _l.id, _me, 15, 'vendedor_apresenta', 2, jsonb_strip_nulls(jsonb_build_object(
+      'codigo', upper(left(replace(_c.id::text, '-', ''), 8)),
       'tipo', nullif(btrim(_im->>'tipo_imovel'), ''), 'endereco', nullif(btrim(_im->>'endereco'), ''),
       'complemento', nullif(btrim(_im->>'complemento'), ''), 'bairro', nullif(btrim(_im->>'bairro'), ''),
       'cidade', nullif(btrim(_im->>'municipio'), ''), 'uf', CASE WHEN _uf ~ '^[A-Z]{2}$' THEN _uf ELSE nullif(btrim(_im->>'estado'), '') END,
@@ -717,6 +829,9 @@ BEGIN
     forma_pagamento = CASE WHEN _d ? 'forma_pagamento' THEN _d->>'forma_pagamento' ELSE forma_pagamento END,
     sinal_valor = CASE WHEN _d ? 'sinal_valor' THEN (_d->>'sinal_valor')::numeric ELSE sinal_valor END,
     sinal_prazo_dias = CASE WHEN _d ? 'sinal_prazo_dias' THEN (_d->>'sinal_prazo_dias')::int ELSE sinal_prazo_dias END,
+    -- Tipo de sinal (D7 revista): vazio = padrão confirmatórias; outro valor cai no CHECK.
+    sinal_tipo = CASE WHEN _d ? 'sinal_tipo' THEN coalesce(nullif(btrim(_d->>'sinal_tipo'), ''), 'confirmatorias') ELSE sinal_tipo END,
+    termos = CASE WHEN _d ? 'termos' THEN public.proposta_termos_limpar(_d->'termos') ELSE termos END,
     financiamento_banco = CASE WHEN _d ? 'financiamento_banco' THEN nullif(btrim(_d->>'financiamento_banco'), '') ELSE financiamento_banco END,
     financiamento_valor = CASE WHEN _d ? 'financiamento_valor' THEN (_d->>'financiamento_valor')::numeric ELSE financiamento_valor END,
     validade_dias = CASE WHEN _d ? 'validade_dias' THEN coalesce((_d->>'validade_dias')::int, 5) ELSE validade_dias END,
@@ -767,10 +882,12 @@ BEGIN
       -- Mudou o texto depois do envio: nova versão, assinaturas e códigos anteriores deixam de valer.
       PERFORM public.proposta_invalidar(_id, 'nova_versao', true);
       UPDATE public.propostas_compra SET versao = versao + 1, situacao = 'rascunho', pdf_hash = NULL,
-             validade_ate = NULL, atualizado_em = now() WHERE id = _id RETURNING * INTO _p;
+             documento_data = NULL, cadastro = NULL, validade_ate = NULL, atualizado_em = now()
+       WHERE id = _id RETURNING * INTO _p;
       PERFORM public.proposta_evento(_p, 'nova_versao', 'Texto ou valores alterados: assinaturas anteriores invalidadas');
     ELSE
-      UPDATE public.propostas_compra SET pdf_hash = NULL WHERE id = _id RETURNING * INTO _p;
+      UPDATE public.propostas_compra SET pdf_hash = NULL, documento_data = NULL, cadastro = NULL
+       WHERE id = _id RETURNING * INTO _p;
       PERFORM public.proposta_evento(_p, 'editada', NULL);
     END IF;
   END IF;
@@ -778,6 +895,25 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.proposta_salvar(uuid, jsonb) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.proposta_salvar(uuid, jsonb) TO authenticated;
+
+-- Antes de gerar o PDF (t_b4e7c368): no rascunho, fixa a data do documento (hoje, São Paulo) e o retrato do cadastro
+-- da imobiliária/corretor que vão no texto. Se algo mudou, o PDF anterior deixa de valer. Fora do rascunho não muda nada.
+CREATE OR REPLACE FUNCTION public.proposta_preparar_pdf(_id uuid) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
+DECLARE _p public.propostas_compra; _cad jsonb;
+BEGIN
+  _p := public.proposta_pega(_id);
+  IF _p.situacao = 'rascunho' THEN
+    _cad := public.proposta_cadastro(_p.organization_id, _p.corretor_id);
+    IF _p.documento_data IS DISTINCT FROM public.proposta_hoje() OR _p.cadastro IS DISTINCT FROM _cad THEN
+      UPDATE public.propostas_compra SET documento_data = public.proposta_hoje(), cadastro = _cad, pdf_hash = NULL,
+             atualizado_em = now() WHERE id = _id;
+    END IF;
+  END IF;
+  RETURN public.proposta_detalhe(_id);
+END $$;
+REVOKE ALL ON FUNCTION public.proposta_preparar_pdf(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.proposta_preparar_pdf(uuid) TO authenticated;
 
 -- PDF da versão (gerado pela tela com o PDF que já existe). Só antes do envio; depois, alterar os dados gera versão nova.
 CREATE OR REPLACE FUNCTION public.proposta_registrar_pdf(_id uuid, _versao integer, _pdf_hash text) RETURNS jsonb
@@ -792,6 +928,10 @@ BEGIN
   IF _p.situacao <> 'rascunho' THEN
     IF _p.pdf_hash = _pdf_hash THEN RETURN public.proposta_detalhe(_id); END IF;
     RAISE EXCEPTION 'Proposta já enviada: para trocar o PDF, altere os dados (nova versão).' USING ERRCODE = '22023';
+  END IF;
+  -- Data e cadastro do texto fixados hoje por proposta_preparar_pdf (e não alterados desde então).
+  IF _p.documento_data IS DISTINCT FROM public.proposta_hoje() OR _p.cadastro IS NULL THEN
+    RAISE EXCEPTION 'A proposta mudou: gere o PDF de novo.' USING ERRCODE = '40001';
   END IF;
   UPDATE public.propostas_compra SET pdf_hash = _pdf_hash, atualizado_em = now() WHERE id = _id RETURNING * INTO _p;
   PERFORM public.proposta_evento(_p, 'pdf', NULL);
@@ -818,7 +958,7 @@ BEGIN
       RAISE EXCEPTION 'Falta preencher: %', array_to_string(_f, ', ') USING ERRCODE = '22023';
     END IF;
     UPDATE public.propostas_compra SET situacao = 'aguardando_assinaturas', enviada_em = now(),
-           validade_ate = public.proposta_hoje() + validade_dias, atualizado_em = now()
+           validade_ate = documento_data + validade_dias, atualizado_em = now()
      WHERE id = _id RETURNING * INTO _p;
     PERFORM public.proposta_evento(_p, 'enviada', 'Válida até ' || to_char(_p.validade_ate, 'DD/MM/YYYY'));
     _lead := public.proposta_lead_para_proposta(_p);
@@ -926,11 +1066,11 @@ BEGIN
   PERFORM public.proposta_invalidar(_id, 'contraproposta', false);
   UPDATE public.propostas_compra SET situacao = 'contraproposta', atualizado_em = now() WHERE id = _id RETURNING * INTO _p;
   INSERT INTO public.propostas_compra (id, organization_id, capture_id, lead_id, corretor_id, origem_id, imovel,
-    valor_oferta, forma_pagamento, sinal_valor, sinal_prazo_dias, financiamento_banco, financiamento_valor,
-    validade_dias, prazo_contrato_dias, certidoes, observacoes, criado_por)
+    valor_oferta, forma_pagamento, sinal_valor, sinal_prazo_dias, sinal_tipo, termos, financiamento_banco,
+    financiamento_valor, validade_dias, prazo_contrato_dias, certidoes, observacoes, criado_por)
   SELECT _n, organization_id, capture_id, lead_id, corretor_id, id, imovel, valor_oferta, forma_pagamento, sinal_valor,
-    sinal_prazo_dias, financiamento_banco, financiamento_valor, validade_dias, prazo_contrato_dias, certidoes,
-    observacoes, auth.uid()
+    sinal_prazo_dias, sinal_tipo, termos, financiamento_banco, financiamento_valor, validade_dias, prazo_contrato_dias,
+    certidoes, observacoes, auth.uid()
     FROM public.propostas_compra WHERE id = _id;
   FOR _x IN SELECT * FROM public.proposta_partes WHERE proposta_id = _id LOOP
     PERFORM public.proposta_parte_inserir(_x.organization_id, _n, _x.papel, _x.ordem, _x.tipo_pessoa, _x.nome,
@@ -999,7 +1139,8 @@ BEGIN
     CASE WHEN _p.forma_pagamento = 'sinal_financiamento' THEN _p.financiamento_banco END,
     CASE WHEN _p.forma_pagamento = 'sinal_financiamento' THEN _p.financiamento_valor END,
     left('Da proposta ' || public.proposta_codigo_documento(_p.id) || ' v' || _p.versao ||
-         coalesce(' (sinal em até ' || _p.sinal_prazo_dias || ' dias, arras confirmatórias)', '') ||
+         coalesce(' (sinal em até ' || _p.sinal_prazo_dias || ' dias úteis, arras ' ||
+           CASE _p.sinal_tipo WHEN 'penitenciais' THEN 'penitenciais' ELSE 'confirmatórias' END || ')', '') ||
          coalesce('. ' || _p.observacoes, ''), 2000))
   ON CONFLICT (sale_id) DO NOTHING;
 
@@ -1066,13 +1207,19 @@ BEGIN
       'assinado_em', (SELECT a.assinado_em FROM public.proposta_assinaturas a WHERE a.parte_id = _x.id AND a.invalidada_em IS NULL)),
     'imovel', jsonb_build_object('tipo', _p.imovel->>'tipo', 'endereco', _p.imovel->>'endereco',
       'complemento', _p.imovel->>'complemento', 'bairro', _p.imovel->>'bairro', 'cidade', _p.imovel->>'cidade',
-      'uf', _p.imovel->>'uf', 'matricula', _p.imovel->>'matricula', 'cartorio', _p.imovel->>'cartorio'),
+      'uf', _p.imovel->>'uf', 'matricula', _p.imovel->>'matricula', 'cartorio', _p.imovel->>'cartorio',
+      'iptu', _p.imovel->>'iptu', 'codigo', _p.imovel->>'codigo'),
     'valores', jsonb_build_object('oferta', _p.valor_oferta, 'forma_pagamento', _p.forma_pagamento,
       'sinal', _p.sinal_valor, 'sinal_prazo_dias', _p.sinal_prazo_dias, 'sinal_tipo', _p.sinal_tipo,
       'financiamento_banco', _p.financiamento_banco, 'financiamento_valor', _p.financiamento_valor),
     'condicoes', jsonb_build_object('validade_dias', _p.validade_dias, 'prazo_contrato_dias', _p.prazo_contrato_dias,
       'certidoes', _p.certidoes, 'observacoes', _p.observacoes),
+    -- Texto oficial (t_b4e7c368): termos SEM dado pessoal/bancário (RG, endereço, CPF do representante e conta do
+    -- vendedor ficam só no PDF), data do documento e o cadastro público da imobiliária.
+    'termos', _p.termos - ARRAY['comprador_rg', 'comprador_endereco', 'comprador_representante_cpf', 'vendedor_conta'],
+    'documento_data', _p.documento_data, 'cadastro', _p.cadastro,
     'partes', coalesce((SELECT jsonb_agg(jsonb_build_object('papel', y.papel, 'ordem', y.ordem, 'nome', y.nome,
+        'tipo_pessoa', y.tipo_pessoa, 'estado_civil', y.estado_civil,
         'assinou', EXISTS (SELECT 1 FROM public.proposta_assinaturas a WHERE a.parte_id = y.id AND a.invalidada_em IS NULL))
         ORDER BY array_position(ARRAY['comprador', 'comprador_conjuge', 'vendedor', 'vendedor_conjuge', 'corretor'], y.papel), y.ordem)
       FROM public.proposta_partes y WHERE y.proposta_id = _p.id), '[]'::jsonb),

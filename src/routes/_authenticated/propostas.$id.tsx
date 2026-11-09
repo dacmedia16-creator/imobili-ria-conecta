@@ -24,7 +24,12 @@ import { PropostaFormulario } from "@/components/proposta-compra/PropostaFormula
 import { errorMessage } from "@/lib/errors";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 import { loadCurrentAgencyBrand, logoForPdf } from "@/lib/agency-brand";
-import { SITUACAO_LABEL, TEXTO_PENDENTE } from "@/lib/proposta-compra";
+import {
+  AVISO_TEXTO_ADVOGADO,
+  SITUACAO_LABEL,
+  TEXTO_APROVADO_ADVOGADO,
+} from "@/lib/proposta-compra";
+import { faltasCadastro } from "@/lib/proposta-compra-texto";
 import {
   anexarPdfNaVenda,
   comprovacaoProposta,
@@ -33,6 +38,7 @@ import {
   detalheProposta,
   propostaCompraEnabled,
   recusarProposta,
+  prepararPdfProposta,
   registrarPdfProposta,
   salvarProposta,
   sha256Hex,
@@ -40,7 +46,6 @@ import {
 import { enviarProposta } from "@/lib/proposta-compra.functions";
 import { buildPropostaPdf, nomeArquivoProposta } from "@/lib/proposta-compra-pdf";
 import {
-  CLAUSULAS_PENDENTES,
   EVENTO_LABEL,
   SITUACAO_PARTE_LABEL,
   TOM_SITUACAO,
@@ -167,6 +172,8 @@ export function PropostaConteudo({ id }: { id: string }) {
         if (errosForm.length) throw new Error(errosForm[0]);
         det = aplicar(await salvarProposta(d.id, dadosParaSalvar(form)));
       }
+      // Texto oficial: no rascunho, fixa a data do documento e o cadastro da imobiliária antes do PDF.
+      if (det.situacao === "rascunho") det = aplicar(await prepararPdfProposta(det.id));
       const m = await marca();
       // Data fixa (criação da proposta): mesmo conteúdo + mesmo logo = mesmo arquivo, então o hash
       // registrado pode ser conferido gerando o PDF de novo.
@@ -390,18 +397,27 @@ export function PropostaConteudo({ id }: { id: string }) {
           <CardHeader>
             <CardTitle className="text-base">Prévia da proposta</CardTitle>
             <p className="text-sm text-muted-foreground">
-              PDF gerado pelo ADM MAX com a marca da imobiliária. As cláusulas jurídicas aparecem
-              como “{TEXTO_PENDENTE}” até o advogado aprovar o texto.
+              PDF gerado pelo ADM MAX com o texto oficial e os dados do cadastro da imobiliária.
             </p>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div
-              className="rounded-md border border-amber-400 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200"
-              data-testid="clausulas-pendentes"
-            >
-              <p className="font-semibold">{TEXTO_PENDENTE}</p>
-              <p>{CLAUSULAS_PENDENTES.join(" · ")}</p>
-            </div>
+            {!TEXTO_APROVADO_ADVOGADO && (
+              <div
+                className="rounded-md border border-amber-400 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200"
+                data-testid="aviso-advogado"
+              >
+                <p className="font-semibold">{AVISO_TEXTO_ADVOGADO}</p>
+              </div>
+            )}
+            {faltasCadastro(d.cadastro ?? d.cadastroAtual).map((a) => (
+              <p
+                key={a}
+                className="rounded-md border border-amber-400 bg-amber-50 p-2 text-sm text-amber-900"
+                data-testid="aviso-cadastro"
+              >
+                {a}
+              </p>
+            ))}
             {pdf ? (
               <PaginasPdf bytes={pdf} nome={nomeArquivoProposta(d.documento, d.versao)} />
             ) : (

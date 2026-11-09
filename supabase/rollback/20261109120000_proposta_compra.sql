@@ -1,4 +1,4 @@
--- Rollback de 20261109120000_proposta_compra.sql (t_4cff61a6). GERADO por mk_rollback.py a partir da migration.
+-- Rollback de 20261109120000_proposta_compra.sql (t_4cff61a6; texto oficial t_b4e7c368). GERADO por mk_rollback.py.
 -- Remove só o que a migration criou: propostas, partes, códigos, assinaturas, histórico e tentativas somem
 -- (os links param de abrir). Nenhuma venda, parte de venda, captação ou lead é apagado: a venda criada por
 -- "Criar venda em rascunho" continua existindo (é venda normal) e o lead continua na etapa em que está.
@@ -18,6 +18,7 @@ DROP FUNCTION IF EXISTS public.proposta_envio_resultado(uuid, boolean, text);
 DROP FUNCTION IF EXISTS public.proposta_envio_dados(uuid[]);
 DROP FUNCTION IF EXISTS public.proposta_envio_preparar(uuid, uuid[]);
 DROP FUNCTION IF EXISTS public.proposta_registrar_pdf(uuid, integer, text);
+DROP FUNCTION IF EXISTS public.proposta_preparar_pdf(uuid);
 DROP FUNCTION IF EXISTS public.proposta_salvar(uuid, jsonb);
 DROP FUNCTION IF EXISTS public.proposta_criar(uuid, uuid);
 DROP FUNCTION IF EXISTS public.proposta_comprovacao(uuid);
@@ -35,6 +36,8 @@ DROP FUNCTION IF EXISTS public.proposta_parte_inserir(uuid, uuid, text, integer,
 DROP FUNCTION IF EXISTS public.proposta_evento(public.propostas_compra, text, text);
 DROP FUNCTION IF EXISTS public.proposta_conteudo_hash(uuid);
 DROP FUNCTION IF EXISTS public.proposta_conteudo(uuid);
+DROP FUNCTION IF EXISTS public.proposta_cadastro(uuid, uuid);
+DROP FUNCTION IF EXISTS public.proposta_termos_limpar(jsonb);
 DROP FUNCTION IF EXISTS public.proposta_codigo_documento(uuid);
 DROP FUNCTION IF EXISTS public.proposta_situacao(text, date);
 DROP FUNCTION IF EXISTS public.proposta_precisa_conjuge(text);
@@ -96,5 +99,36 @@ BEGIN
   VALUES (_org, _module, _enabled, _actor);
   RETURN _enabled;
 END $$;
+
+-- Endereço da imobiliária (t_b4e7c368): agency_profile_save volta à da 20261004173400 e a coluna sai.
+-- Atenção: o endereço digitado em "Dados da imobiliária" se perde (só existe por causa desta migration).
+CREATE OR REPLACE FUNCTION public.agency_profile_save(_data jsonb) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE _org uuid := public.current_org_id();
+BEGIN
+  IF NOT public.agency_can_edit() THEN
+    RAISE EXCEPTION 'Sem permissão para editar dados da imobiliária' USING ERRCODE='42501';
+  END IF;
+  IF _data IS NULL OR jsonb_typeof(_data) <> 'object' OR
+    EXISTS (SELECT 1 FROM jsonb_object_keys(_data) k WHERE k NOT IN
+      ('razao_social','creci','cidade','uf','cor_primaria','cor_secundaria','logo_path')) THEN
+    RAISE EXCEPTION 'Campos inválidos' USING ERRCODE='22023';
+  END IF;
+  IF _data ? 'logo_path' AND nullif(_data->>'logo_path','') IS NOT NULL
+    AND (_data->>'logo_path' !~ ('^' || _org::text || '/logo-[A-Za-z0-9-]+[.](png|jpg|webp)$')) THEN
+    RAISE EXCEPTION 'Logo deve pertencer à imobiliária' USING ERRCODE='42501';
+  END IF;
+  UPDATE public.organizations SET
+    razao_social = CASE WHEN _data ? 'razao_social' THEN nullif(btrim(_data->>'razao_social'),'') ELSE razao_social END,
+    creci = CASE WHEN _data ? 'creci' THEN nullif(btrim(_data->>'creci'),'') ELSE creci END,
+    cidade = CASE WHEN _data ? 'cidade' THEN nullif(btrim(_data->>'cidade'),'') ELSE cidade END,
+    uf = CASE WHEN _data ? 'uf' THEN nullif(upper(btrim(_data->>'uf')),'') ELSE uf END,
+    cor_primaria = CASE WHEN _data ? 'cor_primaria' THEN nullif(lower(btrim(_data->>'cor_primaria')),'') ELSE cor_primaria END,
+    cor_secundaria = CASE WHEN _data ? 'cor_secundaria' THEN nullif(lower(btrim(_data->>'cor_secundaria')),'') ELSE cor_secundaria END,
+    logo_path = CASE WHEN _data ? 'logo_path' THEN nullif(_data->>'logo_path','') ELSE logo_path END
+  WHERE id=_org;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Imobiliária não encontrada' USING ERRCODE='42501'; END IF;
+END $$;
+ALTER TABLE public.organizations DROP COLUMN IF EXISTS endereco;
 
 COMMIT;
