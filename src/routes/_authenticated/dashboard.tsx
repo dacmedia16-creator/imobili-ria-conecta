@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,7 +13,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { StatusBadge } from "@/components/StatusBadge";
 import {
   LINK_VENDAS_POR_CARTAO,
   painelComecaAberto,
@@ -26,14 +25,19 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import {
-  agruparContagemPorGrupoVenda,
-  proximoResponsavelRoles,
-  type GrupoVenda,
-  type SaleStatus,
-} from "@/lib/status";
+import { agruparContagemPorGrupoVenda, type GrupoVenda } from "@/lib/status";
 import { fetchLedMemberIds } from "@/lib/team";
-import { aplicarDatasRecentes, legendasDataRecente } from "@/lib/dashboard-datas-recentes";
+import { aplicarDatasRecentes } from "@/lib/dashboard-datas-recentes";
+import {
+  complementarVendasRecentes,
+  type ComplementoVendaRecente,
+} from "@/lib/dashboard-vendas-recentes";
+import { ListaVendas } from "@/components/vendas/ListaVendas";
+import {
+  PAPEIS_COLUNA_LIDER,
+  mapaLiderPorCorretor,
+  vendaEhMinhaVez,
+} from "@/lib/vendas-lista-linha";
 import {
   aplicarFiltrosEfetivacao,
   aplicarFiltrosParcelas,
@@ -59,7 +63,6 @@ import {
   MovimentacaoCard,
   ResumoGrupoVendaCards,
 } from "@/components/dashboard/shared";
-import { responsaveisDaVenda } from "@/lib/sale-permissions";
 import {
   FileText,
   ClipboardCheck,
@@ -185,11 +188,12 @@ type VendaRecente = {
   corretor_captador_id: string | null;
   corretor_vendedor_id: string | null;
   modalidade: string;
+  data_assinatura: string | null;
   updated_at: string;
   created_at: string;
   data_venda: string | null;
-  assinada?: boolean;
-};
+  assinada: boolean;
+} & ComplementoVendaRecente;
 
 function Dashboard() {
   const { user, roles, hasAny } = useAuth();
@@ -204,6 +208,9 @@ function Dashboard() {
   const [loadError, setLoadError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [teamIds, setTeamIds] = useState<Set<string>>(new Set());
+  // Coluna Gestor/Líder das vendas recentes (mesma regra e mesmos papéis da lista de Vendas).
+  const [liderIdByCorretor, setLiderIdByCorretor] = useState<Record<string, string>>({});
+  const navigate = useNavigate();
   // Mesmo controle de módulo do menu lateral (AppShell): sem o módulo de exclusividades na
   // imobiliária, o atalho não aparece.
   const [exclusiveVisible, setExclusiveVisible] = useState(false);
@@ -222,6 +229,24 @@ function Dashboard() {
     if (!user) return;
     if (!hasAny(["gestor", "team_leader"])) return;
     fetchLedMemberIds(user.id).then(setTeamIds);
+  }, [user, hasAny]);
+
+  useEffect(() => {
+    if (!user || !hasAny(PAPEIS_COLUNA_LIDER)) return;
+    let vivo = true;
+    Promise.all([
+      supabase.from("teams").select("id, lider_id"),
+      supabase.from("team_members").select("membro_id, team_id"),
+      supabase.from("team_co_leaders").select("user_id, team_id"),
+    ]).then(([teams, members, coLeaders]) => {
+      if (!vivo) return;
+      setLiderIdByCorretor(
+        mapaLiderPorCorretor(teams.data ?? [], members.data ?? [], coLeaders.data ?? []),
+      );
+    });
+    return () => {
+      vivo = false;
+    };
   }, [user, hasAny]);
 
   useEffect(() => {
@@ -247,7 +272,14 @@ function Dashboard() {
         return;
       }
       setStats(statsRes.data as DashboardStats | null);
-      setRecentes(await aplicarDatasRecentes(recentesRes.data ?? []));
+      const comDatas = (await aplicarDatasRecentes(recentesRes.data ?? [])).map((r) => ({
+        ...r,
+        // Sem assinatura, data_venda é a criação: passa o instante completo para a lista comparar
+        // as duas no mesmo dia civil de São Paulo (o recorte "aaaa-mm-dd" é em UTC e, à noite,
+        // viraria "Assinada em" sem assinatura).
+        data_venda: r.assinada || r.data_venda === null ? r.data_venda : r.created_at,
+      }));
+      setRecentes(await complementarVendasRecentes(comDatas));
       const names: Record<string, string> = {};
       for (const p of profRes.data ?? []) names[p.id] = p.nome ?? p.id;
       setProfileName(names);
@@ -632,54 +664,18 @@ function Dashboard() {
               Nenhuma venda ainda. Quando uma venda for registrada, ela aparece aqui.
             </EmptyState>
           )}
-          {recentes.map((s) => {
-            // admin/super_admin enxerga tudo por definição — "Sua vez" é pra quem tem uma fila
-            // operacional de verdade, não pra quem só está supervisionando o sistema.
-            const minhaVez =
-              !hasAny(["admin", "super_admin"]) &&
-              proximoResponsavelRoles(s.status as SaleStatus).some((papel) =>
-                papel === "corretor"
-                  ? !!user?.id && responsaveisDaVenda(s).includes(user.id)
-                  : // gestor/team_leader só é "a vez dele" se ele lidera o corretor da venda — ver
-                    // mesmo comentário em vendas.index.tsx. Corretor = participantes, não criador.
-                    papel === "gestor"
-                    ? hasAny(["gestor", "team_leader"]) &&
-                      responsaveisDaVenda(s).some((id) => teamIds.has(id))
-                    : hasAny([papel]),
-              );
-            return (
-              <Link
-                key={s.id}
-                to="/vendas/$id"
-                params={{ id: s.id }}
-                className="flex flex-col items-start gap-2 rounded-xl border bg-card p-3 transition-colors hover:bg-muted/50 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="min-w-0 break-words">
-                  <div className="text-sm font-medium">
-                    {s.imovel_id || s.codigo_interno || `Venda #${s.id.slice(0, 8)}`}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {s.valor_negociado
-                      ? `R$ ${Number(s.valor_negociado).toLocaleString("pt-BR")}`
-                      : "Valor pendente"}
-                  </div>
-                  {legendasDataRecente(s).map((linha) => (
-                    <div key={linha} className="text-xs text-muted-foreground">
-                      {linha}
-                    </div>
-                  ))}
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <StatusBadge status={s.status as SaleStatus} />
-                  {minhaVez && (
-                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
-                      Sua vez
-                    </span>
-                  )}
-                </div>
-              </Link>
-            );
-          })}
+          {recentes.length > 0 && (
+            <ListaVendas
+              vendas={recentes}
+              profileName={profileName}
+              liderIdByCorretor={liderIdByCorretor}
+              mostrarLider={hasAny(PAPEIS_COLUNA_LIDER)}
+              ehMinhaVez={(s) => vendaEhMinhaVez(s, { userId: user?.id, hasAny, teamIds })}
+              desdeEtapa={(s) => s.desde_etapa}
+              assinadaNoHistorico={(s) => s.assinada}
+              onAbrir={(id) => navigate({ to: "/vendas/$id", params: { id } })}
+            />
+          )}
         </CardContent>
       </Card>
     </div>

@@ -282,7 +282,7 @@ describe("etiqueta Financiada · Obah (t_1e3dda48)", () => {
   });
 
   it("lista e detalhe passam o oba_credito para a etiqueta", () => {
-    const lista = ler("src/routes/_authenticated/vendas.index.tsx");
+    const lista = ler("src/components/vendas/ListaVendas.tsx");
     expect(lista.match(/obaCredito=\{s\.pagamento_oba\}/g)).toHaveLength(2);
     const det = ler("src/routes/_authenticated/vendas.$id.tsx");
     expect(det).toContain("obaCredito={payment?.oba_credito}");
@@ -352,7 +352,8 @@ describe("telas usam o filtro e a etiqueta", () => {
     expect(src).toContain("filters.pagamento = pagamentoFilterParam(pagamentoFilter)");
     expect(src).toContain("fetchSelecaoPorPagamento(pagamentoFilter)");
     expect(src).toContain("[dataDe, dataAte, esteira, midiaFilter, pagamentoFilter]");
-    expect(src.match(/<FinanciadaBadge/g)).toHaveLength(2);
+    expect(src).toContain("<ListaVendas");
+    expect(ler("src/components/vendas/ListaVendas.tsx").match(/<FinanciadaBadge/g)).toHaveLength(2);
   });
 
   it("detalhe da venda: etiqueta no cabeçalho com o pagamento já carregado", () => {
