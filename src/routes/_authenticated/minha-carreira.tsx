@@ -46,6 +46,8 @@ import {
 import { ROTULO_EXTRA } from "@/lib/inteligencia-gestao-tela";
 import { ItemPendenciaProposta } from "@/components/proposta-compra/PendenciasPropostas";
 import { usePendenciasPropostas } from "@/components/proposta-compra/usePendenciasPropostas";
+import { InfoDot } from "@/components/dashboard/shared";
+import { EXPLICA_QUADRO } from "@/lib/explicacoes-quadros";
 import { CheckCircle2, ListTodo, Radar, Sprout, Building2 } from "lucide-react";
 
 // Minha carreira, PR 1 (card t_07d196a7): só leitura. Blocos 1 (O que fazer hoje), 4 (Minhas
@@ -181,7 +183,8 @@ function MinhaCarreiraPage() {
         description="Só o que é seu: pendências, captações e pedidos que encaixam nos seus imóveis."
       />
 
-      <Card>
+      <Card className="relative">
+        <InfoDot label="O que é este quadro" text={EXPLICA_QUADRO.oQueFazerHoje} />
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <ListTodo className="h-5 w-5" aria-hidden /> O que fazer hoje
