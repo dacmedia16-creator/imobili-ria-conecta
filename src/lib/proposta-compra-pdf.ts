@@ -4,8 +4,8 @@
 // - Prévia/versão para assinatura: o TEXTO OFICIAL (proposta-compra-texto.ts), com cabeçalho da imobiliária vindo do
 //   cadastro, seções numeradas e a tabela de signatários.
 // - PDF final: o mesmo conteúdo + página "Comprovação das assinaturas" com o código e o hash do documento.
-// Enquanto o advogado não aprovar o texto (TEXTO_APROVADO_ADVOGADO = false), cada página leva a marca interna
-// "Minuta: texto pendente de aprovação do advogado".
+// Se TEXTO_APROVADO_ADVOGADO voltar a false, cada página leva a marca interna
+// "Minuta: texto pendente de aprovação do advogado" (hoje true: sem marca).
 import { pdfSafe } from "@/lib/owner-feedback-pdf";
 import { PAPEL_LABEL } from "@/lib/proposta-compra";
 import {

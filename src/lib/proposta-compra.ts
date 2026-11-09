@@ -75,11 +75,11 @@ export const SINAL_TIPO_AJUDA: Record<SinalTipo, string> = {
 export const lerSinalTipo = (v: unknown): SinalTipo =>
   v === "penitenciais" ? "penitenciais" : SINAL_TIPO_PADRAO;
 /**
- * MARCAÇÃO INTERNA (t_b4e7c368): o texto oficial (Campolim ajustado, aprovado por Denis em 09/11) AINDA DEPENDE da
- * aprovação do advogado. Enquanto for false, a publicação continua bloqueada (além do "sim" de Denis).
- * Só mude para true com a aprovação registrada do advogado.
+ * Texto oficial (Campolim ajustado) aprovado por Denis em 09/11/2026, com a pendência do advogado declarada
+ * resolvida ("1 aprovado", t_6e7d4d94). Com true, PDF, link público e tela saem sem a marca de minuta.
+ * Voltar para false recoloca a marca "Minuta: texto pendente de aprovação do advogado".
  */
-export const TEXTO_APROVADO_ADVOGADO = false;
+export const TEXTO_APROVADO_ADVOGADO = true;
 export const AVISO_TEXTO_ADVOGADO =
   "Texto oficial (Campolim ajustado) ainda depende da aprovação do advogado. Não publicar.";
 

@@ -3,8 +3,8 @@
 Cartões t_4cff61a6 (banco), t_da0dac53 (telas), t_4617a9e9 (homologação) e t_b4e7c368 (texto oficial + tipo de sinal). **Nada disto está em produção.**
 Use este roteiro só depois de uma publicação autorizada por Denis. Comece pelo passo mais leve e pare no primeiro que resolver.
 
-> A publicação também depende do texto jurídico aprovado pelo advogado. Até lá, `TEXTO_APROVADO_ADVOGADO = false`
-> (`src/lib/proposta-compra.ts`) e o PDF e as telas mostram "Minuta: texto pendente de aprovação do advogado".
+> Texto aprovado por Denis em 09/11 ("1 aprovado", pendência do advogado resolvida): `TEXTO_APROVADO_ADVOGADO = true`
+> (`src/lib/proposta-compra.ts`), sem marca de minuta. Voltar a `false` recoloca a marca no PDF, no link e na tela.
 
 ## 1. Desligar a chave (segundos, sem deploy, sem perder nada)
 

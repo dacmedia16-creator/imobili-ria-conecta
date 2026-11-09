@@ -241,10 +241,11 @@ describe("dados da imobiliária vêm do cadastro (sem inventar)", () => {
 });
 
 describe("marca interna do advogado", () => {
-  it("o texto sai como minuta até a aprovação do advogado", () => {
-    expect(montarTextoProposta(base(), HOJE).marcaInterna).toBe(MARCA_MINUTA);
+  it("texto aprovado (09/11): sai sem a marca de minuta", () => {
+    expect(montarTextoProposta(base(), HOJE).marcaInterna).toBeNull();
+    expect(MARCA_MINUTA).toMatch(/Minuta/);
     expect(readFileSync("src/lib/proposta-compra.ts", "utf8")).toContain(
-      "export const TEXTO_APROVADO_ADVOGADO = false;",
+      "export const TEXTO_APROVADO_ADVOGADO = true;",
     );
   });
 });

@@ -4,6 +4,7 @@ import {
   PAPEL_LABEL,
   SITUACAO_LABEL,
   AVISO_TEXTO_ADVOGADO,
+  TEXTO_APROVADO_ADVOGADO,
   TOKEN_RE,
   textoErroAssinatura,
   type ErroPublico,
@@ -193,12 +194,14 @@ function Conteudo({
         </div>
       </section>
 
-      <section
-        className="rounded-xl border border-[#d4a017] bg-[#fff8e1] p-3 text-sm"
-        data-testid="clausulas-pendentes-publico"
-      >
-        <p className="font-semibold">{AVISO_TEXTO_ADVOGADO}</p>
-      </section>
+      {!TEXTO_APROVADO_ADVOGADO && (
+        <section
+          className="rounded-xl border border-[#d4a017] bg-[#fff8e1] p-3 text-sm"
+          data-testid="clausulas-pendentes-publico"
+        >
+          <p className="font-semibold">{AVISO_TEXTO_ADVOGADO}</p>
+        </section>
+      )}
 
       {assinou ? (
         <section className="rounded-xl bg-[#e9f6ee] p-4 text-center" data-testid="assinado">

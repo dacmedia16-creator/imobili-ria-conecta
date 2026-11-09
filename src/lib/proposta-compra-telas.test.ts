@@ -376,8 +376,9 @@ describe("PDF da proposta (pdf-lib existente)", () => {
     expect(t).toContain("Armários da cozinha ficam.");
     expect(t).toContain("válida por 5 dias corridos, até 23h59 de 14/11/2026");
     expect(t).not.toMatch(/pendente de revisão/i);
-    expect(TEXTO_APROVADO_ADVOGADO).toBe(false);
-    expect(tx.marcaInterna).toBe(MARCA_MINUTA);
+    expect(TEXTO_APROVADO_ADVOGADO).toBe(true);
+    expect(tx.marcaInterna).toBeNull();
+    expect(MARCA_MINUTA).toMatch(/Minuta/);
     expect(AVISO_TEXTO_ADVOGADO).toMatch(/advogado/);
     const sig = tx.secoes.find((x) => x.titulo.endsWith("Signatários"))!.itens[0];
     expect(sig.tipo === "signatarios" && sig.linhas.map((l) => l[0])).toEqual([
@@ -775,7 +776,8 @@ describe("página pública do link", () => {
     ])
       expect(texto).toContain(t);
     expect(texto).not.toMatch(/\d{3}\.\d{3}\.\d{3}-\d{2}/);
-    expect(texto).toContain(AVISO_TEXTO_ADVOGADO);
+    expect(texto).not.toContain(AVISO_TEXTO_ADVOGADO);
+    expect(texto).not.toMatch(/Minuta/i);
     expect(screen.getByTestId("texto-oficial")).toBeTruthy();
     const botao = within(area).getByTestId("botao-assinar") as HTMLButtonElement;
     expect(botao.disabled).toBe(true);

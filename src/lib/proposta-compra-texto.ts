@@ -3,8 +3,7 @@
 // variáveis e os trechos condicionais marcados nele. Funções puras, sem rede.
 // O resultado é uma lista de blocos que o PDF (proposta-compra-pdf.ts) e o link público (proposta.$token.tsx)
 // desenham iguais.
-// AVISO INTERNO: o texto ainda depende da aprovação do advogado (TEXTO_APROVADO_ADVOGADO = false).
-// Sem essa aprovação e sem o "sim" de Denis, nada é publicado.
+// Texto aprovado (TEXTO_APROVADO_ADVOGADO = true, t_6e7d4d94): sem marca de minuta.
 import { formatBRL } from "@/lib/formato-moeda";
 import {
   TEXTO_APROVADO_ADVOGADO,
