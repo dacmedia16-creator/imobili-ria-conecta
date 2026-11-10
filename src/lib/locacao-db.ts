@@ -39,6 +39,11 @@ export const gestoraDecidir = (id: string, aprovar: boolean, motivo: string | nu
   rpc<unknown>("locacao_gestora_decidir", { _id: id, _aprovar: aprovar, _motivo: motivo });
 export const enviarDocumentacao = (id: string) =>
   rpc<unknown>("locacao_enviar_documentacao", { _id: id });
+export const salvarContrato = (id: string, dados: Record<string, string | null>) =>
+  rpc<{ ok: boolean; campos: number; faltando: string[] }>("locacao_contrato_salvar", {
+    _id: id,
+    _dados: dados,
+  });
 export const removerDocumento = (docId: string) =>
   rpc<boolean>("locacao_documento_remover", { _doc: docId });
 export const contratosAcao = (id: string, acao: string, dados: Record<string, unknown> = {}) =>
@@ -67,7 +72,7 @@ export async function anexarDocumento(
   locacaoId: string,
   item: string,
   arquivo: File,
-): Promise<void> {
+): Promise<string> {
   const ext = extensaoDoc(arquivo.name);
   if (!ext) throw new Error("Envie PDF ou imagem (JPG, PNG, WEBP).");
   if (arquivo.size > TAMANHO_MAX_DOC) throw new Error("Arquivo maior que 16 MB.");
@@ -77,12 +82,19 @@ export async function anexarDocumento(
     .from("locacao-documentos")
     .uploadToSignedUrl(path, token, arquivo, { contentType: arquivo.type || undefined });
   if (error) throw new Error(error.message);
-  await rpc<unknown>("locacao_documento_registrar", {
+  const reg = await rpc<{ id?: unknown }>("locacao_documento_registrar", {
     _id: locacaoId,
     _item: item,
     _path: path,
     _nome: arquivo.name.slice(0, 200),
   });
+  return typeof reg?.id === "string" ? reg.id : "";
+}
+
+/** Leitura por IA de um documento (t_127811ca). Nunca lança por falha da IA: devolve o selo. */
+export async function lerDocumentoIa(documentoId: string) {
+  const { lerDocumentoLocacao } = await import("@/lib/locacao-ia.functions");
+  return lerDocumentoLocacao({ data: { documentoId } });
 }
 
 export async function abrirDocumento(documentoId: string): Promise<void> {

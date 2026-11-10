@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ListSkeleton, Pill } from "@/components/visual/base";
 import { LocacaoStepper } from "@/components/locacao/LocacaoStepper";
+import { ContratoConferencia, LocacaoDocumentacao } from "@/components/locacao/LocacaoDocumentacao";
 import { errorMessage } from "@/lib/errors";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 import {
@@ -37,17 +38,14 @@ import {
 } from "@/lib/locacao";
 import {
   abrirDocumento,
-  anexarDocumento,
   contextoLocacao,
   contratosAcao,
   corretorMinuta,
   detalheLocacao,
-  enviarDocumentacao,
   enviarPreAnalise,
   enviarProtocolo,
   gestoraDecidir,
   posAcao,
-  removerDocumento,
   salvarPreAnalise,
 } from "@/lib/locacao-db";
 
@@ -153,7 +151,14 @@ export function LocacaoDetalhe({ id }: { id: string }) {
   } else if (e === "pre_analise") {
     corpo = <PreAnalise {...props} editavel={ver === atual && souCorretor} />;
   } else if (e === "documentacao") {
-    corpo = <Documentacao {...props} editavel={ver === atual && souCorretor} />;
+    corpo = (
+      <LocacaoDocumentacao
+        {...props}
+        recarregar={carregar}
+        editavel={ver === atual && souCorretor && d.etapa === "documentacao"}
+        aviso={(tom, c) => <Aviso tom={tom}>{c}</Aviso>}
+      />
+    );
   } else if (e === "aprovacao" || e === "conferencia") {
     corpo =
       ver === atual ? (
@@ -454,127 +459,6 @@ function PreAnalise({ d, ctx, busy, rodar, editavel }: P & { editavel: boolean }
   );
 }
 
-// Etapa 3 -----------------------------------------------------------------------------------------------------
-function Documentacao({ d, ctx, busy, rodar, editavel }: P & { editavel: boolean }) {
-  const docs = ctx.config.documentos;
-  const blocos = [
-    { titulo: "Locatário", itens: docs.locatario ?? [] },
-    { titulo: `Garantia — ${GARANTIA_LABEL[d.garantia]}`, itens: docs[d.garantia] ?? [] },
-    { titulo: "Proprietário", itens: docs.proprietario ?? [] },
-  ];
-  const total = d.checklist.length;
-  const feitos = total - d.faltando.length;
-  const anexar = (item: string, arquivo: File | undefined) => {
-    if (!arquivo) return;
-    void rodar(() => anexarDocumento(d.id, item, arquivo), `Anexado: ${item}`);
-  };
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-3 text-sm">
-        <span>
-          Checklist para garantia <b>{GARANTIA_LABEL[d.garantia]}</b> — {feitos}/{total} itens
-        </span>
-        <div className="h-2 w-48 overflow-hidden rounded-full bg-muted">
-          <div
-            className={`h-full ${d.faltando.length ? "bg-amber-500" : "bg-emerald-500"}`}
-            style={{ width: `${total ? (feitos / total) * 100 : 0}%` }}
-          />
-        </div>
-        <AConfirmar />
-      </div>
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-        {blocos.map((bl) => (
-          <Card key={bl.titulo}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">{bl.titulo}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {bl.itens.map((item) => {
-                const anexos = d.documentos.filter((x) => x.item === item);
-                return (
-                  <div
-                    key={item}
-                    className="rounded-md border p-2 text-sm"
-                    data-testid="locacao-doc-item"
-                  >
-                    <div className="flex items-start gap-2">
-                      <span aria-hidden>{anexos.length ? "📄" : "⬜"}</span>
-                      <span className="flex-1">{item}</span>
-                      {editavel && (
-                        <label className="inline-flex cursor-pointer items-center gap-1 text-xs text-primary">
-                          <FileUp className="h-3.5 w-3.5" /> anexar
-                          <input
-                            type="file"
-                            className="sr-only"
-                            accept=".pdf,.jpg,.jpeg,.png,.webp"
-                            disabled={busy}
-                            onChange={(ev) => {
-                              anexar(item, ev.target.files?.[0]);
-                              ev.target.value = "";
-                            }}
-                          />
-                        </label>
-                      )}
-                    </div>
-                    {anexos.map((a) => (
-                      <div key={a.id} className="ml-6 mt-1 flex items-center gap-2 text-xs">
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 text-primary underline"
-                          onClick={() =>
-                            void abrirDocumento(a.id).catch((e) =>
-                              toast.error(errorMessage(e, "Documento indisponível.")),
-                            )
-                          }
-                        >
-                          <Paperclip className="h-3 w-3" /> {a.nomeArquivo}
-                        </button>
-                        {editavel && (
-                          <button
-                            type="button"
-                            aria-label={`Remover ${a.nomeArquivo}`}
-                            className="text-destructive"
-                            onClick={() =>
-                              void rodar(() => removerDocumento(a.id), "Documento removido")
-                            }
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                );
-              })}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-      {editavel &&
-        (d.faltando.length ? (
-          <Aviso tom="red">
-            🔒 <b>Trava:</b> faltam {d.faltando.length} documento(s). Não é possível enviar à
-            gestora com pendência.
-          </Aviso>
-        ) : (
-          <Aviso tom="green">Tudo anexado. Pode enviar para conferência.</Aviso>
-        ))}
-      {editavel && (
-        <div className="flex justify-end">
-          <Button
-            disabled={busy || d.faltando.length > 0}
-            onClick={() =>
-              void rodar(() => enviarDocumentacao(d.id), "Documentação enviada para conferência")
-            }
-          >
-            <Send className="mr-1 h-4 w-4" /> Enviar documentação à gestora
-          </Button>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // Etapas 2 e 4 ------------------------------------------------------------------------------------------------
 function DecisaoGestora({ d, ctx, busy, rodar }: P) {
   const [motivo, setMotivo] = useState("");
@@ -624,6 +508,7 @@ function DecisaoGestora({ d, ctx, busy, rodar }: P) {
           })}
         </div>
       )}
+      {!pre && <ContratoConferencia d={d} />}
       <div className="space-y-1">
         <Label htmlFor="motivo-gestora">Motivo (obrigatório para reprovar/devolver)</Label>
         <Textarea

@@ -14,7 +14,7 @@ export type AiUnavailableEvent = {
   /** Imobiliária do documento (lida do banco pelo servidor, nunca do navegador). */
   orgId: string;
   userId: string;
-  origem: "vendas" | "captacao_documento" | "captacao_contrato";
+  origem: "vendas" | "captacao_documento" | "captacao_contrato" | "locacao_documento";
   code: AiUnavailableCode;
   httpStatus: number;
   documentId: string;
