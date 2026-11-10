@@ -14,6 +14,7 @@ const PAPEIS = [
   { key: "gestora", label: "Gestora de locação" },
   { key: "contratos", label: "Setor de contratos" },
   { key: "vistoria", label: "Vistoria/Seguro" },
+  { key: "financeiro", label: "Financeiro da locação" },
 ] as const;
 
 type Pessoa = { userId: string; nome: string; papeis: string[] };

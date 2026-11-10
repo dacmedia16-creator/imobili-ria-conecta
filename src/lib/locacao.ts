@@ -328,9 +328,13 @@ export function lerConfig(raw: unknown): ConfigLocacao {
   };
 }
 
+/** Papéis da locação por imobiliária. 'financeiro' = Financeiro da locação (Fase 2, t_be750361). */
+export type PapelExtra = "gestora" | "contratos" | "vistoria" | "financeiro";
+const PAPEIS_EXTRA: readonly PapelExtra[] = ["gestora", "contratos", "vistoria", "financeiro"];
+
 export type ContextoLocacao = {
   usuarioId: string;
-  papeis: ("gestora" | "contratos" | "vistoria")[];
+  papeis: PapelExtra[];
   admin: boolean;
   gerencia: boolean;
   veComissao: boolean;
@@ -346,9 +350,7 @@ export function lerContexto(raw: unknown): ContextoLocacao {
     usuarioId: s(o.usuario_id),
     papeis: arr(o.papeis)
       .map(s)
-      .filter((x): x is "gestora" | "contratos" | "vistoria" =>
-        ["gestora", "contratos", "vistoria"].includes(x),
-      ),
+      .filter((x): x is PapelExtra => (PAPEIS_EXTRA as readonly string[]).includes(x)),
     admin: b(o.admin),
     gerencia: b(o.gerencia),
     veComissao: b(o.ve_comissao),
