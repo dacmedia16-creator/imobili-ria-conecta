@@ -138,8 +138,9 @@ BEGIN
   END LOOP;
   FOR _i IN SELECT * FROM (VALUES (1, 'fia_matricula', 'matrícula do imóvel do fiador'), (2, 'fia_cartorio', 'cartório do imóvel do fiador'),
               (3, 'imv_inscricao', 'inscrição municipal do imóvel'), (4, 'imv_energia', 'código de energia'),
-              (5, 'imv_agua', 'código de água'), (6, 'prazo_meses', 'prazo (meses)'), (7, 'inicio', 'início do contrato'),
-              (8, 'dia_vencimento', 'dia de vencimento')) AS t(n, k, nome) ORDER BY n LOOP
+              (5, 'imv_agua', 'código de água'), (6, 'imv_vagas', 'vagas de garagem (ou "não possui")'),
+              (7, 'prazo_meses', 'prazo (meses)'), (8, 'inicio', 'início do contrato'),
+              (9, 'dia_vencimento', 'dia de vencimento')) AS t(n, k, nome) ORDER BY n LOOP
     IF btrim(coalesce(_v->>_i.k, '')) = '' THEN _f := array_append(_f, _i.nome); END IF;
   END LOOP;
   RETURN _f;

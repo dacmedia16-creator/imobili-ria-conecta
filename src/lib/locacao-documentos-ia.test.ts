@@ -59,12 +59,15 @@ vi.mock("@/lib/ai-indisponivel.server", () => ({
 
 import {
   CAMPOS_CONTRATO,
+  CAMPOS_NAO_POSSUI,
   CHAVES_CONTRATO,
+  NAO_POSSUI,
   alteracoes,
   casado,
   exigeDadosContrato,
   faltasContrato,
   lerContrato,
+  naoPossui,
   valorOk,
 } from "@/lib/locacao-contrato";
 import {
@@ -105,6 +108,7 @@ const completo = (): Record<string, string> => {
     imv_inscricao: "11.22.33.4444",
     imv_energia: "4000123456",
     imv_agua: "98765",
+    imv_vagas: "1 vaga coberta",
     prazo_meses: "30",
     inicio: "2026-12-01",
     dia_vencimento: "10",
@@ -158,7 +162,28 @@ describe("campos do contrato (marcadores do modelo residencial com fiador)", () 
     expect(f).toContain("CPF do fiador");
     expect(f).toContain("matrícula do imóvel do fiador");
     expect(f.at(-1)).toBe("dia de vencimento");
-    expect(f).toHaveLength(7 * 3 + 8);
+    expect(f).toHaveLength(7 * 3 + 9);
+  });
+  it('vagas é obrigatório e aceita "não possui"; gás é opcional e também aceita "não possui"', () => {
+    const semVagas = { ...completo(), imv_vagas: "" };
+    expect(faltasContrato("residencial", "fiador", semVagas)).toEqual([
+      'vagas de garagem (ou "não possui")',
+    ]);
+    expect(
+      faltasContrato("residencial", "fiador", { ...completo(), imv_vagas: NAO_POSSUI }),
+    ).toEqual([]);
+    // gás vazio não trava; "não possui" é valor preenchido e válido
+    expect(faltasContrato("residencial", "fiador", { ...completo(), imv_gas: "" })).toEqual([]);
+    expect(valorOk("imv_gas", NAO_POSSUI)).toBe(true);
+    expect(naoPossui(" Não possui ")).toBe(true);
+    expect(naoPossui("2 vagas")).toBe(false);
+    expect([...CAMPOS_NAO_POSSUI]).toEqual(["imv_gas", "imv_vagas"]);
+    // caução continua sem trava
+    expect(faltasContrato("residencial", "caucao", {})).toEqual([]);
+  });
+  it("banco tem a mesma trava de vagas (texto igual ao da tela)", () => {
+    expect(MIG).toContain(`(6, 'imv_vagas', 'vagas de garagem (ou "não possui")')`);
+    expect(MIG).not.toMatch(/'imv_gas', '[^']*'\)/);
   });
   it("casado pede cônjuge do proprietário e do fiador (não do locatário)", () => {
     const v = {

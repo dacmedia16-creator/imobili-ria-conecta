@@ -68,7 +68,7 @@ export const CAMPOS_CONTRATO: CampoContrato[] = [
   { k: "imv_inscricao", label: "Inscrição municipal (IPTU)", secao: "imovel", tipo: "texto" },
   { k: "imv_energia", label: "Código de energia (instalação)", secao: "imovel", tipo: "texto" },
   { k: "imv_agua", label: "Código de água", secao: "imovel", tipo: "texto" },
-  { k: "imv_gas", label: "Código de gás (se houver)", secao: "imovel", tipo: "texto" },
+  { k: "imv_gas", label: "Código de gás", secao: "imovel", tipo: "texto" },
   { k: "imv_vagas", label: "Vagas de garagem", secao: "imovel", tipo: "texto" },
   { k: "prazo_meses", label: "Prazo (meses)", secao: "prazo", tipo: "numero" },
   { k: "inicio", label: "Início do contrato", secao: "prazo", tipo: "data" },
@@ -82,6 +82,12 @@ export const CAMPOS_CONTRATO: CampoContrato[] = [
 ];
 
 export const CHAVES_CONTRATO = CAMPOS_CONTRATO.map((c) => c.k);
+
+/** Valor gravado quando o imóvel não tem o item (pedido de Denis 10/11): é valor preenchido, o contrato escreve
+ * "não possui" e a IA não sobrescreve (ela só preenche campo vazio). Gás é opcional; vagas é obrigatório. */
+export const NAO_POSSUI = "não possui";
+export const CAMPOS_NAO_POSSUI = new Set(["imv_gas", "imv_vagas"]);
+export const naoPossui = (v: string | undefined) => (v ?? "").trim().toLowerCase() === NAO_POSSUI;
 const CHAVES = new Set(CHAVES_CONTRATO);
 
 export const SECOES: { key: SecaoContrato; titulo: string; soFiador?: boolean }[] = [
@@ -170,6 +176,7 @@ export function faltasContrato(
     ["imv_inscricao", "inscrição municipal do imóvel"],
     ["imv_energia", "código de energia"],
     ["imv_agua", "código de água"],
+    ["imv_vagas", 'vagas de garagem (ou "não possui")'],
     ["prazo_meses", "prazo (meses)"],
     ["inicio", "início do contrato"],
     ["dia_vencimento", "dia de vencimento"],

@@ -24,12 +24,15 @@ import { GARANTIA_LABEL, type ContextoLocacao, type DocumentoLocacao } from "@/l
 import type { LocacaoDetalhe as Detalhe } from "@/lib/locacao";
 import {
   CAMPOS_CONTRATO,
+  CAMPOS_NAO_POSSUI,
   ESTADOS_CIVIS,
+  NAO_POSSUI,
   SECOES,
   alteracoes,
   casado,
   faltasContrato,
   lerContrato,
+  naoPossui,
   valorOk,
   type OrigemCampo,
 } from "@/lib/locacao-contrato";
@@ -201,7 +204,7 @@ export function DadosContrato({
                     ) : (
                       <Input
                         id={id}
-                        disabled={!editavel}
+                        disabled={!editavel || (CAMPOS_NAO_POSSUI.has(c.k) && naoPossui(v))}
                         value={v}
                         type={c.tipo === "data" ? "date" : "text"}
                         inputMode={c.tipo === "numero" ? "numeric" : undefined}
@@ -209,6 +212,18 @@ export function DadosContrato({
                         className={invalido ? "border-destructive" : undefined}
                         onChange={(e) => onChange?.(c.k, e.target.value)}
                       />
+                    )}
+                    {CAMPOS_NAO_POSSUI.has(c.k) && (
+                      <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <input
+                          type="checkbox"
+                          data-testid={`nao-possui-${c.k}`}
+                          disabled={!editavel}
+                          checked={naoPossui(v)}
+                          onChange={(e) => onChange?.(c.k, e.target.checked ? NAO_POSSUI : "")}
+                        />
+                        Não possui
+                      </label>
                     )}
                   </div>
                 );

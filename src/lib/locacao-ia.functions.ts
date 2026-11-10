@@ -40,7 +40,16 @@ const GRUPOS = new Set<GrupoDoc>([
 
 type GeminiResponse = {
   candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+  modelVersion?: string;
+  usageMetadata?: {
+    promptTokenCount?: number;
+    candidatesTokenCount?: number;
+    thoughtsTokenCount?: number;
+    totalTokenCount?: number;
+  };
 };
+
+const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 
 async function admin(): Promise<SupabaseClient> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -139,6 +148,7 @@ export const lerDocumentoLocacao = createServerFn({ method: "POST" })
     const prompt = promptDoDocumento(tipo, grupo, item);
 
     const chamar = async (): Promise<Record<string, unknown>> => {
+      const t0 = Date.now();
       const res = await fetch(GEMINI_URL, {
         method: "POST",
         signal: AbortSignal.timeout(AI_TIMEOUT_MS),
@@ -160,6 +170,13 @@ export const lerDocumentoLocacao = createServerFn({ method: "POST" })
         throw Object.assign(err, { retry: err.retryable });
       }
       const json = (await res.json()) as GeminiResponse;
+      // Só números para medir custo (modelo resolvido, tokens, tempo); nenhum dado do documento.
+      const u = json.usageMetadata ?? {};
+      console.info(
+        `leitura IA locação: tipo=${tipo} modelo=${String(json.modelVersion ?? "?").slice(0, 60)} ` +
+          `entrada=${n(u.promptTokenCount)} saida=${n(u.candidatesTokenCount)} ` +
+          `raciocinio=${n(u.thoughtsTokenCount)} total=${n(u.totalTokenCount)} ms=${Date.now() - t0}`,
+      );
       const parsed = lerJson(json.candidates?.[0]?.content?.parts?.[0]?.text ?? "");
       if (!parsed) throw Object.assign(new Error("Resposta inválida da IA"), { retry: true });
       return parsed;

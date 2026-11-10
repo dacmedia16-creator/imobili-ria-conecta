@@ -197,10 +197,21 @@ SELECT public.locacao_contrato_salvar(pg_temp.id('L'), jsonb_build_object(
   'prop_estado_civil', 'casado(a)', 'prop_profissao', 'professora', 'prop_endereco', 'Rua da Dona Fictícia, 9',
   'fia_nacionalidade', 'brasileira', 'fia_estado_civil', 'solteiro(a)', 'fia_profissao', 'comerciante',
   'fia_endereco', 'Rua do Fiador Fictício, 3', 'imv_inscricao', '11.22.33', 'imv_energia', '4000123456', 'imv_agua', '98765',
-  'inicio', '2026-12-01', 'dia_vencimento', '10'));
+  'imv_gas', 'não possui', 'inicio', '2026-12-01', 'dia_vencimento', '10'));
 SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_enviar_documentacao(%L)', pg_temp.id('L')))
-  LIKE '22023%nome do cônjuge do proprietário, CPF do cônjuge do proprietário', 'proprietário casado: pede o cônjuge');
-SELECT public.locacao_contrato_salvar(pg_temp.id('L'), '{"prop_conj_nome":"Cônjuge Fictício","prop_conj_cpf":"390.533.447-05"}');
+  LIKE '22023%nome do cônjuge do proprietário, CPF do cônjuge do proprietário, vagas de garagem (ou "não possui")',
+  'proprietário casado: pede o cônjuge; vagas é obrigatório; gás "não possui" não falta');
+SELECT public.locacao_contrato_salvar(pg_temp.id('L'), '{"prop_conj_nome":"Cônjuge Fictício","prop_conj_cpf":"390.533.447-05","imv_vagas":"não possui"}');
+SELECT pg_temp.ok(public.locacao_detalhe(pg_temp.id('L'))->'contrato'->'valores'->>'imv_vagas' = 'não possui',
+  'vagas "não possui" fica gravado como valor preenchido');
+RESET ROLE;
+SET LOCAL ROLE service_role;
+SELECT public.locacao_leitura_gravar(pg_temp.id('dRG'), pg_temp.id('c2'), 'ok', NULL, '{"imv_gas":"777111","imv_vagas":"2"}');
+RESET ROLE;
+SELECT pg_temp.ok((SELECT valores->>'imv_gas' = 'não possui' AND valores->>'imv_vagas' = 'não possui'
+   FROM public.locacao_contrato_dados WHERE locacao_id = pg_temp.id('L')), 'IA não sobrescreve "não possui" (gás e vagas)');
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.as_user(pg_temp.id('c2')::text);
 SELECT pg_temp.ok(jsonb_array_length(public.locacao_detalhe(pg_temp.id('L'))->'contrato'->'faltando') = 0, 'nada mais falta');
 SELECT public.locacao_enviar_documentacao(pg_temp.id('L'));
 SELECT pg_temp.ok(public.locacao_detalhe(pg_temp.id('L'))->>'etapa' = 'conferencia', 'completo → vai para a Conferência da gestora');
