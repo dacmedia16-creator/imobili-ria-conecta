@@ -62,7 +62,41 @@ export function ResumoComissoesPeriodo({
           ))}
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Celular: uma equipe por cartão, sem rolagem lateral. */}
+        <div className="space-y-2 md:hidden print:hidden">
+          {porEquipe.length === 0 && (
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              Nenhuma venda com comissão calculada no filtro atual.
+            </p>
+          )}
+          {[...porEquipe, ...(porEquipe.length > 0 ? [total] : [])].map((l) => (
+            <div
+              key={l.chave}
+              className={`rounded-lg border p-3 ${l.chave === "total" ? "bg-muted/40" : ""}`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <p className="min-w-0 break-words font-medium">{l.label}</p>
+                <p className="shrink-0 text-xs text-muted-foreground">{l.transacoes} venda(s)</p>
+              </div>
+              <dl className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                <div>
+                  <dt className="text-muted-foreground">Calculada</dt>
+                  <dd className="font-semibold tabular-nums">{money(l.calculada)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Recebida (imob.)</dt>
+                  <dd className="font-semibold tabular-nums">{money(l.recebida)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Pendente</dt>
+                  <dd className="font-semibold tabular-nums">{money(l.pendente)}</dd>
+                </div>
+              </dl>
+            </div>
+          ))}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block print:block">
           <Table>
             <TableHeader>
               <TableRow>
