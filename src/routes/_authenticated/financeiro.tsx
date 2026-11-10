@@ -15,6 +15,8 @@ import {
   calcularResumo,
   filtrosPadraoFinanceiro,
   podeAcessarCentralFinanceira,
+  resumirComissoesPorPeriodo,
+  comissaoRecebidaPelaImobiliaria,
 } from "@/lib/financeiro-dashboard-calc";
 import { fetchFinanceiroBundle, type FinanceiroBundle } from "@/lib/financeiro-dashboard-query";
 import type { FinanceiroFiltros } from "@/lib/financeiro-dashboard-types";
@@ -24,9 +26,11 @@ import { SummaryCards } from "@/components/financeiro/SummaryCards";
 import { OverviewCharts } from "@/components/financeiro/OverviewCharts";
 import { RecebimentosTable } from "@/components/financeiro/RecebimentosTable";
 import { ComissoesCalculadasTable } from "@/components/financeiro/ComissoesCalculadasTable";
+import { ResumoComissoesPeriodo } from "@/components/financeiro/ResumoComissoesPeriodo";
 import { AgingPanel } from "@/components/financeiro/AgingPanel";
 import { DivergenciasList } from "@/components/financeiro/DivergenciasList";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
+import { dateBR } from "@/components/vendas/shared";
 
 export const Route = createFileRoute("/_authenticated/financeiro")({
   head: () => ({ meta: [{ title: "Financeiro" }] }),
@@ -98,6 +102,27 @@ function CentralFinanceiraPage() {
     [parcelasFiltradas, comissoesFiltradas, efetivadasFiltradas, divergencias.length, hoje],
   );
 
+  const resumoComissoes = useMemo(
+    () => resumirComissoesPorPeriodo(comissoesFiltradas),
+    [comissoesFiltradas],
+  );
+  const periodoResumoLabel =
+    filtros.dataDe || filtros.dataAte
+      ? `Vendas efetivadas de ${filtros.dataDe ? dateBR(filtros.dataDe) : "início"} a ${filtros.dataAte ? dateBR(filtros.dataAte) : "hoje"}, com os filtros aplicados.`
+      : "Todas as vendas efetivadas, com os filtros aplicados.";
+
+  const exportarResumoComissoes = () =>
+    exportCsv(
+      `resumo-comissoes_${filtros.dataDe || "inicio"}_a_${filtros.dataAte || "fim"}.csv`,
+      [...resumoComissoes.porEquipe, resumoComissoes.total].map((l) => ({
+        Equipe: l.label,
+        Transacoes: l.transacoes,
+        ComissaoCalculada: l.calculada.toFixed(2),
+        RecebidaPelaImobiliaria: l.recebida.toFixed(2),
+        Pendente: l.pendente.toFixed(2),
+      })),
+    );
+
   const exportarRecebimentos = () =>
     exportCsv(
       `recebimentos_${filtros.dataDe || "inicio"}_a_${filtros.dataAte || "fim"}.csv`,
@@ -136,6 +161,7 @@ function CentralFinanceiraPage() {
         ValorCalculado: r.valor.toFixed(2),
         Origem: r.origem === "manual" ? "Ajuste manual" : "Automatica",
         SituacaoRecebimentoVenda: r.situacaoRecebimentoVenda,
+        RecebidaPelaImobiliaria: comissaoRecebidaPelaImobiliaria(r).toFixed(2),
         ComissaoCalculadaNaoEhPagamento: "true",
       })),
     );
@@ -254,6 +280,12 @@ function CentralFinanceiraPage() {
         </TabsContent>
 
         <TabsContent value="comissoes" className="space-y-3">
+          <ResumoComissoesPeriodo
+            resumo={resumoComissoes}
+            parceriaExterna={resumo.parceriaExterna}
+            periodoLabel={periodoResumoLabel}
+            onExportar={exportarResumoComissoes}
+          />
           <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">
               {comissoesFiltradas.length} linha(s) no filtro atual.

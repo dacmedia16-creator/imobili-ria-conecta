@@ -86,6 +86,10 @@ export type ComissaoCalculada = {
   origem: OrigemComissao;
   semVinculoUsuario: boolean;
   situacaoRecebimentoVenda: SituacaoRecebimentoVenda;
+  /** Fração (0 a 1) do valor previsto da venda cujas parcelas já foram recebidas pela imobiliária
+   * (por valor previsto da parcela, não por contagem). Base da coluna "recebida pela imobiliária"
+   * do resumo por período — estimativa proporcional, nunca "pago ao beneficiário". */
+  fracaoRecebidaVenda?: number;
 };
 
 export type GravidadeDivergencia = "alta" | "media" | "baixa";
@@ -156,6 +160,23 @@ export type AgingFaixa = {
   quantidade: number;
   valor: number;
   parcelas: ParcelaRecebimento[];
+};
+
+/** Uma linha do resumo por período (aba Comissões Calculadas): transações = vendas distintas,
+ * não linhas de comissão. `recebida` = parte da comissão sustentada por parcelas da venda já
+ * recebidas pela imobiliária (proporcional); `pendente` = calculada − recebida. */
+export type ResumoComissaoLinha = {
+  chave: string;
+  label: string;
+  transacoes: number;
+  calculada: number;
+  recebida: number;
+  pendente: number;
+};
+
+export type ResumoComissoesPeriodo = {
+  total: ResumoComissaoLinha;
+  porEquipe: ResumoComissaoLinha[];
 };
 
 export type GrupoComissao = {
