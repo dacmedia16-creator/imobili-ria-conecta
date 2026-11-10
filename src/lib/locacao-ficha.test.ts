@@ -195,6 +195,7 @@ describe("trava do Montar contrato e rollback", () => {
       "locacao_ficha_ok",
       "locacao_membro_ativo",
       "locacao_docs_situacao",
+      "locacao_docs_completos_em",
       "locacao_corretores",
     ];
     for (const f of redefinidas) {

@@ -173,6 +173,8 @@ SELECT public.locacao_config_salvar(jsonb_build_object('documentos', (public.loc
        || '["Certidão negativa do fiador (fictícia)", "Referência pessoal do fiador (opcional)"]'::jsonb)));
 SELECT pg_temp.as_user(pg_temp.id('con')::text);
 SELECT pg_temp.put('det', public.locacao_detalhe(pg_temp.id('L')));
+SELECT pg_temp.ok(pg_temp.j('det')->>'docs_completos_em' IS NULL AND NOT (pg_temp.j('det')->>'docs_completa')::boolean,
+  'lista mudou depois: a data da documentação completa some na hora (sem anexar nada)');
 SELECT pg_temp.ok(pg_temp.j('det')->'faltando' = '["Certidão negativa do fiador (fictícia)"]'::jsonb
   AND EXISTS (SELECT 1 FROM jsonb_array_elements(pg_temp.j('det')->'partes') p, jsonb_array_elements(p->'itens') i
                WHERE i->>'item' = 'Referência pessoal do fiador (opcional)' AND NOT (i->>'obrigatorio')::boolean),

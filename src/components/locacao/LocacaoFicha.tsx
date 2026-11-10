@@ -36,8 +36,9 @@ type Props = {
   aviso: ReactNode;
 };
 
-const num = (v: string) => (v.trim() === "" ? 0 : Number(v.replace(/\./g, "").replace(",", ".")));
-const numDec = (v: string) => (v.trim() === "" ? 0 : Number(v.replace(",", ".")));
+// Mesma conversão da pré-análise de antes: vírgula vira ponto decimal.
+const num = (v: string) => (v.trim() === "" ? 0 : Number(v.replace(",", ".")));
+const numDec = num;
 
 export function FichaAbertura({ d, ctx, busy, rodar, editavel, aConfirmar, aviso }: Props) {
   const [f, setF] = useState(() => ({

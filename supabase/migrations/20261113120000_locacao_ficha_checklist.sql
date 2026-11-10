@@ -177,27 +177,40 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$
     AND NOT coalesce(public.eh_so_fotografo(_uid), false), false)
 $$;
 
--- Atualiza a data da documentação completa (e registra no histórico quando muda).
+-- Data em que a documentação ficou completa = entrega do último documento obrigatório (null se ainda falta).
+-- Calculada do que está anexado: continua certa mesmo se a lista da imobiliária mudar depois.
+CREATE OR REPLACE FUNCTION public.locacao_docs_completos_em(_l public.locacoes) RETURNS timestamptz
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$
+  SELECT CASE WHEN cardinality(public.locacao_docs_faltando(_l)) = 0 THEN coalesce(
+    (SELECT max(d.enviado_em) FROM public.locacao_documentos d
+      WHERE d.locacao_id = _l.id AND d.removido_em IS NULL AND NOT public.locacao_doc_opcional(d.item)
+        AND d.item = ANY (public.locacao_checklist_l(_l))),
+    _l.docs_completos_em, _l.criado_em) END
+$$;
+
+-- Grava a data da documentação completa (e registra no histórico quando completa ou volta a faltar).
 CREATE OR REPLACE FUNCTION public.locacao_docs_situacao(_id uuid) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
-DECLARE _l public.locacoes; _f text[];
+DECLARE _l public.locacoes; _nova timestamptz; _antes timestamptz;
 BEGIN
   SELECT * INTO _l FROM public.locacoes WHERE id = _id;
   IF _l.id IS NULL THEN RETURN; END IF;
-  _f := public.locacao_docs_faltando(_l);
-  IF cardinality(_f) = 0 AND _l.docs_completos_em IS NULL THEN
-    UPDATE public.locacoes SET docs_completos_em = now() WHERE id = _id RETURNING * INTO _l;
+  _antes := _l.docs_completos_em;
+  _nova := public.locacao_docs_completos_em(_l);
+  IF _nova IS NOT DISTINCT FROM _antes THEN RETURN; END IF;
+  UPDATE public.locacoes SET docs_completos_em = _nova WHERE id = _id RETURNING * INTO _l;
+  IF _antes IS NULL THEN
     PERFORM public.locacao_evento(_l, 'corretor', 'Documentação completa: todos os documentos obrigatórios entregues');
-  ELSIF cardinality(_f) > 0 AND _l.docs_completos_em IS NOT NULL THEN
-    UPDATE public.locacoes SET docs_completos_em = NULL WHERE id = _id RETURNING * INTO _l;
-    PERFORM public.locacao_evento(_l, 'corretor', 'Documentação voltou a ficar incompleta (falta ' || cardinality(_f) || ')');
+  ELSIF _nova IS NULL THEN
+    PERFORM public.locacao_evento(_l, 'corretor', 'Documentação voltou a ficar incompleta (falta '
+      || cardinality(public.locacao_docs_faltando(_l)) || ')');
   END IF;
 END $$;
 
 REVOKE ALL ON FUNCTION public.locacao_doc_opcional(text), public.locacao_docs_grupo(uuid, text),
   public.locacao_partes(public.locacoes), public.locacao_checklist_l(public.locacoes),
   public.locacao_partes_json(public.locacoes), public.locacao_ficha_ok(jsonb), public.locacao_membro_ativo(uuid, uuid),
-  public.locacao_docs_situacao(uuid) FROM PUBLIC, anon, authenticated;
+  public.locacao_docs_completos_em(public.locacoes), public.locacao_docs_situacao(uuid) FROM PUBLIC, anon, authenticated;
 
 -- 4) Para a tela: pessoas da imobiliária que podem ser o corretor captador -----------------------------------------
 CREATE OR REPLACE FUNCTION public.locacao_corretores() RETURNS jsonb
@@ -366,6 +379,7 @@ BEGIN
     'faltando', to_jsonb(_f),
     'partes', public.locacao_partes_json(_l),
     'docs_completa', cardinality(_f) = 0,
+    'docs_completos_em', public.locacao_docs_completos_em(_l),
     'captador_nome', (SELECT p.nome FROM public.profiles p WHERE p.id = _l.captador_id),
     'documentos', (SELECT coalesce(jsonb_agg(jsonb_build_object('id', d.id, 'item', d.item, 'nome_arquivo', d.nome_arquivo,
         'enviado_em', d.enviado_em, 'leitura', lr.status, 'leitura_erro', lr.erro, 'leitura_em', lr.atualizado_em,

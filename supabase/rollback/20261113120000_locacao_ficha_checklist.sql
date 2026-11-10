@@ -310,6 +310,7 @@ END $$;
 
 DROP FUNCTION IF EXISTS public.locacao_corretores();
 DROP FUNCTION IF EXISTS public.locacao_docs_situacao(uuid);
+DROP FUNCTION IF EXISTS public.locacao_docs_completos_em(public.locacoes);
 DROP FUNCTION IF EXISTS public.locacao_membro_ativo(uuid, uuid);
 DROP FUNCTION IF EXISTS public.locacao_ficha_ok(jsonb);
 DROP FUNCTION IF EXISTS public.locacao_partes_json(public.locacoes);
