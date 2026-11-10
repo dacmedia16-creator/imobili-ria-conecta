@@ -221,8 +221,12 @@ export function LocacaoRegras({ config, onSalvo }: { config: ConfigLocacao; onSa
           </div>
           <div className="space-y-1 md:col-span-2">
             <Label htmlFor="cfg-docs">
-              Documentos por garantia (um por linha; título do grupo entre colchetes) <AConfirmar />
+              Documentos por parte (um por linha; título do grupo entre colchetes) <AConfirmar />
             </Label>
+            <p className="text-xs text-muted-foreground">
+              Estes documentos travam o “Montar contrato”. Item terminado em “(opcional)” aparece no
+              checklist, mas não trava. Grupo PJ vazio usa a lista PF da mesma parte.
+            </p>
             <Textarea
               id="cfg-docs"
               rows={14}

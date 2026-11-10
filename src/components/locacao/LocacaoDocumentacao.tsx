@@ -20,7 +20,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { errorMessage } from "@/lib/errors";
-import { GARANTIA_LABEL, type ContextoLocacao, type DocumentoLocacao } from "@/lib/locacao";
+import {
+  GARANTIA_LABEL,
+  itemOpcional,
+  type ContextoLocacao,
+  type DocumentoLocacao,
+} from "@/lib/locacao";
 import type { LocacaoDetalhe as Detalhe } from "@/lib/locacao";
 import {
   CAMPOS_CONTRATO,
@@ -260,13 +265,17 @@ export function LocacaoDocumentacao({ d, ctx, busy, rodar, recarregar, editavel,
   const faltasDados = faltasContrato(d.tipo, d.garantia, form);
   const invalidos = CAMPOS_CONTRATO.filter((c) => !valorOk(c.k, (form[c.k] ?? "").trim()));
 
+  // Checklist por parte vem do banco (PF/PJ conforme a ficha). Sem "partes" (banco antigo): lista por garantia.
   const docs = ctx.config.documentos;
-  const blocos = [
-    { titulo: "Locatário", itens: docs.locatario ?? [] },
-    { titulo: `Garantia — ${GARANTIA_LABEL[d.garantia]}`, itens: docs[d.garantia] ?? [] },
-    { titulo: "Proprietário", itens: docs.proprietario ?? [] },
-  ];
-  const total = d.checklist.length;
+  const blocos = d.partes.length
+    ? d.partes.map((p) => ({ titulo: p.rotulo, itens: p.itens.map((i) => i.item) }))
+    : [
+        { titulo: "Locatário", itens: docs.locatario ?? [] },
+        { titulo: `Garantia — ${GARANTIA_LABEL[d.garantia]}`, itens: docs[d.garantia] ?? [] },
+        { titulo: "Proprietário", itens: docs.proprietario ?? [] },
+      ];
+  const obrigatorios = d.checklist.filter((x) => !itemOpcional(x));
+  const total = obrigatorios.length;
   const feitos = total - d.faltando.length;
   const ocupado = busy || salvando;
 
@@ -321,7 +330,8 @@ export function LocacaoDocumentacao({ d, ctx, busy, rodar, recarregar, editavel,
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <span>
-          Checklist para garantia <b>{GARANTIA_LABEL[d.garantia]}</b> — {feitos}/{total} itens
+          Checklist para garantia <b>{GARANTIA_LABEL[d.garantia]}</b> — {feitos}/{total}{" "}
+          obrigatórios
         </span>
         <div className="h-2 w-48 overflow-hidden rounded-full bg-muted">
           <div
@@ -357,7 +367,14 @@ export function LocacaoDocumentacao({ d, ctx, busy, rodar, recarregar, editavel,
                   >
                     <div className="flex items-start gap-2">
                       <span aria-hidden>{anexos.length ? "📄" : "⬜"}</span>
-                      <span className="flex-1">{item}</span>
+                      <span className="flex-1">
+                        {item}
+                        {itemOpcional(item) && (
+                          <span className="ml-1 text-[10px] text-muted-foreground">
+                            (não trava)
+                          </span>
+                        )}
+                      </span>
                       {editavel && (
                         <label className="inline-flex cursor-pointer items-center gap-1 text-xs text-primary">
                           <FileUp className="h-3.5 w-3.5" /> anexar

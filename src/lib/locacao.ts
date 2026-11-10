@@ -151,6 +151,32 @@ export type Locacao = {
     tit: Titularidade;
   };
   chaveEm: string | null;
+  /** Ficha de abertura (t_28e583e2): o resto do formulário cadastral da locação. */
+  ficha: FichaLocacao;
+  captadorId: string | null;
+  /** Data em que todos os documentos obrigatórios ficaram entregues (null = ainda falta). */
+  docsCompletosEm: string | null;
+};
+
+export type Pessoa = "pf" | "pj";
+export type Mobilia = "mobiliado" | "semi" | "sem";
+export const MOBILIA_LABEL: Record<Mobilia, string> = {
+  mobiliado: "Mobiliado (eletros, modulados, móveis)",
+  semi: "Semimobiliado (móveis e modulados fixos)",
+  sem: "Sem mobília",
+};
+export type FichaLocacao = {
+  imovelId: string;
+  mobilia: Mobilia | "";
+  metragem: number;
+  locatarioEndereco: string;
+  locatarioPessoa: Pessoa;
+  proprietarioPessoa: Pessoa;
+  fiadorPessoa: Pessoa;
+  proprietario: { nome: string; telefone: string; email: string };
+  /** Garantia fora da lista atual (CredPago, título de capitalização…): texto livre, lista final a confirmar. */
+  garantiaOutra: string;
+  observacoes: string;
 };
 
 export type LeituraDoc = "pendente" | "ok" | "falhou" | "sem_leitura" | null;
@@ -177,12 +203,23 @@ export type ContratoDados = {
   origem: unknown;
   faltando: string[];
 };
+/** Checklist de uma parte (Locatário PF/PJ, garantia, Proprietário PF/PJ) — t_28e583e2. */
+export type ParteChecklist = {
+  parte: string;
+  grupo: string;
+  rotulo: string;
+  itens: { item: string; obrigatorio: boolean; entregue: boolean }[];
+};
 export type LocacaoDetalhe = Locacao & {
   checklist: string[];
   faltando: string[];
   documentos: DocumentoLocacao[];
   eventos: EventoLocacao[];
   contrato: ContratoDados;
+  partes: ParteChecklist[];
+  /** Todos os documentos obrigatórios entregues (a trava do "Montar contrato" libera). */
+  docsCompleta: boolean;
+  captadorNome: string | null;
 };
 const LEITURAS = new Set(["pendente", "ok", "falhou", "sem_leitura"]);
 
@@ -193,6 +230,81 @@ function lerTit(v: unknown): Titularidade {
     return { aplica: x.aplica === undefined ? padrao : b(x.aplica), protocolo: sn(x.protocolo) };
   };
   return { cpfl: um("cpfl", true), saae: um("saae", true), gas: um("gas", false) };
+}
+
+const MOBILIAS = new Set(["mobiliado", "semi", "sem"]);
+const pessoa = (v: unknown): Pessoa => (v === "pj" ? "pj" : "pf");
+
+export function lerFicha(raw: unknown): FichaLocacao {
+  const f = obj(raw);
+  const p = obj(f.proprietario);
+  return {
+    imovelId: s(f.imovel_id),
+    mobilia: MOBILIAS.has(s(f.mobilia)) ? (s(f.mobilia) as Mobilia) : "",
+    metragem: n(f.metragem),
+    locatarioEndereco: s(f.locatario_endereco),
+    locatarioPessoa: pessoa(f.locatario_pessoa),
+    proprietarioPessoa: pessoa(f.proprietario_pessoa),
+    fiadorPessoa: pessoa(f.fiador_pessoa),
+    proprietario: { nome: s(p.nome), telefone: s(p.telefone), email: s(p.email) },
+    garantiaOutra: s(f.garantia_outra),
+    observacoes: s(f.observacoes),
+  };
+}
+
+/** Ficha → JSON do banco (campo vazio vai como null e sai da ficha). Espelho de locacao_ficha_ok. */
+export function fichaParaBanco(f: FichaLocacao): Record<string, unknown> {
+  const t = (v: string) => (v.trim() === "" ? null : v.trim());
+  return {
+    imovel_id: t(f.imovelId),
+    mobilia: f.mobilia || null,
+    metragem: f.metragem > 0 ? f.metragem : null,
+    locatario_endereco: t(f.locatarioEndereco),
+    locatario_pessoa: f.locatarioPessoa,
+    proprietario_pessoa: f.proprietarioPessoa,
+    fiador_pessoa: f.fiadorPessoa,
+    proprietario: {
+      nome: t(f.proprietario.nome),
+      telefone: t(f.proprietario.telefone),
+      email: t(f.proprietario.email),
+    },
+    garantia_outra: t(f.garantiaOutra),
+    observacoes: t(f.observacoes),
+  };
+}
+
+/** O que falta da ficha cadastral para enviar à gestora (o banco repete a regra em locacao_enviar_pre). */
+export function faltasFicha(f: FichaLocacao, captadorId: string | null): string[] {
+  const x: string[] = [];
+  if (!f.imovelId.trim()) x.push("ID do imóvel");
+  if (!f.mobilia) x.push("mobília");
+  if (!(f.metragem > 0)) x.push("metragem");
+  if (f.locatarioEndereco.trim().length < 8) x.push("endereço atual do locatário");
+  if (f.proprietario.nome.trim().length < 3) x.push("nome do proprietário");
+  if (!f.proprietario.telefone.trim() && !f.proprietario.email.trim())
+    x.push("telefone ou e-mail do proprietário");
+  if (!captadorId) x.push("corretor captador");
+  return x;
+}
+
+/** Item opcional da lista de documentos: o nome termina em "(opcional)". Aparece no checklist, não trava. */
+export function itemOpcional(item: string): boolean {
+  return /\(opcional\)\s*$/i.test(item);
+}
+
+export function lerPartes(raw: unknown): ParteChecklist[] {
+  return arr(raw).map((p) => {
+    const x = obj(p);
+    return {
+      parte: s(x.parte),
+      grupo: s(x.grupo),
+      rotulo: s(x.rotulo),
+      itens: arr(x.itens).map((i) => {
+        const y = obj(i);
+        return { item: s(y.item), obrigatorio: y.obrigatorio !== false, entregue: b(y.entregue) };
+      }),
+    };
+  });
 }
 
 export function lerLocacao(raw: unknown): Locacao {
@@ -258,6 +370,9 @@ export function lerLocacao(raw: unknown): Locacao {
       tit: lerTit(p.tit),
     },
     chaveEm: sn(o.chave_em),
+    ficha: lerFicha(o.ficha),
+    captadorId: sn(o.captador_id),
+    docsCompletosEm: sn(o.docs_completos_em),
   };
 }
 
@@ -267,6 +382,9 @@ export function lerDetalhe(raw: unknown): LocacaoDetalhe {
     ...lerLocacao(raw),
     checklist: arr(o.checklist).map(s).filter(Boolean),
     faltando: arr(o.faltando).map(s).filter(Boolean),
+    partes: lerPartes(o.partes),
+    docsCompleta: o.docs_completa === undefined ? arr(o.faltando).length === 0 : b(o.docs_completa),
+    captadorNome: sn(o.captador_nome),
     documentos: arr(o.documentos).map((d) => {
       const x = obj(d);
       return {
@@ -519,10 +637,17 @@ const GRUPOS_DOC: { key: string; label: string }[] = [
   { key: "caucao", label: GARANTIA_LABEL.caucao },
   { key: "seguro_fianca", label: GARANTIA_LABEL.seguro_fianca },
   { key: "proprietario", label: "Proprietário" },
+  // t_28e583e2: listas PJ (formulários reais de 10/11). Fiador PJ sem lista → usa a do fiador.
+  { key: "locatario_pj", label: "Locatário PJ" },
+  { key: "fiador_pj", label: "Fiador PJ" },
+  { key: "proprietario_pj", label: "Proprietário PJ" },
 ];
 
 export function docsParaTexto(docs: Record<string, string[]>): string {
-  return GRUPOS_DOC.map((g) => `[${g.label}]\n${(docs[g.key] ?? []).join("\n")}`).join("\n\n");
+  // Grupos PJ só aparecem quando a imobiliária tem a lista (o banco já devolve as PJ padrão).
+  return GRUPOS_DOC.filter((g) => !g.key.endsWith("_pj") || g.key in docs)
+    .map((g) => `[${g.label}]\n${(docs[g.key] ?? []).join("\n")}`)
+    .join("\n\n");
 }
 
 export function textoParaDocs(texto: string): Record<string, string[]> {
