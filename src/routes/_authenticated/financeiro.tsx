@@ -282,7 +282,7 @@ function CentralFinanceiraPage() {
         <TabsContent value="comissoes" className="space-y-3">
           <ResumoComissoesPeriodo
             resumo={resumoComissoes}
-            parceriaExterna={resumo.parceriaExterna}
+            parceriaExterna={filtros.papel ? null : resumo.parceriaExterna}
             periodoLabel={periodoResumoLabel}
             onExportar={exportarResumoComissoes}
           />

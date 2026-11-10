@@ -535,7 +535,9 @@ export function resumirComissoesPorPeriodo(rows: ComissaoCalculada[]): ResumoCom
   for (const r of rows) {
     const recebida = comissaoRecebidaPelaImobiliaria(r);
     const chave = r.teamId ?? "sem_equipe";
-    const eq = equipes.get(chave) ?? novo(chave, r.teamNome ?? "Sem equipe resolvida");
+    const eq =
+      equipes.get(chave) ??
+      novo(chave, r.teamNome ?? (r.teamId ? "Equipe sem nome" : "Sem equipe resolvida"));
     for (const acc of [total, eq]) {
       acc.vendas.add(r.saleId);
       acc.calculada += r.valor;
@@ -555,11 +557,23 @@ export function resumirComissoesPorPeriodo(rows: ComissaoCalculada[]): ResumoCom
       pendente: Number((calculada - recebida).toFixed(2)),
     };
   };
+  const porEquipe = Array.from(equipes.values())
+    .map(fechar)
+    .sort((a, b) => b.calculada - a.calculada || a.label.localeCompare(b.label));
+  // Total geral = soma das linhas já arredondadas por equipe, pra tela e CSV nunca divergirem em
+  // centavos (transações vêm do Set geral: cada venda está em uma só equipe).
+  const somar = (k: "calculada" | "recebida" | "pendente") =>
+    Number(porEquipe.reduce((s, l) => s + l[k], 0).toFixed(2));
   return {
-    total: fechar(total),
-    porEquipe: Array.from(equipes.values())
-      .map(fechar)
-      .sort((a, b) => b.calculada - a.calculada || a.label.localeCompare(b.label)),
+    total: {
+      chave: "total",
+      label: "Total geral",
+      transacoes: total.vendas.size,
+      calculada: somar("calculada"),
+      recebida: somar("recebida"),
+      pendente: somar("pendente"),
+    },
+    porEquipe,
   };
 }
 

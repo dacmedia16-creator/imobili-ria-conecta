@@ -170,3 +170,41 @@ describe("resumirComissoesPorPeriodo", () => {
     expect(r.total.recebida + r.total.pendente).toBeCloseTo(0.6, 2);
   });
 });
+
+describe("resumirComissoesPorPeriodo — consistência", () => {
+  it("total geral = soma das equipes, mesmo com centavos fracionados", () => {
+    const rows = [
+      linha({ id: "1", saleId: "s1", valor: 100.01, fracaoRecebidaVenda: 1 / 3 }),
+      linha({
+        id: "2",
+        saleId: "s2",
+        valor: 100.01,
+        fracaoRecebidaVenda: 1 / 3,
+        teamId: "b",
+        teamNome: "B",
+      }),
+      linha({
+        id: "3",
+        saleId: "s3",
+        valor: 100.01,
+        fracaoRecebidaVenda: 1 / 3,
+        teamId: "c",
+        teamNome: "C",
+      }),
+    ];
+    const r = resumirComissoesPorPeriodo(rows);
+    for (const k of ["calculada", "recebida", "pendente"] as const) {
+      expect(r.total[k]).toBe(Number(r.porEquipe.reduce((s, l) => s + l[k], 0).toFixed(2)));
+    }
+  });
+  it("equipe com id mas sem nome não se confunde com 'Sem equipe resolvida'", () => {
+    const r = resumirComissoesPorPeriodo([
+      linha({ id: "1", saleId: "s1", valor: 10, teamId: "x", teamNome: null }),
+      linha({ id: "2", saleId: "s2", valor: 10, teamId: null, teamNome: null }),
+    ]);
+    expect(r.porEquipe.map((l) => l.label).sort()).toEqual([
+      "Equipe sem nome",
+      "Sem equipe resolvida",
+    ]);
+  });
+});

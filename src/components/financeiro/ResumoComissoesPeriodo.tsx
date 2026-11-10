@@ -22,7 +22,8 @@ export function ResumoComissoesPeriodo({
   onExportar,
 }: {
   resumo: Resumo;
-  parceriaExterna: number;
+  /** null = valor não comparável com o filtro atual (ex.: filtro por papel). */
+  parceriaExterna: number | null;
   periodoLabel: string;
   onExportar: () => void;
 }) {
@@ -33,7 +34,7 @@ export function ResumoComissoesPeriodo({
     {
       label: "Recebida pela imobiliária",
       valor: money(total.recebida),
-      hint: "proporcional às parcelas já recebidas",
+      hint: "até hoje, proporcional às parcelas",
     },
     { label: "Pendente", valor: money(total.pendente), hint: "calculada − recebida" },
   ];
@@ -115,12 +116,12 @@ export function ResumoComissoesPeriodo({
         <ul className="space-y-1 text-xs text-muted-foreground">
           <li>
             <strong>Recebida pela imobiliária</strong>: parte da comissão cujas parcelas da venda já
-            entraram na imobiliária. Não indica pagamento ao corretor (o sistema ainda não registra
-            esse pagamento).
+            entraram na imobiliária até hoje (mesmo que depois do fim do período). Não indica
+            pagamento ao corretor (o sistema ainda não registra esse pagamento).
           </li>
           <li>
             <strong>Parceiro externo fica fora destes totais</strong> (regra atual)
-            {parceriaExterna > 0 ? (
+            {parceriaExterna != null && parceriaExterna > 0 ? (
               <>: {money(parceriaExterna)} de parceria externa nas vendas do período, à parte.</>
             ) : (
               "."

@@ -71,3 +71,11 @@ describe("ResumoComissoesPeriodo (tela)", () => {
     expect(html).toMatch(/<button[^>]*disabled/);
   });
 });
+
+describe("ResumoComissoesPeriodo — filtro por papel", () => {
+  it("sem valor de parceria comparável (null): só o aviso, sem número", () => {
+    const html = render({ parceriaExterna: null });
+    expect(html).toContain("Parceiro externo fica fora destes totais");
+    expect(html).not.toContain("de parceria externa");
+  });
+});
