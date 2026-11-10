@@ -52,7 +52,8 @@ SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace = 'pu
 SELECT pg_temp.ok(NOT has_function_privilege('authenticated', 'public.locacao_fin_ctx()', 'EXECUTE')
   AND NOT has_function_privilege('authenticated', 'public.locacao_fin_evento(uuid,uuid,uuid,text,text,jsonb)', 'EXECUTE')
   AND NOT has_function_privilege('authenticated', 'public.locacao_fin_criar_contrato(public.locacoes)', 'EXECUTE')
-  AND NOT has_function_privilege('authenticated', 'public.locacao_fin_repasse_calc(public.locacao_cobrancas)', 'EXECUTE'),
+  AND NOT has_function_privilege('authenticated', 'public.locacao_fin_repasse_calc(public.locacao_cobrancas)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public.locacao_fin_pode_regras(uuid,uuid)', 'EXECUTE'),
   'funções internas (contexto, histórico, criar contrato, cálculo) não são chamáveis pelo navegador');
 SELECT pg_temp.ok((SELECT situacao = 'a_completar' AND garantia = 'caucao' AND aluguel = 1500 AND taxa_adm = 8
    AND inicio = pg_temp.d('hoje') - 20 AND proximo_reajuste = (pg_temp.d('hoje') - 20 + interval '1 year')::date AND indice = 'IGP-M'
@@ -245,6 +246,26 @@ SELECT pg_temp.ok((pg_temp.j('B3')->'repasse_calc'->>'total')::numeric = 1573.33
   'pagou a menos: diferença (−96,67) aparece e sai do repasse: 2.000 − 200 + 50 − 180 − 96,67 = 1.573,33');
 SELECT pg_temp.as_user(pg_temp.id('c2')::text);
 SELECT pg_temp.ok(pg_temp.err('SELECT public.locacao_fin_config_salvar(''{"multa_pct":5}'')') LIKE '42501%', 'corretor não altera regras financeiras');
+SELECT pg_temp.as_user(pg_temp.id('ffin')::text);
+-- Decisão de Denis 09/11 ("só financeiro", t_0ee7fe81): administração e gerência (staff) veem, mas NÃO alteram as regras.
+SELECT pg_temp.ok((public.locacao_fin_painel(NULL)->>'pode_regras')::boolean, 'papel Financeiro da locação pode alterar as regras');
+SELECT pg_temp.as_user(pg_temp.id('adm')::text);
+SELECT pg_temp.ok(NOT (public.locacao_fin_painel(NULL)->>'pode_regras')::boolean
+  AND (public.locacao_fin_painel(NULL)->'config'->>'multa_pct')::numeric = 2, 'administrador vê as regras, mas sem permissão de alterar');
+SELECT pg_temp.ok(pg_temp.err('SELECT public.locacao_fin_config_salvar(''{"multa_pct":5}'')') LIKE '42501%Financeiro%',
+  'administrador NÃO altera regras financeiras (só o Financeiro da locação)');
+RESET ROLE;
+INSERT INTO public.user_roles (user_id, role, organization_id) VALUES (pg_temp.id('vis'), 'staff', pg_temp.id('orgA'));
+SELECT pg_temp.ok(public.locacao_eh_gerencia(pg_temp.id('vis')) AND NOT public.has_any_role(pg_temp.id('vis'),
+  ARRAY['admin', 'super_admin']::public.app_role[]), 'pessoa de teste é gerência (staff), sem ser administradora');
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.as_user(pg_temp.id('vis')::text);
+SELECT pg_temp.ok(pg_temp.err('SELECT public.locacao_fin_config_salvar(''{"multa_pct":5}'')') LIKE '42501%Financeiro%',
+  'gerência (staff) NÃO altera regras financeiras');
+RESET ROLE;
+SELECT pg_temp.ok((SELECT multa_pct FROM public.locacao_fin_config WHERE organization_id = pg_temp.id('orgA')) = 2,
+  'regras continuam as do Financeiro depois das tentativas recusadas');
+SET LOCAL ROLE authenticated;
 SELECT pg_temp.as_user(pg_temp.id('ffin')::text);
 
 -- 7) Mês atual, cancelamento e painel --------------------------------------------------------------------------------

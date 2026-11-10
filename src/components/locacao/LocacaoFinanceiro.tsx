@@ -118,7 +118,7 @@ export function LocacaoFinanceiro() {
             )}
           </TabsTrigger>
           <TabsTrigger value="repasse">Repasse e extrato</TabsTrigger>
-          {p.podeRegras && <TabsTrigger value="regras">Regras financeiras</TabsTrigger>}
+          <TabsTrigger value="regras">Regras financeiras</TabsTrigger>
         </TabsList>
         <TabsContent value="painel">
           <Painel p={p} setComp={setComp} onAbrir={setCob} onMudou={carregar} />
@@ -130,7 +130,7 @@ export function LocacaoFinanceiro() {
           <Repasse p={p} onAbrir={setCob} />
         </TabsContent>
         <TabsContent value="regras">
-          {p.podeRegras && <RegrasFin config={p.config} onSalvo={carregar} />}
+          <RegrasFin config={p.config} podeEditar={p.podeRegras} onSalvo={carregar} />
         </TabsContent>
       </Tabs>
       {cob && (
@@ -1056,8 +1056,19 @@ function Repasse({ p, onAbrir }: { p: PainelFin; onAbrir: (c: Cobranca) => void 
 }
 
 // --- Regras financeiras ------------------------------------------------------------------------------------------------
-function RegrasFin({ config, onSalvo }: { config: ConfigFin; onSalvo: () => Promise<void> }) {
+// Só o papel Financeiro da locação altera (decisão de Denis, 09/11). Administração e gerência veem só leitura;
+// o banco recusa de qualquer forma (locacao_fin_config_salvar).
+function RegrasFin({
+  config,
+  podeEditar,
+  onSalvo,
+}: {
+  config: ConfigFin;
+  podeEditar: boolean;
+  onSalvo: () => Promise<void>;
+}) {
   const [f, setF] = useState(config);
+  const bloqueado = !podeEditar;
   const [busy, setBusy] = useState(false);
   const salvar = async () => {
     setBusy(true);
@@ -1091,6 +1102,7 @@ function RegrasFin({ config, onSalvo }: { config: ConfigFin; onSalvo: () => Prom
         id={`rf-${k}`}
         inputMode="decimal"
         value={String(f[k]).replace(".", ",")}
+        disabled={bloqueado}
         onChange={(e) => setF((x) => ({ ...x, [k]: numSimples(e.target.value) }))}
       />
     </div>
@@ -1103,6 +1115,7 @@ function RegrasFin({ config, onSalvo }: { config: ConfigFin; onSalvo: () => Prom
       <input
         type="checkbox"
         checked={f[k]}
+        disabled={bloqueado}
         onChange={(e) => setF((x) => ({ ...x, [k]: e.target.checked }))}
       />
       {label} <AConfirmar />
@@ -1116,6 +1129,11 @@ function RegrasFin({ config, onSalvo }: { config: ConfigFin; onSalvo: () => Prom
           Valores de exemplo da maquete. Valem a partir da próxima geração/baixa; o que já foi
           baixado guarda a regra usada. Toda mudança fica no histórico.
         </p>
+        {bloqueado && (
+          <p className="text-sm font-medium text-amber-700" data-testid="fin-regras-so-leitura">
+            Somente leitura: só o Financeiro da locação altera estas regras.
+          </p>
+        )}
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-3">
         {numero("multaPct", "Multa por atraso (%)")}
@@ -1127,6 +1145,7 @@ function RegrasFin({ config, onSalvo }: { config: ConfigFin; onSalvo: () => Prom
           </Label>
           <select
             id="rf-sobre"
+            disabled={bloqueado}
             className="h-9 w-full rounded-md border bg-background px-2 text-sm"
             value={f.multaSobre}
             onChange={(e) =>
@@ -1143,6 +1162,7 @@ function RegrasFin({ config, onSalvo }: { config: ConfigFin; onSalvo: () => Prom
           </Label>
           <select
             id="rf-para"
+            disabled={bloqueado}
             className="h-9 w-full rounded-md border bg-background px-2 text-sm"
             value={f.multaPara}
             onChange={(e) =>
@@ -1162,6 +1182,7 @@ function RegrasFin({ config, onSalvo }: { config: ConfigFin; onSalvo: () => Prom
           </Label>
           <select
             id="rf-indice"
+            disabled={bloqueado}
             className="h-9 w-full rounded-md border bg-background px-2 text-sm"
             value={f.indice}
             onChange={(e) => setF((x) => ({ ...x, indice: e.target.value as ConfigFin["indice"] }))}
@@ -1177,11 +1198,13 @@ function RegrasFin({ config, onSalvo }: { config: ConfigFin; onSalvo: () => Prom
           {chk("iptuNoBoleto", "IPTU entra na cobrança do inquilino")}
           {chk("iptuRepassaProprietario", "IPTU cobrado vai para o proprietário no repasse")}
         </div>
-        <div className="flex justify-end md:col-span-3">
-          <Button disabled={busy} onClick={() => void salvar()}>
-            Salvar regras financeiras
-          </Button>
-        </div>
+        {podeEditar && (
+          <div className="flex justify-end md:col-span-3">
+            <Button disabled={busy} onClick={() => void salvar()}>
+              Salvar regras financeiras
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

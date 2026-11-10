@@ -1,6 +1,6 @@
 # Rollback — Locação Fase 2, Financeiro parte 1 (t_be750361)
 
-Nada disto está em produção. O PR é RASCUNHO e só é publicado com um novo "sim" de Denis.
+Publicação autorizada por Denis em 09/11/2026 ("1 sim / 2 só financeiro", cartão t_0ee7fe81).
 
 ## O que a mudança cria
 - Migration `supabase/migrations/20261111120000_locacao_fase2_financeiro.sql`, só ADITIVA:
@@ -8,6 +8,7 @@ Nada disto está em produção. O PR é RASCUNHO e só é publicado com um novo 
   - Tabelas `locacao_fin_config`, `locacao_contratos`, `locacao_cobrancas`, `locacao_fin_descontos`, `locacao_repasses` e `locacao_fin_eventos`. Todas com RLS ligada e sem acesso direto do navegador. O histórico só aceita inserção, porque um trigger bloqueia UPDATE.
   - Funções `locacao_fin_*` e a trigger `locacao_fin_contrato_na_chave` em `locacoes`, que cria o contrato "a completar" quando as chaves são entregues.
   - Na aplicação, as locações que **já** tiverem chave entregue ganham um contrato "a completar". Nenhuma cobrança é gerada sozinha.
+  - Regras financeiras (`locacao_fin_config_salvar`): só quem tem o papel `financeiro` da locação **atribuído explicitamente** altera (função interna `locacao_fin_pode_regras`). Administrador, adm. principal e gerência (staff) veem as regras só para leitura. Decisão de Denis, 09/11 ("só financeiro").
   - Redefine 3 funções da Fase 1, que voltam como eram no rollback: `locacao_pode_ver` (o papel financeiro sozinho não vê a esteira), `locacao_contexto` (lista o papel financeiro) e `locacao_papel_definir` (aceita o papel financeiro).
 - Front: aba **Financeiro** em `/locacoes`, com Painel, Contratos, Repasse e extrato e Regras financeiras. O papel aparece na tela "Regras e papéis".
 - Não altera vendas, captação, leads, usuários nem `user_roles`. Não chama Itaú nem envia mensagem. Não gera boleto e não move dinheiro.
@@ -30,7 +31,7 @@ Nada disto está em produção. O PR é RASCUNHO e só é publicado com um novo 
   - Depois do rollback da Fase 2, volta a `b3c3d68d…`
   - Depois de desfazer também a Fase 1 (que a homologação não tinha), volta a `b0e4b785…`, o estado original.
 - Suíte `supabase/tests/run-locacao-fin.sh`, numa transação desfeita:
-  - Fase 2: 80/80.
+  - Fase 2: 90/90 (com a regra "só Financeiro altera as regras", t_0ee7fe81).
   - Regressão da Fase 1 com a Fase 2 aplicada: 81/81.
   - Impressão digital igual antes e depois do rollback.
 

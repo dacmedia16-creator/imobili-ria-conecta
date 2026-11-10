@@ -31,6 +31,7 @@ DROP FUNCTION IF EXISTS public.locacao_fin_repasse_calc(public.locacao_cobrancas
 DROP FUNCTION IF EXISTS public.locacao_fin_encargos(public.locacao_cobrancas, date, public.locacao_fin_config);
 DROP FUNCTION IF EXISTS public.locacao_fin_evento(uuid, uuid, uuid, text, text, jsonb);
 DROP FUNCTION IF EXISTS public.locacao_fin_ctx();
+DROP FUNCTION IF EXISTS public.locacao_fin_pode_regras(uuid, uuid);
 DROP FUNCTION IF EXISTS public.locacao_fin_brl(numeric);
 DROP FUNCTION IF EXISTS public.locacao_fin_hoje();
 DROP FUNCTION IF EXISTS public.locacao_fin_cfg(uuid);

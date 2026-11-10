@@ -271,6 +271,16 @@ BEGIN
   RETURN _org;
 END $$;
 
+-- Regras financeiras: SÓ quem tem o papel 'financeiro' da locação, atribuído explicitamente nesta imobiliária.
+-- Diferente de locacao_tem_papel: administrador/adm. principal e gerência (staff) NÃO herdam esta permissão; veem as
+-- regras, mas não alteram (decisão de Denis, 09/11/2026: "só financeiro", cartão t_0ee7fe81).
+CREATE OR REPLACE FUNCTION public.locacao_fin_pode_regras(_uid uuid, _org uuid) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$
+  SELECT coalesce(_uid IS NOT NULL AND _org IS NOT NULL AND EXISTS (
+    SELECT 1 FROM public.locacao_papeis p WHERE p.organization_id = _org AND p.user_id = _uid AND p.papel = 'financeiro'), false)
+$$;
+REVOKE ALL ON FUNCTION public.locacao_fin_pode_regras(uuid, uuid) FROM PUBLIC, anon, authenticated;
+
 CREATE OR REPLACE FUNCTION public.locacao_fin_evento(_org uuid, _contrato uuid, _cobranca uuid, _acao text, _descricao text,
   _dados jsonb DEFAULT '{}'::jsonb) RETURNS void
 LANGUAGE sql SECURITY DEFINER SET search_path TO '' AS $$
@@ -429,7 +439,7 @@ BEGIN
   RETURN jsonb_build_object(
     'competencia', _comp, 'hoje', public.locacao_fin_hoje(),
     'config', to_jsonb(public.locacao_fin_cfg(_org)) - 'organization_id' - 'atualizado_por',
-    'pode_regras', public.locacao_tem_papel(auth.uid(), 'financeiro') OR public.locacao_eh_gerencia(auth.uid()),
+    'pode_regras', public.locacao_fin_pode_regras(auth.uid(), _org),
     'contratos', (SELECT coalesce(jsonb_agg(public.locacao_fin_ct_json(ct) ORDER BY ct.numero), '[]')
                     FROM public.locacao_contratos ct WHERE ct.organization_id = _org),
     'cobrancas', (SELECT coalesce(jsonb_agg(public.locacao_fin_cob_json(c) ORDER BY c.vencimento, c.id), '[]')
@@ -735,13 +745,14 @@ END $$;
 REVOKE ALL ON FUNCTION public.locacao_fin_extrato(text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.locacao_fin_extrato(text) TO authenticated;
 
--- Regras financeiras (Financeiro da locação ou administração da imobiliária). Toda mudança fica no histórico.
+-- Regras financeiras: SÓ o papel Financeiro da locação altera (gerência e administração só veem). Toda mudança fica
+-- no histórico.
 CREATE OR REPLACE FUNCTION public.locacao_fin_config_salvar(_dados jsonb) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
 DECLARE _org uuid := public.locacao_ctx(); _antes public.locacao_fin_config; _c public.locacao_fin_config;
 BEGIN
-  IF NOT (public.locacao_tem_papel(auth.uid(), 'financeiro') OR public.locacao_eh_gerencia(auth.uid())) THEN
-    RAISE EXCEPTION 'Só o Financeiro da locação ou a administração altera as regras financeiras.' USING ERRCODE = '42501';
+  IF NOT public.locacao_fin_pode_regras(auth.uid(), _org) THEN
+    RAISE EXCEPTION 'Só o Financeiro da locação altera as regras financeiras.' USING ERRCODE = '42501';
   END IF;
   IF _dados IS NULL OR jsonb_typeof(_dados) <> 'object' OR EXISTS (SELECT 1 FROM jsonb_object_keys(_dados) k WHERE k NOT IN
      ('multa_pct', 'juros_pct_mes', 'multa_sobre', 'multa_para', 'dias_repasse', 'condominio_no_boleto', 'iptu_no_boleto',
