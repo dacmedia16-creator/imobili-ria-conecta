@@ -153,7 +153,17 @@ export type Locacao = {
   chaveEm: string | null;
 };
 
-export type DocumentoLocacao = { id: string; item: string; nomeArquivo: string; enviadoEm: string };
+export type LeituraDoc = "pendente" | "ok" | "falhou" | "sem_leitura" | null;
+export type DocumentoLocacao = {
+  id: string;
+  item: string;
+  nomeArquivo: string;
+  enviadoEm: string;
+  /** Selo da leitura por IA (t_127811ca). null = ainda não lido. */
+  leitura: LeituraDoc;
+  leituraErro: string | null;
+  preenchidos: number;
+};
 export type EventoLocacao = {
   em: string;
   etapa: string;
@@ -161,12 +171,20 @@ export type EventoLocacao = {
   descricao: string;
   atorNome: string | null;
 };
+export type ContratoDados = {
+  exige: boolean;
+  valores: unknown;
+  origem: unknown;
+  faltando: string[];
+};
 export type LocacaoDetalhe = Locacao & {
   checklist: string[];
   faltando: string[];
   documentos: DocumentoLocacao[];
   eventos: EventoLocacao[];
+  contrato: ContratoDados;
 };
+const LEITURAS = new Set(["pendente", "ok", "falhou", "sem_leitura"]);
 
 function lerTit(v: unknown): Titularidade {
   const t = obj(v);
@@ -256,8 +274,20 @@ export function lerDetalhe(raw: unknown): LocacaoDetalhe {
         item: s(x.item),
         nomeArquivo: s(x.nome_arquivo),
         enviadoEm: s(x.enviado_em),
+        leitura: LEITURAS.has(s(x.leitura)) ? (s(x.leitura) as LeituraDoc) : null,
+        leituraErro: sn(x.leitura_erro),
+        preenchidos: n(x.preenchidos),
       };
     }),
+    contrato: (() => {
+      const c = obj(o.contrato);
+      return {
+        exige: b(c.exige),
+        valores: c.valores,
+        origem: c.origem,
+        faltando: arr(c.faltando).map(s).filter(Boolean),
+      };
+    })(),
     eventos: arr(o.eventos).map((e) => {
       const x = obj(e);
       return {
