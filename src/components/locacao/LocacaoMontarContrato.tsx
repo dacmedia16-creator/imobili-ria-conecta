@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import fonteUrl from "@/assets/fonts/DejaVuSans.ttf?url";
+import negritoUrl from "@/assets/fonts/DejaVuSans-Bold.ttf?url";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { loadCurrentAgencyBrand, logoForPdf } from "@/lib/agency-brand";
 import { lerMontagem, salvarMontagem } from "@/lib/locacao-db";
 import {
   CAMPOS,
@@ -96,9 +98,17 @@ export function LocacaoMontarContrato({
       // Revalida a trava no servidor imediatamente antes de gerar e usa somente os dados salvos.
       const fresh = (await lerMontagem(d.id)) as Montagem;
       const paragrafos = textoContrato(d, fresh, camposIniciais(d, fresh));
-      const fonteResposta = await fetch(fonteUrl);
+      const [fonteResposta, negritoResposta, brand] = await Promise.all([
+        fetch(fonteUrl),
+        fetch(negritoUrl),
+        loadCurrentAgencyBrand().catch(() => null),
+      ]);
       if (!fonteResposta.ok) throw new Error("Fonte do PDF indisponível");
-      const bytes = await gerarPdfContrato(paragrafos, await fonteResposta.arrayBuffer());
+      const logo = await logoForPdf(brand?.pdfLogoUrl ?? "/remax-logo-transparent.png");
+      const bytes = await gerarPdfContrato(paragrafos, await fonteResposta.arrayBuffer(), {
+        negrito: negritoResposta.ok ? await negritoResposta.arrayBuffer() : undefined,
+        logo,
+      });
       const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

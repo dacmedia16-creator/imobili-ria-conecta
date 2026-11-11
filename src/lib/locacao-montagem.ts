@@ -1,6 +1,5 @@
 import clausulas from "./locacao-clausulas.json";
-import { PDFDocument, rgb } from "pdf-lib";
-import fontkit from "@pdf-lib/fontkit";
+export { gerarPdfContrato, type OpcoesPdfContrato } from "./locacao-contrato-pdf";
 
 export type Montagem = {
   campos: Record<string, string>;
@@ -158,10 +157,17 @@ export function dadosContrato(m: Montagem, c: Record<string, string>): Record<st
     ),
   };
 }
+const docLabel = (rotulo: string, valor: string) => {
+  const v = (valor || "").trim();
+  if (!v) return rotulo;
+  return v.toLowerCase().startsWith(rotulo.toLowerCase()) ? v : `${rotulo} ${v}`;
+};
 const nome = (v: Record<string, string>, prefixo: string) =>
-  `${v[`${prefixo}_nome`] || ""}, ${v[`${prefixo}_nacionalidade`] || ""}, ${v[`${prefixo}_estado_civil`] || ""}, ${v[`${prefixo}_profissao`] || ""}, RG ${v[`${prefixo}_rg`] || ""}, CPF ${v[`${prefixo}_cpf`] || ""}, residente em ${v[`${prefixo}_endereco`] || ""}`;
+  `${v[`${prefixo}_nome`] || ""}, ${v[`${prefixo}_nacionalidade`] || ""}, ${v[`${prefixo}_estado_civil`] || ""}, ${v[`${prefixo}_profissao`] || ""}, ${docLabel("RG", v[`${prefixo}_rg`] || "")}, ${docLabel("CPF", v[`${prefixo}_cpf`] || "")}, residente em ${v[`${prefixo}_endereco`] || ""}`;
 const conj = (v: Record<string, string>, p: string) =>
-  v[`${p}_conj_nome`] ? `, e cônjuge ${v[`${p}_conj_nome`]}, CPF ${v[`${p}_conj_cpf`] || ""}` : "";
+  v[`${p}_conj_nome`]
+    ? `, e cônjuge ${v[`${p}_conj_nome`]}, ${docLabel("CPF", v[`${p}_conj_cpf`] || "")}`
+    : "";
 const dataLonga = (iso: string) => {
   const d = new Date(`${iso}T12:00:00Z`);
   return Number.isNaN(d.getTime())
@@ -333,11 +339,14 @@ export function textoContrato(base: LocacaoBase, m: Montagem, c: Record<string, 
       .replace("{{fia_matricula}}", v.fia_matricula)
       .replace("{{fia_cartorio}}", v.fia_cartorio);
   return [
-    `CONTRATO DE LOCAÇÃO - RESIDENCIAL | Contrato de Garantia: FIADOR | Nº ${c.numero}`,
-    "QUADRO RESUMO: Locador(es); Locatário(s); Administradora; Garantia fiador.",
+    "CONTRATO DE LOCAÇÃO - RESIDENCIAL",
+    "Contrato de Garantia: FIADOR",
+    `Nº ${c.numero}`,
+    "QUADRO RESUMO:",
+    "Administradora; Imóvel; Destinação da Locação; Prazo da Locação; Valor e Vencimento do Aluguel; Reajuste e Encargos Locatícios; Contas de Consumo; Transferência de Titularidade; Garantia Locatícia; Vistoria Inicial; Conservação do Imóvel; Benfeitorias; Vistoria Final; Rescisão e Multa; Disposições Gerais.",
     `LOCADOR (A): ${nome(v, "prop")}${conj(v, "prop")}${c.locadores_adicionais ? `; ${c.locadores_adicionais}` : ""}.`,
     `LOCATÁRIO (A): ${nome(v, "loc")}${c.locatarios_adicionais ? `; ${c.locatarios_adicionais}` : ""}.`,
-    `ADMINISTRADORA: ${m.administradora.nome} - CNPJ ${m.administradora.cnpj}${m.administradora.creci ? ` - CRECI ${m.administradora.creci}` : ""}.`,
+    `ADMINISTRADORA: ${m.administradora.nome} - ${docLabel("CNPJ", m.administradora.cnpj)}${m.administradora.creci ? ` - CRECI ${m.administradora.creci}` : ""}.`,
     `GARANTIA LOCATÍCIA - FIADOR: ${nome(v, "fia")}${conj(v, "fia")}.`,
     ...clausulas.slice(0, 8).map(replace),
     `OBJETO DA LOCAÇÃO: ${c.imovel_endereco} — Vagas: ${v.imv_vagas}.`,
@@ -356,49 +365,22 @@ export function textoContrato(base: LocacaoBase, m: Montagem, c: Record<string, 
       ? [`CLÁUSULAS ADICIONAIS A CONFERIR: ${c.clausulas_adicionais}`]
       : []),
     `${c.local}, ${dataLonga(c.data)}.`,
-    `LOCADOR: ${v.prop_nome} — ${v.prop_cpf}${v.prop_conj_nome ? `\n${v.prop_conj_nome} — ${v.prop_conj_cpf}` : ""}${c.locadores_adicionais ? `\n${c.locadores_adicionais}` : ""}`,
-    `LOCATÁRIO: ${v.loc_nome} — ${v.loc_cpf}${c.locatarios_adicionais ? `\n${c.locatarios_adicionais}` : ""}`,
-    `FIADOR: ${v.fia_nome} — ${v.fia_cpf}${v.fia_conj_nome ? `\n${v.fia_conj_nome} — ${v.fia_conj_cpf}` : ""}`,
-    `ADMINISTRADORA: ${m.administradora.nome} — CNPJ ${m.administradora.cnpj}`,
+    "LOCADOR:",
+    v.prop_nome,
+    v.prop_cpf,
+    ...(v.prop_conj_nome ? [v.prop_conj_nome, v.prop_conj_cpf] : []),
+    ...(c.locadores_adicionais ? [c.locadores_adicionais] : []),
+    "LOCATÁRIO:",
+    v.loc_nome,
+    v.loc_cpf,
+    ...(c.locatarios_adicionais ? [c.locatarios_adicionais] : []),
+    "FIADOR:",
+    v.fia_nome,
+    v.fia_cpf,
+    ...(v.fia_conj_nome ? [v.fia_conj_nome, v.fia_conj_cpf] : []),
+    "ADMINISTRADORA:",
+    m.administradora.nome,
+    docLabel("CNPJ", m.administradora.cnpj),
     ...(c.assinaturas ? [c.assinaturas] : []),
   ];
-}
-
-export async function gerarPdfContrato(
-  paragrafos: string[],
-  fonteBytes: ArrayBuffer | Uint8Array,
-): Promise<Uint8Array> {
-  const pdf = await PDFDocument.create();
-  pdf.registerFontkit(fontkit);
-  const fonte = await pdf.embedFont(fonteBytes, { subset: true });
-  const margem = 48,
-    largura = 595 - 2 * margem,
-    altura = 842;
-  let pagina = pdf.addPage([595, altura]),
-    y = altura - margem;
-  const size = 9.5,
-    line = 14;
-  const draw = (txt: string) => {
-    if (y < margem + line) {
-      pagina = pdf.addPage([595, altura]);
-      y = altura - margem;
-    }
-    pagina.drawText(txt, { x: margem, y, size, font: fonte, color: rgb(0, 0, 0) });
-    y -= line;
-  };
-  for (const p of paragrafos) {
-    for (const raw of p.split("\n")) {
-      let s = "";
-      for (const word of raw.split(/\s+/)) {
-        const next = s ? `${s} ${word}` : word;
-        if (fonte.widthOfTextAtSize(next, size) > largura && s) {
-          draw(s);
-          s = word;
-        } else s = next;
-      }
-      if (s) draw(s);
-    }
-    y -= 7;
-  }
-  return pdf.save();
 }

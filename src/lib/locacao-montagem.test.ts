@@ -144,10 +144,19 @@ describe("montagem residencial com fiador", () => {
   it("gera PDF legível com fonte Unicode e dados totalmente fictícios", async () => {
     const c = { ...camposIniciais(base, montagem), data: "2027-01-01" };
     const fonte = await readFile(new URL("../assets/fonts/DejaVuSans.ttf", import.meta.url));
-    const bytes = await gerarPdfContrato(textoContrato(base, montagem, c), fonte);
+    const negrito = await readFile(new URL("../assets/fonts/DejaVuSans-Bold.ttf", import.meta.url));
+    const logo = await readFile(new URL("../../public/remax-logo-transparent.png", import.meta.url));
+    const bytes = await gerarPdfContrato(textoContrato(base, montagem, c), fonte, {
+      negrito,
+      logo,
+    });
     const pdf = await PDFDocument.load(bytes);
     expect(pdf.getPageCount()).toBeGreaterThan(1);
     expect(bytes.byteLength).toBeGreaterThan(10000);
+    const texto = textoContrato(base, montagem, c).join("\n");
+    expect(texto).not.toContain("RG RG");
+    expect(texto).not.toContain("CPF CPF");
+    expect(texto).not.toContain("CNPJ CNPJ");
     if (process.env.EXEMPLO_PDF_PATH) await writeFile(process.env.EXEMPLO_PDF_PATH, bytes);
   });
   it("calcula fim e valor por extenso de forma civil", () => {
