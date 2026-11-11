@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile, unlink } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { PDFDocument } from "pdf-lib";
 import {
   CAMPOS_DOCUMENTO,
@@ -157,7 +160,54 @@ describe("montagem residencial com fiador", () => {
     expect(texto).not.toContain("RG RG");
     expect(texto).not.toContain("CPF CPF");
     expect(texto).not.toContain("CNPJ CNPJ");
+    expect(texto).not.toContain("CRECI CRECI");
     if (process.env.EXEMPLO_PDF_PATH) await writeFile(process.env.EXEMPLO_PDF_PATH, bytes);
+  });
+  it("não repete CRECI quando o cadastro já traz o rótulo", () => {
+    const c = { ...camposIniciais(base, montagem), data: "2027-01-01" };
+    const comRotulo = textoContrato(base, montagem, c).join("\n");
+    expect(comRotulo).toContain("CRECI fictício");
+    expect(comRotulo).not.toContain("CRECI CRECI");
+    const soNumero = {
+      ...montagem,
+      administradora: { ...montagem.administradora, creci: "29.886-J" },
+    };
+    const tNumero = textoContrato(base, soNumero, c).join("\n");
+    expect(tNumero).toContain("CRECI 29.886-J");
+    expect(tNumero).not.toContain("CRECI CRECI");
+    const comDoisPontos = {
+      ...montagem,
+      administradora: { ...montagem.administradora, creci: "CRECI: 29.886-J" },
+    };
+    const tDois = textoContrato(base, comDoisPontos, c).join("\n");
+    expect(tDois).toContain("CRECI: 29.886-J");
+    expect(tDois).not.toContain("CRECI CRECI");
+  });
+  it("mantém Vagas e o valor na mesma página do PDF", async () => {
+    const baseLongo: LocacaoBase = {
+      ...base,
+      endereco: "Rua Fictícia das Flores, 100 — Ap 11, Sorocaba/SP [exemplo-layout]",
+    };
+    const c = { ...camposIniciais(baseLongo, montagem), data: "2027-01-01" };
+    const fonte = await readFile(new URL("../assets/fonts/DejaVuSans.ttf", import.meta.url));
+    const negrito = await readFile(new URL("../assets/fonts/DejaVuSans-Bold.ttf", import.meta.url));
+    const logo = await readFile(new URL("../../public/remax-logo-transparent.png", import.meta.url));
+    const bytes = await gerarPdfContrato(textoContrato(baseLongo, montagem, c), fonte, {
+      negrito,
+      logo,
+    });
+    const tmp = join(tmpdir(), `locacao-vagas-${process.pid}.pdf`);
+    await writeFile(tmp, bytes);
+    let extraido = "";
+    try {
+      extraido = execFileSync("pdftotext", ["-layout", tmp, "-"], { encoding: "utf8" });
+    } finally {
+      await unlink(tmp).catch(() => undefined);
+    }
+    const normal = extraido.replace(/\u00a0/g, " ");
+    expect(normal).toMatch(/Vagas:\s*não possui/);
+    expect(normal).not.toMatch(/Vagas:[\s\S]*?1 de \d+[\s\S]*?possui/);
+    expect(textoContrato(baseLongo, montagem, c).join("\n")).toContain("Vagas:\u00a0não\u00a0possui");
   });
   it("calcula fim e valor por extenso de forma civil", () => {
     expect(fimPrazo("2027-01-01", 30)).toBe("2029-06-30");

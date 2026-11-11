@@ -38,7 +38,7 @@ function quebrar(texto: string, fonte: Fonte, size: number, largura: number, pri
     linhas.push(t);
     max = largura;
   };
-  for (const word of texto.split(/\s+/).filter(Boolean)) {
+  for (const word of texto.split(/ +/).filter(Boolean)) {
     let resto = word;
     while (fonte.widthOfTextAtSize(resto, size) > max) {
       let i = resto.length - 1;
@@ -102,7 +102,7 @@ export async function gerarPdfContrato(
     pagina.drawText(t, { x, y: base, size, font: f, color: INK });
   const justificar = (linha: string, ultima: boolean, size = SIZE, f = fonte) => {
     garantir(LINE);
-    const words = linha.split(/\s+/).filter(Boolean);
+    const words = linha.split(/ +/).filter(Boolean);
     if (!words.length) {
       y -= LINE;
       return;
@@ -194,15 +194,16 @@ export async function gerarPdfContrato(
       if (m) {
         const rotulo = m[0];
         const resto = linha.slice(rotulo.length).trim();
-        garantir(LINE);
+        const offset = negrito.widthOfTextAtSize(rotulo, SIZE) + 3;
+        const linhas = resto ? quebrar(resto, fonte, SIZE, W, Math.max(40, W - offset)) : [];
+        const bloco = LINE * Math.max(1, linhas.length) + PARA;
+        garantir(Math.min(bloco, PH - TOPN - BOTTOM - LINE));
         texto(rotulo, ML, y, SIZE, negrito);
         if (/^(PARÁGRAFO |Parágrafo |Cláusula )/.test(rotulo)) sublinhar(rotulo.trim(), SIZE);
         if (!resto) {
           y -= LINE + PARA;
           continue;
         }
-        const offset = negrito.widthOfTextAtSize(rotulo, SIZE) + 3;
-        const linhas = quebrar(resto, fonte, SIZE, W, Math.max(40, W - offset));
         linhas.forEach((ln, i) => {
           if (i === 0) {
             texto(ln, ML + offset, y);

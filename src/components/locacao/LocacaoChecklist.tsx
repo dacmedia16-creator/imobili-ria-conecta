@@ -20,7 +20,7 @@ function quando(iso: string | null): string {
 export function ChecklistPartes({ d }: { d: Detalhe }) {
   if (!d.partes.length) return null;
   return (
-    <Card data-testid="locacao-checklist-partes">
+    <Card className="max-md:scroll-mt-20 max-md:pb-16" data-testid="locacao-checklist-partes">
       <CardHeader className="pb-2">
         <CardTitle className="flex flex-wrap items-center gap-2 text-base">
           Documentos por parte

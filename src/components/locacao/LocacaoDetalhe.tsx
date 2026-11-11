@@ -208,7 +208,7 @@ export function LocacaoDetalhe({ id }: { id: string }) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-md:pb-24">
       <div className="flex flex-wrap items-center gap-2">
         <Button asChild variant="ghost" size="sm">
           <Link to="/locacoes">

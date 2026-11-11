@@ -338,6 +338,13 @@ describe("menu", () => {
     expect(fonte).toContain('title="Locação"');
     expect(fonte).toContain('title: "Locação"');
   });
+  it("no celular o detalhe reserva espaço para o checklist não ficar atrás da barra", () => {
+    const tela = readFileSync("src/components/locacao/LocacaoDetalhe.tsx", "utf8");
+    const check = readFileSync("src/components/locacao/LocacaoChecklist.tsx", "utf8");
+    expect(tela).toContain("max-md:pb-24");
+    expect(check).toContain("max-md:pb-16");
+    expect(check).toContain("max-md:scroll-mt-20");
+  });
   it("telas marcam as regras não confirmadas com 'a confirmar'", () => {
     const tela = readFileSync("src/components/locacao/LocacaoDetalhe.tsx", "utf8");
     const regras = readFileSync("src/components/locacao/LocacaoRegras.tsx", "utf8");
