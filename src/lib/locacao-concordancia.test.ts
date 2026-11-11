@@ -248,13 +248,25 @@ describe("concordância de verbo por papel", () => {
     expect(saida).not.toContain("o/a");
   });
 
-  it("cláusula de PJ do locatário não leva o verbo ao plural", () => {
-    const origem =
+  it("verbo anteposto concorda no singular e no plural", () => {
+    const irrf =
       "Em se tratando de LOCATÁRIO pessoa jurídica, que seja obrigado ao pagamento, compromete-se o LOCATÁRIO a apresentar os comprovantes.";
-    const saida = aplicarPapeis(origem, "LOCADOR", "LOCATÁRIAS", "FIADOR");
-    expect(saida).toContain("LOCATÁRIO pessoa jurídica");
-    expect(saida).toContain("compromete-se as LOCATÁRIAS");
-    expect(saida).not.toContain("comprometem-se");
+    const plural = aplicarPapeis(irrf, "LOCADOR", "LOCATÁRIAS", "FIADOR");
+    expect(plural).toContain("LOCATÁRIO pessoa jurídica");
+    expect(plural).toContain("que seja obrigado");
+    expect(plural).toContain("comprometem-se as LOCATÁRIAS");
+    expect(plural).not.toMatch(/compromete-se as LOCATÁRIAS/);
+    const singular = aplicarPapeis(irrf, "LOCADOR", "LOCATÁRIO", "FIADOR");
+    expect(singular).toContain("LOCATÁRIO pessoa jurídica");
+    expect(singular).toContain("compromete-se o LOCATÁRIO");
+    expect(singular).not.toContain("comprometem-se");
+    const obriga = "Obriga-se o LOCATÁRIO a pagar o seguro.";
+    expect(aplicarPapeis(obriga, "LOCADOR", "LOCATÁRIAS", "FIADOR")).toContain(
+      "Obrigam-se as LOCATÁRIAS",
+    );
+    expect(aplicarPapeis(obriga, "LOCADOR", "LOCATÁRIO", "FIADOR")).toContain(
+      "Obriga-se o LOCATÁRIO",
+    );
   });
   it("permanecendo responsável concorda em número com o papel do parágrafo", () => {
     expect(

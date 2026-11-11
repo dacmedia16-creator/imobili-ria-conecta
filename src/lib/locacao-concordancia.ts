@@ -296,8 +296,7 @@ function flexionarVerboInvertido(texto: string, alvo: string, flex: Flexao): str
     `(?<![A-Za-zÀ-ÿ])(${VERBO_RE})(\\s+em mora\\s+|\\s+)((?:[Oo]s|[Aa]s|[Oo]|[Aa])\\s+)(${termoRe(alvo)})${FIM_PALAVRA}`,
     "gi",
   );
-  return texto.replace(re, (full, verbo, meio, art, termo, offset: number) => {
-    if (pertoPessoaJuridica(texto, offset)) return full;
+  return texto.replace(re, (_full, verbo, meio, art, termo) => {
     return `${verboAlvo(verbo, flex.plural)}${meio}${art}${termo}`;
   });
 }

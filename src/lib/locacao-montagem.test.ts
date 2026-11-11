@@ -376,8 +376,11 @@ describe("montagem residencial com fiador", () => {
     expect(extraido).not.toMatch(/\(s\)/i);
     if (process.env.EXEMPLO_PDF_V3_PATH) await writeFile(process.env.EXEMPLO_PDF_V3_PATH, bytes);
   });
-  const VERBO_SG_APOS_PLURAL =
-    /\b(?:OS|AS)\s+(?:LOCADORES|LOCADORAS|LOCATÁRIOS|LOCATÁRIAS|FIADORES|FIADORAS)\s+(?:assume|declara|responderá|deverá|poderá|será|obriga-se|compromete-se)\b/;
+  const PAPEL_PL = "(?:LOCADORES|LOCADORAS|LOCATÁRIOS|LOCATÁRIAS|FIADORES|FIADORAS)";
+  const VERBO_SG =
+    "(?:assume|declara|responderá|deverá|poderá|será|obriga-se|compromete-se|considera-se)";
+  const VERBO_SG_APOS_PLURAL = new RegExp(`\\b(?:OS|AS)\\s+${PAPEL_PL}\\s+${VERBO_SG}\\b`);
+  const VERBO_SG_ANTES_PLURAL = new RegExp(`\\b${VERBO_SG}\\s+(?:os|as|OS|AS)\\s+${PAPEL_PL}\\b`);
   async function pdfTexto(paragrafos: string[]) {
     const fonte = await readFile(new URL("../assets/fonts/DejaVuSans.ttf", import.meta.url));
     const negrito = await readFile(new URL("../assets/fonts/DejaVuSans-Bold.ttf", import.meta.url));
@@ -399,7 +402,7 @@ describe("montagem residencial com fiador", () => {
       await unlink(tmp).catch(() => undefined);
     }
   }
-  it("PDF v4 plural: casal de locadores, duas locatárias, casal de fiadores", async () => {
+  it("PDF v5 plural: casal de locadores, duas locatárias, casal de fiadores", async () => {
     const c = {
       ...camposIniciais(base, montagem),
       data: "2027-01-01",
@@ -431,18 +434,22 @@ describe("montagem residencial com fiador", () => {
     expect(texto).toContain("OS FIADORES assumem");
     expect(texto).toContain("OS FIADORES declaram");
     expect(texto).toContain("OS FIADORES responderão");
+    expect(texto).toContain("comprometem-se as LOCATÁRIAS");
+    expect(texto).toContain("Obrigam-se as LOCATÁRIAS");
     expect(texto).not.toMatch(VERBO_SG_APOS_PLURAL);
+    expect(texto).not.toMatch(VERBO_SG_ANTES_PLURAL);
     expect(texto).not.toMatch(/o\/a/i);
     const { bytes, extraido } = await pdfTexto(paragrafos);
     expect(extraido).not.toMatch(VERBO_SG_APOS_PLURAL);
+    expect(extraido).not.toMatch(VERBO_SG_ANTES_PLURAL);
     expect(extraido).not.toMatch(/o\/a/i);
     expect(extraido).toContain("LOCADORES");
     expect(extraido).toContain("LOCATÁRIAS");
     expect(extraido).toContain("FIADORES");
-    if (process.env.EXEMPLO_PDF_V4_PLURAL_PATH)
-      await writeFile(process.env.EXEMPLO_PDF_V4_PLURAL_PATH, bytes);
+    if (process.env.EXEMPLO_PDF_V5_PLURAL_PATH)
+      await writeFile(process.env.EXEMPLO_PDF_V5_PLURAL_PATH, bytes);
   });
-  it("PDF v4 singular: locadora, locatário, um fiador", async () => {
+  it("PDF v5 singular: locadora, locatário, um fiador", async () => {
     const c = {
       ...camposIniciais(base, montagem),
       data: "2027-01-01",
@@ -466,17 +473,21 @@ describe("montagem residencial com fiador", () => {
     expect(texto).toContain("O FIADOR assume");
     expect(texto).toContain("O FIADOR declara");
     expect(texto).toContain("O FIADOR responderá");
+    expect(texto).toContain("compromete-se o LOCATÁRIO");
+    expect(texto).toContain("Obriga-se o LOCATÁRIO");
     expect(texto).not.toContain("OS FIADORES");
     expect(texto).not.toContain("LOCATÁRIAS");
     expect(texto).not.toMatch(/o\/a/i);
     expect(texto).not.toMatch(VERBO_SG_APOS_PLURAL);
+    expect(texto).not.toMatch(VERBO_SG_ANTES_PLURAL);
     const { bytes, extraido } = await pdfTexto(paragrafos);
     expect(extraido).toContain("LOCADORA");
     expect(extraido).toContain("LOCATÁRIO");
     expect(extraido).toMatch(/\bFIADOR\b/);
     expect(extraido).not.toMatch(VERBO_SG_APOS_PLURAL);
+    expect(extraido).not.toMatch(VERBO_SG_ANTES_PLURAL);
     expect(extraido).not.toMatch(/o\/a/i);
-    if (process.env.EXEMPLO_PDF_V4_SINGULAR_PATH)
-      await writeFile(process.env.EXEMPLO_PDF_V4_SINGULAR_PATH, bytes);
+    if (process.env.EXEMPLO_PDF_V5_SINGULAR_PATH)
+      await writeFile(process.env.EXEMPLO_PDF_V5_SINGULAR_PATH, bytes);
   });
 });
