@@ -16,7 +16,15 @@ export type Tela = "lista" | "detalhe";
 export type Mensagem = { papel: "usuario" | "assistente"; texto: string };
 
 export type RespostaAjuda =
-  | { ok: true; sabe: boolean; resposta: string; usadas: number; limite: number }
+  | {
+      ok: true;
+      sabe: boolean;
+      resposta: string;
+      usadas: number;
+      limite: number;
+      /** Fatia 2/2: a pergunta sem resposta foi registrada em "Sugestões e erros"? */
+      duvida?: { registrada: true; numero: number | null } | { registrada: false };
+    }
   | {
       ok: false;
       motivo: "limite" | "desligado" | "indisponivel" | "falha";
@@ -28,11 +36,11 @@ export type RespostaAjuda =
 export const TEXTO_NAO_SEI =
   "Ainda não sei responder isso pelo manual da Locação, e prefiro não inventar. " +
   "Tente perguntar de outro jeito (por exemplo, o nome do botão ou da aba). " +
-  "Se for um erro ou uma ideia, use o botão “Ajuda e sugestões” no topo da tela.";
+  "Se for um erro ou uma ideia, use “Relatar erro” ou “Dar ideia” aqui no balão.";
 
 export const TEXTO_LIMITE = (limite = LIMITE_DIA) =>
   `Você usou as ${limite} perguntas de hoje. O limite volta amanhã. ` +
-  "Enquanto isso, use o botão “Ajuda e sugestões” no topo da tela.";
+  "Enquanto isso, “Dar ideia” e “Relatar erro” continuam funcionando aqui no balão.";
 
 export const TEXTO_INDISPONIVEL =
   "O Ajuda MAX não conseguiu responder agora. Tente de novo em instantes; essa pergunta não contou no seu limite.";
@@ -42,6 +50,8 @@ export const TEXTO_DESLIGADO = "O Ajuda MAX não está liberado nesta imobiliár
 /** Rota → tipo de tela (só isso vai à IA; o id da locação nunca vai). */
 export function telaDaRota(pathname: string): Tela | null {
   if (pathname === "/locacoes" || pathname === "/locacoes/") return "lista";
+  // A tela "Sugestões e erros" (fatia 2/2) não mostra o balão, como na maquete.
+  if (/^\/locacoes\/sugestoes\/?$/.test(pathname)) return null;
   if (/^\/locacoes\/[^/]+\/?$/.test(pathname)) return "detalhe";
   return null;
 }

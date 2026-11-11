@@ -22,6 +22,15 @@ export async function locacaoEnabled(): Promise<boolean> {
   }
 }
 
+/** Ajuda MAX (t_365484dc): Locação + chave ajuda_max_locacao ligadas na imobiliária de quem está logado. */
+export async function ajudaMaxLocacaoEnabled(): Promise<boolean> {
+  try {
+    return (await rpc<boolean>("ajuda_max_locacao_enabled")) === true;
+  } catch {
+    return false;
+  }
+}
+
 /** Guarda das rotas; o banco repete a checagem em cada RPC. */
 export async function guardLocacaoRoute() {
   const { data } = await supabase.auth.getSession();

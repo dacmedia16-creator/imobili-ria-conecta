@@ -34,10 +34,10 @@ const PERGUNTA: Record<TipoChamado, string> = {
 
 const LADO_MAX = 1600;
 
-type Tarja = { x: number; y: number; w: number; h: number };
+export type Tarja = { x: number; y: number; w: number; h: number };
 
 /** Editor simples: arraste sobre a imagem para cobrir nomes, CPF, telefone e valores. */
-function EditorTarja({
+export function EditorTarja({
   img,
   tarjas,
   setTarjas,
@@ -105,7 +105,7 @@ function EditorTarja({
   );
 }
 
-async function carregarImagem(file: File): Promise<HTMLImageElement> {
+export async function carregarImagem(file: File): Promise<HTMLImageElement> {
   const url = URL.createObjectURL(file);
   try {
     const img = new Image();
@@ -119,7 +119,7 @@ async function carregarImagem(file: File): Promise<HTMLImageElement> {
 }
 
 /** Gera o print final (com as tarjas gravadas nos pixels) em JPEG, já reduzido. */
-function exportarPrint(img: HTMLImageElement, tarjas: Tarja[]): string {
+export function exportarPrint(img: HTMLImageElement, tarjas: Tarja[]): string {
   const escala = Math.min(1, LADO_MAX / Math.max(img.width, img.height));
   const c = document.createElement("canvas");
   c.width = Math.round(img.width * escala);

@@ -42,6 +42,11 @@ export type DepsFluxo = {
   chamarIA: ((c: ChamadaIA) => Promise<RetornoIA>) | null;
   /** Só números (nunca texto da pergunta/resposta). */
   log?: (msg: string) => void;
+  /**
+   * Fatia 2/2 (t_365484dc): registra a pergunta que a IA não soube responder como "dúvida sem resposta" (chamado
+   * origem 'locacao', com o login de quem perguntou). Ausente = não registra. Falha não derruba a resposta.
+   */
+  registrarDuvida?: (pergunta: string) => Promise<number | null>;
 };
 
 /** Leitura fechada do retorno da RPC de reserva. */
@@ -137,6 +142,22 @@ export async function responderPergunta(
     log("[ajuda-max] fechar falhou");
   }
   log(`[ajuda-max] ok sabe=${lida.sabe ? 1 : 0} tokens=${r.entrada}/${r.saida}`);
+  if (!lida.sabe && deps.registrarDuvida) {
+    let registro: { numero: number | null } | null = null;
+    try {
+      registro = { numero: await deps.registrarDuvida(entrada.pergunta) };
+    } catch {
+      log("[ajuda-max] duvida nao registrada");
+    }
+    return {
+      ok: true,
+      sabe: false,
+      resposta: lida.resposta,
+      usadas: reserva.usadas,
+      limite,
+      duvida: registro ? { registrada: true, numero: registro.numero } : { registrada: false },
+    };
+  }
   return { ok: true, sabe: lida.sabe, resposta: lida.resposta, usadas: reserva.usadas, limite };
 }
 

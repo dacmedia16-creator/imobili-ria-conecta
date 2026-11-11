@@ -17,6 +17,7 @@ import {
   type ChamadaIA,
   type RetornoIA,
 } from "@/lib/ajuda-max-locacao-fluxo";
+import { origemDaTela, textoDoEnvio } from "@/lib/ajuda-max-locacao-sugestoes";
 
 const MODEL = "gemini-flash-latest";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
@@ -102,5 +103,18 @@ export const perguntarAjudaMaxLocacao = createServerFn({ method: "POST" })
       },
       chamarIA: apiKey ? chamarGemini(apiKey) : null,
       log: (m) => console.log(m),
+      // Fatia 2/2 (t_365484dc): pergunta sem resposta vira "dúvida sem resposta" com o login de quem perguntou.
+      registrarDuvida: async (pergunta) => {
+        const origem = origemDaTela(data.tela);
+        const { data: r, error } = await db.rpc("ajuda_max_locacao_registrar", {
+          _tipo: "duvida",
+          _texto: textoDoEnvio("duvida", pergunta),
+          _tela_rota: origem.telaRota,
+          _tela_nome: origem.telaNome,
+        });
+        const reg = (r ?? {}) as { numero?: unknown };
+        if (error) throw new Error("registrar");
+        return typeof reg.numero === "number" ? reg.numero : null;
+      },
     });
   });
