@@ -303,6 +303,12 @@ describe("montagem residencial com fiador", () => {
     expect(t).toMatch(/^FIADORES:/m);
     expect(t).toContain("GARANTIA LOCATÍCIA - FIADORES:");
     expect(t).toContain("OS FIADORES");
+    expect(t).toContain("OS FIADORES assumem");
+    expect(t).toContain("OS FIADORES declaram");
+    expect(t).toContain("OS FIADORES responderão");
+    expect(t).not.toMatch(/OS FIADORES assume\b/);
+    expect(t).not.toMatch(/OS FIADORES declara\b/);
+    expect(t).not.toMatch(/OS FIADORES responderá\b/);
   });
   it("locador PJ mantém LOCADOR sem flexão por sexo", () => {
     const pj: LocacaoBase = {
@@ -369,5 +375,119 @@ describe("montagem residencial com fiador", () => {
     expect(extraido).not.toMatch(/LOCADOR\s*\(\s*A\s*\)/);
     expect(extraido).not.toMatch(/\(s\)/i);
     if (process.env.EXEMPLO_PDF_V3_PATH) await writeFile(process.env.EXEMPLO_PDF_V3_PATH, bytes);
+  });
+  const PAPEL_PL = "(?:LOCADORES|LOCADORAS|LOCATÁRIOS|LOCATÁRIAS|FIADORES|FIADORAS)";
+  const VERBO_SG =
+    "(?:assume|declara|responderá|deverá|poderá|será|obriga-se|compromete-se|considera-se)";
+  const VERBO_SG_APOS_PLURAL = new RegExp(`\\b(?:OS|AS)\\s+${PAPEL_PL}\\s+${VERBO_SG}\\b`);
+  const VERBO_SG_ANTES_PLURAL = new RegExp(`\\b${VERBO_SG}\\s+(?:os|as|OS|AS)\\s+${PAPEL_PL}\\b`);
+  async function pdfTexto(paragrafos: string[]) {
+    const fonte = await readFile(new URL("../assets/fonts/DejaVuSans.ttf", import.meta.url));
+    const negrito = await readFile(new URL("../assets/fonts/DejaVuSans-Bold.ttf", import.meta.url));
+    const logo = await readFile(
+      new URL("../../public/remax-logo-transparent.png", import.meta.url),
+    );
+    const bytes = await gerarPdfContrato(paragrafos, fonte, { negrito, logo });
+    const tmp = join(
+      tmpdir(),
+      `locacao-v4-${process.pid}-${Math.random().toString(16).slice(2)}.pdf`,
+    );
+    await writeFile(tmp, bytes);
+    try {
+      return {
+        bytes,
+        extraido: execFileSync("pdftotext", ["-layout", tmp, "-"], { encoding: "utf8" }),
+      };
+    } finally {
+      await unlink(tmp).catch(() => undefined);
+    }
+  }
+  it("PDF v5 plural: casal de locadores, duas locatárias, casal de fiadores", async () => {
+    const c = {
+      ...camposIniciais(base, montagem),
+      data: "2027-01-01",
+      prop_sexo: "masculino",
+      prop_conj_sexo: "feminino",
+      loc_sexo: "feminino",
+      locatarios_adicionais: "Segunda Locatária Exemplo (fictícia)",
+      locatarios_adicionais_sexo: "feminino",
+      fia_sexo: "masculino",
+      fia_conj_sexo: "feminino",
+      d_prop_nacionalidade: "brasileiro(a)",
+      d_prop_estado_civil: "casado(a)",
+      d_prop_conj_nome: "Cônjuge Locadora Exemplo",
+      d_prop_conj_cpf: "CPF fictício cônjuge locadora",
+      d_loc_nacionalidade: "brasileiro(a)",
+      d_loc_estado_civil: "solteiro(a)",
+      d_fia_nacionalidade: "brasileiro(a)",
+      d_fia_estado_civil: "casado(a)",
+      d_fia_conj_nome: "Fiadora Cônjuge Exemplo",
+      d_fia_conj_cpf: "CPF fictício fiadora",
+    };
+    const paragrafos = textoContrato(base, montagem, c);
+    const texto = paragrafos.join("\n");
+    expect(texto).toMatch(/^LOCADORES:/m);
+    expect(texto).toMatch(/^LOCATÁRIAS:/m);
+    expect(texto).toMatch(/^FIADORES:/m);
+    expect(texto).toContain("OS LOCADORES declaram");
+    expect(texto).toContain("AS LOCATÁRIAS assumem");
+    expect(texto).toContain("OS FIADORES assumem");
+    expect(texto).toContain("OS FIADORES declaram");
+    expect(texto).toContain("OS FIADORES responderão");
+    expect(texto).toContain("comprometem-se as LOCATÁRIAS");
+    expect(texto).toContain("Obrigam-se as LOCATÁRIAS");
+    expect(texto).not.toMatch(VERBO_SG_APOS_PLURAL);
+    expect(texto).not.toMatch(VERBO_SG_ANTES_PLURAL);
+    expect(texto).not.toMatch(/o\/a/i);
+    const { bytes, extraido } = await pdfTexto(paragrafos);
+    expect(extraido).not.toMatch(VERBO_SG_APOS_PLURAL);
+    expect(extraido).not.toMatch(VERBO_SG_ANTES_PLURAL);
+    expect(extraido).not.toMatch(/o\/a/i);
+    expect(extraido).toContain("LOCADORES");
+    expect(extraido).toContain("LOCATÁRIAS");
+    expect(extraido).toContain("FIADORES");
+    if (process.env.EXEMPLO_PDF_V5_PLURAL_PATH)
+      await writeFile(process.env.EXEMPLO_PDF_V5_PLURAL_PATH, bytes);
+  });
+  it("PDF v5 singular: locadora, locatário, um fiador", async () => {
+    const c = {
+      ...camposIniciais(base, montagem),
+      data: "2027-01-01",
+      prop_sexo: "feminino",
+      loc_sexo: "masculino",
+      fia_sexo: "masculino",
+      d_prop_nacionalidade: "brasileiro(a)",
+      d_prop_estado_civil: "solteiro(a)",
+      d_loc_nacionalidade: "brasileiro(a)",
+      d_loc_estado_civil: "solteiro(a)",
+      d_fia_nacionalidade: "brasileiro(a)",
+      d_fia_estado_civil: "solteiro(a)",
+    };
+    const paragrafos = textoContrato(base, montagem, c);
+    const texto = paragrafos.join("\n");
+    expect(texto).toMatch(/^LOCADORA:/m);
+    expect(texto).toMatch(/^LOCATÁRIO:/m);
+    expect(texto).toMatch(/^FIADOR:/m);
+    expect(texto).toContain("A LOCADORA declara ser a legítima proprietária");
+    expect(texto).toContain("O LOCATÁRIO assume");
+    expect(texto).toContain("O FIADOR assume");
+    expect(texto).toContain("O FIADOR declara");
+    expect(texto).toContain("O FIADOR responderá");
+    expect(texto).toContain("compromete-se o LOCATÁRIO");
+    expect(texto).toContain("Obriga-se o LOCATÁRIO");
+    expect(texto).not.toContain("OS FIADORES");
+    expect(texto).not.toContain("LOCATÁRIAS");
+    expect(texto).not.toMatch(/o\/a/i);
+    expect(texto).not.toMatch(VERBO_SG_APOS_PLURAL);
+    expect(texto).not.toMatch(VERBO_SG_ANTES_PLURAL);
+    const { bytes, extraido } = await pdfTexto(paragrafos);
+    expect(extraido).toContain("LOCADORA");
+    expect(extraido).toContain("LOCATÁRIO");
+    expect(extraido).toMatch(/\bFIADOR\b/);
+    expect(extraido).not.toMatch(VERBO_SG_APOS_PLURAL);
+    expect(extraido).not.toMatch(VERBO_SG_ANTES_PLURAL);
+    expect(extraido).not.toMatch(/o\/a/i);
+    if (process.env.EXEMPLO_PDF_V5_SINGULAR_PATH)
+      await writeFile(process.env.EXEMPLO_PDF_V5_SINGULAR_PATH, bytes);
   });
 });

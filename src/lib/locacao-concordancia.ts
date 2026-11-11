@@ -214,9 +214,221 @@ function substituirPapel(texto: string, papel: PapelContrato, alvo: string): str
   });
 }
 
-const MARCA_TIPO = "\u0000TIPO_GARANTIA_FIDEJUSSORIA\u0000";
+type Flexao = { plural: boolean; feminino: boolean };
 
-/** Troca só o termo do papel (e o artigo colado). Não reescreve o resto da cláusula. */
+function flexDe(alvo: string): Flexao {
+  const u = alvo.toUpperCase();
+  return { plural: u.endsWith("S"), feminino: u.endsWith("A") || u.endsWith("AS") };
+}
+
+function escolher(sm: string, sf: string, pm: string, pf: string, flex: Flexao): string {
+  return flex.feminino ? (flex.plural ? pf : sf) : flex.plural ? pm : sm;
+}
+
+/** 3ª pessoa, só flexão de número. Mais longos primeiro. */
+const VERBOS: [string, string][] = [
+  ["compromete-se", "comprometem-se"],
+  ["obriga-se", "obrigam-se"],
+  ["considera-se", "consideram-se"],
+  ["responderá", "responderão"],
+  ["permitirá", "permitirão"],
+  ["identifique", "identifiquem"],
+  ["apresente", "apresentem"],
+  ["compromete", "comprometem"],
+  ["autoriza", "autorizam"],
+  ["pretenda", "pretendam"],
+  ["recebeu", "receberam"],
+  ["encontre", "encontrem"],
+  ["declara", "declaram"],
+  ["assume", "assumem"],
+  ["deverá", "deverão"],
+  ["consiga", "consigam"],
+  ["realize", "realizem"],
+  ["remova", "removam"],
+  ["obriga", "obrigam"],
+  ["exerça", "exerçam"],
+  ["receba", "recebam"],
+  ["poderá", "poderão"],
+  ["possa", "possam"],
+  ["será", "serão"],
+  ["terá", "terão"],
+];
+
+const VERBO_RE = VERBOS.flatMap(([s, p]) => [s, p])
+  .sort((a, b) => b.length - a.length)
+  .map(esc)
+  .join("|");
+
+function verboAlvo(forma: string, plural: boolean): string {
+  const low = forma.toLowerCase();
+  for (const [s, p] of VERBOS) {
+    if (low === s || low === p) return preservarCaixa(forma, plural ? p : s);
+  }
+  return forma;
+}
+
+function termoRe(alvo: string): string {
+  return `${esc(alvo)}|${esc(alvo.toLowerCase())}`;
+}
+
+const MARCA_TIPO = "\u0000TIPO_GARANTIA_FIDEJUSSORIA\u0000";
+const MARCA_PJ_LOC = "\u0000PJ_LOC\u0000";
+const FIM_PALAVRA = "(?![A-Za-zÀ-ÿ])";
+
+function pertoPessoaJuridica(texto: string, indice: number): boolean {
+  const fatia = texto.slice(Math.max(0, indice - 280), indice + 80);
+  return /pessoa jurídica/i.test(fatia) || fatia.includes(MARCA_PJ_LOC);
+}
+
+function flexionarVerboApos(texto: string, alvo: string, flex: Flexao): string {
+  const re = new RegExp(
+    `(?<![A-Za-zÀ-ÿ])((?:[Oo]s|[Aa]s|[Oo]|[Aa])\\s+)?(${termoRe(alvo)})(\\s*,)?\\s+(não\\s+)?(se\\s+)?(${VERBO_RE})${FIM_PALAVRA}`,
+    "g",
+  );
+  return texto.replace(re, (full, art, _termo, virg, nao, se, verbo, offset: number) => {
+    if (pertoPessoaJuridica(texto, offset)) return full;
+    return `${art ?? ""}${_termo}${virg ?? ""} ${nao ?? ""}${se ?? ""}${verboAlvo(verbo, flex.plural)}`;
+  });
+}
+
+function flexionarVerboInvertido(texto: string, alvo: string, flex: Flexao): string {
+  const re = new RegExp(
+    `(?<![A-Za-zÀ-ÿ])(${VERBO_RE})(\\s+em mora\\s+|\\s+)((?:[Oo]s|[Aa]s|[Oo]|[Aa])\\s+)(${termoRe(alvo)})${FIM_PALAVRA}`,
+    "gi",
+  );
+  return texto.replace(re, (_full, verbo, meio, art, termo) => {
+    return `${verboAlvo(verbo, flex.plural)}${meio}${art}${termo}`;
+  });
+}
+
+function flexionarDeveraCaso(texto: string, alvo: string, flex: Flexao): string {
+  if (!new RegExp(`Caso\\s+(?:[oa]|os|as)\\s+(?:${termoRe(alvo)})\\b`, "i").test(texto))
+    return texto;
+  if (/pessoa jurídica/i.test(texto)) return texto;
+  return texto.replace(new RegExp(`(?<![A-Za-zÀ-ÿ])(deverá|deverão)${FIM_PALAVRA}`, "gi"), (v) =>
+    verboAlvo(v, flex.plural),
+  );
+}
+
+const ADJETIVOS: [string, string, string, string][] = [
+  ["responsável", "responsável", "responsáveis", "responsáveis"],
+  ["desobrigado", "desobrigada", "desobrigados", "desobrigadas"],
+  ["notificado", "notificada", "notificados", "notificadas"],
+  ["comunicado", "comunicada", "comunicados", "comunicadas"],
+  ["obrigado", "obrigada", "obrigados", "obrigadas"],
+];
+
+const ADJ_RE = ADJETIVOS.flat()
+  .filter((v, i, a) => a.indexOf(v) === i)
+  .sort((a, b) => b.length - a.length)
+  .map(esc)
+  .join("|");
+
+function adjAlvo(forma: string, flex: Flexao): string {
+  const low = forma.toLowerCase();
+  for (const q of ADJETIVOS) {
+    if (q.some((x) => x === low))
+      return preservarCaixa(forma, escolher(q[0], q[1], q[2], q[3], flex));
+  }
+  return forma;
+}
+
+function flexionarFicando(texto: string, alvo: string, flex: Flexao): string {
+  const re = new RegExp(
+    `(ficando\\s+(?:[Oo]s|[Aa]s|[Oo]|[Aa])\\s+(?:${termoRe(alvo)})\\s+)(${ADJ_RE})${FIM_PALAVRA}`,
+    "gi",
+  );
+  return texto.replace(re, (_full, head, adj) => `${head}${adjAlvo(adj, flex)}`);
+}
+
+function flexionarAposSera(texto: string, alvo: string, flex: Flexao): string {
+  const re = new RegExp(
+    `((?:${termoRe(alvo)})\\s+(?:será|serão)\\s+)(${ADJ_RE})${FIM_PALAVRA}`,
+    "gi",
+  );
+  return texto.replace(re, (_full, head, adj) => `${head}${adjAlvo(adj, flex)}`);
+}
+
+function flexionarLocador(texto: string, flex: Flexao): string {
+  let t = texto;
+  t = t.replace(
+    /ser\s+(o|a|os|as)\s+legítim[oa]s?\s+proprietári[oa]s?\s+e\/ou\s+possuidor(?:a|es|as)?/gi,
+    () =>
+      escolher(
+        "ser o legítimo proprietário e/ou possuidor",
+        "ser a legítima proprietária e/ou possuidora",
+        "ser os legítimos proprietários e/ou possuidores",
+        "ser as legítimas proprietárias e/ou possuidoras",
+        flex,
+      ),
+  );
+  t = t.replace(/como\s+(o|a|os|as)\s+únic[oa]s?\s+beneficiári[oa]s?/gi, () =>
+    escolher(
+      "como o único beneficiário",
+      "como a única beneficiária",
+      "como os únicos beneficiários",
+      "como as únicas beneficiárias",
+      flex,
+    ),
+  );
+  return t;
+}
+
+function flexionarLocatario(texto: string, flex: Flexao): string {
+  let t = texto;
+  t = t.replace(
+    /atribuídos a (?:ele|ela|eles|elas)\b/gi,
+    () => `atribuídos ${escolher("a ele", "a ela", "a eles", "a elas", flex)}`,
+  );
+  t = t.replace(/\b(?:ele mesmo|ela mesma|eles mesmos|elas mesmas)\b/gi, () =>
+    escolher("ele mesmo", "ela mesma", "eles mesmos", "elas mesmas", flex),
+  );
+  t = t.replace(
+    /\b(?:este|esta|estes|estas)\s+(?:será|serão)\s+(?:comunicado|comunicada|comunicados|comunicadas)\s+para que possa(?:m)?\b/gi,
+    () =>
+      escolher(
+        "este será comunicado para que possa",
+        "esta será comunicada para que possa",
+        "estes serão comunicados para que possam",
+        "estas serão comunicadas para que possam",
+        flex,
+      ),
+  );
+  t = t.replace(/Caso não exerça(?:m)? o direito de preferência, deverá(?:ão)? permitir/gi, () =>
+    flex.plural
+      ? "Caso não exerçam o direito de preferência, deverão permitir"
+      : "Caso não exerça o direito de preferência, deverá permitir",
+  );
+  if (flex.plural) t = t.replace(/\bem que o recebeu\b/gi, "em que o receberam");
+  else t = t.replace(/\bem que o receberam\b/gi, "em que o recebeu");
+  if (flex.plural) t = t.replace(/\bpara o seu nome\b/gi, "para os seus nomes");
+  else t = t.replace(/\bpara os seus nomes\b/gi, "para o seu nome");
+  return t;
+}
+
+function flexionarPredicado(texto: string, papel: PapelContrato, alvo: string): string {
+  const flex = flexDe(alvo);
+  let t = texto;
+  t = flexionarVerboApos(t, alvo, flex);
+  t = flexionarVerboInvertido(t, alvo, flex);
+  t = flexionarDeveraCaso(t, alvo, flex);
+  t = flexionarFicando(t, alvo, flex);
+  t = flexionarAposSera(t, alvo, flex);
+  if (
+    new RegExp(`(?:os|as|o|a)\\s+(?:${termoRe(alvo)})`, "i").test(t) &&
+    !/pessoa jurídica/i.test(t) &&
+    !t.includes(MARCA_PJ_LOC)
+  ) {
+    t = flex.plural
+      ? t.replace(/permanecendo responsável(?![A-Za-zÀ-ÿ])/gi, "permanecendo responsáveis")
+      : t.replace(/permanecendo responsáveis(?![A-Za-zÀ-ÿ])/gi, "permanecendo responsável");
+  }
+  if (papel === "locador") t = flexionarLocador(t, flex);
+  if (papel === "locatario") t = flexionarLocatario(t, flex);
+  return t;
+}
+
+/** Troca o termo do papel, o artigo colado e a flexão que concorda com ele. Não reescreve o sentido. */
 export function aplicarPapeis(
   texto: string,
   locador: string,
@@ -224,9 +436,14 @@ export function aplicarPapeis(
   fiador: string,
 ): string {
   let t = texto.replace(/Contrato de Garantia: FIADOR/g, MARCA_TIPO);
+  t = t.replace(/LOCAT[ÁA]RIO(?:S)? pessoa jurídica/gi, MARCA_PJ_LOC);
   t = substituirPapel(t, "locatario", locatario);
+  t = flexionarPredicado(t, "locatario", locatario);
   t = substituirPapel(t, "fiador", fiador);
+  t = flexionarPredicado(t, "fiador", fiador);
   t = substituirPapel(t, "locador", locador);
+  t = flexionarPredicado(t, "locador", locador);
+  t = t.split(MARCA_PJ_LOC).join("LOCATÁRIO pessoa jurídica");
   return t.split(MARCA_TIPO).join("Contrato de Garantia: FIADOR");
 }
 
