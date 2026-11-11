@@ -10,6 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { ListSkeleton, Pill } from "@/components/visual/base";
 import { LocacaoStepper } from "@/components/locacao/LocacaoStepper";
 import { ContratoConferencia, LocacaoDocumentacao } from "@/components/locacao/LocacaoDocumentacao";
+import { ChecklistPartes } from "@/components/locacao/LocacaoChecklist";
+import { FichaAbertura } from "@/components/locacao/LocacaoFicha";
 import { errorMessage } from "@/lib/errors";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 import {
@@ -18,6 +20,7 @@ import {
   ETAPAS,
   GARANTIA_LABEL,
   MINUTA_LABEL,
+  MOBILIA_LABEL,
   PAPEL_LABEL,
   SERVICOS,
   brl,
@@ -26,10 +29,8 @@ import {
   dataPagamento,
   diasParado,
   etapaIndex,
-  faltasPreAnalise,
   lerContexto,
   lerDetalhe,
-  pctPorTaxa,
   textoParado,
   titularidadePendente,
   tomParado,
@@ -42,11 +43,9 @@ import {
   contratosAcao,
   corretorMinuta,
   detalheLocacao,
-  enviarPreAnalise,
   enviarProtocolo,
   gestoraDecidir,
   posAcao,
-  salvarPreAnalise,
 } from "@/lib/locacao-db";
 
 const SELECT =
@@ -149,7 +148,19 @@ export function LocacaoDetalhe({ id }: { id: string }) {
       </Aviso>
     );
   } else if (e === "pre_analise") {
-    corpo = <PreAnalise {...props} editavel={ver === atual && souCorretor} />;
+    corpo = (
+      <FichaAbertura
+        {...props}
+        editavel={ver === atual && souCorretor}
+        aConfirmar={<AConfirmar />}
+        aviso={
+          <Aviso tom="blue">
+            Ficha de abertura preenchida pelo <b>corretor</b>. Nesta etapa{" "}
+            <b>não se pede documento</b>: só os dados para a gestora aprovar ou não.
+          </Aviso>
+        }
+      />
+    );
   } else if (e === "documentacao") {
     corpo = (
       <LocacaoDocumentacao
@@ -217,8 +228,10 @@ export function LocacaoDetalhe({ id }: { id: string }) {
         <Pill tom={tomParado(dias)}>parado {textoParado(dias)}</Pill>
       </div>
       <p className="text-sm text-muted-foreground">
-        Corretor: {d.corretorNome}
+        Corretor responsável: {d.corretorNome}
+        {d.captadorNome ? ` · Captador: ${d.captadorNome}` : ""}
         {d.coordenadorNome ? ` · Coordenador: ${d.coordenadorNome}` : ""} ·{" "}
+        {d.ficha.imovelId ? `${d.ficha.imovelId} · ` : ""}
         {d.endereco || "imóvel não informado"}
       </p>
       <Card>
@@ -234,6 +247,9 @@ export function LocacaoDetalhe({ id }: { id: string }) {
             <Aviso tom="amber">
               <b>Devolvida pela gestora:</b> {d.motivoDevolucao}
             </Aviso>
+          )}
+          {atual >= etapaIndex("documentacao") && d.situacao === "ativa" && (
+            <ChecklistPartes d={d} />
           )}
           <div className="border-t pt-3">
             <div className="mb-2 flex flex-wrap items-baseline gap-2">
@@ -281,184 +297,6 @@ type P = {
   rodar: (fn: () => Promise<unknown>, ok: string) => Promise<void>;
 };
 
-// Etapa 1 -----------------------------------------------------------------------------------------------------
-function PreAnalise({ d, ctx, busy, rodar, editavel }: P & { editavel: boolean }) {
-  const [f, setF] = useState(() => ({
-    ...d.candidato,
-    endereco: d.endereco,
-    tipo: d.tipo,
-    garantia: d.garantia,
-    aluguel: d.aluguel ? String(d.aluguel) : "",
-    condominio: d.condominio ? String(d.condominio) : "",
-    iptu: d.iptu ? String(d.iptu) : "",
-    taxaAdm: String(d.taxaAdm),
-    parceria: d.parceria,
-  }));
-  const set = (k: keyof typeof f, v: string | boolean) => setF((x) => ({ ...x, [k]: v }));
-  const num = (v: string) => (v.trim() === "" ? 0 : Number(v.replace(",", ".")));
-  const dados = () => ({
-    candidato: {
-      cpf: f.cpf,
-      nome: f.nome,
-      nascimento: f.nascimento,
-      telefone: f.telefone,
-      email: f.email,
-    },
-    endereco: f.endereco,
-    tipo: f.tipo,
-    garantia: f.garantia,
-    aluguel: num(f.aluguel),
-    condominio: num(f.condominio),
-    iptu: num(f.iptu),
-    taxa_adm: num(f.taxaAdm),
-    parceria: f.parceria,
-  });
-  const faltas = faltasPreAnalise({
-    candidato: {
-      cpf: f.cpf,
-      nome: f.nome,
-      nascimento: f.nascimento,
-      telefone: f.telefone,
-      email: f.email,
-    },
-    endereco: f.endereco,
-    aluguel: num(f.aluguel),
-  });
-  const taxas = Object.keys(ctx.config.tabelaTaxa)
-    .map(Number)
-    .sort((a, b) => b - a);
-  const campo = (k: keyof typeof f, label: string, extra: Record<string, unknown> = {}) => (
-    <div className="space-y-1">
-      <Label htmlFor={`pre-${k}`}>{label}</Label>
-      <Input
-        id={`pre-${k}`}
-        disabled={!editavel}
-        value={String(f[k])}
-        onChange={(e) => set(k, e.target.value)}
-        {...extra}
-      />
-    </div>
-  );
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Candidato (locatário)</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-2">
-            {campo("cpf", "CPF", { inputMode: "numeric", placeholder: "000.000.000-00" })}
-            {campo("nascimento", "Data de nascimento", { type: "date" })}
-            <div className="sm:col-span-2">{campo("nome", "Nome completo")}</div>
-            {campo("telefone", "Telefone", { inputMode: "tel" })}
-            {campo("email", "E-mail", { type: "email" })}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Imóvel e condições</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-2">
-            <div className="sm:col-span-2">{campo("endereco", "Endereço")}</div>
-            {campo("aluguel", "Aluguel (R$)", { inputMode: "decimal" })}
-            {campo("condominio", "Condomínio (R$)", { inputMode: "decimal" })}
-            {campo("iptu", "IPTU mensal (R$)", { inputMode: "decimal" })}
-            <div className="space-y-1">
-              <Label htmlFor="pre-tipo">Tipo</Label>
-              <select
-                id="pre-tipo"
-                className={SELECT}
-                disabled={!editavel}
-                value={f.tipo}
-                onChange={(e) => set("tipo", e.target.value)}
-              >
-                <option value="residencial">Residencial</option>
-                <option value="comercial">Comercial</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="pre-garantia">Garantia</Label>
-              <select
-                id="pre-garantia"
-                className={SELECT}
-                disabled={!editavel}
-                value={f.garantia}
-                onChange={(e) => set("garantia", e.target.value)}
-              >
-                {Object.entries(GARANTIA_LABEL).map(([k, v]) => (
-                  <option key={k} value={k}>
-                    {v}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="pre-taxa">Taxa de administração (negociável)</Label>
-              <select
-                id="pre-taxa"
-                className={SELECT}
-                disabled={!editavel}
-                value={f.taxaAdm}
-                onChange={(e) => set("taxaAdm", e.target.value)}
-              >
-                {taxas.map((t) => (
-                  <option key={t} value={String(t)}>
-                    {t}% → corretor recebe {pctPorTaxa(t, ctx.config.tabelaTaxa)}% do 1º aluguel
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="pre-parceria">Tem parceria (outra imobiliária/corretor)?</Label>
-              <select
-                id="pre-parceria"
-                className={SELECT}
-                disabled={!editavel}
-                value={f.parceria ? "1" : "0"}
-                onChange={(e) => set("parceria", e.target.value === "1")}
-              >
-                <option value="0">Não</option>
-                <option value="1">Sim</option>
-              </select>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-      <Aviso tom="blue">
-        Nesta etapa <b>não se pede documento</b>. Só os dados para a gestora aprovar ou não.
-      </Aviso>
-      {editavel && (
-        <div className="flex flex-wrap justify-end gap-2">
-          <Button
-            variant="outline"
-            disabled={busy}
-            onClick={() => void rodar(() => salvarPreAnalise(d.id, dados()), "Pré-análise salva")}
-          >
-            Salvar rascunho
-          </Button>
-          <Button
-            disabled={busy || faltas.length > 0}
-            title={faltas.length ? `Falta: ${faltas.join(", ")}` : undefined}
-            onClick={() =>
-              void rodar(async () => {
-                await salvarPreAnalise(d.id, dados());
-                await enviarPreAnalise(d.id);
-              }, "Enviada à gestora de locação")
-            }
-          >
-            <Send className="mr-1 h-4 w-4" /> Enviar pré-análise à gestora
-          </Button>
-        </div>
-      )}
-      {editavel && faltas.length > 0 && (
-        <p className="text-right text-xs text-muted-foreground">
-          Falta preencher: {faltas.join(", ")}.
-        </p>
-      )}
-    </div>
-  );
-}
-
 // Etapas 2 e 4 ------------------------------------------------------------------------------------------------
 function DecisaoGestora({ d, ctx, busy, rodar }: P) {
   const [motivo, setMotivo] = useState("");
@@ -480,8 +318,38 @@ function DecisaoGestora({ d, ctx, busy, rodar }: P) {
           <br />
           Garantia: <b>{GARANTIA_LABEL[d.garantia]}</b> · Taxa adm. {d.taxaAdm}%
           {d.parceria ? " · com parceria" : ""}
+          {d.ficha.garantiaOutra ? ` · outra: ${d.ficha.garantiaOutra}` : ""}
         </div>
       </div>
+      {pre && (
+        <div
+          className="grid grid-cols-1 gap-3 rounded-md border p-2 text-sm md:grid-cols-2"
+          data-testid="locacao-ficha-resumo"
+        >
+          <div>
+            <b>Ficha:</b> {d.ficha.imovelId || "—"} ·{" "}
+            {d.ficha.mobilia ? MOBILIA_LABEL[d.ficha.mobilia] : "mobília —"} ·{" "}
+            {d.ficha.metragem ? `${d.ficha.metragem} m²` : "metragem —"}
+            <br />
+            Locatário {d.ficha.locatarioPessoa.toUpperCase()} · mora em{" "}
+            {d.ficha.locatarioEndereco || "—"}
+            <br />
+            Proprietário {d.ficha.proprietarioPessoa.toUpperCase()}:{" "}
+            {d.ficha.proprietario.nome || "—"}
+            {d.ficha.proprietario.telefone ? ` · ${d.ficha.proprietario.telefone}` : ""}
+            {d.ficha.proprietario.email ? ` · ${d.ficha.proprietario.email}` : ""}
+          </div>
+          <div>
+            <b>Corretores:</b> responsável {d.corretorNome} · captador {d.captadorNome ?? "—"}
+            {d.ficha.observacoes && (
+              <>
+                <br />
+                <b>Observações:</b> {d.ficha.observacoes}
+              </>
+            )}
+          </div>
+        </div>
+      )}
       {!pre && (
         <div className="space-y-1 text-sm">
           {d.checklist.map((item) => {
@@ -701,19 +569,32 @@ function Minuta({
               Marcar “em ajuste”
             </Button>
           </div>
+          {!d.docsCompleta && (
+            <div
+              className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900 dark:border-red-900 dark:bg-red-950/40 dark:text-red-100"
+              data-testid="locacao-trava-contrato"
+            >
+              🔒 <b>Montar contrato travado.</b> Faltam {d.faltando.length} documento(s)
+              obrigatório(s): {d.faltando.join("; ")}. Use “Cobrar pendência” para avisar o
+              corretor.
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
-              disabled={busy}
+              disabled={busy || !d.docsCompleta}
+              title={!d.docsCompleta ? "Travado: falta documento obrigatório" : undefined}
               onClick={() =>
                 void rodar(() => contratosAcao(d.id, "enviar_minuta"), "Minuta enviada ao corretor")
               }
             >
-              {m.externa ? "Enviar minuta externa ao corretor" : "Enviar minuta ao corretor"}
+              {m.externa
+                ? "Enviar minuta externa ao corretor"
+                : "Montar e enviar minuta ao corretor"}
             </Button>
             <span className="flex-1" />
             <Button
-              disabled={busy || !(m.estado === "aprovada" || m.externa)}
+              disabled={busy || !d.docsCompleta || !(m.estado === "aprovada" || m.externa)}
               onClick={() =>
                 void rodar(
                   () => contratosAcao(d.id, "preparar_assinatura"),

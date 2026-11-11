@@ -32,6 +32,8 @@ export const contextoLocacao = () => rpc<unknown>("locacao_contexto");
 export const listarLocacoes = () => rpc<unknown[]>("locacao_lista");
 export const detalheLocacao = (id: string) => rpc<unknown>("locacao_detalhe", { _id: id });
 export const criarLocacao = () => rpc<{ id: string }>("locacao_criar");
+/** Pessoas ativas da imobiliária para o campo "corretor captador" (t_28e583e2). */
+export const corretoresLocacao = () => rpc<unknown[]>("locacao_corretores");
 export const salvarPreAnalise = (id: string, dados: Record<string, unknown>) =>
   rpc<unknown>("locacao_salvar_pre", { _id: id, _dados: dados });
 export const enviarPreAnalise = (id: string) => rpc<unknown>("locacao_enviar_pre", { _id: id });
