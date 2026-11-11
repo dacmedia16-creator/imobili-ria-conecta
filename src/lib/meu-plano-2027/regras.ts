@@ -345,6 +345,18 @@ export function metaOficialDoPlano(C: Calc) {
   };
 }
 
+/** Meta do mês em 2027: anual ÷ 12; captações usam captMes da calc() (já é mensal). */
+export function metaMensalDoPlano(C: Calc) {
+  const anual = metaOficialDoPlano(C);
+  if (!anual) return null;
+  return {
+    comissao: Math.round((anual.comissao / 12) * 100) / 100,
+    vgv: anual.vgv == null ? null : Math.round((anual.vgv / 12) * 100) / 100,
+    vendas: Math.round(anual.vendas / 12),
+    captacoes: ok(C.captMes) ? Math.round(C.captMes) : anual.captacoes,
+  };
+}
+
 // Formatação ----------------------------------------------------------------------------------------
 export const fmt = {
   brl: (v: number) =>

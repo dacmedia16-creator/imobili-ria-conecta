@@ -4,6 +4,7 @@ import { Target } from "lucide-react";
 import { errorMessage } from "@/lib/errors";
 import { planoDb } from "@/lib/meu-plano-2027/modulo";
 import { ANO_PLANO } from "@/lib/meu-plano-2027/telas";
+import { AVISO_VIGENCIA, planoVigente } from "@/lib/meu-plano-2027/vigencia";
 import type { TaxasFunil } from "@/lib/meu-plano-2027/regras";
 import {
   montarQuadro,
@@ -111,6 +112,51 @@ export function QuadroSemana({
   );
 }
 
+/** Feito da semana/mês sem comparar com meta (antes de 01/01/2027). */
+export function FeitoSemana({
+  semana,
+  mes,
+  hoje,
+  compacto = false,
+}: {
+  semana: Feito;
+  mes: Omit<Feito, "captMes">;
+  hoje: string;
+  compacto?: boolean;
+}) {
+  const per = rotulosPeriodo(hoje);
+  return (
+    <div className="space-y-2" data-testid="semana-feito">
+      {compacto ? null : (
+        <p className="text-xs text-muted-foreground">
+          {per.semana} (segunda a domingo) · mês de {per.mes}
+        </p>
+      )}
+      <ul className="space-y-1 text-sm tabular-nums">
+        <li>
+          Ligações: {semana.ligacoes} na semana · {mes.ligacoes} no mês
+        </li>
+        <li>
+          V1: {semana.v1} na semana · {mes.v1} no mês
+        </li>
+        <li>
+          V2: {semana.v2} na semana · {mes.v2} no mês
+        </li>
+        <li>
+          ACM: {semana.acm} na semana · {mes.acm} no mês
+        </li>
+        <li>Captações no mês: {semana.captMes}</li>
+        <li>
+          Visitas com comprador: {semana.visitaComprador} na semana · {mes.visitaComprador} no mês
+        </li>
+      </ul>
+      <p className="text-sm text-muted-foreground" data-testid="aviso-vigencia">
+        {AVISO_VIGENCIA}
+      </p>
+    </div>
+  );
+}
+
 /** Convite para quem ainda não fez o plano (no lugar do quadro). */
 export function ConvitePlano() {
   return (
@@ -136,6 +182,7 @@ export function EquipeMetas({ hoje, padrao }: { hoje: string; padrao: TaxasFunil
   const [linhas, setLinhas] = useState<LinhaEquipeMetas[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [aberto, setAberto] = useState<string | null>(null);
+  const vigente = planoVigente(hoje);
 
   useEffect(() => {
     let vivo = true;
@@ -146,15 +193,18 @@ export function EquipeMetas({ hoje, padrao }: { hoje: string; padrao: TaxasFunil
         if (error) setErro(errorMessage(error, "Não foi possível carregar a equipe."));
         else {
           setErro(null);
+          const n = normalizarEquipeSemana(data as Record<string, unknown>[], padrao);
           setLinhas(
-            ordenarPorDistancia(normalizarEquipeSemana(data as Record<string, unknown>[], padrao)),
+            vigente
+              ? ordenarPorDistancia(n)
+              : [...n].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")),
           );
         }
       });
     return () => {
       vivo = false;
     };
-  }, [padrao]);
+  }, [padrao, vigente]);
 
   const per = rotulosPeriodo(hoje);
   return (
@@ -165,8 +215,8 @@ export function EquipeMetas({ hoje, padrao }: { hoje: string; padrao: TaxasFunil
       <div className="space-y-0.5">
         <span className="text-sm font-semibold">Equipe: feito x meta da semana</span>
         <p className="text-xs text-muted-foreground">
-          {per.semana} · Para a conversa 1:1 com cada corretor. Sem ranking e sem pontos; quem está
-          mais longe da meta aparece primeiro.
+          {per.semana} · Para a conversa 1:1 com cada corretor. Sem ranking e sem pontos
+          {vigente ? "; quem está mais longe da meta aparece primeiro." : "."}
         </p>
       </div>
       {erro ? (
@@ -194,7 +244,9 @@ export function EquipeMetas({ hoje, padrao }: { hoje: string; padrao: TaxasFunil
                   <span className="font-medium">{l.nome}</span>
                   <span className="text-xs text-muted-foreground">
                     {l.metas
-                      ? `${l.semana.ligacoes}/${l.metas.ligacoes} ligações · ${l.semana.v1}/${l.metas.v1} V1 · ${l.semana.v2}/${l.metas.v2} V2`
+                      ? vigente
+                        ? `${l.semana.ligacoes}/${l.metas.ligacoes} ligações · ${l.semana.v1}/${l.metas.v1} V1 · ${l.semana.v2}/${l.metas.v2} V2`
+                        : `${l.semana.ligacoes} ligações · ${l.semana.v1} V1 · ${l.semana.v2} V2`
                       : "sem Meu Plano 2027"}
                     {" · "}
                     {ab ? "fechar" : "abrir"}
@@ -202,7 +254,7 @@ export function EquipeMetas({ hoje, padrao }: { hoje: string; padrao: TaxasFunil
                 </button>
                 {ab ? (
                   <div className="mt-3 space-y-2">
-                    {l.metas ? (
+                    {l.metas && vigente ? (
                       <QuadroSemana
                         semana={l.semana}
                         mes={l.mes}
@@ -210,6 +262,8 @@ export function EquipeMetas({ hoje, padrao }: { hoje: string; padrao: TaxasFunil
                         hoje={hoje}
                         compacto
                       />
+                    ) : l.metas ? (
+                      <FeitoSemana semana={l.semana} mes={l.mes} hoje={hoje} compacto />
                     ) : (
                       <p className="text-sm text-muted-foreground" data-testid="equipe-sem-plano">
                         Ainda não fez o Meu Plano 2027. Feito na semana: {l.semana.ligacoes}{" "}

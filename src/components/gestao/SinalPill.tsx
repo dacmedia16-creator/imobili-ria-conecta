@@ -14,16 +14,20 @@ export function FarolPill({ farol }: { farol: Farol }) {
   );
 }
 
-/** Um sinal: cor + texto. "sem plano"/"sem dado" ficam cinza (sem cor de alerta). */
+/** Um sinal: cor + texto. "sem plano"/"sem dado"/"aguardando" ficam cinza (sem cor de alerta). */
 export function SinalPill({ s, curto = false }: { s: Sinal; curto?: boolean }) {
   const texto =
     s.cor === "sem_plano"
       ? "sem plano"
       : s.cor === "sem_dado"
         ? "—"
-        : curto
-          ? rotuloCurto(s)
-          : s.texto;
+        : s.cor === "aguardando"
+          ? curto
+            ? "jan/2027"
+            : s.texto
+          : curto
+            ? rotuloCurto(s)
+            : s.texto;
   return (
     <span data-sinal={s.chave} data-cor={s.cor} title={s.texto}>
       <Pill tom={TOM_COR[s.cor]} className="whitespace-normal text-left">

@@ -23,6 +23,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { EmptyState, ListSkeleton, Pill } from "@/components/visual/base";
+import { meuPlanoEnabled, planoDb } from "@/lib/meu-plano-2027/modulo";
+import { ANO_PLANO } from "@/lib/meu-plano-2027/telas";
+import { TEXTO_MES_TRAVADO, metaMesDoPlanoAssinado } from "@/lib/meu-plano-2027/vigencia";
+import type { Respostas } from "@/lib/meu-plano-2027/regras";
+import { lerTaxasPadrao } from "./Diario";
+import { Link } from "@tanstack/react-router";
 
 // Minha carreira, PR 2 (card t_0219ca7f): bloco "Meu mês" e resumo do ano. Tabelas minhas_metas e
 // carreira_taxas e RPC meu_realizado (migração 20261016120000), ainda fora de types.ts. O banco
@@ -86,6 +92,7 @@ export function MeuMes({ userId }: { userId: string }) {
   const [editando, setEditando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [tx, setTx] = useState<Taxas | null>(null);
+  const [metaPlanoMes, setMetaPlanoMes] = useState<MinhaMeta | null>(null);
 
   const carregar = useCallback(async () => {
     const [m, t, rm, ra] = await Promise.all([
@@ -113,13 +120,49 @@ export function MeuMes({ userId }: { userId: string }) {
       mes: normalizarRealizado(first(rm.data)),
       ano: normalizarRealizado(first(ra.data)),
     });
-  }, [p]);
+    // 2026 e módulo desligado: não lê o plano (Meu mês fica igual).
+    if (!p.ano.startsWith(String(ANO_PLANO)) || !(await meuPlanoEnabled())) {
+      setMetaPlanoMes(null);
+      return;
+    }
+    const [pl, padrao] = await Promise.all([
+      planoDb
+        .from("carreira_plano")
+        .select("respostas,assinado_corretor_em")
+        .eq("user_id", userId)
+        .eq("ano", ANO_PLANO)
+        .maybeSingle(),
+      lerTaxasPadrao(),
+    ]);
+    const row = pl.data as { respostas?: Respostas; assinado_corretor_em?: string | null } | null;
+    const mm = metaMesDoPlanoAssinado({
+      hoje: p.hoje,
+      moduloOn: true,
+      assinadoEm: row?.assinado_corretor_em,
+      respostas: row?.respostas,
+      padrao,
+    });
+    setMetaPlanoMes(
+      mm
+        ? {
+            id: "plano-2027",
+            periodo: "mes",
+            inicio: p.mes,
+            meta_comissao: mm.comissao,
+            meta_vgv: mm.vgv,
+            meta_vendas: mm.vendas,
+            meta_captacoes: mm.captacoes,
+          }
+        : null,
+    );
+  }, [p, userId]);
 
   useEffect(() => {
     void carregar();
   }, [carregar, userId]);
 
-  const meta = dados?.metas.find((x) => x.periodo === aba);
+  const travada = aba === "mes" && !!metaPlanoMes;
+  const meta = travada ? metaPlanoMes : dados?.metas.find((x) => x.periodo === aba);
   const efetivas = useMemo(
     () => (dados ? taxasEfetivas(dados.taxasRows, userId) : null),
     [dados, userId],
@@ -133,6 +176,7 @@ export function MeuMes({ userId }: { userId: string }) {
   }, [meta, aba]);
 
   async function salvarMeta() {
+    if (travada) return;
     const v = {
       meta_comissao: numOuNull(form.comissao),
       meta_vgv: numOuNull(form.vgv),
@@ -232,7 +276,7 @@ export function MeuMes({ userId }: { userId: string }) {
           <ListSkeleton />
         ) : (
           <>
-            {!meta || editando ? (
+            {!travada && (!meta || editando) ? (
               <div className="space-y-3">
                 {!meta ? (
                   <EmptyState icon={Target}>
@@ -277,15 +321,25 @@ export function MeuMes({ userId }: { userId: string }) {
                   ) : null}
                 </div>
               </div>
-            ) : (
-              <Progresso
-                meta={meta}
-                real={real}
-                diaPer={diaPer}
-                diasPer={diasPer}
-                onEditar={() => setEditando(true)}
-              />
-            )}
+            ) : meta ? (
+              <>
+                <Progresso
+                  meta={meta}
+                  real={real}
+                  diaPer={diaPer}
+                  diasPer={diasPer}
+                  onEditar={travada ? undefined : () => setEditando(true)}
+                />
+                {travada ? (
+                  <p className="text-sm text-muted-foreground" data-testid="aviso-meta-plano">
+                    {TEXTO_MES_TRAVADO}.{" "}
+                    <Link to="/minha-carreira/plano" className="underline">
+                      Abrir o plano
+                    </Link>
+                  </p>
+                ) : null}
+              </>
+            ) : null}
 
             {meta ? (
               <Calculadora
@@ -331,7 +385,7 @@ function Progresso(props: {
   real: Realizado;
   diaPer: number;
   diasPer: number;
-  onEditar: () => void;
+  onEditar?: () => void;
 }) {
   const { meta, real, diaPer, diasPer } = props;
   // Indicador principal: comissão; senão VGV; senão vendas.
@@ -409,9 +463,11 @@ function Progresso(props: {
               : `No ritmo atual faltam ${principal.fmt(principal.alvo - proj)}`}
           </Pill>
         ) : null}
-        <Button size="sm" variant="outline" onClick={props.onEditar}>
-          Atualizar minha meta
-        </Button>
+        {props.onEditar ? (
+          <Button size="sm" variant="outline" onClick={props.onEditar}>
+            Atualizar minha meta
+          </Button>
+        ) : null}
       </div>
     </div>
   );

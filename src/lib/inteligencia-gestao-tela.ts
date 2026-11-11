@@ -315,6 +315,7 @@ export const TOM_COR: Record<CorSinal, TomSinal> = {
   vermelho: "red",
   sem_plano: "slate",
   sem_dado: "slate",
+  aguardando: "slate",
 };
 export const EMOJI_COR: Record<CorSinal, string> = {
   verde: "🟢",
@@ -322,6 +323,7 @@ export const EMOJI_COR: Record<CorSinal, string> = {
   vermelho: "🔴",
   sem_plano: "⚪",
   sem_dado: "⚪",
+  aguardando: "⚪",
 };
 export const TOM_FAROL: Record<Farol, TomSinal | "blue"> = {
   risco: "red",

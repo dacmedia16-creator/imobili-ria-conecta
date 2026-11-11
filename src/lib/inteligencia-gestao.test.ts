@@ -80,11 +80,16 @@ describe("sinal 2: atividade da semana × meta do plano (cores do Sua semana)", 
       "Atividade da semana em 88% da meta",
     );
   });
-  it("sem plano: 'sem plano', sem cor", () => {
+  it("sem plano: 'sem plano', sem cor; com plano antes de 2027: texto próprio, sem cor", () => {
     expect(sinalAtividade(semana(), null)).toEqual({
       chave: "atividade",
       cor: "sem_plano",
       texto: "Sem plano",
+    });
+    expect(sinalAtividade(semana(), METAS, false)).toEqual({
+      chave: "atividade",
+      cor: "aguardando",
+      texto: "Plano vale a partir de jan/2027",
     });
   });
 });
@@ -193,6 +198,11 @@ describe("sinal 5: captações no mês proporcional aos dias passados", () => {
       "2 de 2 esperadas até hoje (meta do mês: 3)",
     );
     expect(sinalCaptacoes(5, null, HOJE).cor).toBe("sem_plano");
+    expect(sinalCaptacoes(5, METAS, HOJE, false)).toEqual({
+      chave: "captacoes",
+      cor: "aguardando",
+      texto: "Plano vale a partir de jan/2027",
+    });
   });
 });
 
@@ -211,6 +221,7 @@ describe("farol geral", () => {
   });
   it("'sem plano' e 'sem dado' não pesam", () => {
     expect(farolGeral([s("sem_plano"), s("sem_plano"), s("sem_dado")], 400)).toBe("tranquilo");
+    expect(farolGeral([s("aguardando"), s("aguardando"), s("verde")], 400)).toBe("tranquilo");
   });
 });
 
@@ -230,7 +241,7 @@ describe("calcularFarol + ordem", () => {
   it("monta os 5 sinais na ordem e só os acesos vão para a pauta", () => {
     const l = calcularFarol(
       { ...base, dias_sem_vender: 41, semana: semana({ ligacoes: 0, v1: 0 }) },
-      HOJE,
+      "2027-01-08",
       AGORA,
     );
     expect(l.sinais.map((x) => x.chave)).toEqual([
@@ -248,6 +259,23 @@ describe("calcularFarol + ordem", () => {
     expect(l.sinais[1].cor).toBe("sem_plano");
     expect(l.sinais[4].cor).toBe("sem_plano");
     expect(l.farol).toBe("tranquilo");
+  });
+  it("antes de 2027: com plano, sinais 2 e 5 sem cor e texto diferente de 'Sem plano'", () => {
+    const l = calcularFarol(base, HOJE, AGORA);
+    expect(l.sinais[1]).toEqual({
+      chave: "atividade",
+      cor: "aguardando",
+      texto: "Plano vale a partir de jan/2027",
+    });
+    expect(l.sinais[4].cor).toBe("aguardando");
+    expect(l.sinais[4].texto).not.toMatch(/sem plano/i);
+    expect(l.metaDe).toBeNull();
+  });
+  it("a partir de 01/01/2027 as metas voltam a colorir", () => {
+    const l = calcularFarol(base, "2027-01-08", AGORA);
+    expect(l.sinais[1].cor).toBe("verde");
+    expect(l.sinais[4].cor).not.toBe("aguardando");
+    expect(l.sinais[4].cor).not.toBe("sem_plano");
   });
   it("novo (< 60 dias): aparece, sem farol de produção e sem sinais acesos", () => {
     const l = calcularFarol(
@@ -300,7 +328,7 @@ describe("meta desatualizada (cópia ms.* do team leader)", () => {
         lead_config: null,
         captacoes: null,
       },
-      HOJE,
+      "2027-01-08",
       AGORA,
     );
     expect(l.metaDe).toBe("meta de 30/09");
