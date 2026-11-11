@@ -270,6 +270,15 @@ EXCEPTION WHEN invalid_text_representation THEN
   RAISE EXCEPTION 'Valor inválido' USING ERRCODE = '22023';
 END $$;
 
+-- locacao_lista (20261110120000)
+CREATE OR REPLACE FUNCTION public.locacao_lista() RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO '' AS $$
+DECLARE _org uuid := public.locacao_ctx();
+BEGIN
+  RETURN (SELECT coalesce(jsonb_agg(public.locacao_json(l) ORDER BY l.etapa_desde), '[]')
+            FROM public.locacoes l WHERE l.organization_id = _org AND public.locacao_pode_ver(l));
+END $$;
+
 -- locacao_grupo_do_item (20261112120000)
 CREATE OR REPLACE FUNCTION public.locacao_grupo_do_item(_l public.locacoes, _item text) RETURNS text
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$

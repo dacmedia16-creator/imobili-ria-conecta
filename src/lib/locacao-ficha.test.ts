@@ -170,6 +170,13 @@ describe("checklist por parte e itens opcionais", () => {
     for (const k of ["locatario_pj", "fiador_pj", "proprietario_pj"])
       expect(MIG).toContain(`'${k}'`);
   });
+  it("Regras: Fiador PJ aparece mesmo sem lista; grupo PJ vazio não é gravado", () => {
+    const texto = docsParaTexto({ locatario: ["RG"], fiador: ["Renda"] });
+    expect(texto).toContain("[Fiador PJ]");
+    const volta = textoParaDocs(texto);
+    expect(volta.fiador_pj).toBeUndefined();
+    expect(volta.locatario).toEqual(["RG"]);
+  });
 });
 
 describe("trava do Montar contrato e rollback", () => {

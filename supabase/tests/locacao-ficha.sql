@@ -175,6 +175,14 @@ SELECT pg_temp.as_user(pg_temp.id('con')::text);
 SELECT pg_temp.put('det', public.locacao_detalhe(pg_temp.id('L')));
 SELECT pg_temp.ok(pg_temp.j('det')->>'docs_completos_em' IS NULL AND NOT (pg_temp.j('det')->>'docs_completa')::boolean,
   'lista mudou depois: a data da documentação completa some na hora (sem anexar nada)');
+RESET ROLE;
+SELECT pg_temp.ok((SELECT docs_completos_em IS NULL FROM public.locacoes WHERE id = pg_temp.id('L'))
+  AND EXISTS (SELECT 1 FROM public.locacao_eventos WHERE locacao_id = pg_temp.id('L') AND descricao LIKE 'Documentação voltou%'
+               AND em >= now()), 'salvar a lista também atualiza a data gravada e o histórico');
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.as_user(pg_temp.id('con')::text);
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM jsonb_array_elements(public.locacao_lista()) x WHERE x ? 'ficha'),
+  'lista geral não traz a ficha (dados pessoais só no detalhe)');
 SELECT pg_temp.ok(pg_temp.j('det')->'faltando' = '["Certidão negativa do fiador (fictícia)"]'::jsonb
   AND EXISTS (SELECT 1 FROM jsonb_array_elements(pg_temp.j('det')->'partes') p, jsonb_array_elements(p->'itens') i
                WHERE i->>'item' = 'Referência pessoal do fiador (opcional)' AND NOT (i->>'obrigatorio')::boolean),

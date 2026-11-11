@@ -22,7 +22,7 @@
 --    obrigatório faltando (a gestora já não conferia; agora o contrato também não é montado).
 -- Funções redefinidas (o rollback devolve o texto exato anterior): locacao_docs_padrao, locacao_cfg, locacao_salvar_pre,
 -- locacao_enviar_pre, locacao_docs_faltando, locacao_documento_preparar, locacao_documento_registrar,
--- locacao_documento_remover, locacao_config_salvar, locacao_contratos_acao (de 20261110120000) e
+-- locacao_documento_remover, locacao_config_salvar, locacao_contratos_acao, locacao_lista (de 20261110120000) e
 -- locacao_grupo_do_item, locacao_detalhe (de 20261112120000). Nenhuma função da venda ou da captação é tocada.
 BEGIN;
 SELECT set_config('lock_timeout', '5s', true);
@@ -181,10 +181,11 @@ $$;
 -- Calculada do que está anexado: continua certa mesmo se a lista da imobiliária mudar depois.
 CREATE OR REPLACE FUNCTION public.locacao_docs_completos_em(_l public.locacoes) RETURNS timestamptz
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$
+  -- Por item: o 1º arquivo válido (2º arquivo do mesmo item não empurra a data). Depois: o item entregue por último.
   SELECT CASE WHEN cardinality(public.locacao_docs_faltando(_l)) = 0 THEN coalesce(
-    (SELECT max(d.enviado_em) FROM public.locacao_documentos d
+    (SELECT max(primeiro) FROM (SELECT min(d.enviado_em) AS primeiro FROM public.locacao_documentos d
       WHERE d.locacao_id = _l.id AND d.removido_em IS NULL AND NOT public.locacao_doc_opcional(d.item)
-        AND d.item = ANY (public.locacao_checklist_l(_l))),
+        AND d.item = ANY (public.locacao_checklist_l(_l)) GROUP BY d.item) s),
     _l.docs_completos_em, _l.criado_em) END
 $$;
 
@@ -440,9 +441,24 @@ BEGIN
     documentos = coalesce(_dados->'documentos', documentos),
     atualizado_em = now(), atualizado_por = auth.uid()
    WHERE organization_id = _org RETURNING * INTO _c;
+  -- Lista de documentos mudou: atualiza a data da documentação completa das locações ativas desta imobiliária.
+  IF _dados ? 'documentos' THEN
+    PERFORM public.locacao_docs_situacao(l.id) FROM public.locacoes l
+     WHERE l.organization_id = _org AND l.situacao = 'ativa'
+       AND l.etapa IN ('documentacao', 'conferencia', 'minuta', 'assinatura');
+  END IF;
   RETURN to_jsonb(_c) - 'organization_id' - 'atualizado_por';
 EXCEPTION WHEN invalid_text_representation OR numeric_value_out_of_range OR check_violation THEN
   RAISE EXCEPTION 'Valor inválido nas regras' USING ERRCODE = '22023';
+END $$;
+
+-- Lista de locações: sem a ficha (dados pessoais do proprietário/locatário só no detalhe). Resto igual à Fase 1.
+CREATE OR REPLACE FUNCTION public.locacao_lista() RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO '' AS $$
+DECLARE _org uuid := public.locacao_ctx();
+BEGIN
+  RETURN (SELECT coalesce(jsonb_agg(public.locacao_json(l) - 'ficha' ORDER BY l.etapa_desde), '[]')
+            FROM public.locacoes l WHERE l.organization_id = _org AND public.locacao_pode_ver(l));
 END $$;
 
 -- 9) Trava "Montar contrato": sem documento obrigatório faltando para enviar a minuta ou preparar a assinatura ------

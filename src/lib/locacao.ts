@@ -644,10 +644,8 @@ const GRUPOS_DOC: { key: string; label: string }[] = [
 ];
 
 export function docsParaTexto(docs: Record<string, string[]>): string {
-  // Grupos PJ só aparecem quando a imobiliária tem a lista (o banco já devolve as PJ padrão).
-  return GRUPOS_DOC.filter((g) => !g.key.endsWith("_pj") || g.key in docs)
-    .map((g) => `[${g.label}]\n${(docs[g.key] ?? []).join("\n")}`)
-    .join("\n\n");
+  // Todos os grupos aparecem (inclusive Fiador PJ, ainda sem lista padrão).
+  return GRUPOS_DOC.map((g) => `[${g.label}]\n${(docs[g.key] ?? []).join("\n")}`).join("\n\n");
 }
 
 export function textoParaDocs(texto: string): Record<string, string[]> {
@@ -663,6 +661,8 @@ export function textoParaDocs(texto: string): Record<string, string[]> {
       out[atual].push(linha.slice(0, 200));
     }
   }
+  // Grupo PJ vazio não é gravado: o banco usa a lista PJ padrão ou, sem ela, a PF da mesma parte.
+  for (const k of Object.keys(out)) if (k.endsWith("_pj") && !out[k].length) delete out[k];
   return out;
 }
 
