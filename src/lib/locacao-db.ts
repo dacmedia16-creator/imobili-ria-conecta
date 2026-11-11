@@ -50,6 +50,9 @@ export const removerDocumento = (docId: string) =>
   rpc<boolean>("locacao_documento_remover", { _doc: docId });
 export const contratosAcao = (id: string, acao: string, dados: Record<string, unknown> = {}) =>
   rpc<unknown>("locacao_contratos_acao", { _id: id, _acao: acao, _dados: dados });
+export const lerMontagem = (id: string) => rpc<unknown>("locacao_montagem_ler", { _id: id });
+export const salvarMontagem = (id: string, dados: Record<string, string>) =>
+  rpc<{ ok: boolean }>("locacao_montagem_salvar", { _id: id, _dados: dados });
 export const corretorMinuta = (id: string, acao: string, texto: string | null = null) =>
   rpc<unknown>("locacao_corretor_minuta", { _id: id, _acao: acao, _texto: texto });
 export const posAcao = (id: string, acao: string, dados: Record<string, unknown> = {}) =>

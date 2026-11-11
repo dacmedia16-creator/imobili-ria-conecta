@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ListSkeleton, Pill } from "@/components/visual/base";
 import { LocacaoStepper } from "@/components/locacao/LocacaoStepper";
 import { ContratoConferencia, LocacaoDocumentacao } from "@/components/locacao/LocacaoDocumentacao";
+import { LocacaoMontarContrato } from "@/components/locacao/LocacaoMontarContrato";
 import { ChecklistPartes } from "@/components/locacao/LocacaoChecklist";
 import { FichaAbertura } from "@/components/locacao/LocacaoFicha";
 import { errorMessage } from "@/lib/errors";
@@ -518,6 +519,7 @@ function Minuta({
         </div>
       )}
 
+      {contratos && <LocacaoMontarContrato d={d} />}
       {contratos && (
         <div className="space-y-2 rounded-md border p-3">
           <p className="text-sm font-medium">Setor de contratos</p>
