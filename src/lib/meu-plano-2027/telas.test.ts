@@ -58,6 +58,26 @@ describe("numeração e atalho do book (itens 1 e 10)", () => {
     expect(rotuloPagina(1)).toBe("PDF 1");
   });
 
+  it("do PDF 46 em diante segue o rodapé impresso do book (Anotações sem número)", () => {
+    const esperado: Record<number, string> = {
+      44: "pág. 43 · PDF 44",
+      45: "pág. 44 · PDF 45",
+      46: "PDF 46",
+      47: "PDF 47",
+      48: "PDF 48",
+      49: "pág. 46 · PDF 49",
+      50: "pág. 47 · PDF 50",
+      51: "pág. 48 · PDF 51",
+      52: "pág. 49 · PDF 52",
+      53: "pág. 50 · PDF 53",
+      54: "PDF 54",
+      55: "PDF 55",
+      56: "PDF 56",
+    };
+    for (const [pdf, rotulo] of Object.entries(esperado))
+      expect(rotuloPagina(Number(pdf))).toBe(rotulo);
+  });
+
   it("a página 11 do PDF leva ao exercício das Metas", () => {
     expect(exercicioDaPagina(11)?.id).toBe("p32");
     expect(exercicioDaPagina(12)).toBeUndefined();

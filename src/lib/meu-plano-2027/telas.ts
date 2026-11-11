@@ -363,9 +363,31 @@ const POR_ID = new Map(TELAS.map((t) => [t.id, t]));
 export const tela = (id: string) => POR_ID.get(id);
 export const telaDaPagina = (pdf: number) => TELAS.find((t) => t.pdf === pdf);
 
-/** Rótulo da página com as duas numerações (Denis, 11/11): "pág. 19 · PDF 20". A capa (PDF 1) não tem número impresso. */
-export const rotuloPagina = (pdf: number) =>
-  pdf > 1 ? `pág. ${pdf - 1} · PDF ${pdf}` : `PDF ${pdf}`;
+/**
+ * Número impresso no rodapé do book do PDF 46 em diante, conferido página por página no PDF oficial.
+ * As 2 páginas de Anotações (PDF 46 e 47) entram sem número e deslocam a sequência: daí em diante o
+ * impresso não é mais PDF − 1. `null` = página sem número impresso (PDF 46, 47, 48, 54, 55, 56).
+ */
+const PAGINA_IMPRESSA_FINAL: Record<number, number | null> = {
+  46: null,
+  47: null,
+  48: null,
+  49: 46,
+  50: 47,
+  51: 48,
+  52: 49,
+  53: 50,
+  54: null,
+  55: null,
+  56: null,
+};
+
+/** Rótulo da página com as duas numerações (Denis, 11/11): "pág. 19 · PDF 20". Sem número impresso (capa, PDF 46–48, 54–56), só "PDF N". */
+export const rotuloPagina = (pdf: number) => {
+  const impressa =
+    pdf in PAGINA_IMPRESSA_FINAL ? PAGINA_IMPRESSA_FINAL[pdf] : pdf > 1 ? pdf - 1 : null;
+  return impressa ? `pág. ${impressa} · PDF ${pdf}` : `PDF ${pdf}`;
+};
 
 /** Páginas do book sem tela própria cujo exercício está em outra tela (PDF 11 "Ao final de 2027 eu terei…" → Metas). */
 export const ATALHO_PAGINA: Record<number, string> = { 11: "p32" };
