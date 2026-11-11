@@ -65,7 +65,12 @@ const dados: Record<string, string> = {
   moradores: "Moradora Exemplo (fictícia)",
 };
 const montagem: Montagem = {
-  campos: { fia_imovel_endereco: "Rua do Bem Fictício, 5" },
+  campos: {
+    fia_imovel_endereco: "Rua do Bem Fictício, 5",
+    prop_sexo: "feminino",
+    loc_sexo: "masculino",
+    fia_sexo: "masculino",
+  },
   contrato: dados,
   administradora: {
     nome: "Imobiliária Exemplo",
@@ -104,6 +109,8 @@ describe("montagem residencial com fiador", () => {
       data: "2027-01-01",
       locadores_adicionais: "Segunda Locadora (fictícia)",
       locatarios_adicionais: "Segundo Locatário (fictício)",
+      locadores_adicionais_sexo: "feminino",
+      locatarios_adicionais_sexo: "masculino",
     };
     const texto = textoContrato(base, montagem, c).join("\n");
     for (const trecho of [
@@ -143,12 +150,15 @@ describe("montagem residencial com fiador", () => {
     expect(faltasMontagem(base, montagem, { ...c, reajuste: "IGP-M" })).toContain(
       "condições diferentes do modelo residencial (revisão jurídica necessária)",
     );
+    expect(faltasMontagem(base, montagem, { ...c, prop_sexo: "" })).toContain("sexo do locador");
   });
   it("gera PDF legível com fonte Unicode e dados totalmente fictícios", async () => {
     const c = { ...camposIniciais(base, montagem), data: "2027-01-01" };
     const fonte = await readFile(new URL("../assets/fonts/DejaVuSans.ttf", import.meta.url));
     const negrito = await readFile(new URL("../assets/fonts/DejaVuSans-Bold.ttf", import.meta.url));
-    const logo = await readFile(new URL("../../public/remax-logo-transparent.png", import.meta.url));
+    const logo = await readFile(
+      new URL("../../public/remax-logo-transparent.png", import.meta.url),
+    );
     const bytes = await gerarPdfContrato(textoContrato(base, montagem, c), fonte, {
       negrito,
       logo,
@@ -191,7 +201,9 @@ describe("montagem residencial com fiador", () => {
     const c = { ...camposIniciais(baseLongo, montagem), data: "2027-01-01" };
     const fonte = await readFile(new URL("../assets/fonts/DejaVuSans.ttf", import.meta.url));
     const negrito = await readFile(new URL("../assets/fonts/DejaVuSans-Bold.ttf", import.meta.url));
-    const logo = await readFile(new URL("../../public/remax-logo-transparent.png", import.meta.url));
+    const logo = await readFile(
+      new URL("../../public/remax-logo-transparent.png", import.meta.url),
+    );
     const bytes = await gerarPdfContrato(textoContrato(baseLongo, montagem, c), fonte, {
       negrito,
       logo,
@@ -207,10 +219,155 @@ describe("montagem residencial com fiador", () => {
     const normal = extraido.replace(/\u00a0/g, " ");
     expect(normal).toMatch(/Vagas:\s*não possui/);
     expect(normal).not.toMatch(/Vagas:[\s\S]*?1 de \d+[\s\S]*?possui/);
-    expect(textoContrato(baseLongo, montagem, c).join("\n")).toContain("Vagas:\u00a0não\u00a0possui");
+    expect(textoContrato(baseLongo, montagem, c).join("\n")).toContain(
+      "Vagas:\u00a0não\u00a0possui",
+    );
   });
   it("calcula fim e valor por extenso de forma civil", () => {
     expect(fimPrazo("2027-01-01", 30)).toBe("2029-06-30");
     expect(reaisExtenso(2400.5)).toBe("dois mil e quatrocentos reais e cinquenta centavos");
+  });
+  it("1 locador homem → LOCADOR e brasileiro/solteiro", () => {
+    const c = {
+      ...camposIniciais(base, montagem),
+      data: "2027-01-01",
+      prop_sexo: "masculino",
+      d_prop_nacionalidade: "brasileiro(a)",
+      d_prop_estado_civil: "solteiro(a)",
+    };
+    const t = textoContrato(base, montagem, c).join("\n");
+    expect(t).toMatch(/^LOCADOR:/m);
+    expect(t).toContain("brasileiro");
+    expect(t).toContain("solteiro");
+    expect(t).not.toContain("LOCADORA");
+    expect(t).not.toContain("brasileiro(a)");
+    expect(t).not.toContain("LOCADOR (A)");
+  });
+  it("1 locadora mulher → LOCADORA e brasileira/solteira", () => {
+    const c = {
+      ...camposIniciais(base, montagem),
+      data: "2027-01-01",
+      prop_sexo: "feminino",
+      d_prop_nacionalidade: "brasileiro(a)",
+      d_prop_estado_civil: "solteiro(a)",
+    };
+    const t = textoContrato(base, montagem, c).join("\n");
+    expect(t).toMatch(/^LOCADORA:/m);
+    expect(t).toContain("brasileira");
+    expect(t).toContain("solteira");
+    expect(t).not.toContain("LOCADORES");
+    expect(t).not.toContain("LOCADOR (A)");
+  });
+  it("casal locador H+M → LOCADORES", () => {
+    const c = {
+      ...camposIniciais(base, montagem),
+      data: "2027-01-01",
+      prop_sexo: "masculino",
+      prop_conj_sexo: "feminino",
+      d_prop_conj_nome: "Cônjuge Locadora (fictícia)",
+      d_prop_conj_cpf: "CPF fictício cônjuge",
+      d_prop_estado_civil: "casado(a)",
+    };
+    const t = textoContrato(base, montagem, c).join("\n");
+    expect(t).toMatch(/^LOCADORES:/m);
+    expect(t).toContain("Cônjuge Locadora (fictícia)");
+    expect(t).not.toContain("LOCADORAS");
+  });
+  it("duas locatárias → LOCATÁRIAS", () => {
+    const c = {
+      ...camposIniciais(base, montagem),
+      data: "2027-01-01",
+      loc_sexo: "feminino",
+      locatarios_adicionais: "Segunda Locatária (fictícia)",
+      locatarios_adicionais_sexo: "feminino",
+      d_loc_nacionalidade: "brasileiro(a)",
+      d_loc_estado_civil: "solteiro(a)",
+    };
+    const t = textoContrato(base, montagem, c).join("\n");
+    expect(t).toMatch(/^LOCATÁRIAS:/m);
+    expect(t).toContain("AS LOCATÁRIAS");
+    expect(t).not.toContain("LOCATÁRIO (A)");
+    expect(t).not.toContain("O(s) LOCATÁRIO");
+  });
+  it("fiador e fiadora → FIADORES", () => {
+    const c = {
+      ...camposIniciais(base, montagem),
+      data: "2027-01-01",
+      fia_sexo: "masculino",
+      fia_conj_sexo: "feminino",
+      d_fia_conj_nome: "Fiadora Cônjuge (fictícia)",
+      d_fia_conj_cpf: "CPF fictício fiadora",
+      d_fia_estado_civil: "casado(a)",
+    };
+    const t = textoContrato(base, montagem, c).join("\n");
+    expect(t).toMatch(/^FIADORES:/m);
+    expect(t).toContain("GARANTIA LOCATÍCIA - FIADORES:");
+    expect(t).toContain("OS FIADORES");
+  });
+  it("locador PJ mantém LOCADOR sem flexão por sexo", () => {
+    const pj: LocacaoBase = {
+      ...base,
+      ficha: { ...base.ficha, proprietarioPessoa: "pj" },
+    };
+    const c = { ...camposIniciais(pj, montagem), data: "2027-01-01", prop_sexo: "" };
+    expect(faltasMontagem(pj, montagem, c)).toEqual([]);
+    const t = textoContrato(pj, montagem, c).join("\n");
+    expect(t).toMatch(/^LOCADOR:/m);
+    expect(t).not.toContain("LOCADORA");
+    expect(t).toContain("Contrato de Garantia: FIADOR");
+  });
+  it("PDF v3 locadora, locatário e casal de fiadores sem barra o/a", async () => {
+    const c = {
+      ...camposIniciais(base, montagem),
+      data: "2027-01-01",
+      prop_sexo: "feminino",
+      loc_sexo: "masculino",
+      fia_sexo: "masculino",
+      fia_conj_sexo: "feminino",
+      d_prop_nacionalidade: "brasileiro(a)",
+      d_prop_estado_civil: "solteiro(a)",
+      d_loc_nacionalidade: "brasileiro(a)",
+      d_loc_estado_civil: "solteiro(a)",
+      d_fia_nacionalidade: "brasileiro(a)",
+      d_fia_estado_civil: "casado(a)",
+      d_fia_conj_nome: "Fiadora Cônjuge Exemplo",
+      d_fia_conj_cpf: "CPF fictício 2",
+    };
+    const texto = textoContrato(base, montagem, c).join("\n");
+    expect(texto).toMatch(/^LOCADORA:/m);
+    expect(texto).toMatch(/^LOCATÁRIO:/m);
+    expect(texto).toMatch(/^FIADORES:/m);
+    expect(texto).not.toMatch(/LOCADOR\s*\(\s*A\s*\)/);
+    expect(texto).not.toMatch(/LOCATÁRIO\s*\(\s*[AS]\s*\)/);
+    expect(texto).not.toMatch(/o\/a/i);
+    expect(texto).not.toMatch(/brasileiro\/brasileira/i);
+    expect(texto).not.toMatch(/solteiro\/solteira/i);
+    expect(texto).not.toContain("brasileiro(a)");
+    expect(texto).not.toContain("solteiro(a)");
+    expect(texto).not.toContain("casado(a)");
+    const fonte = await readFile(new URL("../assets/fonts/DejaVuSans.ttf", import.meta.url));
+    const negrito = await readFile(new URL("../assets/fonts/DejaVuSans-Bold.ttf", import.meta.url));
+    const logo = await readFile(
+      new URL("../../public/remax-logo-transparent.png", import.meta.url),
+    );
+    const bytes = await gerarPdfContrato(textoContrato(base, montagem, c), fonte, {
+      negrito,
+      logo,
+    });
+    const tmp = join(tmpdir(), `locacao-v3-${process.pid}.pdf`);
+    await writeFile(tmp, bytes);
+    let extraido = "";
+    try {
+      extraido = execFileSync("pdftotext", ["-layout", tmp, "-"], { encoding: "utf8" });
+    } finally {
+      await unlink(tmp).catch(() => undefined);
+    }
+    expect(extraido).toContain("LOCADORA");
+    expect(extraido).toContain("LOCATÁRIO");
+    expect(extraido).toContain("FIADORES");
+    expect(extraido).not.toMatch(/o\/a/i);
+    expect(extraido).not.toMatch(/LOCADOR\s*\(\s*A\s*\)/);
+    expect(extraido).not.toMatch(/\(s\)/i);
+    if (process.env.EXEMPLO_PDF_V3_PATH) await writeFile(process.env.EXEMPLO_PDF_V3_PATH, bytes);
   });
 });

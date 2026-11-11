@@ -19,6 +19,11 @@ SELECT pg_temp.ok(public.locacao_montagem_ler(pg_temp.id('L'))->'campos'->>'d_pr
   AND public.locacao_montagem_ler(pg_temp.id('L'))->'campos'->>'aluguel' = '2400.00'
   AND public.locacao_montagem_ler(pg_temp.id('L'))->'campos'->>'dimob' = 'sim',
   'correção e opções de tributação/financeiro persistidas sem executar financeiro');
+SELECT public.locacao_montagem_salvar(pg_temp.id('L'), '{"prop_sexo":"feminino","loc_sexo":"masculino","fia_sexo":"masculino"}');
+SELECT pg_temp.ok(public.locacao_montagem_ler(pg_temp.id('L'))->'campos'->>'prop_sexo' = 'feminino'
+  AND public.locacao_montagem_ler(pg_temp.id('L'))->'campos'->>'loc_sexo' = 'masculino',
+  'sexo gramatical da montagem persistido');
+SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_montagem_salvar(%L, %L)', pg_temp.id('L'), '{"prop_sexo":"neutro"}')) LIKE '22023%', 'sexo inválido negado');
 SELECT pg_temp.as_user(pg_temp.id('c2')::text);
 SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_montagem_ler(%L)', pg_temp.id('L'))) LIKE '42501%'
   AND pg_temp.err(format('SELECT public.locacao_montagem_salvar(%L, %L)', pg_temp.id('L'), '{"numero":"x"}')) LIKE '42501%',

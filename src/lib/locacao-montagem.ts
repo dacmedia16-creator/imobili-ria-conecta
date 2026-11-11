@@ -1,4 +1,15 @@
 import clausulas from "./locacao-clausulas.json";
+import {
+  aplicarPapeis,
+  flexionarQualificacao,
+  linhasPessoas,
+  parseSexos,
+  pessoasFiador,
+  pessoasLocador,
+  pessoasLocatario,
+  sexoOk,
+  termoPapel,
+} from "./locacao-concordancia";
 export { gerarPdfContrato, type OpcoesPdfContrato } from "./locacao-contrato-pdf";
 
 export type Montagem = {
@@ -13,7 +24,14 @@ export type LocacaoBase = {
   taxaAdm: number;
   tipo: string;
   garantia: string;
-  ficha: { imovelId: string; locatarioEndereco?: string; proprietario?: { nome: string } };
+  ficha: {
+    imovelId: string;
+    locatarioEndereco?: string;
+    proprietario?: { nome: string };
+    locatarioPessoa?: "pf" | "pj";
+    proprietarioPessoa?: "pf" | "pj";
+    fiadorPessoa?: "pf" | "pj";
+  };
 };
 
 export const CAMPOS_DOCUMENTO = {
@@ -79,9 +97,24 @@ export const CAMPOS: Record<
     label: "Outros locadores (qualificação completa, um por linha)",
     passo: 0,
   },
+  locadores_adicionais_sexo: { label: "Sexo dos outros locadores", passo: 0 },
   locatarios_adicionais: {
     label: "Outros locatários (qualificação completa, um por linha)",
     passo: 2,
+  },
+  locatarios_adicionais_sexo: { label: "Sexo dos outros locatários", passo: 2 },
+  prop_sexo: { label: "Sexo do locador", passo: 0, opcoes: ["masculino", "feminino"] },
+  prop_conj_sexo: {
+    label: "Sexo do cônjuge do locador",
+    passo: 0,
+    opcoes: ["masculino", "feminino"],
+  },
+  loc_sexo: { label: "Sexo do locatário", passo: 2, opcoes: ["masculino", "feminino"] },
+  fia_sexo: { label: "Sexo do fiador", passo: 5, opcoes: ["masculino", "feminino"] },
+  fia_conj_sexo: {
+    label: "Sexo do cônjuge do fiador",
+    passo: 5,
+    opcoes: ["masculino", "feminino"],
   },
   nota_fiscal: { label: "Nota fiscal", passo: 2, opcoes: ["nao", "sim"] },
   irrf: { label: "IR retido", passo: 2, opcoes: ["nao", "sim"] },
@@ -162,8 +195,11 @@ const docLabel = (rotulo: string, valor: string) => {
   if (!v) return rotulo;
   return v.toLowerCase().startsWith(rotulo.toLowerCase()) ? v : `${rotulo} ${v}`;
 };
-const nome = (v: Record<string, string>, prefixo: string) =>
-  `${v[`${prefixo}_nome`] || ""}, ${v[`${prefixo}_nacionalidade`] || ""}, ${v[`${prefixo}_estado_civil`] || ""}, ${v[`${prefixo}_profissao`] || ""}, ${docLabel("RG", v[`${prefixo}_rg`] || "")}, ${docLabel("CPF", v[`${prefixo}_cpf`] || "")}, residente em ${v[`${prefixo}_endereco`] || ""}`;
+const nome = (v: Record<string, string>, prefixo: string, feminino: boolean | null) => {
+  const nac = v[`${prefixo}_nacionalidade`] || "";
+  const civil = v[`${prefixo}_estado_civil`] || "";
+  return `${v[`${prefixo}_nome`] || ""}, ${feminino == null ? nac : flexionarQualificacao(nac, feminino)}, ${feminino == null ? civil : flexionarQualificacao(civil, feminino)}, ${v[`${prefixo}_profissao`] || ""}, ${docLabel("RG", v[`${prefixo}_rg`] || "")}, ${docLabel("CPF", v[`${prefixo}_cpf`] || "")}, residente em ${v[`${prefixo}_endereco`] || ""}`;
+};
 const conj = (v: Record<string, string>, p: string) =>
   v[`${p}_conj_nome`]
     ? `, e cônjuge ${v[`${p}_conj_nome`]}, ${docLabel("CPF", v[`${p}_conj_cpf`] || "")}`
@@ -323,6 +359,23 @@ export function faltasMontagem(
     c.isencao_multa_meses
   )
     faltas.push("condições diferentes do modelo residencial (revisão jurídica necessária)");
+  const pjProp = base.ficha.proprietarioPessoa === "pj";
+  const pjLoc = base.ficha.locatarioPessoa === "pj";
+  const pjFia = base.ficha.fiadorPessoa === "pj";
+  if (!pjProp && !sexoOk(c.prop_sexo)) faltas.push("sexo do locador");
+  if (!pjLoc && !sexoOk(c.loc_sexo)) faltas.push("sexo do locatário");
+  if (!pjFia && !sexoOk(c.fia_sexo)) faltas.push("sexo do fiador");
+  if (!pjProp && v.prop_conj_nome?.trim() && !sexoOk(c.prop_conj_sexo))
+    faltas.push("sexo do cônjuge do locador");
+  if (!pjFia && v.fia_conj_nome?.trim() && !sexoOk(c.fia_conj_sexo))
+    faltas.push("sexo do cônjuge do fiador");
+  const extraLoc = linhasPessoas(c.locadores_adicionais);
+  const sexoLoc = parseSexos(c.locadores_adicionais_sexo);
+  if (extraLoc.some((_, i) => !sexoOk(sexoLoc[i]))) faltas.push("sexo dos locadores adicionais");
+  const extraLocat = linhasPessoas(c.locatarios_adicionais);
+  const sexoLocat = parseSexos(c.locatarios_adicionais_sexo);
+  if (extraLocat.some((_, i) => !sexoOk(sexoLocat[i])))
+    faltas.push("sexo dos locatários adicionais");
   return faltas;
 }
 
@@ -333,48 +386,66 @@ export function textoContrato(base: LocacaoBase, m: Montagem, c: Record<string, 
   const v = dadosContrato(m, c);
   const dia = v.dia_vencimento;
   const aluguel = Number(c.aluguel);
+  const pjProp = base.ficha.proprietarioPessoa === "pj";
+  const pjLoc = base.ficha.locatarioPessoa === "pj";
+  const pjFia = base.ficha.fiadorPessoa === "pj";
+  const tLocador = termoPapel("locador", pessoasLocador(pjProp, c, v));
+  const tLocatario = termoPapel("locatario", pessoasLocatario(pjLoc, c));
+  const tFiador = termoPapel("fiador", pessoasFiador(pjFia, c, v));
+  const femProp = pjProp ? null : c.prop_sexo === "feminino";
+  const femLoc = pjLoc ? null : c.loc_sexo === "feminino";
+  const femFia = pjFia ? null : c.fia_sexo === "feminino";
   const replace = (s: string) =>
-    s
-      .replace("{{fia_imovel_endereco}}", c.fia_imovel_endereco)
-      .replace("{{fia_matricula}}", v.fia_matricula)
-      .replace("{{fia_cartorio}}", v.fia_cartorio);
+    aplicarPapeis(
+      s
+        .replace("{{fia_imovel_endereco}}", c.fia_imovel_endereco)
+        .replace("{{fia_matricula}}", v.fia_matricula)
+        .replace("{{fia_cartorio}}", v.fia_cartorio),
+      tLocador,
+      tLocatario,
+      tFiador,
+    );
   return [
     "CONTRATO DE LOCAÇÃO - RESIDENCIAL",
     "Contrato de Garantia: FIADOR",
     `Nº ${c.numero}`,
     "QUADRO RESUMO:",
     "Administradora; Imóvel; Destinação da Locação; Prazo da Locação; Valor e Vencimento do Aluguel; Reajuste e Encargos Locatícios; Contas de Consumo; Transferência de Titularidade; Garantia Locatícia; Vistoria Inicial; Conservação do Imóvel; Benfeitorias; Vistoria Final; Rescisão e Multa; Disposições Gerais.",
-    `LOCADOR (A): ${nome(v, "prop")}${conj(v, "prop")}${c.locadores_adicionais ? `; ${c.locadores_adicionais}` : ""}.`,
-    `LOCATÁRIO (A): ${nome(v, "loc")}${c.locatarios_adicionais ? `; ${c.locatarios_adicionais}` : ""}.`,
+    `${tLocador}: ${nome(v, "prop", femProp)}${conj(v, "prop")}${c.locadores_adicionais ? `; ${c.locadores_adicionais}` : ""}.`,
+    `${tLocatario}: ${nome(v, "loc", femLoc)}${c.locatarios_adicionais ? `; ${c.locatarios_adicionais}` : ""}.`,
     `ADMINISTRADORA: ${m.administradora.nome} - ${docLabel("CNPJ", m.administradora.cnpj)}${m.administradora.creci ? ` - ${docLabel("CRECI", m.administradora.creci)}` : ""}.`,
-    `GARANTIA LOCATÍCIA - FIADOR: ${nome(v, "fia")}${conj(v, "fia")}.`,
+    `GARANTIA LOCATÍCIA - ${tFiador}: ${nome(v, "fia", femFia)}${conj(v, "fia")}.`,
     ...clausulas.slice(0, 8).map(replace),
     `OBJETO DA LOCAÇÃO: ${c.imovel_endereco} — Vagas:\u00a0${(v.imv_vagas || "").replace(/ /g, "\u00a0")}.`,
     `Inscrição Cadastral Municipal: ${v.imv_inscricao}`,
     `Código de fornecimento de energia: ${v.imv_energia}`,
     `Código de Fornecimento de água: ${v.imv_agua}`,
     `Gás: ${v.imv_gas}`,
-    ...clausulas.slice(8, 10),
+    ...clausulas.slice(8, 10).map(replace),
     `PRAZO DA LOCAÇÃO: ${v.prazo_meses} meses.`,
     `Início: ${dataLonga(v.inicio)}            Término: ${dataLonga(c.fim || fimPrazo(v.inicio, Number(v.prazo_meses)))}`,
-    `Cláusula 1º - O aluguel mensal ajustado é de R$ ${aluguel.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} (${reaisExtenso(aluguel)}), devendo ser pago pelo LOCATÁRIO até o dia ${dia} de cada mês, conforme as condições estabelecidas neste instrumento.`,
-    `Cláusula 2º - O primeiro aluguel vencerá 30 (trinta) dias após a efetiva entrega das chaves ao LOCATÁRIO. Os aluguéis subsequentes vencerão todo dia ${dia} de cada mês, observando-se, quando necessário, o cálculo proporcional dos períodos de ocupação, a fim de evitar cobrança em duplicidade.`,
+    replace(
+      `Cláusula 1º - O aluguel mensal ajustado é de R$ ${aluguel.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} (${reaisExtenso(aluguel)}), devendo ser pago pelo LOCATÁRIO até o dia ${dia} de cada mês, conforme as condições estabelecidas neste instrumento.`,
+    ),
+    replace(
+      `Cláusula 2º - O primeiro aluguel vencerá 30 (trinta) dias após a efetiva entrega das chaves ao LOCATÁRIO. Os aluguéis subsequentes vencerão todo dia ${dia} de cada mês, observando-se, quando necessário, o cálculo proporcional dos períodos de ocupação, a fim de evitar cobrança em duplicidade.`,
+    ),
     ...(v.moradores ? [`CLÁUSULAS ADICIONAIS: MORADORES: ${v.moradores}`] : []),
     ...clausulas.slice(10).map(replace),
     ...(c.clausulas_adicionais
       ? [`CLÁUSULAS ADICIONAIS A CONFERIR: ${c.clausulas_adicionais}`]
       : []),
     `${c.local}, ${dataLonga(c.data)}.`,
-    "LOCADOR:",
+    `${tLocador}:`,
     v.prop_nome,
     v.prop_cpf,
     ...(v.prop_conj_nome ? [v.prop_conj_nome, v.prop_conj_cpf] : []),
     ...(c.locadores_adicionais ? [c.locadores_adicionais] : []),
-    "LOCATÁRIO:",
+    `${tLocatario}:`,
     v.loc_nome,
     v.loc_cpf,
     ...(c.locatarios_adicionais ? [c.locatarios_adicionais] : []),
-    "FIADOR:",
+    `${tFiador}:`,
     v.fia_nome,
     v.fia_cpf,
     ...(v.fia_conj_nome ? [v.fia_conj_nome, v.fia_conj_cpf] : []),

@@ -23,14 +23,20 @@ const PAGE_N = 8;
 const INK = rgb(0, 0, 0);
 
 const ROTULO =
-  /^(LOCADOR \(A\):|LOCATÁRIO \(A\):|ADMINISTRADORA:|GARANTIA LOCATÍCIA - FIADOR:|PARÁGRAFO\s+\d+º:|Parágrafo\s+[^:]+:|Cláusula\s+\d+º\s*[-–]|OBJETO DA LOCAÇÃO:|PRAZO DA LOCAÇÃO:|CLÁUSULAS ADICIONAIS:)/;
+  /^(LOCADOR(?:A|ES|AS)?:|LOCATÁRI[OA]S?:|ADMINISTRADORA:|GARANTIA LOCATÍCIA - FIADOR(?:A|ES|AS)?:|PARÁGRAFO\s+\d+º:|Parágrafo\s+[^:]+:|Cláusula\s+\d+º\s*[-–]|OBJETO DA LOCAÇÃO:|PRAZO DA LOCAÇÃO:|CLÁUSULAS ADICIONAIS:)/;
 const CABECALHO_TITULO = /^CONTRATO DE LOCAÇÃO -/;
 const CABECALHO_SUB = /^Contrato de Garantia:/;
 const CABECALHO_NUM = /^N[º°]\s/;
 
 type Fonte = { widthOfTextAtSize: (t: string, s: number) => number };
 
-function quebrar(texto: string, fonte: Fonte, size: number, largura: number, primeira?: number): string[] {
+function quebrar(
+  texto: string,
+  fonte: Fonte,
+  size: number,
+  largura: number,
+  primeira?: number,
+): string[] {
   const linhas: string[] = [];
   let s = "";
   let max = primeira ?? largura;
@@ -65,7 +71,7 @@ function ehTituloSecao(p: string): boolean {
 }
 
 function ehAssinatura(p: string): boolean {
-  return /^(LOCADOR|LOCATÁRIO|FIADOR|FIADORES|ADMINISTRADORA):$/.test(p.trim());
+  return /^(LOCADOR(?:A|ES|AS)?|LOCATÁRI[OA]S?|FIADOR(?:A|ES|AS)?|ADMINISTRADORA):$/.test(p.trim());
 }
 
 export async function gerarPdfContrato(
@@ -76,9 +82,7 @@ export async function gerarPdfContrato(
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
   const fonte = await pdf.embedFont(fonteBytes, { subset: true });
-  const negrito = opcoes?.negrito
-    ? await pdf.embedFont(opcoes.negrito, { subset: true })
-    : fonte;
+  const negrito = opcoes?.negrito ? await pdf.embedFont(opcoes.negrito, { subset: true }) : fonte;
   let logo = null as Awaited<ReturnType<typeof pdf.embedPng>> | null;
   if (opcoes?.logo?.length) {
     try {

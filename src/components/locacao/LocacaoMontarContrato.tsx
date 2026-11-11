@@ -21,11 +21,12 @@ import {
   type LocacaoBase,
   type Montagem,
 } from "@/lib/locacao-montagem";
+import { linhasPessoas, parseSexos } from "@/lib/locacao-concordancia";
 
 export function LocacaoMontarContrato({
   d,
 }: {
-  d: LocacaoBase & { id: string; docsCompleta: boolean; ficha: { imovelId: string } };
+  d: LocacaoBase & { id: string; docsCompleta: boolean };
 }) {
   const [m, setM] = useState<Montagem | null>(null);
   const [valores, setValores] = useState<Record<string, string>>({});
@@ -211,7 +212,21 @@ export function LocacaoMontarContrato({
             </div>
           ))}
         {Object.entries(CAMPOS)
-          .filter(([, cfg]) => cfg.passo === passo)
+          .filter(([key, cfg]) => {
+            if (cfg.passo !== passo) return false;
+            if (key.endsWith("_adicionais_sexo")) return false;
+            if (key === "prop_sexo" && d.ficha.proprietarioPessoa === "pj") return false;
+            if (key === "loc_sexo" && d.ficha.locatarioPessoa === "pj") return false;
+            if (key === "fia_sexo" && d.ficha.fiadorPessoa === "pj") return false;
+            if (
+              key === "prop_conj_sexo" &&
+              (d.ficha.proprietarioPessoa === "pj" || !v.prop_conj_nome)
+            )
+              return false;
+            if (key === "fia_conj_sexo" && (d.ficha.fiadorPessoa === "pj" || !v.fia_conj_nome))
+              return false;
+            return true;
+          })
           .map(([key, cfg]) => (
             <div
               key={key}
@@ -229,7 +244,11 @@ export function LocacaoMontarContrato({
                   <option value="">— Conferir —</option>
                   {cfg.opcoes.map((op) => (
                     <option key={op} value={op}>
-                      {op.replaceAll("_", " ")}
+                      {op === "masculino"
+                        ? "Masculino"
+                        : op === "feminino"
+                          ? "Feminino"
+                          : op.replaceAll("_", " ")}
                     </option>
                   ))}
                 </select>
@@ -254,6 +273,52 @@ export function LocacaoMontarContrato({
                   maxLength={400}
                 />
               )}
+            </div>
+          ))}
+        {passo === 0 &&
+          linhasPessoas(valores.locadores_adicionais).map((linha, i) => (
+            <div key={`locador-sexo-${i}`} className="space-y-1">
+              <Label htmlFor={`mont-locadores-sexo-${i}`}>Sexo — {linha.slice(0, 60)}</Label>
+              <select
+                id={`mont-locadores-sexo-${i}`}
+                value={parseSexos(valores.locadores_adicionais_sexo)[i] || ""}
+                disabled={busy}
+                onChange={(e) => {
+                  const linhas = linhasPessoas(valores.locadores_adicionais);
+                  const sexos = parseSexos(valores.locadores_adicionais_sexo);
+                  while (sexos.length < linhas.length) sexos.push("");
+                  sexos[i] = e.target.value;
+                  mudar("locadores_adicionais_sexo", sexos.slice(0, linhas.length).join("\n"));
+                }}
+                className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+              >
+                <option value="">— Conferir —</option>
+                <option value="masculino">Masculino</option>
+                <option value="feminino">Feminino</option>
+              </select>
+            </div>
+          ))}
+        {passo === 2 &&
+          linhasPessoas(valores.locatarios_adicionais).map((linha, i) => (
+            <div key={`locatario-sexo-${i}`} className="space-y-1">
+              <Label htmlFor={`mont-locatarios-sexo-${i}`}>Sexo — {linha.slice(0, 60)}</Label>
+              <select
+                id={`mont-locatarios-sexo-${i}`}
+                value={parseSexos(valores.locatarios_adicionais_sexo)[i] || ""}
+                disabled={busy}
+                onChange={(e) => {
+                  const linhas = linhasPessoas(valores.locatarios_adicionais);
+                  const sexos = parseSexos(valores.locatarios_adicionais_sexo);
+                  while (sexos.length < linhas.length) sexos.push("");
+                  sexos[i] = e.target.value;
+                  mudar("locatarios_adicionais_sexo", sexos.slice(0, linhas.length).join("\n"));
+                }}
+                className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+              >
+                <option value="">— Conferir —</option>
+                <option value="masculino">Masculino</option>
+                <option value="feminino">Feminino</option>
+              </select>
             </div>
           ))}
       </div>
