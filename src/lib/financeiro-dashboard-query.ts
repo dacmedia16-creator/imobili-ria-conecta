@@ -634,7 +634,7 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
         };
       })
       .filter((p) => p.data && p.valor != null)
-      .map((p) => ({ dataRecebimento: p.dataRecebimento }));
+      .map((p) => ({ dataRecebimento: p.dataRecebimento, valor: p.valor }));
 
     const comissao = montarComissaoCalculada({
       id: row.id,

@@ -14,6 +14,8 @@ import type {
   GrupoComissao,
   OrigemComissao,
   ParcelaRecebimento,
+  ResumoComissaoLinha,
+  ResumoComissoesPeriodo,
   ResumoFinanceiro,
   SituacaoParcela,
   SituacaoRecebimentoVenda,
@@ -275,7 +277,7 @@ export function montarComissaoCalculada(args: {
   percentual: number | null;
   valor: number;
   managedBySale: boolean;
-  parcelasDaVenda: { dataRecebimento: string | null }[];
+  parcelasDaVenda: { dataRecebimento: string | null; valor?: number | null }[];
 }): ComissaoCalculada {
   const origem: OrigemComissao = args.managedBySale ? "automatica" : "manual";
   const semVinculoUsuario = PAPEIS_COM_VINCULO_ESPERADO.has(args.papel) && !args.beneficiarioUserId;
@@ -290,6 +292,20 @@ export function montarComissaoCalculada(args: {
       : recebidas === totalParcelas
         ? "recebido"
         : "parcial";
+  // Proporção por VALOR previsto das parcelas (uma parcela de 80% recebida pesa 80%, não 1/3).
+  const valorPrevistoTotal = args.parcelasDaVenda.reduce(
+    (s, p) => s + Math.max(0, Number(p.valor ?? 0)),
+    0,
+  );
+  const valorPrevistoRecebido = args.parcelasDaVenda
+    .filter((p) => p.dataRecebimento)
+    .reduce((s, p) => s + Math.max(0, Number(p.valor ?? 0)), 0);
+  const fracaoRecebidaVenda =
+    situacaoRecebimentoVenda === "recebido"
+      ? 1
+      : situacaoRecebimentoVenda === "nao_recebido" || valorPrevistoTotal <= 0
+        ? 0
+        : Math.min(1, valorPrevistoRecebido / valorPrevistoTotal);
 
   return {
     id: args.id,
@@ -312,6 +328,7 @@ export function montarComissaoCalculada(args: {
     origem,
     semVinculoUsuario,
     situacaoRecebimentoVenda,
+    fracaoRecebidaVenda,
   };
 }
 
@@ -487,6 +504,77 @@ export function agruparComissoes(
     map.set(key, cur);
   }
   return Array.from(map.values()).sort((a, b) => b.valorTotal - a.valorTotal);
+}
+
+/** Parte da comissão já sustentada por recebimento da imobiliária. Linhas antigas sem
+ * `fracaoRecebidaVenda` caem na situação da venda (recebido = 100%, demais = 0%). */
+export function comissaoRecebidaPelaImobiliaria(r: ComissaoCalculada): number {
+  const fracao = r.fracaoRecebidaVenda ?? (r.situacaoRecebimentoVenda === "recebido" ? 1 : 0);
+  return Number((r.valor * fracao).toFixed(2));
+}
+
+/** Resumo por período da aba Comissões Calculadas: total geral + por equipe, sobre a MESMA coleção
+ * filtrada da tabela. Transações contam vendas distintas (saleId), nunca linhas de comissão. */
+export function resumirComissoesPorPeriodo(rows: ComissaoCalculada[]): ResumoComissoesPeriodo {
+  type Acc = {
+    chave: string;
+    label: string;
+    vendas: Set<string>;
+    calculada: number;
+    recebida: number;
+  };
+  const novo = (chave: string, label: string): Acc => ({
+    chave,
+    label,
+    vendas: new Set(),
+    calculada: 0,
+    recebida: 0,
+  });
+  const total = novo("total", "Total geral");
+  const equipes = new Map<string, Acc>();
+  for (const r of rows) {
+    const recebida = comissaoRecebidaPelaImobiliaria(r);
+    const chave = r.teamId ?? "sem_equipe";
+    const eq =
+      equipes.get(chave) ??
+      novo(chave, r.teamNome ?? (r.teamId ? "Equipe sem nome" : "Sem equipe resolvida"));
+    for (const acc of [total, eq]) {
+      acc.vendas.add(r.saleId);
+      acc.calculada += r.valor;
+      acc.recebida += recebida;
+    }
+    equipes.set(chave, eq);
+  }
+  const fechar = (a: Acc): ResumoComissaoLinha => {
+    const calculada = Number(a.calculada.toFixed(2));
+    const recebida = Number(a.recebida.toFixed(2));
+    return {
+      chave: a.chave,
+      label: a.label,
+      transacoes: a.vendas.size,
+      calculada,
+      recebida,
+      pendente: Number((calculada - recebida).toFixed(2)),
+    };
+  };
+  const porEquipe = Array.from(equipes.values())
+    .map(fechar)
+    .sort((a, b) => b.calculada - a.calculada || a.label.localeCompare(b.label));
+  // Total geral = soma das linhas já arredondadas por equipe, pra tela e CSV nunca divergirem em
+  // centavos (transações vêm do Set geral: cada venda está em uma só equipe).
+  const somar = (k: "calculada" | "recebida" | "pendente") =>
+    Number(porEquipe.reduce((s, l) => s + l[k], 0).toFixed(2));
+  return {
+    total: {
+      chave: "total",
+      label: "Total geral",
+      transacoes: total.vendas.size,
+      calculada: somar("calculada"),
+      recebida: somar("recebida"),
+      pendente: somar("pendente"),
+    },
+    porEquipe,
+  };
 }
 
 /** Cards da Visão Geral — mesma base (parcelas + comissões já filtradas) usada pelas tabelas,
