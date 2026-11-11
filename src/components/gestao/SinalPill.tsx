@@ -16,6 +16,7 @@ export function FarolPill({ farol }: { farol: Farol }) {
 
 /** Um sinal: cor + texto. "sem plano"/"sem dado"/"aguardando" ficam cinza (sem cor de alerta). */
 export function SinalPill({ s, curto = false }: { s: Sinal; curto?: boolean }) {
+  const aguardandoCurto = curto && s.cor === "aguardando";
   const texto =
     s.cor === "sem_plano"
       ? "sem plano"
@@ -30,7 +31,16 @@ export function SinalPill({ s, curto = false }: { s: Sinal; curto?: boolean }) {
             : s.texto;
   return (
     <span data-sinal={s.chave} data-cor={s.cor} title={s.texto}>
-      <Pill tom={TOM_COR[s.cor]} className="whitespace-normal text-left">
+      <Pill
+        tom={TOM_COR[s.cor]}
+        className={
+          // "jan/2027" não tem espaço: whitespace-normal não quebra e a coluna do farol
+          // no celular (~390 px) cortava o ano. min-w-max impede a tabela de espremer o pill.
+          aguardandoCurto
+            ? "min-w-max shrink-0 whitespace-nowrap"
+            : "whitespace-normal text-left"
+        }
+      >
         {texto}
       </Pill>
     </span>
