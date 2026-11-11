@@ -216,7 +216,7 @@ describe("migration 20261108200000", () => {
   it("CHECK e RPC da plataforma = lista anterior + link_acompanhamento; rollback volta a anterior", () => {
     // proposta_compra (t_4cff61a6) veio depois, na migration 20261109120000.
     const novo = [...ORGANIZATION_MODULES]
-      .filter((x) => x !== "proposta_compra" && x !== "locacao")
+      .filter((x) => x !== "proposta_compra" && x !== "locacao" && x !== "ajuda_max_locacao")
       .sort();
     const anterior = novo.filter((x) => x !== "link_acompanhamento");
     expect(novo).toContain("link_acompanhamento");

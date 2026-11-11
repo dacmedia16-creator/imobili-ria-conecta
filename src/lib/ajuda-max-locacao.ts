@@ -72,7 +72,10 @@ export function prepararEntrada(
   const h = historico
     .filter((m) => (m.papel === "usuario" || m.papel === "assistente") && m.texto.trim())
     .slice(-HISTORICO_MAX)
-    .map((m) => ({ papel: m.papel, texto: mascararDados(m.texto.trim()).slice(0, HISTORICO_TEXTO_MAX) }));
+    .map((m) => ({
+      papel: m.papel,
+      texto: mascararDados(m.texto.trim()).slice(0, HISTORICO_TEXTO_MAX),
+    }));
   return { pergunta: p, historico: h };
 }
 
@@ -159,8 +162,7 @@ export function formatarResposta(texto: string): Linha[] {
 /** Leitura fechada do retorno das RPCs de uso. */
 export function lerUso(raw: unknown): { ligado: boolean; usadas: number; limite: number } {
   const x = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
-  const n = (v: unknown, d: number) =>
-    typeof v === "number" && Number.isFinite(v) ? v : d;
+  const n = (v: unknown, d: number) => (typeof v === "number" && Number.isFinite(v) ? v : d);
   return { ligado: x.ligado === true, usadas: n(x.usadas, 0), limite: n(x.limite, LIMITE_DIA) };
 }
 

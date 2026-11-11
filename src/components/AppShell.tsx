@@ -37,6 +37,8 @@ import { opportunitiesEnabled } from "@/lib/oportunidades-module";
 import { leadsEnabled } from "@/lib/leads-db";
 import { crmEnabled } from "@/lib/crm-db";
 import { locacaoEnabled } from "@/lib/locacao-db";
+import { telaDaRota } from "@/lib/ajuda-max-locacao";
+import { AjudaMaxLocacao } from "@/components/locacao/AjudaMaxLocacao";
 import { achievementsEnabled } from "@/lib/mural-module";
 import { fixedLogoForOrganization } from "@/lib/agency-letterhead";
 import { contaMaxLogoutUrl } from "@/lib/dominios";
@@ -652,6 +654,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       </main>
       <MuralCelebrationListener />
       <ConviteDepoimento />
+      {/* Ajuda MAX (t_b037935e): só em /locacoes, com Locação + chave ajuda_max_locacao (o banco confere). */}
+      {locacaoVisible && telaDaRota(pathname) && <AjudaMaxLocacao />}
       <TourPrimeiroAcesso
         userId={userId}
         groups={navGroups}

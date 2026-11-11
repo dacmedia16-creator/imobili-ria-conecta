@@ -257,7 +257,8 @@ describe("módulo por imobiliária", () => {
     expect(INVITE_MODULES_OFF).toContain("locacao");
   });
   it("CHECK e RPC = lista do código; rollback volta à lista anterior e apaga a chave antes do CHECK", () => {
-    const novo = [...ORGANIZATION_MODULES].sort();
+    // ajuda_max_locacao (t_b037935e) veio depois, na migration 20261116120000.
+    const novo = [...ORGANIZATION_MODULES].filter((x) => x !== "ajuda_max_locacao").sort();
     expect(nomes(MIG.match(/CHECK \(module IN \(([^)]*)\)\)/)?.[1] ?? "")).toEqual(novo);
     expect(nomes(MIG.match(/_module NOT IN \(([^)]*)\)/)?.[1] ?? "")).toEqual(novo);
     const anterior = novo.filter((x) => x !== "locacao");

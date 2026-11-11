@@ -42,6 +42,8 @@ export const INVITE_MODULES_OFF: readonly OrganizationModule[] = [
   "proposta_compra",
   // "locacao" (t_74426f94): nasce desligado; a plataforma liga por imobiliária.
   "locacao",
+  // "ajuda_max_locacao" (t_b037935e): nasce desligado; a plataforma liga por imobiliária.
+  "ajuda_max_locacao",
 ];
 
 export function inviteModules(): Record<OrganizationModule, boolean> {
