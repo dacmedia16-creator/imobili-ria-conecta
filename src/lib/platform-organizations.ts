@@ -143,7 +143,8 @@ export const ORGANIZATION_MODULES = [
   "proposta_compra",
   // Módulo de Locação Fase 1: esteira + comissão (t_74426f94). Nasce desligado; liga só na Única Escolha/Conferência.
   "locacao",
-  // Ajuda MAX na Locação 1/2 (t_b037935e): balão que ensina a usar. Nasce desligado; precisa da Locação ligada.
+  // Ajuda MAX na Locação (t_b037935e). Desde t_8fd40b23 acompanha a Locação: sem linha = ligado junto com a
+  // Locação; a linha com enabled=false é só o desligador por imobiliária.
   "ajuda_max_locacao",
 ] as const;
 export type OrganizationModule = (typeof ORGANIZATION_MODULES)[number];
@@ -169,8 +170,26 @@ export const ORGANIZATION_MODULE_LABELS: Record<OrganizationModule, string> = {
   link_acompanhamento: "Link de acompanhamento da venda (comprador e vendedor, sem login)",
   proposta_compra: "Proposta de compra (assinatura por link e código no WhatsApp)",
   locacao: "Locação (esteira do corretor, gestora, contratos, pós-assinatura e comissão)",
-  ajuda_max_locacao: "Ajuda MAX na Locação (balão que ensina a usar; precisa da Locação ligada)",
+  ajuda_max_locacao:
+    "Ajuda MAX na Locação (acompanha a Locação; desligue só para tirar o balão desta imobiliária)",
 };
+
+/**
+ * Módulos ligados por padrão (t_8fd40b23): sem linha em organization_modules = ligado; só a linha com
+ * enabled=false desliga. O banco repete a regra em ajuda_max_locacao_enabled() (que ainda exige a Locação).
+ */
+export const MODULOS_LIGADOS_POR_PADRAO: readonly OrganizationModule[] = ["ajuda_max_locacao"];
+
+/** Estado do interruptor na tela Módulos a partir das linhas de organization_modules. */
+export function moduloLigado(
+  rows: readonly { organization_id: string; module: string; enabled: boolean }[],
+  organizationId: string,
+  module: OrganizationModule,
+): boolean {
+  const linha = rows.find((r) => r.organization_id === organizationId && r.module === module);
+  if (!linha) return MODULOS_LIGADOS_POR_PADRAO.includes(module);
+  return linha.enabled === true;
+}
 
 export type OrganizationSummary = OrganizationRow & {
   logoUrl: string | null;

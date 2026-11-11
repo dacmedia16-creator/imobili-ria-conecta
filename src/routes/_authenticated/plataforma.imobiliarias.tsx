@@ -910,7 +910,12 @@ function PlatformOrganizations() {
                                     : "text-muted-foreground",
                                 )}
                               >
-                                {on ? "Ligado" : "Desligado"}
+                                {/* t_8fd40b23: o Ajuda MAX segue a Locação; o interruptor só desliga. */}
+                                {m === "ajuda_max_locacao" && on && !o.modulos.locacao
+                                  ? "Ligado (aparece quando a Locação for ligada)"
+                                  : on
+                                    ? "Ligado"
+                                    : "Desligado"}
                               </span>
                             </span>
                           </label>
