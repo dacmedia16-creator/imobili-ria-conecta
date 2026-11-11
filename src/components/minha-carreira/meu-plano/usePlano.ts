@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ANO_PLANO, CAMPO_VALIDO, type Trilha } from "@/lib/meu-plano-2027/telas";
-import type { Respostas, TaxasFunil, Valor } from "@/lib/meu-plano-2027/regras";
+import {
+  calc,
+  metaOficialDoPlano,
+  type Respostas,
+  type TaxasFunil,
+  type Valor,
+} from "@/lib/meu-plano-2027/regras";
 import { erroPlano, planoDb } from "@/lib/meu-plano-2027/modulo";
 
 /**
@@ -37,6 +43,21 @@ const VAZIO: Plano = {
   meta_oficial_em: null,
 };
 const chaveFila = (uid: string) => `meu-plano-${ANO_PLANO}:fila:${uid}`;
+
+/** Meta gravada (snapshot do banco) igual à conta atual do plano? */
+export function metaIgual(
+  gravada: Plano["meta_oficial"],
+  m: { comissao: number; vgv: number | null; vendas: number; captacoes: number | null },
+): boolean {
+  if (!gravada) return false;
+  const n = (v: unknown) => (v == null ? null : Math.round(Number(v) * 100) / 100);
+  return (
+    n(gravada.meta_comissao) === n(m.comissao) &&
+    n(gravada.meta_vgv) === n(m.vgv) &&
+    n(gravada.meta_vendas) === n(m.vendas) &&
+    n(gravada.meta_captacoes) === n(m.captacoes)
+  );
+}
 
 function lerFila(uid: string): Respostas {
   try {
@@ -201,13 +222,6 @@ export function usePlano(userId: string) {
     }));
   }, []);
 
-  const assinar = useCallback(async () => {
-    await enviar();
-    const { data, error } = await planoDb.rpc("carreira_plano_assinar", { _ano: ANO_PLANO });
-    if (error) throw new Error(erroPlano(error.message));
-    setPlano((p) => (p ? { ...p, assinado_corretor_em: data as string } : p));
-  }, [enviar]);
-
   type MetaResp = {
     status: "gravada" | "existe";
     meta?: Plano["meta_oficial"];
@@ -236,6 +250,37 @@ export function usePlano(userId: string) {
     },
     [],
   );
+
+  const sincronizando = useRef(false);
+  const assinar = useCallback(async () => {
+    await enviar();
+    const { data, error } = await planoDb.rpc("carreira_plano_assinar", { _ano: ANO_PLANO });
+    if (error) throw new Error(erroPlano(error.message));
+    const m = metaOficialDoPlano(calc(plano?.respostas ?? {}, taxasPadrao));
+    // Trava a sincronização automática enquanto a própria assinatura grava a meta (evita chamada dupla).
+    sincronizando.current = true;
+    try {
+      setPlano((p) => (p ? { ...p, assinado_corretor_em: data as string } : p));
+      if (m) await usarMeta(m, true);
+    } finally {
+      sincronizando.current = false;
+    }
+    return { metaGravada: !!m };
+  }, [enviar, plano, taxasPadrao, usarMeta]);
+
+  // Plano já assinado e alterado depois: a meta anual de 2027 acompanha (o plano é a fonte).
+  // Só depois que tudo foi salvo (status ok); para quando a meta gravada já bate com a conta.
+  useEffect(() => {
+    if (!plano?.assinado_corretor_em || status !== "ok" || sincronizando.current) return;
+    const m = metaOficialDoPlano(calc(plano.respostas, taxasPadrao));
+    if (!m || metaIgual(plano.meta_oficial, m)) return;
+    sincronizando.current = true;
+    void usarMeta(m, true)
+      .catch(() => undefined)
+      .finally(() => {
+        sincronizando.current = false;
+      });
+  }, [plano, status, taxasPadrao, usarMeta]);
 
   return {
     plano,

@@ -90,7 +90,14 @@ describe("todo selo possível tem explicação", () => {
     ];
     for (const s of todos) expect(explicaSinal(s).length).toBeGreaterThan(20);
     for (const c of CHAVES)
-      for (const cor of ["verde", "amarelo", "vermelho", "sem_plano", "sem_dado"] as const)
+      for (const cor of [
+        "verde",
+        "amarelo",
+        "vermelho",
+        "sem_plano",
+        "sem_dado",
+        "aguardando",
+      ] as const)
         expect(explicaSinal({ chave: c, cor })).toBeTruthy();
     for (const f of Object.keys(FAROL_ROTULO)) expect(EXPLICA_FAROL[f as never]).toBeTruthy();
   });

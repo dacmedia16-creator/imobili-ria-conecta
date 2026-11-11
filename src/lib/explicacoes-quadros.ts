@@ -50,6 +50,9 @@ const EXPLICA_SINAL: Record<ChaveSinal, string> = {
 const SEM_PLANO =
   "Você ainda não tem um plano de metas, então não há meta para comparar. Quando o plano for preenchido, este sinal passa a aparecer com cor.";
 
+const AGUARDANDO =
+  "O Meu Plano 2027 já está preenchido, mas as metas só passam a contar em janeiro de 2027. Até lá este sinal fica sem cor.";
+
 const SEM_DADO: Partial<Record<ChaveSinal, string>> = {
   leads: "Sua imobiliária não usa a área de leads do sistema, por isso este sinal não conta.",
   gestoes:
@@ -59,6 +62,7 @@ const SEM_DADO: Partial<Record<ChaveSinal, string>> = {
 /** Explicação de um selo do termômetro, conforme o sinal e o estado dele. */
 export function explicaSinal(s: Pick<Sinal, "chave" | "cor">): string {
   if (s.cor === "sem_plano") return SEM_PLANO;
+  if (s.cor === "aguardando") return AGUARDANDO;
   if (s.cor === "sem_dado") return SEM_DADO[s.chave] ?? EXPLICA_SINAL[s.chave];
   return EXPLICA_SINAL[s.chave];
 }

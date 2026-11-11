@@ -8,6 +8,7 @@
 //                                   contado pela data de assinatura)
 // O farol NÃO é ranking e não tem pontos (decisão de 16/10, mantida).
 import { faixa, proximidade, type Faixa, type Feito, type MetasSemana } from "./meta-atividades";
+import { planoVigente, TEXTO_FAROL_AGUARDANDO } from "./meu-plano-2027/vigencia";
 import { diasEntre, nivelSemVender } from "./painel-equipe-calc";
 import { prazoDoLead, type Lead, type LeadConfig } from "./leads";
 import { captureValidity } from "./exclusive-captures";
@@ -15,8 +16,8 @@ import { REUNIAO_DIAS, statusReuniao } from "./avisos-exclusividade";
 
 // --- Tipos --------------------------------------------------------------------------------------------
 
-/** "sem_plano" e "sem_dado" não têm cor e não contam para o farol. */
-export type CorSinal = Faixa | "sem_plano" | "sem_dado";
+/** "sem_plano", "sem_dado" e "aguardando" não têm cor e não contam para o farol. */
+export type CorSinal = Faixa | "sem_plano" | "sem_dado" | "aguardando";
 export type ChaveSinal = "sem_vender" | "atividade" | "leads" | "gestoes" | "captacoes";
 export type Sinal = { chave: ChaveSinal; cor: CorSinal; texto: string };
 
@@ -57,7 +58,9 @@ export function sinalSemVender(dias: number | null): Sinal {
 
 // --- Sinal 2: atividade da semana × meta do plano -------------------------------------------------------
 
-export function sinalAtividade(semana: Feito, metas: MetasSemana | null): Sinal {
+export function sinalAtividade(semana: Feito, metas: MetasSemana | null, vigente = true): Sinal {
+  if (metas && !vigente)
+    return { chave: "atividade", cor: "aguardando", texto: TEXTO_FAROL_AGUARDANDO };
   if (!metas) return { chave: "atividade", cor: "sem_plano", texto: "Sem plano" };
   const p = proximidade(semana, metas);
   return {
@@ -225,7 +228,14 @@ export function captacoesEsperadas(captMes: number, hoje: string): number {
   return Math.floor((captMes * d) / diasMes);
 }
 
-export function sinalCaptacoes(feitoMes: number, metas: MetasSemana | null, hoje: string): Sinal {
+export function sinalCaptacoes(
+  feitoMes: number,
+  metas: MetasSemana | null,
+  hoje: string,
+  vigente = true,
+): Sinal {
+  if (metas && !vigente)
+    return { chave: "captacoes", cor: "aguardando", texto: TEXTO_FAROL_AGUARDANDO };
   if (!metas) return { chave: "captacoes", cor: "sem_plano", texto: "Sem plano" };
   const esperado = captacoesEsperadas(metas.captMes, hoje);
   return {
@@ -276,12 +286,13 @@ export type LinhaFarol = {
 };
 
 export function calcularFarol(e: EntradaFarol, hoje: string, agora: Date): LinhaFarol {
+  const vigente = planoVigente(hoje);
   const sinais = [
     sinalSemVender(e.dias_sem_vender),
-    sinalAtividade(e.semana, e.metas),
+    sinalAtividade(e.semana, e.metas, vigente),
     sinalLeads(e.leads, e.lead_config, agora),
     sinalGestoes(e.captacoes, hoje),
-    sinalCaptacoes(e.capt_mes, e.metas, hoje),
+    sinalCaptacoes(e.capt_mes, e.metas, hoje, vigente),
   ];
   const diasNaEquipe = e.entrou_em ? diasEntre(e.entrou_em, hoje) : null;
   const farol = farolGeral(sinais, diasNaEquipe);
@@ -293,7 +304,8 @@ export function calcularFarol(e: EntradaFarol, hoje: string, agora: Date): Linha
     acesos:
       farol === "novo" ? [] : sinais.filter((s) => s.cor === "vermelho" || s.cor === "amarelo"),
     diasNaEquipe,
-    metaDe: e.metas ? metaDesatualizada(e.metas_em ?? null, e.taxas_em ?? null, hoje) : null,
+    metaDe:
+      e.metas && vigente ? metaDesatualizada(e.metas_em ?? null, e.taxas_em ?? null, hoje) : null,
   };
 }
 

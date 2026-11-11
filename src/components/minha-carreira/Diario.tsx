@@ -26,9 +26,10 @@ import {
 } from "@/lib/minha-carreira-diario";
 import { meuPlanoEnabled, planoDb } from "@/lib/meu-plano-2027/modulo";
 import { ANO_PLANO } from "@/lib/meu-plano-2027/telas";
+import { planoVigente } from "@/lib/meu-plano-2027/vigencia";
 import type { Respostas, TaxasFunil } from "@/lib/meu-plano-2027/regras";
 import { metasDoPlano, snapshotMudou } from "@/lib/meta-atividades";
-import { ConvitePlano, EquipeMetas, QuadroSemana } from "./SuaSemana";
+import { ConvitePlano, EquipeMetas, FeitoSemana, QuadroSemana } from "./SuaSemana";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -208,10 +209,29 @@ export function Diario({ userId, extraSemana }: { userId: string; extraSemana?: 
             {novo ? (
               <section className="space-y-2" data-testid="sua-semana">
                 <h3 className="text-sm font-semibold">Sua semana</h3>
-                {metas ? (
+                {metas && planoVigente(hoje) ? (
                   <QuadroSemana
                     hoje={hoje}
                     metas={metas}
+                    semana={{
+                      ligacoes: contagem(contagens, "ligacao", "semana"),
+                      v1: contagem(contagens, "v1", "semana"),
+                      v2: contagem(contagens, "v2", "semana"),
+                      acm: contagem(contagens, "acm", "semana"),
+                      visitaComprador: contagem(contagens, "visita_comprador", "semana"),
+                      captMes: contagens.captacao.mes,
+                    }}
+                    mes={{
+                      ligacoes: contagem(contagens, "ligacao", "mes"),
+                      v1: contagem(contagens, "v1", "mes"),
+                      v2: contagem(contagens, "v2", "mes"),
+                      acm: contagem(contagens, "acm", "mes"),
+                      visitaComprador: contagem(contagens, "visita_comprador", "mes"),
+                    }}
+                  />
+                ) : metas ? (
+                  <FeitoSemana
+                    hoje={hoje}
                     semana={{
                       ligacoes: contagem(contagens, "ligacao", "semana"),
                       v1: contagem(contagens, "v1", "semana"),

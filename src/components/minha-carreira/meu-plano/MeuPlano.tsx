@@ -251,8 +251,12 @@ export function MeuPlano({
   async function assinar() {
     setOcupado(true);
     try {
-      await h.assinar();
-      toast.success("Pacto assinado. Agora é a vez do seu broker.");
+      const r = await h.assinar();
+      toast.success(
+        r.metaGravada
+          ? "Pacto assinado. Sua meta de 2027 já está em Minha carreira. Agora é a vez do seu broker."
+          : "Pacto assinado. Agora é a vez do seu broker.",
+      );
     } catch (e) {
       toast.error((e as Error).message);
     } finally {

@@ -390,8 +390,25 @@ describe("farol no Painel da Equipe", () => {
       expect(s.textContent).toBe("sem plano");
     }
   });
-  it("cópia ms.* do TL desatualizada: 'meta de DD/MM'", () => {
+  it("antes de 2027: quem tem plano fica sem cor, texto próprio, diferente de 'sem plano'", () => {
     render(createElement(FarolEquipe, { dados, gestao: gestao(), hoje: HOJE }));
+    const ana = screen.getAllByTestId("farol-linha")[0];
+    for (const k of ["atividade", "captacoes"]) {
+      const s = ana.querySelector(`[data-sinal="${k}"]`)!;
+      expect(s.getAttribute("data-cor")).toBe("aguardando");
+      expect(s.textContent).toBe("jan/2027");
+      expect(s.textContent).not.toMatch(/sem plano/i);
+    }
+  });
+  it("a partir de jan/2027 as metas do plano voltam a colorir", () => {
+    render(createElement(FarolEquipe, { dados, gestao: gestao(), hoje: "2027-01-08" }));
+    const ana = screen.getAllByTestId("farol-linha")[0];
+    const atv = ana.querySelector('[data-sinal="atividade"]')!;
+    expect(atv.getAttribute("data-cor")).not.toBe("aguardando");
+    expect(atv.getAttribute("data-cor")).not.toBe("sem_plano");
+  });
+  it("cópia ms.* do TL desatualizada: 'meta de DD/MM'", () => {
+    render(createElement(FarolEquipe, { dados, gestao: gestao(), hoje: "2027-01-08" }));
     expect(screen.getByTestId("meta-de").textContent).toBe("meta de 20/10");
   });
   it("coluna gargalo: etapa apontada ou 'pouco dado ainda'", () => {
