@@ -398,6 +398,23 @@ describe("farol no Painel da Equipe", () => {
       expect(s.getAttribute("data-cor")).toBe("aguardando");
       expect(s.textContent).toBe("jan/2027");
       expect(s.textContent).not.toMatch(/sem plano/i);
+      // celular 390 px: o token sem espaço não pode ser espremido pela coluna
+      expect(s.firstElementChild?.className ?? "").toMatch(/min-w-max/);
+      expect(s.firstElementChild?.className ?? "").toMatch(/whitespace-nowrap/);
+    }
+  });
+  it("demais rótulos curtos do farol continuam iguais (não herdam o nowrap do jan/2027)", () => {
+    render(createElement(FarolEquipe, { dados, gestao: gestao(), hoje: HOJE }));
+    const [ana, bia] = screen.getAllByTestId("farol-linha");
+    expect(ana.querySelector('[data-sinal="sem_vender"]')!.textContent).toMatch(/dias|Ainda não vendeu/);
+    expect(bia.querySelector('[data-sinal="atividade"]')!.textContent).toBe("sem plano");
+    expect(bia.querySelector('[data-sinal="captacoes"]')!.textContent).toBe("sem plano");
+    for (const el of [ana, bia]) {
+      for (const s of el.querySelectorAll("[data-sinal]")) {
+        if (s.getAttribute("data-cor") === "aguardando") continue;
+        expect(s.firstElementChild?.className ?? "").toMatch(/whitespace-normal/);
+        expect(s.firstElementChild?.className ?? "").not.toMatch(/min-w-max/);
+      }
     }
   });
   it("a partir de jan/2027 as metas do plano voltam a colorir", () => {
@@ -547,6 +564,10 @@ describe("Minha carreira: Meu termômetro, Minha próxima 1:1, Onde você perde 
     expect(c.textContent).toContain("🔴 Risco alto");
     expect(c.textContent).toMatch(/Sem ranking/);
     expect(c.textContent).not.toContain("Bia");
+    const atv = c.querySelector('[data-sinal="atividade"]')!;
+    expect(atv.textContent).toBe("Plano vale a partir de jan/2027");
+    expect(atv.firstElementChild?.className ?? "").toMatch(/whitespace-normal/);
+    expect(atv.firstElementChild?.className ?? "").not.toMatch(/min-w-max/);
   });
   it("corretor novo: aparece como novo, sem farol de produção", () => {
     const novo = calcularFarol(
