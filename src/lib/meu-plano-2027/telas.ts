@@ -3,7 +3,7 @@
  * campos obrigatórios e progresso. Só dados e funções puras; o desenho de cada tela fica em
  * src/components/minha-carreira/meu-plano/telas.tsx (mesmo id).
  */
-import { AFIRMACOES, NEGOCIO, PESSOAL, cheio, type Respostas } from "./regras";
+import { AFIRMACOES, NEGOCIO, PESSOAL, calc, cheio, ok, type Respostas } from "./regras";
 
 export const ANO_PLANO = 2027;
 export type Trilha = "ativacao" | "planejamento";
@@ -296,7 +296,7 @@ export const TELAS: Tela[] = [
     t: "Meu cockpit: meu plano em uma página",
     trilhas: AP,
     intro:
-      "Tudo o que você decidiu, numa página só, montado automaticamente pelas suas respostas. Toque em “p.” para corrigir na origem.",
+      "Tudo o que você decidiu, numa página só, montado automaticamente pelas suas respostas. Toque no número da página para corrigir na origem.",
     req: [],
   },
 ];
@@ -363,14 +363,43 @@ const POR_ID = new Map(TELAS.map((t) => [t.id, t]));
 export const tela = (id: string) => POR_ID.get(id);
 export const telaDaPagina = (pdf: number) => TELAS.find((t) => t.pdf === pdf);
 
+/** Rótulo da página com as duas numerações (Denis, 11/11): "pág. 19 · PDF 20". A capa (PDF 1) não tem número impresso. */
+export const rotuloPagina = (pdf: number) =>
+  pdf > 1 ? `pág. ${pdf - 1} · PDF ${pdf}` : `PDF ${pdf}`;
+
+/** Páginas do book sem tela própria cujo exercício está em outra tela (PDF 11 "Ao final de 2027 eu terei…" → Metas). */
+export const ATALHO_PAGINA: Record<number, string> = { 11: "p32" };
+export const exercicioDaPagina = (pdf: number) =>
+  ATALHO_PAGINA[pdf] ? tela(ATALHO_PAGINA[pdf]) : undefined;
+
+/** Sem trilha escolhida (entrou pelo book ou por "Preencher esta página"), o resto do plano usa Planejamento. */
+export const TRILHA_PADRAO: Trilha = "planejamento";
+
+/**
+ * Campo obrigatório que conta como preenchido mesmo vazio, porque a conta já usa uma sugestão válida
+ * (diagnóstico ou telas anteriores). Só muda o % e o selo exibidos; nenhuma conta muda.
+ */
+function preenchido(k: string, S: Respostas, C: () => ReturnType<typeof calc>) {
+  if (cheio(S[k])) return true;
+  if (k === "m.ticket") return ok(C().ticket) && C().ticket > 0;
+  if (k === "m.conv") return ok(C().conv) && C().conv > 0;
+  if (k === "mt.creFim") return ok(C().creFim);
+  return false;
+}
+const calcPreguicoso = (S: Respostas) => {
+  let c: ReturnType<typeof calc> | null = null;
+  return () => (c ??= calc(S));
+};
+
 export function progresso(S: Respostas, trilha: Trilha | null | undefined) {
-  if (!trilha) return { pct: 0, telas: 0, total: 0 };
-  const ids = ORDEM[trilha];
+  const ids = ORDEM[trilha ?? TRILHA_PADRAO];
+  const C = calcPreguicoso(S);
   const req = ids.flatMap((id) => tela(id)!.req);
-  const feitos = req.filter((k) => cheio(S[k])).length;
-  const telas = ids.filter(
-    (id) => statusTela(id, S) !== "vazio" && statusTela(id, S) !== "parc",
-  ).length;
+  const feitos = req.filter((k) => preenchido(k, S, C)).length;
+  const telas = ids.filter((id) => {
+    const st = statusTela(id, S);
+    return st !== "vazio" && st !== "parc";
+  }).length;
   return {
     pct: req.length ? Math.round((100 * feitos) / req.length) : 0,
     telas,
@@ -383,7 +412,8 @@ export function statusTela(id: string, S: Respostas): "ok" | "parc" | "vazio" | 
   const p = tela(id);
   if (!p) return null;
   if (p.req.length) {
-    const f = p.req.filter((k) => cheio(S[k])).length;
+    const C = calcPreguicoso(S);
+    const f = p.req.filter((k) => preenchido(k, S, C)).length;
     return f === p.req.length ? "ok" : f > 0 ? "parc" : "vazio";
   }
   if (!p.livre) return "auto";

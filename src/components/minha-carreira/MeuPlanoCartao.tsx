@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ehBroker, meuPlanoEnabled, planoDb } from "@/lib/meu-plano-2027/modulo";
-import { ANO_PLANO, ORDEM, type Trilha } from "@/lib/meu-plano-2027/telas";
+import { ANO_PLANO, ORDEM, rotuloPagina, type Trilha } from "@/lib/meu-plano-2027/telas";
 import type { Respostas } from "@/lib/meu-plano-2027/regras";
 import { MeuPlanoResumo } from "./meu-plano/MeuPlano";
 
@@ -79,7 +79,7 @@ export function MeuPlanoCartao({ userId }: { userId: string }) {
         >
           <Link to="/minha-carreira/plano" search={{ v: "book", p: pag }}>
             <BookOpen className="mr-2 h-4 w-4" aria-hidden /> Ler o book completo{" "}
-            {pag > 1 ? `· continuar p. ${pag}` : "· 56 páginas"}
+            {pag > 1 ? `· continuar ${rotuloPagina(pag)}` : "· 56 páginas"}
           </Link>
         </Button>
         {linha ? <MeuPlanoResumo S={S} trilha={trilha} metaOficial={linha.meta_oficial} /> : null}

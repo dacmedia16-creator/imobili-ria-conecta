@@ -10,7 +10,15 @@ import {
   secaoDaPagina,
   tituloPagina,
 } from "@/lib/meu-plano-2027/book";
-import { ORDEM, TRILHAS, statusTela, telaDaPagina, type Trilha } from "@/lib/meu-plano-2027/telas";
+import {
+  ORDEM,
+  TRILHAS,
+  exercicioDaPagina,
+  rotuloPagina,
+  statusTela,
+  telaDaPagina,
+  type Trilha,
+} from "@/lib/meu-plano-2027/telas";
 import type { Respostas } from "@/lib/meu-plano-2027/regras";
 
 /** Selo do exercício da página (preenchida / em parte / exercício). */
@@ -40,7 +48,9 @@ export function Leitor({
   const [zoom, setZoom] = useState(false);
   const [indice, setIndice] = useState(false);
   const sec = secaoDaPagina(n);
-  const ex = telaDaPagina(n);
+  // Página com exercício próprio ou atalho para o exercício que está em outra tela (PDF 11 → Metas).
+  const ex = telaDaPagina(n) ?? exercicioDaPagina(n);
+  const atalho = !!ex && ex.pdf !== n;
   const naTrilha = ex && trilha ? ORDEM[trilha].includes(ex.id) : true;
 
   useEffect(() => {
@@ -67,12 +77,8 @@ export function Leitor({
     <div className="-mx-4 space-y-0 sm:mx-0" data-testid="leitor-book">
       <div className="flex items-center gap-2 border-b bg-card px-3 py-2">
         <div className="min-w-0 flex-1 leading-tight">
-          <b className="text-sm">
-            Página {n} de {TOTAL_PAGINAS}
-          </b>
-          {n > 1 ? (
-            <span className="text-xs text-muted-foreground"> · pág. {n - 1} impressa</span>
-          ) : null}
+          <b className="text-sm">{rotuloPagina(n)}</b>
+          <span className="text-xs text-muted-foreground"> · de {TOTAL_PAGINAS} no PDF</span>
           <span className="block truncate text-xs text-muted-foreground">
             {sec.n} — {tituloPagina(n)}
           </span>
@@ -109,7 +115,7 @@ export function Leitor({
           {SECOES.map((s) => (
             <div key={s.de} className="pb-2">
               <p className="pt-2 text-xs font-semibold text-muted-foreground">
-                {s.n} · p. {s.de}–{s.ate}
+                {s.n} · PDF {s.de}–{s.ate}
               </p>
               {Array.from({ length: s.ate - s.de + 1 }, (_, i) => s.de + i).map((p) => {
                 const t = telaDaPagina(p);
@@ -126,7 +132,10 @@ export function Leitor({
                       p === n && "bg-primary/10",
                     )}
                   >
-                    <b className="w-7 shrink-0 text-center text-xs text-primary">{p}</b>
+                    <b className="w-16 shrink-0 text-xs text-primary">
+                      {p > 1 ? `pág. ${p - 1}` : "capa"}
+                      <span className="block font-normal text-muted-foreground">PDF {p}</span>
+                    </b>
                     <span className="min-w-0 flex-1 truncate">{tituloPagina(p)}</span>
                     {t ? <SeloPagina id={t.id} S={S} /> : null}
                   </button>
@@ -145,8 +154,14 @@ export function Leitor({
             onClick={() => preencher(ex.id)}
             data-testid="preencher-pagina"
           >
-            <PencilLine className="mr-1 h-4 w-4" aria-hidden /> Preencher esta página
+            <PencilLine className="mr-1 h-4 w-4" aria-hidden />{" "}
+            {atalho ? `Ir ao exercício: ${ex.t}` : "Preencher esta página"}
           </Button>
+          {atalho ? (
+            <span className="basis-full text-xs text-muted-foreground">
+              A frase desta página é montada na tela “{ex.t}” ({rotuloPagina(ex.pdf)}).
+            </span>
+          ) : null}
           {!naTrilha && trilha ? (
             <span className="basis-full text-xs text-muted-foreground">
               Esta página não faz parte da trilha {TRILHAS[trilha].n}; dá para preencher assim
@@ -178,7 +193,17 @@ export function Leitor({
           {zoom ? "tamanho normal" : "ampliar"}
         </Button>
       </div>
-      <div className="sticky bottom-0 z-10 flex gap-2 border-t bg-background px-3 py-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))]">
+      <div className="sticky bottom-0 z-10 flex flex-wrap gap-2 border-t bg-background px-3 py-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))]">
+        {ex ? (
+          <Button
+            className="h-12 w-full basis-full bg-emerald-700 text-base font-semibold text-white hover:bg-emerald-800"
+            onClick={() => preencher(ex.id)}
+            data-testid="preencher-pagina-fixo"
+          >
+            <PencilLine className="mr-2 h-5 w-5" aria-hidden />{" "}
+            {atalho ? `Ir ao exercício: ${ex.t}` : "✏️ Preencher esta página"}
+          </Button>
+        ) : null}
         <Button
           variant="outline"
           className="flex-1"
@@ -218,7 +243,7 @@ export function PaginaOriginal({
       className="fixed inset-0 z-[120] overflow-auto bg-black/85 px-2 pb-6 pt-14"
       role="dialog"
       aria-modal="true"
-      aria-label={`Página original ${pdf - 1} do book`}
+      aria-label={`Página original do book, ${rotuloPagina(pdf)}`}
       onClick={(e) => e.target === e.currentTarget && onFechar()}
       data-testid="pagina-original"
     >
@@ -230,7 +255,7 @@ export function PaginaOriginal({
         ✕ fechar
       </button>
       <p className="mb-2 text-center text-xs text-white">
-        Página original do book (pág. {pdf - 1}); só ilustração, não precisa preencher aqui.
+        Página original do book ({rotuloPagina(pdf)}); só ilustração, não precisa preencher aqui.
       </p>
       <div className="mb-2 text-center">
         <Button size="sm" variant="secondary" onClick={() => abrirNoBook(pdf)}>

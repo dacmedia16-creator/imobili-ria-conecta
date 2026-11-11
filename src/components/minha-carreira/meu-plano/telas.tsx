@@ -16,6 +16,7 @@ import {
   PORQUE,
   REGUA,
   addDias,
+  cheio,
   dataBR,
   fmt,
   nomeDia,
@@ -24,7 +25,7 @@ import {
   soma,
   type Calc,
 } from "@/lib/meu-plano-2027/regras";
-import { ORDEM, P15_CAMPOS, tela } from "@/lib/meu-plano-2027/telas";
+import { ORDEM, P15_CAMPOS, rotuloPagina, tela } from "@/lib/meu-plano-2027/telas";
 import { Pill } from "@/components/visual/base";
 import {
   Aviso,
@@ -133,6 +134,20 @@ export type Extras = {
   irPara?: (id: string) => void;
 };
 
+/** "pág. N · PDF M" de uma tela, clicável quando dá para ir até ela (item 11: de onde vem cada número). */
+function Origem({ id, irPara }: { id: string; irPara?: (id: string) => void }) {
+  const p = tela(id);
+  if (!p) return null;
+  const txt = `${p.t} (${rotuloPagina(p.pdf)})`;
+  return irPara ? (
+    <button type="button" className="font-semibold underline" onClick={() => irPara(id)}>
+      {txt}
+    </button>
+  ) : (
+    <b>{txt}</b>
+  );
+}
+
 export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
   const { S, C, inicio, trilha } = usePlanoCtx();
   switch (id) {
@@ -206,7 +221,11 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
                 ))}
               </ol>
             ) : (
-              <p className="text-sm text-muted-foreground">Preencha a tabela acima.</p>
+              <Aviso>
+                Ainda vazio: as 3 maiores origens aparecem aqui sozinhas quando você anotar, na
+                tabela acima, quantos negócios vieram de cada origem. O ADM MAX ainda não traz as
+                origens.
+              </Aviso>
             )}
             <p className="mt-1 text-xs text-muted-foreground">
               Essas três recebem o seu investimento em 2027 (voltam na tela de marketing).
@@ -341,9 +360,22 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
               tipo="money"
               ph={ok(C.d.ticket) ? `do diagnóstico: ${fmt.brl0(C.d.ticket)}` : "ex.: 700.000"}
               hint={
-                trilha === "ativacao"
-                  ? "Ainda sem histórico? Use o preço médio dos imóveis da sua região."
-                  : "Vem do “Meu ano em números”; pode ajustar."
+                cheio(S["m.ticket"]) ? (
+                  "Valor digitado por você."
+                ) : ok(C.d.ticket) ? (
+                  <>
+                    Em branco: a conta está usando <b>{fmt.brl0(C.d.ticket)}</b> do seu diagnóstico,{" "}
+                    <Origem id="p15" irPara={extras?.irPara} />. Digite aqui só se quiser outro
+                    valor.
+                  </>
+                ) : trilha === "ativacao" ? (
+                  "Ainda sem histórico? Use o preço médio dos imóveis da sua região."
+                ) : (
+                  <>
+                    ⚠ Falta o ticket: preencha o diagnóstico em{" "}
+                    <Origem id="p15" irPara={extras?.irPara} /> ou digite aqui.
+                  </>
+                )
               }
             />
             <Campo
@@ -368,15 +400,20 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
               </Aviso>
             ) : null}
           </Bloco>
-          <Bloco titulo="Minha próxima faixa">
+          <Bloco titulo="Minha próxima faixa e meu clube">
             <Selecao
               k="m.faixaAlvo"
               label="Faixa que quero alcançar"
               opcoes={FAIXAS.map((f) => [String(f[0]), f[1]])}
             />
+            <Selecao
+              k="mt.clube"
+              label="Clube de Corretores que quero conquistar em 2027"
+              opcoes={CLUBES.map((c) => [c.n, c.n])}
+            />
             <p className="mt-1 text-xs text-muted-foreground">
-              O clube de 2027 é escolhido em “Minhas metas para 2027”, já com a sugestão pelo seu
-              VGC.
+              É a mesma resposta de “Minhas metas para 2027”: mudou aqui, muda lá.
+              {C.clubeSug ? ` Pelo VGC do seu plano, a faixa é ${C.clubeSug.n}.` : ""}
             </p>
           </Bloco>
         </>
@@ -391,7 +428,23 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
               label="2 · Minha conversão da captação (%)"
               tipo="pct"
               ph={ok(C.d.conv) ? `do diagnóstico: ${C.d.conv}%` : "ex.: 22"}
-              hint="Ainda sem histórico? O exemplo do book usa 22%."
+              hint={
+                cheio(S["m.conv"]) ? (
+                  "Valor digitado por você."
+                ) : ok(C.d.conv) ? (
+                  <>
+                    Em branco: a conta está usando <b>{fmt.dec(C.d.conv)}%</b> do seu diagnóstico,{" "}
+                    <Origem id="p15" irPara={extras?.irPara} />. Digite aqui só se quiser outro
+                    valor.
+                  </>
+                ) : (
+                  <>
+                    ⚠ As captações ficam em branco até ter a conversão: preencha a “Conversão das
+                    CREs” em <Origem id="p15" irPara={extras?.irPara} /> ou digite aqui. Ainda sem
+                    histórico? O exemplo do book usa 22%.
+                  </>
+                )
+              }
             />
             <Conta
               rot="3 · CAPTAÇÕES QUE PRECISO FAZER EM 2027 (1 ÷ 2)"
@@ -441,7 +494,7 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
           </Bloco>
           <details className="rounded-xl border bg-card">
             <summary className="cursor-pointer px-3 py-2.5 text-sm font-semibold">
-              A régua das CREs ativas (p.30)
+              A régua das CREs ativas ({rotuloPagina(31)})
             </summary>
             <table className="mx-3 mb-3 w-[calc(100%-1.5rem)] text-[13px]">
               <tbody>
@@ -459,7 +512,7 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
         </>
       );
     case "p32":
-      return <TelaMetas extra={extras?.p32} />;
+      return <TelaMetas extra={extras?.p32} irPara={extras?.irPara} />;
     case "p34":
       return (
         <>
@@ -540,11 +593,24 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
             <Conta rot="Primeiras visitas (V1) por mês" v={C.v1Mes} f="int" />
             <Campo
               k="fu.folga"
-              label="Folga para quem desmarca (%)"
+              label="Taxa de folga para quem desmarca (%)"
               tipo="pct"
               ph={`padrão: ${C.folga}`}
+              hint="É uma taxa, não o resultado: acrescenta contatos extras para cobrir quem desmarca. O resultado vem logo abaixo."
             />
-            <Conta rot="CONTATOS COM AGENDAMENTO POR SEMANA" v={C.contSem} f="int" main />
+            <Conta
+              rot="RESULTADO · CONTATOS COM AGENDAMENTO POR SEMANA"
+              v={C.contSem}
+              f="int"
+              main
+            />
+            {ok(C.contSem) ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Conta: {fmt.int(C.v1Mes)} V1 por mês ÷ 4 semanas = {fmt.dec(C.v1Mes / 4)} +{" "}
+                {fmt.dec(C.folga)}% de folga = {fmt.dec((C.v1Mes / 4) * (1 + C.folga / 100))},
+                arredondado para cima = <b>{fmt.int(C.contSem)}</b>.
+              </p>
+            ) : null}
           </Bloco>
           <Aviso>
             Campo em branco usa a taxa padrão da imobiliária. Não sabe as suas taxas? Comece medindo
@@ -585,6 +651,10 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
             <Stat v="6 em 10" rot="vende quem revisa após 90 dias" />
             <Stat v="3 em 10" rot="vende quem nunca revisa" />
           </div>
+          <p className="text-xs text-muted-foreground">
+            Dado fixo da rede REMAX (BI REMAX Brasil, set/2026), igual para todos: não muda com o
+            que você digita.
+          </p>
         </>
       );
     case "p39":
@@ -595,7 +665,12 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
               <Aviso tom="green">
                 Suas 3 maiores origens do ano passado: <b>{C.top3.join(", ")}</b>
               </Aviso>
-            ) : null}
+            ) : (
+              <Aviso>
+                Suas 3 maiores origens aparecem aqui quando você preencher a tabela de{" "}
+                <Origem id="p16" irPara={extras?.irPara} />.
+              </Aviso>
+            )}
             {CANAIS.map((c, i) => (
               <Check key={i} k={`mk.${i}`}>
                 {c}
@@ -614,10 +689,12 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
             <Campo k="mk.invest" label="Quanto vou investir por mês (R$)" tipo="money" />
             {ok(C.invest) ? (
               <Aviso tom={Math.abs(C.invest - C.mktNegocioMes) > 1 ? "amber" : "green"}>
-                Confira com o orçamento do negócio: marketing de captação + venda + Portal Boost ={" "}
-                <b>{fmt.brl(C.mktNegocioMes)}/mês</b>.
+                Você vai investir <b>{fmt.brl(C.invest)}/mês</b> (o que digitou acima). Seu
+                orçamento do negócio, em <Origem id="p23" irPara={extras?.irPara} />, prevê{" "}
+                <b>{fmt.brl(C.mktNegocioMes)}/mês</b> (marketing de captação + venda + Portal
+                Boost); esse segundo número só muda lá.
                 {Math.abs(C.invest - C.mktNegocioMes) > 1
-                  ? " Os dois números estão diferentes; ajuste um deles."
+                  ? " Os dois estão diferentes; ajuste um deles."
                   : " Bate ✔"}
               </Aviso>
             ) : null}
@@ -808,7 +885,7 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
   }
 }
 
-function TelaMetas({ extra }: { extra?: ReactNode }) {
+function TelaMetas({ extra, irPara }: { extra?: ReactNode; irPara?: (id: string) => void }) {
   const { C } = usePlanoCtx();
   const sug = (v: number, money?: boolean) =>
     ok(v) ? `sugestão: ${money ? fmt.brl0(v) : fmt.int(v)}` : "";
@@ -820,6 +897,32 @@ function TelaMetas({ extra }: { extra?: ReactNode }) {
           Ao final de 2027 eu terei <b>{fmt.int(C.creFim)}</b> CREs ativas na minha carteira e o
           valor geral de comissão de <b>{fmt.brl0(C.vgc)}</b>, atingindo o <b>{C.clube || "—"}</b>.
         </p>
+        <details className="mt-2 text-xs" data-testid="de-onde-vem">
+          <summary className="cursor-pointer font-semibold">De onde vem cada número</summary>
+          <ul className="mt-1 list-disc space-y-1 pl-5">
+            <li>
+              <b>{fmt.int(C.creFim)} CREs ativas</b>: {fmt.int(C.creIni)} no início (do diagnóstico,{" "}
+              <Origem id="p15" irPara={irPara} />) + {fmt.int(C.novas)} novas (captações do ano,{" "}
+              <Origem id="p30" irPara={irPara} />) − {fmt.int(C.canc)} canceladas/expiradas −{" "}
+              {fmt.int(C.vendidas)} vendidas. Os campos abaixo trocam qualquer um deles.
+            </li>
+            <li>
+              <b>VGC {fmt.brl0(C.vgc)}</b>: {fmt.int(C.transMeta)} transações ×{" "}
+              {fmt.brl0(C.comMedia)} de comissão média (ticket × % de comissão,{" "}
+              <Origem id="p27" irPara={irPara} />
+              ).
+            </li>
+            <li>
+              <b>{C.clube || "Clube"}</b>:{" "}
+              {C.clubeSug && C.clube === C.clubeSug.n
+                ? `faixa do seu VGC (a partir de ${fmt.brl0(C.clubeSug.min)}, tabela dos Clubes de Corretores, ${rotuloPagina(28)})`
+                : C.clube
+                  ? "escolhido por você"
+                  : "aparece quando houver VGC"}
+              .
+            </li>
+          </ul>
+        </details>
       </Bloco>
       <Bloco titulo="CREs (captações com representação exclusiva)">
         <Linha
@@ -836,18 +939,18 @@ function TelaMetas({ extra }: { extra?: ReactNode }) {
           ph={sug(C.captAno)}
         />
         <Linha
-          k="mt.vendidas"
-          rot="Meta de CREs vendidas"
-          sub="sugestão: novas × conversão"
-          tipo="int"
-          ph={sug(C.vendidas)}
-        />
-        <Linha
           k="mt.canc"
           rot="Meta de CREs canceladas/expiradas"
           sub="as que a conversão não vende"
           tipo="int"
           ph={sug(C.canc)}
+        />
+        <Linha
+          k="mt.vendidas"
+          rot="Meta de CREs vendidas"
+          sub="sugestão: novas × conversão"
+          tipo="int"
+          ph={sug(C.vendidas)}
         />
         <Conta
           rot="Estoque no fim do ano (início + novas − canceladas − vendidas)"
@@ -913,8 +1016,8 @@ function TelaMetas({ extra }: { extra?: ReactNode }) {
               {(
                 [
                   ["Novas CREs", C.novas],
+                  ["Canceladas/expiradas", C.canc],
                   ["CREs vendidas", C.vendidas],
-                  ["Canceladas", C.canc],
                   ["Transações", C.transMeta],
                   ["VGC (R$ mil)", C.vgc / 1000],
                 ] as [string, number][]
@@ -1081,10 +1184,10 @@ function LinhaCk({
               className="text-[11px] text-muted-foreground underline"
               onClick={() => irPara(p.id)}
             >
-              p.{p.pdf - 1} ✎
+              {rotuloPagina(p.pdf)} ✎
             </button>
           ) : (
-            <span className="text-[11px] text-muted-foreground">p.{p.pdf - 1}</span>
+            <span className="text-[11px] text-muted-foreground">{rotuloPagina(p.pdf)}</span>
           )
         ) : null}
       </span>
