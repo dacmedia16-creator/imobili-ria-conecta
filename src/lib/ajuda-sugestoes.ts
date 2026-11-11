@@ -85,6 +85,10 @@ export function caminhoDoPrint(orgId: string, userId: string, uuid: string, ext:
 
 /** Nome amigável da tela a partir do caminho (vai junto no chamado, sem dados de cliente). */
 const TELAS: [RegExp, string][] = [
+  // Locação (t_365484dc): o balão Ajuda MAX grava a tela de origem com estes nomes.
+  [/^\/locacoes\/sugestoes/, "Locação › Sugestões e erros"],
+  [/^\/locacoes\/[^/]+/, "Locação › Detalhe da locação"],
+  [/^\/locacoes/, "Locação"],
   [/^\/exclusividades\/painel/, "Captações exclusivas › Painel"],
   [/^\/exclusividades\/[^/]+/, "Captações exclusivas › Detalhe da captação"],
   [/^\/exclusividades/, "Captações exclusivas"],
@@ -183,7 +187,19 @@ export function nomeOrigem(origem: string | null | undefined): string | null {
   if (origem === "estudo") return "Estudo de Mercado";
   if (origem === "visita") return "Visita MAX";
   if (origem === "adm") return "ADM MAX";
+  if (origem === "locacao") return "Locação (Ajuda MAX)";
   return null;
+}
+
+/** Confere a assinatura do arquivo (não confia só no tipo enviado pelo navegador). */
+export function assinaturaBate(bytes: Uint8Array, tipo: string): boolean {
+  const s = Array.from(bytes.slice(0, 12));
+  if (tipo === "image/png") return s.slice(0, 8).join(",") === "137,80,78,71,13,10,26,10";
+  if (tipo === "image/jpeg") return s.slice(0, 3).join(",") === "255,216,255";
+  return (
+    String.fromCharCode(...s.slice(0, 4)) === "RIFF" &&
+    String.fromCharCode(...s.slice(8, 12)) === "WEBP"
+  );
 }
 
 /** "12 min", "2 h", "3 d". */

@@ -67,6 +67,7 @@ import { Route as AuthenticatedExclusividadesIdRouteImport } from './routes/_aut
 import { Route as AuthenticatedExclusividadesPainelRouteImport } from './routes/_authenticated/exclusividades.painel'
 import { Route as AuthenticatedLocacoesIndexRouteImport } from './routes/_authenticated/locacoes.index'
 import { Route as AuthenticatedLocacoesIdRouteImport } from './routes/_authenticated/locacoes.$id'
+import { Route as AuthenticatedLocacoesSugestoesRouteImport } from './routes/_authenticated/locacoes.sugestoes'
 import { Route as AuthenticatedMinhaCarreiraPlanoRouteImport } from './routes/_authenticated/minha-carreira_.plano'
 import { Route as AuthenticatedPlataformaChamadosRouteImport } from './routes/_authenticated/plataforma.chamados'
 import { Route as AuthenticatedPlataformaDepoimentosRouteImport } from './routes/_authenticated/plataforma.depoimentos'
@@ -400,6 +401,12 @@ const AuthenticatedLocacoesIdRoute = AuthenticatedLocacoesIdRouteImport.update({
   path: '/locacoes/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedLocacoesSugestoesRoute =
+  AuthenticatedLocacoesSugestoesRouteImport.update({
+    id: '/locacoes/sugestoes',
+    path: '/locacoes/sugestoes',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedMinhaCarreiraPlanoRoute =
   AuthenticatedMinhaCarreiraPlanoRouteImport.update({
     id: '/minha-carreira_/plano',
@@ -536,6 +543,7 @@ export interface FileRoutesByFullPath {
   '/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
   '/exclusividades/painel': typeof AuthenticatedExclusividadesPainelRoute
   '/locacoes/$id': typeof AuthenticatedLocacoesIdRoute
+  '/locacoes/sugestoes': typeof AuthenticatedLocacoesSugestoesRoute
   '/minha-carreira/plano': typeof AuthenticatedMinhaCarreiraPlanoRoute
   '/plataforma/chamados': typeof AuthenticatedPlataformaChamadosRoute
   '/plataforma/depoimentos': typeof AuthenticatedPlataformaDepoimentosRoute
@@ -609,6 +617,7 @@ export interface FileRoutesByTo {
   '/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
   '/exclusividades/painel': typeof AuthenticatedExclusividadesPainelRoute
   '/locacoes/$id': typeof AuthenticatedLocacoesIdRoute
+  '/locacoes/sugestoes': typeof AuthenticatedLocacoesSugestoesRoute
   '/minha-carreira/plano': typeof AuthenticatedMinhaCarreiraPlanoRoute
   '/plataforma/chamados': typeof AuthenticatedPlataformaChamadosRoute
   '/plataforma/depoimentos': typeof AuthenticatedPlataformaDepoimentosRoute
@@ -684,6 +693,7 @@ export interface FileRoutesById {
   '/_authenticated/exclusividades/$id': typeof AuthenticatedExclusividadesIdRoute
   '/_authenticated/exclusividades/painel': typeof AuthenticatedExclusividadesPainelRoute
   '/_authenticated/locacoes/$id': typeof AuthenticatedLocacoesIdRoute
+  '/_authenticated/locacoes/sugestoes': typeof AuthenticatedLocacoesSugestoesRoute
   '/_authenticated/minha-carreira_/plano': typeof AuthenticatedMinhaCarreiraPlanoRoute
   '/_authenticated/plataforma/chamados': typeof AuthenticatedPlataformaChamadosRoute
   '/_authenticated/plataforma/depoimentos': typeof AuthenticatedPlataformaDepoimentosRoute
@@ -759,6 +769,7 @@ export interface FileRouteTypes {
     | '/exclusividades/$id'
     | '/exclusividades/painel'
     | '/locacoes/$id'
+    | '/locacoes/sugestoes'
     | '/minha-carreira/plano'
     | '/plataforma/chamados'
     | '/plataforma/depoimentos'
@@ -832,6 +843,7 @@ export interface FileRouteTypes {
     | '/exclusividades/$id'
     | '/exclusividades/painel'
     | '/locacoes/$id'
+    | '/locacoes/sugestoes'
     | '/minha-carreira/plano'
     | '/plataforma/chamados'
     | '/plataforma/depoimentos'
@@ -906,6 +918,7 @@ export interface FileRouteTypes {
     | '/_authenticated/exclusividades/$id'
     | '/_authenticated/exclusividades/painel'
     | '/_authenticated/locacoes/$id'
+    | '/_authenticated/locacoes/sugestoes'
     | '/_authenticated/minha-carreira_/plano'
     | '/_authenticated/plataforma/chamados'
     | '/_authenticated/plataforma/depoimentos'
@@ -1355,6 +1368,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedLocacoesIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/locacoes/sugestoes': {
+      id: '/_authenticated/locacoes/sugestoes'
+      path: '/locacoes/sugestoes'
+      fullPath: '/locacoes/sugestoes'
+      preLoaderRoute: typeof AuthenticatedLocacoesSugestoesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/minha-carreira_/plano': {
       id: '/_authenticated/minha-carreira_/plano'
       path: '/minha-carreira/plano'
@@ -1497,6 +1517,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedExclusividadesIdRoute: typeof AuthenticatedExclusividadesIdRoute
   AuthenticatedExclusividadesPainelRoute: typeof AuthenticatedExclusividadesPainelRoute
   AuthenticatedLocacoesIdRoute: typeof AuthenticatedLocacoesIdRoute
+  AuthenticatedLocacoesSugestoesRoute: typeof AuthenticatedLocacoesSugestoesRoute
   AuthenticatedMinhaCarreiraPlanoRoute: typeof AuthenticatedMinhaCarreiraPlanoRoute
   AuthenticatedPlataformaChamadosRoute: typeof AuthenticatedPlataformaChamadosRoute
   AuthenticatedPlataformaDepoimentosRoute: typeof AuthenticatedPlataformaDepoimentosRoute
@@ -1557,6 +1578,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedExclusividadesPainelRoute:
     AuthenticatedExclusividadesPainelRoute,
   AuthenticatedLocacoesIdRoute: AuthenticatedLocacoesIdRoute,
+  AuthenticatedLocacoesSugestoesRoute: AuthenticatedLocacoesSugestoesRoute,
   AuthenticatedMinhaCarreiraPlanoRoute: AuthenticatedMinhaCarreiraPlanoRoute,
   AuthenticatedPlataformaChamadosRoute: AuthenticatedPlataformaChamadosRoute,
   AuthenticatedPlataformaDepoimentosRoute:

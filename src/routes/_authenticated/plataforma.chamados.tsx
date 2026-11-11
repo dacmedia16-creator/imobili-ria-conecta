@@ -161,6 +161,7 @@ function CentralChamados() {
           <option value="adm">ADM MAX</option>
           <option value="estudo">Estudo de Mercado</option>
           <option value="visita">Visita MAX</option>
+          <option value="locacao">Locação (Ajuda MAX)</option>
         </select>
         <Input
           className="h-9 w-full sm:w-56"

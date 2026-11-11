@@ -1,7 +1,15 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, Clock, FileSignature, KeyRound, Plus, Users } from "lucide-react";
+import {
+  AlertTriangle,
+  Clock,
+  FileSignature,
+  KeyRound,
+  Lightbulb,
+  Plus,
+  Users,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -32,7 +40,13 @@ import {
   type EtapaLocacao,
   type Locacao,
 } from "@/lib/locacao";
-import { contextoLocacao, criarLocacao, guardLocacaoRoute, listarLocacoes } from "@/lib/locacao-db";
+import {
+  ajudaMaxLocacaoEnabled,
+  contextoLocacao,
+  criarLocacao,
+  guardLocacaoRoute,
+  listarLocacoes,
+} from "@/lib/locacao-db";
 
 // Módulo de Locação Fase 1 (t_74426f94; maquete aprovada por Denis em 09/11/2026). Tudo atrás do módulo
 // "locacao"; o banco decide o que cada papel vê e faz.
@@ -43,7 +57,14 @@ export const Route = createFileRoute("/_authenticated/locacoes/")({
 });
 
 type Aba =
-  "minhas" | "gestora" | "contratos" | "pos" | "comissao" | "financeiro" | "visao" | "regras";
+  | "minhas"
+  | "gestora"
+  | "contratos"
+  | "pos"
+  | "comissao"
+  | "financeiro"
+  | "visao"
+  | "regras";
 
 function LocacoesPage() {
   const navigate = useNavigate();
@@ -64,6 +85,11 @@ function LocacoesPage() {
     }
   }, []);
   useEffect(() => void carregar(), [carregar]);
+  // Ajuda MAX 2/2 (t_365484dc): atalho para "Sugestões e erros" só com a chave ligada (o banco confere).
+  const [ajudaMax, setAjudaMax] = useState(false);
+  useEffect(() => {
+    void ajudaMaxLocacaoEnabled().then(setAjudaMax);
+  }, []);
 
   const abaPadrao: Aba = useMemo(() => {
     if (!ctx) return "minhas";
@@ -116,10 +142,21 @@ function LocacoesPage() {
         title="Locação"
         description="Esteira da locação igual à da venda: o corretor preenche e sobe tudo; nada é enviado ao cliente."
         actions={
-          soFinanceiro ? undefined : (
-            <Button onClick={() => void nova()} disabled={criando}>
-              <Plus className="mr-1 h-4 w-4" /> Nova locação
-            </Button>
+          soFinanceiro && !ajudaMax ? undefined : (
+            <div className="flex flex-wrap gap-2">
+              {ajudaMax && (
+                <Button variant="outline" asChild>
+                  <Link to="/locacoes/sugestoes">
+                    <Lightbulb className="mr-1 h-4 w-4" /> Sugestões e erros
+                  </Link>
+                </Button>
+              )}
+              {!soFinanceiro && (
+                <Button onClick={() => void nova()} disabled={criando}>
+                  <Plus className="mr-1 h-4 w-4" /> Nova locação
+                </Button>
+              )}
+            </div>
           )
         }
       />

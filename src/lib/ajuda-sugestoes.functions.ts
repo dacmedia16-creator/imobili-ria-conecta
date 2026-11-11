@@ -20,6 +20,7 @@ import {
 } from "@/lib/sale-notifications.functions";
 import { enviarAvisosCaptacao, type DestinoAviso } from "@/lib/captacao-auditoria";
 import {
+  assinaturaBate,
   caminhoDoPrint,
   decodificarPrint,
   PRINT_TIPOS,
@@ -41,17 +42,6 @@ const rpc = (c: SupabaseClient, fn: string, args?: Record<string, unknown>) =>
 
 function erroDoBanco(e: { message: string } | null, padrao: string): never {
   throw new Error(e?.message ? e.message.replace(/^.*?:\s*/, "") || padrao : padrao);
-}
-
-/** Confere a assinatura do arquivo (não confia só no tipo enviado pelo navegador). */
-function assinaturaBate(bytes: Uint8Array, tipo: string): boolean {
-  const s = Array.from(bytes.slice(0, 12));
-  if (tipo === "image/png") return s.slice(0, 8).join(",") === "137,80,78,71,13,10,26,10";
-  if (tipo === "image/jpeg") return s.slice(0, 3).join(",") === "255,216,255";
-  return (
-    String.fromCharCode(...s.slice(0, 4)) === "RIFF" &&
-    String.fromCharCode(...s.slice(8, 12)) === "WEBP"
-  );
 }
 
 type Ticket = {
