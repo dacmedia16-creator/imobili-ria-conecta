@@ -492,7 +492,13 @@ describe("migration 20261108180000", () => {
     // link_acompanhamento (t_54c79bdc) veio depois, na migration 20261108200000.
     // proposta_compra (t_4cff61a6) veio depois, na migration 20261109120000.
     const lista = [...ORGANIZATION_MODULES]
-      .filter((x) => x !== "link_acompanhamento" && x !== "proposta_compra" && x !== "locacao")
+      .filter(
+        (x) =>
+          x !== "link_acompanhamento" &&
+          x !== "proposta_compra" &&
+          x !== "locacao" &&
+          x !== "ajuda_max_locacao",
+      )
       .sort();
     expect(nomes(check)).toEqual(lista);
     expect(nomes(rpc)).toEqual(lista);
