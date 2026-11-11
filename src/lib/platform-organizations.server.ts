@@ -16,6 +16,7 @@ import {
   friendlyOrgError,
   LOGO_MAX_BYTES,
   LOGO_TYPES,
+  moduloLigado,
   onlyDigits,
   ORGANIZATION_MODULES,
   type FirstAdminInput,
@@ -75,10 +76,7 @@ export async function listOrganizations(
   }[];
   const modulesOf = (id: string) =>
     Object.fromEntries(
-      ORGANIZATION_MODULES.map((m) => [
-        m,
-        moduleRows.some((r) => r.organization_id === id && r.module === m && r.enabled),
-      ]),
+      ORGANIZATION_MODULES.map((m) => [m, moduloLigado(moduleRows, id, m)]),
     ) as Record<OrganizationModule, boolean>;
   const count = (rows: { organization_id: string }[] | null, id: string) =>
     (rows ?? []).filter((r) => r.organization_id === id).length;
