@@ -463,6 +463,16 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
     case "p31":
       return (
         <>
+          <Bloco>
+            {/* Só registro, como a linha em branco do book (pág. 30): não entra em conta nem na meta oficial. */}
+            <Campo
+              k="m.carteira"
+              label="Quantas CREs ativas quero manter ao longo de 2027"
+              tipo="int"
+              ph="ex.: 15"
+              hint="Só para você registrar o número; não muda nenhuma conta do plano nem a meta oficial."
+            />
+          </Bloco>
           <Bloco titulo="Onde eu quero estar">
             <Radio
               k="m.alvo"
