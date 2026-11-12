@@ -118,6 +118,13 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
               </div>
             ))}
           </Bloco>
+          {trilha === "ativacao" ? (
+            <p className="text-xs text-muted-foreground" data-testid="p15-sem-historico">
+              Começando agora e ainda sem histórico? Digite 0 no que não tiver. O ticket médio e a
+              conversão daqui entram nas contas de “Da comissão à transação” e “Da transação à
+              captação”; com 0, essas telas pedem o seu valor.
+            </p>
+          ) : null}
           <p className="text-xs text-muted-foreground">
             *Transação é cada lado de um negócio: captar o imóvel vendido = 1 transação de captação;
             trazer o comprador = 1 transação de venda. Os dois lados = 2 transações.
@@ -309,18 +316,22 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
               label="4 · Meu ticket médio (R$)"
               tipo="money"
               ajuda="p27.ticket"
-              ph={ok(C.d.ticket) ? `do diagnóstico: ${fmt.brl0(C.d.ticket)}` : "ex.: 700.000"}
+              ph={C.d.ticket > 0 ? `do diagnóstico: ${fmt.brl0(C.d.ticket)}` : "ex.: 700.000"}
               hint={
                 cheio(S["m.ticket"]) ? (
                   "Valor digitado por você."
-                ) : ok(C.d.ticket) ? (
+                ) : C.d.ticket > 0 ? (
                   <>
                     Em branco: a conta está usando <b>{fmt.brl0(C.d.ticket)}</b> do seu diagnóstico,{" "}
                     <Origem id="p15" irPara={extras?.irPara} />. Digite aqui só se quiser outro
                     valor.
                   </>
                 ) : trilha === "ativacao" ? (
-                  "Ainda sem histórico? Use o preço médio dos imóveis da sua região."
+                  <>
+                    Preencha o “Ticket médio das transações vendidas” em{" "}
+                    <Origem id="p15" irPara={extras?.irPara} /> ou digite aqui. Ainda sem histórico?
+                    Use o preço médio dos imóveis da sua região.
+                  </>
                 ) : (
                   <>
                     ⚠ Falta o ticket: preencha o diagnóstico em{" "}
@@ -380,11 +391,11 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
               label="2 · Minha conversão da captação (%)"
               tipo="pct"
               ajuda="p30.conv"
-              ph={ok(C.d.conv) ? `do diagnóstico: ${C.d.conv}%` : "ex.: 22"}
+              ph={C.d.conv > 0 ? `do diagnóstico: ${C.d.conv}%` : "ex.: 22"}
               hint={
                 cheio(S["m.conv"]) ? (
                   "Valor digitado por você."
-                ) : ok(C.d.conv) ? (
+                ) : C.d.conv > 0 ? (
                   <>
                     Em branco: a conta está usando <b>{fmt.dec(C.d.conv)}%</b> do seu diagnóstico,{" "}
                     <Origem id="p15" irPara={extras?.irPara} />. Digite aqui só se quiser outro

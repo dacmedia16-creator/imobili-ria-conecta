@@ -91,7 +91,7 @@ export const TELAS: Tela[] = [
     pdf: 15,
     ev: "Diagnóstico · Onde eu estou",
     t: "Meu ano em números",
-    trilhas: P,
+    trilhas: AP,
     intro:
       "Estes oito números são o seu ponto de partida (só venda, sem locação). No book eles vêm “preenchidos pelo sistema”: aqui o ADM MAX traz os que já tem.",
     req: P15_CAMPOS.map((x) => x[0]),
@@ -101,7 +101,7 @@ export const TELAS: Tela[] = [
     pdf: 16,
     ev: "Diagnóstico · Onde eu estou",
     t: "De onde vieram meus negócios",
-    trilhas: P,
+    trilhas: AP,
     intro:
       "Nos últimos 12 meses, de onde vieram os negócios que você fechou? Anote a quantidade nas origens que geraram negócio.",
     req: ["or.0.c"],
@@ -111,7 +111,7 @@ export const TELAS: Tela[] = [
     pdf: 17,
     ev: "Diagnóstico · Onde eu estou",
     t: "Onde eu estou hoje",
-    trilhas: P,
+    trilhas: AP,
     intro:
       "Pensando no seu último ano, dê uma nota de 1 a 5 para cada afirmação. 1 = discordo totalmente · 5 = concordo totalmente.",
     req: AFIRMACOES.map((_, i) => `av.${i}`),
@@ -372,7 +372,12 @@ export const ORDEM: Record<Trilha, string[]> = {
     "p52",
     "p11",
   ],
+  // Diagnóstico (pág. 14 a 16 do book = PDF 15 a 17) também na Ativação (Denis, 12/11): o corretor
+  // preenche no sistema, sem a apostila, e o ticket médio da pág. 26 (p27) sai daqui.
   ativacao: [
+    "p15",
+    "p16",
+    "p17",
     "p20",
     "p22",
     "p23",
@@ -395,7 +400,7 @@ export const TRILHAS: Record<Trilha, { n: string; quem: string; o: string; obj: 
   ativacao: {
     n: "Ativação",
     quem: "Quem está iniciando na REMAX",
-    o: "Passos 1 a 3 e o bloco Ativação",
+    o: "Diagnóstico, Passos 1 a 3 e o bloco Ativação",
     obj: "A primeira venda",
   },
   planejamento: {
