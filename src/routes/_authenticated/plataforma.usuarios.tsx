@@ -59,6 +59,7 @@ const ROLE_OPTIONS: AppRole[] = [
   "lancamento",
   "staff",
   "fotografo",
+  "locacao",
   "admin",
   "super_admin",
 ];

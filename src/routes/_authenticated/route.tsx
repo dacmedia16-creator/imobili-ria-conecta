@@ -8,6 +8,7 @@ import { ComemoraAniversarioPergunta } from "@/components/ComemoraAniversarioPer
 import { consumirRetornoDepoimento, guardarRetornoDepoimento } from "@/lib/depoimentos";
 import { getRouteAccess } from "@/lib/route-access";
 import { destinoFotografo } from "@/lib/fotografo";
+import { destinoLocacao } from "@/lib/papel-locacao";
 
 function armazenamento(): Storage | null {
   try {
@@ -35,7 +36,12 @@ export const Route = createFileRoute("/_authenticated")({
     // Papel Fotógrafo (t_0666d3f0): o só-fotógrafo entra em /fotografo e não abre outras telas
     // (inclusive o /dashboard do login). O banco (RLS/is_active_user) é a proteção real dos dados.
     const access = await getRouteAccess();
-    const destino = access ? destinoFotografo(access.roles, location.pathname) : null;
+    // Papel Locação (t_1fe07126): o só-Locação abre só Início, Locação, salas, mural e a conta; qualquer
+    // outra tela (Vendas, captações, mapa, carreira, relatórios...) volta ao Início. O banco repete o bloqueio.
+    const destino = access
+      ? (destinoFotografo(access.roles, location.pathname) ??
+        destinoLocacao(access.roles, location.pathname))
+      : null;
     if (destino) throw redirect({ to: destino, replace: true });
   },
   component: () => (
