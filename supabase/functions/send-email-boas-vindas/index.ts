@@ -97,7 +97,10 @@ Deno.serve(async (req) => {
     req.headers.get("x-email-internal"),
     Deno.env.get("EMAIL_INTERNAL_SECRET"),
   );
-  let chaves: string[] = [service];
+  // ADM_WORKER_SERVICE_KEY (t_fbd97175): a chave service_role LEGADA (JWT) que o Worker do ADM MAX usa
+  // no botão "Enviar convite". O runtime agora injeta em SUPABASE_SERVICE_ROLE_KEY a chave secreta nova,
+  // então sem isto o painel recebia 401. Continua exigindo chave de servidor; ausente = ignorada.
+  let chaves: string[] = [service, Deno.env.get("ADM_WORKER_SERVICE_KEY") ?? ""];
   try {
     const raw = Deno.env.get("SUPABASE_SECRET_KEYS");
     if (raw) chaves = chaves.concat(Object.values(JSON.parse(raw)).map(String));
