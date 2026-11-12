@@ -3,7 +3,7 @@
  * campos obrigatórios e progresso. Só dados e funções puras; o desenho de cada tela fica em
  * src/components/minha-carreira/meu-plano/telas.tsx (mesmo id).
  */
-import { AFIRMACOES, NEGOCIO, PESSOAL, cheio, type Respostas } from "./regras";
+import { AFIRMACOES, NEGOCIO, PESSOAL, calc, cheio, ok, type Respostas } from "./regras";
 
 export const ANO_PLANO = 2027;
 export type Trilha = "ativacao" | "planejamento";
@@ -36,11 +36,56 @@ export const P15_CAMPOS: [string, string, "money" | "int" | "pct", "tem" | "parc
   ["d.revisados", "% da carteira que teve o preço revisado", "pct", "nao"],
 ];
 
+/**
+ * Quadro de KRIs (book PDF 11; Caderno 1 pág. 24; Caderno 2 pág. 6): os 6 KPIs, cada um com a sua caixa
+ * "AÇÕES PRINCIPAIS" (campo kri.N). `ex` = ações impressas no book, só como exemplo (não preenchem nada).
+ */
+export const KRIS: { kri: string; kpis: { k: string; n: string; ex: string[] }[] }[] = [
+  {
+    kri: "KRI 1 · Captações com Representação Exclusiva (CREs)",
+    kpis: [
+      {
+        k: "kri.0",
+        n: "Novas CREs",
+        ex: ["Contatos com agendamento", "Primeira visita (V1)", "Segunda visita (V2)"],
+      },
+      { k: "kri.1", n: "CREs Canceladas/Expiradas", ex: ["Precificação", "Revisão do preço"] },
+      { k: "kri.2", n: "CREs Vendidas", ex: ["Execução do plano de marketing e venda"] },
+    ],
+  },
+  {
+    kri: "KRI 2 · Valor Geral de Comissão (VGC)",
+    kpis: [
+      { k: "kri.3", n: "Transações de Captações", ex: ["Atendimento de interessados"] },
+      {
+        k: "kri.4",
+        n: "Transações de Venda",
+        ex: ["Visita com compradores", "Propostas formalizadas"],
+      },
+      { k: "kri.5", n: "Ticket Médio por Transação", ex: ["Posicionamento", "Precificação"] },
+    ],
+  },
+];
+
 const A: Trilha[] = ["ativacao"];
 const P: Trilha[] = ["planejamento"];
 const AP: Trilha[] = ["ativacao", "planejamento"];
 
 export const TELAS: Tela[] = [
+  {
+    // Quadro de KRIs do book (PDF 11). Nos Cadernos (Caderno 1 pág. 24, Caderno 2 pág. 6) ele vem em
+    // branco logo depois do cockpit; por isso fica no fim das duas trilhas.
+    id: "p11",
+    pdf: 11,
+    ev: "Fechamento · KRIs e KPIs",
+    t: "Meus KRIs e KPIs: ações principais",
+    trilhas: AP,
+    leia: ["como"],
+    intro:
+      "Do objetivo do ano aos resultados-chave (KRI), aos indicadores (KPI) e às ações do dia a dia. Para cada indicador, escreva as ações que você vai repetir toda semana para mover esse número.",
+    req: [],
+    livre: "kri.",
+  },
   {
     id: "p15",
     pdf: 15,
@@ -296,7 +341,7 @@ export const TELAS: Tela[] = [
     t: "Meu cockpit: meu plano em uma página",
     trilhas: AP,
     intro:
-      "Tudo o que você decidiu, numa página só, montado automaticamente pelas suas respostas. Toque em “p.” para corrigir na origem.",
+      "Tudo o que você decidiu, numa página só, montado automaticamente pelas suas respostas. Toque no número da página para corrigir na origem.",
     req: [],
   },
 ];
@@ -325,6 +370,7 @@ export const ORDEM: Record<Trilha, string[]> = {
     "p44",
     "p45",
     "p52",
+    "p11",
   ],
   ativacao: [
     "p20",
@@ -341,6 +387,7 @@ export const ORDEM: Record<Trilha, string[]> = {
     "p51",
     "p45",
     "p52",
+    "p11",
   ],
 };
 
@@ -363,14 +410,78 @@ const POR_ID = new Map(TELAS.map((t) => [t.id, t]));
 export const tela = (id: string) => POR_ID.get(id);
 export const telaDaPagina = (pdf: number) => TELAS.find((t) => t.pdf === pdf);
 
+/**
+ * Número impresso no rodapé do book do PDF 46 em diante, conferido página por página no PDF oficial.
+ * As 2 páginas de Anotações (PDF 46 e 47) entram sem número e deslocam a sequência: daí em diante o
+ * impresso não é mais PDF − 1. `null` = página sem número impresso (PDF 46, 47, 48, 54, 55, 56).
+ */
+const PAGINA_IMPRESSA_FINAL: Record<number, number | null> = {
+  46: null,
+  47: null,
+  48: null,
+  49: 46,
+  50: 47,
+  51: 48,
+  52: 49,
+  53: 50,
+  54: null,
+  55: null,
+  56: null,
+};
+
+/**
+ * Páginas antes do PDF 46 sem número impresso no rodapé (conferido no PDF oficial, 12/11): propaganda da
+ * Cartilha (2), Sumário (3) e as aberturas de bloco/frases de página inteira (14, 18, 21, 26, 33, 35, 41, 42).
+ */
+const SEM_NUMERO_IMPRESSO = new Set([2, 3, 14, 18, 21, 26, 33, 35, 41, 42]);
+
+/** Rótulo da página com as duas numerações (Denis, 11/11): "pág. 19 · PDF 20". Sem número impresso (capa, aberturas, PDF 46–48, 54–56), só "PDF N". */
+export const rotuloPagina = (pdf: number) => {
+  const impressa =
+    pdf in PAGINA_IMPRESSA_FINAL
+      ? PAGINA_IMPRESSA_FINAL[pdf]
+      : pdf > 1 && !SEM_NUMERO_IMPRESSO.has(pdf)
+        ? pdf - 1
+        : null;
+  return impressa ? `pág. ${impressa} · PDF ${pdf}` : `PDF ${pdf}`;
+};
+
+/**
+ * Páginas do book sem tela própria cujo exercício está em outra tela. O PDF 11 levava às Metas
+ * (Lote 1, item 10); agora tem o próprio exercício (quadro de KRIs, tela p11), então não precisa de atalho.
+ */
+export const ATALHO_PAGINA: Record<number, string> = {};
+export const exercicioDaPagina = (pdf: number) =>
+  ATALHO_PAGINA[pdf] ? tela(ATALHO_PAGINA[pdf]) : undefined;
+
+/** Sem trilha escolhida (entrou pelo book ou por "Preencher esta página"), o resto do plano usa Planejamento. */
+export const TRILHA_PADRAO: Trilha = "planejamento";
+
+/**
+ * Campo obrigatório que conta como preenchido mesmo vazio, porque a conta já usa uma sugestão válida
+ * (diagnóstico ou telas anteriores). Só muda o % e o selo exibidos; nenhuma conta muda.
+ */
+function preenchido(k: string, S: Respostas, C: () => ReturnType<typeof calc>) {
+  if (cheio(S[k])) return true;
+  if (k === "m.ticket") return ok(C().ticket) && C().ticket > 0;
+  if (k === "m.conv") return ok(C().conv) && C().conv > 0;
+  if (k === "mt.creFim") return ok(C().creFim);
+  return false;
+}
+const calcPreguicoso = (S: Respostas) => {
+  let c: ReturnType<typeof calc> | null = null;
+  return () => (c ??= calc(S));
+};
+
 export function progresso(S: Respostas, trilha: Trilha | null | undefined) {
-  if (!trilha) return { pct: 0, telas: 0, total: 0 };
-  const ids = ORDEM[trilha];
+  const ids = ORDEM[trilha ?? TRILHA_PADRAO];
+  const C = calcPreguicoso(S);
   const req = ids.flatMap((id) => tela(id)!.req);
-  const feitos = req.filter((k) => cheio(S[k])).length;
-  const telas = ids.filter(
-    (id) => statusTela(id, S) !== "vazio" && statusTela(id, S) !== "parc",
-  ).length;
+  const feitos = req.filter((k) => preenchido(k, S, C)).length;
+  const telas = ids.filter((id) => {
+    const st = statusTela(id, S);
+    return st !== "vazio" && st !== "parc";
+  }).length;
   return {
     pct: req.length ? Math.round((100 * feitos) / req.length) : 0,
     telas,
@@ -383,7 +494,8 @@ export function statusTela(id: string, S: Respostas): "ok" | "parc" | "vazio" | 
   const p = tela(id);
   if (!p) return null;
   if (p.req.length) {
-    const f = p.req.filter((k) => cheio(S[k])).length;
+    const C = calcPreguicoso(S);
+    const f = p.req.filter((k) => preenchido(k, S, C)).length;
     return f === p.req.length ? "ok" : f > 0 ? "parc" : "vazio";
   }
   if (!p.livre) return "auto";

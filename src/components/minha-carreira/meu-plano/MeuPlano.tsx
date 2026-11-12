@@ -14,7 +14,16 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ErrorState, ListSkeleton, Pill } from "@/components/visual/base";
 import { calc, fmt, metaOficialDoPlano, type Respostas } from "@/lib/meu-plano-2027/regras";
-import { ORDEM, TRILHAS, progresso, tela, vizinhos, type Trilha } from "@/lib/meu-plano-2027/telas";
+import {
+  ORDEM,
+  TRILHAS,
+  TRILHA_PADRAO,
+  progresso,
+  rotuloPagina,
+  tela,
+  vizinhos,
+  type Trilha,
+} from "@/lib/meu-plano-2027/telas";
 import { LEIA } from "@/lib/meu-plano-2027/book";
 import { erroPlano, planoDb } from "@/lib/meu-plano-2027/modulo";
 import { metasDoCalc, snapshotMudou } from "@/lib/meta-atividades";
@@ -88,7 +97,7 @@ function LeiaAntes({
               className="border-t border-dashed border-amber-200 pt-2 dark:border-amber-900"
             >
               <summary className="cursor-pointer text-sm">
-                {l.t} <span className="text-xs text-muted-foreground">p.{l.pdf - 1}</span>
+                {l.t} <span className="text-xs text-muted-foreground">{rotuloPagina(l.pdf)}</span>
               </summary>
               <p className="mt-1 text-[13px]">{l.r}</p>
               <div className="mt-1 flex gap-2">
@@ -363,6 +372,7 @@ export function MeuPlano({
           trilha={plano.trilha}
           irPagina={(n) => ir({ v: "book", p: n }, true)}
           preencher={(id) => irTela(id, vista.p)}
+          escolherTrilha={() => ir({ v: "trilha" })}
         />
       </>
     );
@@ -543,12 +553,12 @@ export function MeuPlano({
             className="w-full"
             onClick={() => abrirBook(vindoDoBook)}
           >
-            ← Voltar ao book (p. {vindoDoBook})
+            ← Voltar ao book ({rotuloPagina(vindoDoBook)})
           </Button>
         ) : null}
         <Bloco className="border-primary/40">
           <p className="text-[11px] font-bold uppercase tracking-wide text-primary">
-            {t.ev} · pág. {t.pdf - 1} do book
+            {t.ev} · {rotuloPagina(t.pdf)} do book
           </p>
           <h2 className="text-lg font-semibold">
             {t.t} {t.recorrente ? <Pill tom="amber">recorrente</Pill> : null}
@@ -630,12 +640,16 @@ export function MeuPlanoResumo({
   } | null;
 }) {
   const p = progresso(S, trilha);
+  // Sem trilha mas com respostas (entrou pelo book): mostra o % pela trilha padrão, como o resto do plano.
   return (
     <div className="space-y-2">
-      {trilha ? (
+      {trilha || p.pct > 0 ? (
         <div className="grid grid-cols-2 gap-2">
           <Stat v={`${p.pct}%`} rot="do plano preenchido" />
-          <Stat v={`${p.telas}/${p.total}`} rot={`telas · trilha ${TRILHAS[trilha].n}`} />
+          <Stat
+            v={`${p.telas}/${p.total}`}
+            rot={`telas · trilha ${TRILHAS[trilha ?? TRILHA_PADRAO].n}`}
+          />
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">

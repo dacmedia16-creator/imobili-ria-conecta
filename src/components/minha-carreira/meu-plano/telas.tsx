@@ -16,6 +16,7 @@ import {
   PORQUE,
   REGUA,
   addDias,
+  cheio,
   dataBR,
   fmt,
   nomeDia,
@@ -24,7 +25,7 @@ import {
   soma,
   type Calc,
 } from "@/lib/meu-plano-2027/regras";
-import { ORDEM, P15_CAMPOS, tela } from "@/lib/meu-plano-2027/telas";
+import { KRIS, ORDEM, P15_CAMPOS, rotuloPagina, tela } from "@/lib/meu-plano-2027/telas";
 import { Pill } from "@/components/visual/base";
 import {
   Aviso,
@@ -33,6 +34,7 @@ import {
   Check,
   Citacao,
   Conta,
+  Dica,
   Inp,
   Linha,
   Nota,
@@ -133,6 +135,36 @@ export type Extras = {
   irPara?: (id: string) => void;
 };
 
+/** "pág. N · PDF M" de uma tela, clicável quando dá para ir até ela (item 11: de onde vem cada número). */
+function Origem({ id, irPara }: { id: string; irPara?: (id: string) => void }) {
+  const p = tela(id);
+  if (!p) return null;
+  const txt = `${p.t} (${rotuloPagina(p.pdf)})`;
+  return irPara ? (
+    <button type="button" className="font-semibold underline" onClick={() => irPara(id)}>
+      {txt}
+    </button>
+  ) : (
+    <b>{txt}</b>
+  );
+}
+
+/** Subtítulo numerado dentro de um bloco (ex.: "01 · Região"), com a bolinha "como preencher". */
+function Sub({
+  children,
+  ajuda,
+}: {
+  children: ReactNode;
+  ajuda: Parameters<typeof Dica>[0]["id"];
+}) {
+  return (
+    <div className="relative mt-3 flex items-center gap-1.5 first:mt-1">
+      <h4 className="text-sm font-semibold text-primary">{children}</h4>
+      <Dica id={ajuda} />
+    </div>
+  );
+}
+
 export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
   const { S, C, inicio, trilha } = usePlanoCtx();
   switch (id) {
@@ -140,7 +172,7 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
       return (
         <>
           {extras?.p15}
-          <Bloco>
+          <Bloco ajuda="p15.indicadores">
             {P15_CAMPOS.map(([k, l, t, s]) => (
               <div
                 key={k}
@@ -169,7 +201,7 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
     case "p16":
       return (
         <>
-          <Bloco>
+          <Bloco ajuda="p16.origens">
             <div className="grid grid-cols-[1fr_3.5rem_3.5rem] gap-1.5 border-b pb-1 text-[11px] font-semibold text-muted-foreground">
               <span>Origem</span>
               <span>Captações vendidas</span>
@@ -198,7 +230,7 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
               </div>
             ))}
           </Bloco>
-          <Bloco titulo="Minhas 3 maiores origens do ano (automático)">
+          <Bloco titulo="Minhas 3 maiores origens do ano (automático)" ajuda="p16.top3">
             {C.top3.length ? (
               <ol className="list-decimal pl-5 text-sm font-semibold">
                 {C.top3.map((o) => (
@@ -206,7 +238,11 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
                 ))}
               </ol>
             ) : (
-              <p className="text-sm text-muted-foreground">Preencha a tabela acima.</p>
+              <Aviso>
+                Ainda vazio: as 3 maiores origens aparecem aqui sozinhas quando você anotar, na
+                tabela acima, quantos negócios vieram de cada origem. O ADM MAX ainda não traz as
+                origens.
+              </Aviso>
             )}
             <p className="mt-1 text-xs text-muted-foreground">
               Essas três recebem o seu investimento em 2027 (voltam na tela de marketing).
@@ -216,7 +252,7 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
       );
     case "p17":
       return (
-        <Bloco>
+        <Bloco ajuda="p17.notas">
           {AFIRMACOES.map((a, i) => (
             <Nota key={i} k={`av.${i}`} rot={`${i + 1}. ${a[0]}`} />
           ))}
@@ -244,7 +280,7 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
     case "p20":
       return (
         <>
-          <Bloco>
+          <Bloco ajuda="p20.perguntas">
             {PORQUE.map((q, i) => (
               <Campo key={i} k={`pq.${i}`} label={`${i + 1}. ${q[0]}`} tipo="area" hint={q[1]} />
             ))}
@@ -255,6 +291,7 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
               k="pq.frase"
               label="Com base nas respostas, como você resumiria seu principal porquê em uma frase?"
               tipo="area"
+              ajuda="p20.frase"
             />
           </Bloco>
         </>
@@ -262,7 +299,7 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
     case "p22":
       return (
         <>
-          <Bloco>
+          <Bloco ajuda="p22.orcamento">
             {PESSOAL.map((g, i) => (
               <Linha key={i} k={`op.${i}`} rot={g[0]} sub={g[1]} />
             ))}
@@ -276,7 +313,7 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
       );
     case "p23":
       return (
-        <Bloco>
+        <Bloco ajuda="p23.orcamento">
           {NEGOCIO.map((g, i) => (
             <Linha key={i} k={`on.${i}`} rot={g[0]} sub={g[1]} />
           ))}
@@ -286,7 +323,7 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
       );
     case "p24":
       return (
-        <Bloco>
+        <Bloco ajuda="p24.sonhos">
           {[0, 1, 2].map((i) => (
             <div key={i} className="grid grid-cols-2 gap-2">
               <Campo k={`so.${i}.t`} label={`Sonho ${i + 1}`} ph="ex.: viagem em família" />
@@ -309,7 +346,8 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
               label="5 · Minha alíquota estimada de imposto (%)"
               tipo="pct"
               ph="ex.: 15"
-              hint="Use a alíquota efetiva que você já paga; se não souber, pergunte ao seu contador. Não é orientação fiscal."
+              ajuda="p25.aliq"
+              hint="Este plano não é orientação fiscal."
             />
             <Conta
               rot="6 · O NÚMERO DO MEU ESTILO DE VIDA · linha 4 ÷ (1 − linha 5)"
@@ -327,11 +365,12 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
     case "p27":
       return (
         <>
-          <Bloco>
+          <Bloco ajuda="p27.conta">
             <Conta rot="1 · O número do meu estilo de vida" v={C.estiloAno} />
             <Selecao
               k="m.faixa"
               label="2 · Minha faixa de comissionamento hoje"
+              ajuda="p27.faixa"
               opcoes={FAIXAS.map((f) => [String(f[0]), f[1]])}
             />
             <Conta rot="3 · Comissão bruta que preciso gerar (1 ÷ 2)" v={C.bruta} />
@@ -339,17 +378,32 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
               k="m.ticket"
               label="4 · Meu ticket médio (R$)"
               tipo="money"
+              ajuda="p27.ticket"
               ph={ok(C.d.ticket) ? `do diagnóstico: ${fmt.brl0(C.d.ticket)}` : "ex.: 700.000"}
               hint={
-                trilha === "ativacao"
-                  ? "Ainda sem histórico? Use o preço médio dos imóveis da sua região."
-                  : "Vem do “Meu ano em números”; pode ajustar."
+                cheio(S["m.ticket"]) ? (
+                  "Valor digitado por você."
+                ) : ok(C.d.ticket) ? (
+                  <>
+                    Em branco: a conta está usando <b>{fmt.brl0(C.d.ticket)}</b> do seu diagnóstico,{" "}
+                    <Origem id="p15" irPara={extras?.irPara} />. Digite aqui só se quiser outro
+                    valor.
+                  </>
+                ) : trilha === "ativacao" ? (
+                  "Ainda sem histórico? Use o preço médio dos imóveis da sua região."
+                ) : (
+                  <>
+                    ⚠ Falta o ticket: preencha o diagnóstico em{" "}
+                    <Origem id="p15" irPara={extras?.irPara} /> ou digite aqui.
+                  </>
+                )
               }
             />
             <Campo
               k="m.pct"
               label="5 · Percentual de comissão por transação (%)"
               tipo="pct"
+              ajuda="p27.pct"
               ph="ex.: 3"
             />
             <Conta rot="6 · Comissão média por transação (4 × 5)" v={C.comTrans} />
@@ -368,15 +422,20 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
               </Aviso>
             ) : null}
           </Bloco>
-          <Bloco titulo="Minha próxima faixa">
+          <Bloco titulo="Minha próxima faixa e meu clube" ajuda="p27.proxima">
             <Selecao
               k="m.faixaAlvo"
               label="Faixa que quero alcançar"
               opcoes={FAIXAS.map((f) => [String(f[0]), f[1]])}
             />
+            <Selecao
+              k="mt.clube"
+              label="Clube de Corretores que quero conquistar em 2027"
+              opcoes={CLUBES.map((c) => [c.n, c.n])}
+            />
             <p className="mt-1 text-xs text-muted-foreground">
-              O clube de 2027 é escolhido em “Minhas metas para 2027”, já com a sugestão pelo seu
-              VGC.
+              É a mesma resposta de “Minhas metas para 2027”: mudou aqui, muda lá.
+              {C.clubeSug ? ` Pelo VGC do seu plano, a faixa é ${C.clubeSug.n}.` : ""}
             </p>
           </Bloco>
         </>
@@ -384,14 +443,31 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
     case "p30":
       return (
         <>
-          <Bloco>
+          <Bloco ajuda="p30.conta">
             <Conta rot="1 · Transações que preciso fechar" v={C.trans} f="int" />
             <Campo
               k="m.conv"
               label="2 · Minha conversão da captação (%)"
               tipo="pct"
+              ajuda="p30.conv"
               ph={ok(C.d.conv) ? `do diagnóstico: ${C.d.conv}%` : "ex.: 22"}
-              hint="Ainda sem histórico? O exemplo do book usa 22%."
+              hint={
+                cheio(S["m.conv"]) ? (
+                  "Valor digitado por você."
+                ) : ok(C.d.conv) ? (
+                  <>
+                    Em branco: a conta está usando <b>{fmt.dec(C.d.conv)}%</b> do seu diagnóstico,{" "}
+                    <Origem id="p15" irPara={extras?.irPara} />. Digite aqui só se quiser outro
+                    valor.
+                  </>
+                ) : (
+                  <>
+                    ⚠ As captações ficam em branco até ter a conversão: preencha a “Conversão das
+                    CREs” em <Origem id="p15" irPara={extras?.irPara} /> ou digite aqui. Ainda sem
+                    histórico? O exemplo do book usa 22%.
+                  </>
+                )
+              }
             />
             <Conta
               rot="3 · CAPTAÇÕES QUE PRECISO FAZER EM 2027 (1 ÷ 2)"
@@ -410,7 +486,18 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
     case "p31":
       return (
         <>
-          <Bloco titulo="Onde eu quero estar">
+          <Bloco>
+            {/* Só registro, como a linha em branco do book (pág. 30): não entra em conta nem na meta oficial. */}
+            <Campo
+              k="m.carteira"
+              label="Quantas CREs ativas quero manter ao longo de 2027"
+              tipo="int"
+              ajuda="p31.carteira"
+              ph="ex.: 15"
+              hint="Só para você registrar o número; não muda nenhuma conta do plano nem a meta oficial."
+            />
+          </Bloco>
+          <Bloco titulo="Onde eu quero estar" ajuda="p31.alvo">
             <Radio
               k="m.alvo"
               opcoes={[
@@ -420,7 +507,7 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
               ]}
             />
           </Bloco>
-          <Bloco titulo="Confira a sua conta (automática)">
+          <Bloco titulo="Confira a sua conta (automática)" ajuda="p31.conta">
             <Conta rot="Captações por mês" v={C.captMes} f="int" />
             <Campo
               k="m.meses"
@@ -441,7 +528,7 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
           </Bloco>
           <details className="rounded-xl border bg-card">
             <summary className="cursor-pointer px-3 py-2.5 text-sm font-semibold">
-              A régua das CREs ativas (p.30)
+              A régua das CREs ativas ({rotuloPagina(31)})
             </summary>
             <table className="mx-3 mb-3 w-[calc(100%-1.5rem)] text-[13px]">
               <tbody>
@@ -459,20 +546,22 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
         </>
       );
     case "p32":
-      return <TelaMetas extra={extras?.p32} />;
+      return <TelaMetas extra={extras?.p32} irPara={extras?.irPara} />;
+    case "p11":
+      return <TelaKris irPara={extras?.irPara} />;
     case "p34":
       return (
         <>
           <Bloco>
-            <h4 className="mt-1 text-sm font-semibold text-primary">01 · Região</h4>
+            <Sub ajuda="p34.regiao">01 · Região</Sub>
             <Campo k="pos.regiao" label="Minha área de atuação" tipo="area" ph="bairros / região" />
             <div className="grid grid-cols-2 gap-2">
               <Campo k="pos.pctHoje" label="Carteira hoje na região (%)" tipo="pct" />
               <Campo k="pos.pctMeta" label="Meta no fim de 2027 (%)" tipo="pct" />
             </div>
-            <h4 className="mt-3 text-sm font-semibold text-primary">02 · Tipo de imóvel</h4>
+            <Sub ajuda="p34.tipo">02 · Tipo de imóvel</Sub>
             <Campo k="pos.tipo" label="Tipo em que quero ser referência" />
-            <h4 className="mt-3 text-sm font-semibold text-primary">03 · Ticket médio</h4>
+            <Sub ajuda="p34.ticket">03 · Ticket médio</Sub>
             <div className="grid grid-cols-2 gap-2">
               <Campo k="pos.de" label="De R$" tipo="money" />
               <Campo k="pos.ate" label="a R$" tipo="money" />
@@ -492,17 +581,19 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
     case "p36":
       return (
         <>
-          <Bloco>
+          <Bloco ajuda="p36.horas">
             {BLOCOS_SEMANA.map((b, i) => (
               <Linha key={i} k={`sp.${i}`} rot={b[0]} sub={b[1]} tipo="int" ph="h/sem" />
             ))}
             <Conta rot="TOTAL DE HORAS POR SEMANA" v={C.horasTot} f="int" main />
           </Bloco>
           <Bloco>
-            <Selecao k="sp.dia" label="Meu dia de revisão de estoque é" opcoes={DIAS} />
-            <p className="mt-1 text-xs text-muted-foreground">
-              Trate como reunião com cliente: não se desmarca.
-            </p>
+            <Selecao
+              k="sp.dia"
+              label="Meu dia de revisão de estoque é"
+              opcoes={DIAS}
+              ajuda="p36.dia"
+            />
           </Bloco>
           <details className="rounded-xl border bg-card">
             <summary className="cursor-pointer px-3 py-2.5 text-sm font-semibold">
@@ -528,6 +619,7 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
               k="fu.v2cre"
               label="De cada 100 segundas visitas (V2), quantas viram CRE? (%)"
               tipo="pct"
+              ajuda="p37.v2cre"
               ph={`padrão: ${C.txV2Cre}`}
             />
             <Conta rot="Segundas visitas (V2) por mês" v={C.v2Mes} f="int" />
@@ -535,25 +627,36 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
               k="fu.v1v2"
               label="De cada 100 primeiras visitas (V1), quantas viram V2? (%)"
               tipo="pct"
+              ajuda="p37.v1v2"
               ph={`padrão: ${C.txV1V2}`}
             />
             <Conta rot="Primeiras visitas (V1) por mês" v={C.v1Mes} f="int" />
             <Campo
               k="fu.folga"
-              label="Folga para quem desmarca (%)"
+              label="Taxa de folga para quem desmarca (%)"
               tipo="pct"
               ph={`padrão: ${C.folga}`}
+              ajuda="p37.folga"
             />
-            <Conta rot="CONTATOS COM AGENDAMENTO POR SEMANA" v={C.contSem} f="int" main />
+            <Conta
+              rot="RESULTADO · CONTATOS COM AGENDAMENTO POR SEMANA"
+              v={C.contSem}
+              f="int"
+              main
+            />
+            {ok(C.contSem) ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Conta: {fmt.int(C.v1Mes)} V1 por mês ÷ 4 semanas = {fmt.dec(C.v1Mes / 4)} +{" "}
+                {fmt.dec(C.folga)}% de folga = {fmt.dec((C.v1Mes / 4) * (1 + C.folga / 100))},
+                arredondado para cima = <b>{fmt.int(C.contSem)}</b>.
+              </p>
+            ) : null}
           </Bloco>
           <Aviso>
             Campo em branco usa a taxa padrão da imobiliária. Não sabe as suas taxas? Comece medindo
             agora, no CRM.
           </Aviso>
-          <Bloco titulo="Minha lista FROG">
-            <p className="text-xs text-muted-foreground">
-              Família, Relacionamentos, Organizações e Geografia + Clientes já atendidos.
-            </p>
+          <Bloco titulo="Minha lista FROG" ajuda="p37.frog">
             <div className="grid grid-cols-2 gap-2">
               <Campo k="fu.crmHoje" label="Pessoas no CRM hoje" tipo="int" />
               <Campo k="fu.crmFim" label="Quero ter no fim de 2027" tipo="int" />
@@ -564,7 +667,7 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
     case "p38":
       return (
         <>
-          <Bloco titulo="Meus compromissos">
+          <Bloco titulo="Meus compromissos" ajuda="p38.compromissos">
             <Campo
               k="rv.mes"
               label="Todo mês eu reviso o preço de pelo menos … imóveis"
@@ -585,17 +688,26 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
             <Stat v="6 em 10" rot="vende quem revisa após 90 dias" />
             <Stat v="3 em 10" rot="vende quem nunca revisa" />
           </div>
+          <p className="text-xs text-muted-foreground">
+            Dado fixo da rede REMAX (BI REMAX Brasil, set/2026), igual para todos: não muda com o
+            que você digita.
+          </p>
         </>
       );
     case "p39":
       return (
         <>
-          <Bloco>
+          <Bloco ajuda="p39.canais">
             {C.top3.length ? (
               <Aviso tom="green">
                 Suas 3 maiores origens do ano passado: <b>{C.top3.join(", ")}</b>
               </Aviso>
-            ) : null}
+            ) : (
+              <Aviso>
+                Suas 3 maiores origens aparecem aqui quando você preencher a tabela de{" "}
+                <Origem id="p16" irPara={extras?.irPara} />.
+              </Aviso>
+            )}
             {CANAIS.map((c, i) => (
               <Check key={i} k={`mk.${i}`}>
                 {c}
@@ -611,13 +723,20 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
             )}
           </Bloco>
           <Bloco>
-            <Campo k="mk.invest" label="Quanto vou investir por mês (R$)" tipo="money" />
+            <Campo
+              k="mk.invest"
+              label="Quanto vou investir por mês (R$)"
+              tipo="money"
+              ajuda="p39.invest"
+            />
             {ok(C.invest) ? (
               <Aviso tom={Math.abs(C.invest - C.mktNegocioMes) > 1 ? "amber" : "green"}>
-                Confira com o orçamento do negócio: marketing de captação + venda + Portal Boost ={" "}
-                <b>{fmt.brl(C.mktNegocioMes)}/mês</b>.
+                Você vai investir <b>{fmt.brl(C.invest)}/mês</b> (o que digitou acima). Seu
+                orçamento do negócio, em <Origem id="p23" irPara={extras?.irPara} />, prevê{" "}
+                <b>{fmt.brl(C.mktNegocioMes)}/mês</b> (marketing de captação + venda + Portal
+                Boost); esse segundo número só muda lá.
                 {Math.abs(C.invest - C.mktNegocioMes) > 1
-                  ? " Os dois números estão diferentes; ajuste um deles."
+                  ? " Os dois estão diferentes; ajuste um deles."
                   : " Bate ✔"}
               </Aviso>
             ) : null}
@@ -639,7 +758,7 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
     case "p40":
       return (
         <>
-          <Bloco titulo="O que eu preciso aprender em 2027">
+          <Bloco titulo="O que eu preciso aprender em 2027" ajuda="p40.aprender">
             {[0, 1, 2].map((i) => (
               <div key={i}>
                 <h4 className="mt-3 text-sm font-semibold text-primary">Habilidade {i + 1}</h4>
@@ -655,7 +774,7 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
               </div>
             ))}
           </Bloco>
-          <Bloco titulo="Minha agenda">
+          <Bloco titulo="Minha agenda" ajuda="p40.agenda">
             {AGENDA.map((a, i) => (
               <Linha key={i} k={`de.a.${i}`} rot={a} tipo="text" ph="quando?" />
             ))}
@@ -675,14 +794,14 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
     case "p45":
       return (
         <>
-          <Bloco titulo="Corretor">
+          <Bloco titulo="Corretor" ajuda="p45.corretor">
             <Campo k="pa.nome" label="Eu," />
             <p className="mt-1 text-sm">me comprometo a:</p>
             {[0, 1, 2].map((i) => (
               <Campo key={i} k={`pa.c.${i}`} label={`0${i + 1}`} />
             ))}
           </Bloco>
-          <Bloco titulo="Broker">
+          <Bloco titulo="Broker" ajuda="p45.broker">
             <Campo k="pa.bnome" label="Eu," ph="nome do broker" />
             <p className="mt-1 text-sm">me comprometo a:</p>
             {[0, 1, 2].map((i) => (
@@ -692,7 +811,7 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
               Combine com o seu broker. Ele assina pelo painel de gestão depois de você.
             </p>
           </Bloco>
-          <Bloco titulo="Nossa cadência de acompanhamento">
+          <Bloco titulo="Nossa cadência de acompanhamento" ajuda="p45.cadencia">
             <Selecao
               k="pa.cad"
               label="Frequência"
@@ -724,7 +843,7 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
             <Stat v="3,8×" rot="vende mais quem assina a 1ª CRE até o dia 45" />
             <Stat v="7 em 10" rot="vendem no 1º ano com 3 CREs em 90 dias" />
           </div>
-          <Bloco titulo="Minhas datas-alvo">
+          <Bloco titulo="Minhas datas-alvo" ajuda="p49.datas">
             <p className="text-sm text-muted-foreground">
               {inicio ? (
                 <>
@@ -742,7 +861,7 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
               <Aviso>⚠ Sua 1ª CRE está para depois do dia 45.</Aviso>
             ) : null}
           </Bloco>
-          <Bloco>
+          <Bloco ajuda="p49.apoio">
             <Campo k="d90.parceiro" label="Quem é o meu parceiro de cobrança (colega ou broker)" />
             <Campo
               k="d90.aprender"
@@ -761,8 +880,9 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
             return (
               <Bloco
                 key={i}
+                ajuda="p50.semana"
                 titulo={
-                  <span className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-2">
                     {s.t}
                     <Pill tom={f === s.itens.length ? "green" : "blue"}>
                       {f}/{s.itens.length}
@@ -783,7 +903,7 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
     case "p51":
       return (
         <>
-          <Bloco titulo="Marcos da primeira captação">
+          <Bloco titulo="Marcos da primeira captação" ajuda="p51.captacao">
             {MARCOS_CAPT.map((m, j) => (
               <Check key={j} k={`mc.c.${j}`}>
                 {m}
@@ -791,7 +911,7 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
             ))}
             <Campo k="mc.dataCapt" label="Data da minha primeira captação" tipo="date" />
           </Bloco>
-          <Bloco titulo="Marcos da primeira venda">
+          <Bloco titulo="Marcos da primeira venda" ajuda="p51.venda">
             {MARCOS_VENDA.map((m, j) => (
               <Check key={j} k={`mc.v.${j}`}>
                 {m}
@@ -808,7 +928,7 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
   }
 }
 
-function TelaMetas({ extra }: { extra?: ReactNode }) {
+function TelaMetas({ extra, irPara }: { extra?: ReactNode; irPara?: (id: string) => void }) {
   const { C } = usePlanoCtx();
   const sug = (v: number, money?: boolean) =>
     ok(v) ? `sugestão: ${money ? fmt.brl0(v) : fmt.int(v)}` : "";
@@ -820,8 +940,34 @@ function TelaMetas({ extra }: { extra?: ReactNode }) {
           Ao final de 2027 eu terei <b>{fmt.int(C.creFim)}</b> CREs ativas na minha carteira e o
           valor geral de comissão de <b>{fmt.brl0(C.vgc)}</b>, atingindo o <b>{C.clube || "—"}</b>.
         </p>
+        <details className="mt-2 text-xs" data-testid="de-onde-vem">
+          <summary className="cursor-pointer font-semibold">De onde vem cada número</summary>
+          <ul className="mt-1 list-disc space-y-1 pl-5">
+            <li>
+              <b>{fmt.int(C.creFim)} CREs ativas</b>: {fmt.int(C.creIni)} no início (do diagnóstico,{" "}
+              <Origem id="p15" irPara={irPara} />) + {fmt.int(C.novas)} novas (captações do ano,{" "}
+              <Origem id="p30" irPara={irPara} />) − {fmt.int(C.canc)} canceladas/expiradas −{" "}
+              {fmt.int(C.vendidas)} vendidas. Os campos abaixo trocam qualquer um deles.
+            </li>
+            <li>
+              <b>VGC {fmt.brl0(C.vgc)}</b>: {fmt.int(C.transMeta)} transações ×{" "}
+              {fmt.brl0(C.comMedia)} de comissão média (ticket × % de comissão,{" "}
+              <Origem id="p27" irPara={irPara} />
+              ).
+            </li>
+            <li>
+              <b>{C.clube || "Clube"}</b>:{" "}
+              {C.clubeSug && C.clube === C.clubeSug.n
+                ? `faixa do seu VGC (a partir de ${fmt.brl0(C.clubeSug.min)}, tabela dos Clubes de Corretores, ${rotuloPagina(28)})`
+                : C.clube
+                  ? "escolhido por você"
+                  : "aparece quando houver VGC"}
+              .
+            </li>
+          </ul>
+        </details>
       </Bloco>
-      <Bloco titulo="CREs (captações com representação exclusiva)">
+      <Bloco titulo="CREs (captações com representação exclusiva)" ajuda="p32.cres">
         <Linha
           k="mt.creIni"
           rot="Quantidade inicial de CREs ativas"
@@ -836,18 +982,18 @@ function TelaMetas({ extra }: { extra?: ReactNode }) {
           ph={sug(C.captAno)}
         />
         <Linha
-          k="mt.vendidas"
-          rot="Meta de CREs vendidas"
-          sub="sugestão: novas × conversão"
-          tipo="int"
-          ph={sug(C.vendidas)}
-        />
-        <Linha
           k="mt.canc"
           rot="Meta de CREs canceladas/expiradas"
           sub="as que a conversão não vende"
           tipo="int"
           ph={sug(C.canc)}
+        />
+        <Linha
+          k="mt.vendidas"
+          rot="Meta de CREs vendidas"
+          sub="sugestão: novas × conversão"
+          tipo="int"
+          ph={sug(C.vendidas)}
         />
         <Conta
           rot="Estoque no fim do ano (início + novas − canceladas − vendidas)"
@@ -861,7 +1007,7 @@ function TelaMetas({ extra }: { extra?: ReactNode }) {
           ph={sug(C.estoqueFim)}
         />
       </Bloco>
-      <Bloco titulo="Valor geral de comissão (VGC)">
+      <Bloco titulo="Valor geral de comissão (VGC)" ajuda="p32.vgc">
         <Linha k="mt.tCapt" rot="Meta de transações de captação" tipo="int" ph={sug(C.trans)} />
         <Linha
           k="mt.tVenda"
@@ -913,8 +1059,8 @@ function TelaMetas({ extra }: { extra?: ReactNode }) {
               {(
                 [
                   ["Novas CREs", C.novas],
+                  ["Canceladas/expiradas", C.canc],
                   ["CREs vendidas", C.vendidas],
-                  ["Canceladas", C.canc],
                   ["Transações", C.transMeta],
                   ["VGC (R$ mil)", C.vgc / 1000],
                 ] as [string, number][]
@@ -938,6 +1084,50 @@ function TelaMetas({ extra }: { extra?: ReactNode }) {
   );
 }
 
+/** Quadro de KRIs: a frase do Objetivo vem das Metas (mesmos números, sem campo novo); só as 6 ações são digitadas. */
+function TelaKris({ irPara }: { irPara?: (id: string) => void }) {
+  const { C } = usePlanoCtx();
+  return (
+    <>
+      <Bloco className="border-rose-900/40">
+        <Pill tom="red">OBJETIVO 2027</Pill>
+        <p className="mt-2 text-base" data-testid="kri-objetivo">
+          Ao final de 2027 eu terei <b>{fmt.int(C.creFim)}</b> CREs ativas na minha carteira e o
+          valor geral de comissão de <b>{fmt.brl0(C.vgc)}</b>, atingindo o <b>{C.clube || "—"}</b>.
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Estes números vêm de <Origem id="p32" irPara={irPara} />; para mudar, corrija lá.
+        </p>
+      </Bloco>
+      {KRIS.map((g) => (
+        <Bloco key={g.kri} titulo={g.kri} ajuda="p11.acoes">
+          {g.kpis.map((p) => (
+            <Campo
+              key={p.k}
+              k={p.k}
+              label={
+                <>
+                  KPI · {p.n}
+                  <small className="block text-xs font-normal text-muted-foreground">
+                    Ações principais
+                  </small>
+                </>
+              }
+              tipo="area"
+              ph="Quais ações você vai repetir toda semana para mover este número?"
+              hint={`Exemplo do book: ${p.ex.join(" · ")}.`}
+            />
+          ))}
+        </Bloco>
+      ))}
+      <Citacao>
+        O objetivo orienta as ações; as ações, repetidas toda semana, produzem os resultados que
+        levam você ao objetivo.
+      </Citacao>
+    </>
+  );
+}
+
 function PainelMensal({ C }: { C: Calc }) {
   const meta = [C.novas, C.creFim, ok(C.revisarMes) ? C.revisarMes * 12 : NaN, C.transMeta, C.vgc];
   return (
@@ -946,7 +1136,7 @@ function PainelMensal({ C }: { C: Calc }) {
         Tela recorrente: a linha META DO ANO já vem do seu plano. O preenchimento automático dos
         meses fica para a fase 2.
       </Aviso>
-      <Bloco>
+      <Bloco ajuda="p43.painel">
         <div className="overflow-x-auto">
           <table className="min-w-[520px] text-xs">
             <thead>
@@ -1004,7 +1194,7 @@ function Semanal() {
     ["Pontos da regra dos 4 pontos", 20],
   ];
   return (
-    <Bloco>
+    <Bloco ajuda="p44.semana">
       <Campo k="ac.mes" label="Mês de referência" ph="ex.: janeiro/2027" />
       <div className="mt-2 overflow-x-auto">
         <table className="min-w-[520px] text-xs">
@@ -1081,10 +1271,10 @@ function LinhaCk({
               className="text-[11px] text-muted-foreground underline"
               onClick={() => irPara(p.id)}
             >
-              p.{p.pdf - 1} ✎
+              {rotuloPagina(p.pdf)} ✎
             </button>
           ) : (
-            <span className="text-[11px] text-muted-foreground">p.{p.pdf - 1}</span>
+            <span className="text-[11px] text-muted-foreground">{rotuloPagina(p.pdf)}</span>
           )
         ) : null}
       </span>
