@@ -25,6 +25,11 @@ export async function guardMeuPlanoRoute() {
 export const PAPEIS_BROKER = ["gestor", "admin", "super_admin"] as const;
 export const ehBroker = (roles: readonly string[]) =>
   roles.some((r) => (PAPEIS_BROKER as readonly string[]).includes(r));
+/**
+ * Team leader vê (somente leitura) e baixa o plano dos membros da PRÓPRIA equipe (t_65edd0b0). O banco decide
+ * quem é da equipe (RLS carreira_plano_ler_lider + carreira_plano_equipe); aqui só mostra o botão "Equipe".
+ */
+export const ehLider = (roles: readonly string[]) => roles.includes("team_leader");
 
 /** Mensagem curta para os erros das RPCs do plano. */
 export function erroPlano(msg: string | undefined | null): string {
@@ -34,6 +39,7 @@ export function erroPlano(msg: string | undefined | null): string {
   if (/Login necessário/i.test(m)) return "Sua sessão expirou. Entre de novo.";
   if (/ainda não assinou/i.test(m)) return "O corretor ainda não assinou o pacto.";
   if (/Preencha o pacto/i.test(m)) return "Preencha o pacto antes de assinar.";
+  if (/líder de equipe vê a equipe/i.test(m)) return "Você ainda não lidera nenhuma equipe.";
   if (/Failed to fetch|NetworkError|network/i.test(m)) return "Sem conexão. Tentando de novo…";
   return m || "Não foi possível salvar.";
 }

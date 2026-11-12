@@ -15,6 +15,7 @@ import {
 import { erroPlano, planoDb } from "@/lib/meu-plano-2027/modulo";
 import { PlanoCtx, Bloco, Stat } from "./campos";
 import { Cockpit, CorpoTela } from "./telas";
+import { BotaoBaixarPlano } from "./BaixarPdf";
 
 type Membro = {
   user_id: string;
@@ -30,13 +31,18 @@ type Membro = {
 const quando = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—";
 
-/** Gestor/admin/administrador principal: lista da equipe e o plano completo, somente leitura. */
+/**
+ * Gestor/admin/administrador principal (a imobiliária) e team leader (só a própria equipe; o banco filtra):
+ * lista e o plano completo, somente leitura. Só o broker assina o pacto.
+ */
 export function EquipePlano({
   aberto,
   abrir,
+  broker = true,
 }: {
   aberto: string | null;
   abrir: (id: string | null) => void;
+  broker?: boolean;
 }) {
   const [lista, setLista] = useState<Membro[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -115,6 +121,13 @@ export function EquipePlano({
               {m.trilha ? `trilha ${TRILHAS[m.trilha].n}` : "sem trilha"} · {p.pct}% preenchido
             </p>
           </Bloco>
+          <BotaoBaixarPlano
+            userId={m.user_id}
+            nome={m.nome}
+            S={S}
+            trilha={m.trilha}
+            rotulo="Baixar o plano em PDF"
+          />
           <h3 className="text-base font-semibold">Cockpit (plano em uma página)</h3>
           <Cockpit />
           <Bloco titulo="Pacto com o broker">
@@ -130,7 +143,7 @@ export function EquipePlano({
                 {m.assinado_broker_em ? `✔ ${quando(m.assinado_broker_em)}` : "pendente"}
               </span>
             </div>
-            {m.assinado_corretor_em ? (
+            {!broker ? null : m.assinado_corretor_em ? (
               <Button
                 className="w-full"
                 disabled={ocupado || !!m.assinado_broker_em}
@@ -177,7 +190,11 @@ export function EquipePlano({
         <Stat v={linhas.filter((l) => l.m.meta_oficial_em).length} rot="metas oficiais" />
       </div>
       {linhas.length === 0 ? (
-        <EmptyState>Ninguém da imobiliária começou o plano ainda.</EmptyState>
+        <EmptyState>
+          {broker
+            ? "Ninguém da imobiliária começou o plano ainda."
+            : "Ninguém da sua equipe começou o plano ainda."}
+        </EmptyState>
       ) : (
         <ul className="divide-y rounded-xl border bg-card">
           {linhas.map(({ m: x, p }) => (
@@ -213,8 +230,9 @@ export function EquipePlano({
         </ul>
       )}
       <p className="text-xs text-muted-foreground">
-        Você vê os planos só desta imobiliária, em somente leitura. O corretor edita; você assina o
-        pacto depois dele.
+        {broker
+          ? "Você vê os planos só desta imobiliária, em somente leitura. O corretor edita; você assina o pacto depois dele."
+          : "Você vê os planos só da sua equipe, em somente leitura. O corretor edita; o broker assina o pacto."}
       </p>
     </div>
   );

@@ -4,10 +4,11 @@ import { BookOpen, Target, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ehBroker, meuPlanoEnabled, planoDb } from "@/lib/meu-plano-2027/modulo";
+import { ehBroker, ehLider, meuPlanoEnabled, planoDb } from "@/lib/meu-plano-2027/modulo";
 import { ANO_PLANO, ORDEM, rotuloPagina, type Trilha } from "@/lib/meu-plano-2027/telas";
 import type { Respostas } from "@/lib/meu-plano-2027/regras";
 import { MeuPlanoResumo } from "./meu-plano/MeuPlano";
+import { BotaoBaixarPlano } from "./meu-plano/BaixarPdf";
 
 type Linha = {
   respostas: Respostas;
@@ -83,7 +84,8 @@ export function MeuPlanoCartao({ userId }: { userId: string }) {
           </Link>
         </Button>
         {linha ? <MeuPlanoResumo S={S} trilha={trilha} metaOficial={linha.meta_oficial} /> : null}
-        {ehBroker(roles) ? (
+        <BotaoBaixarPlano userId={userId} S={S} trilha={trilha} />
+        {ehBroker(roles) || ehLider(roles) ? (
           <Button asChild size="sm" variant="secondary" className="w-full">
             <Link to="/minha-carreira/plano" search={{ v: "equipe" }}>
               <Users className="mr-2 h-4 w-4" aria-hidden /> Ver os planos da equipe
