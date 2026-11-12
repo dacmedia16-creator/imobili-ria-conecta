@@ -55,6 +55,7 @@ import { Route as EspecialistasSlugRouteImport } from './routes/especialistas.$s
 import { Route as LeadFormTokenRouteImport } from './routes/lead-form.$token'
 import { Route as PropostaTokenRouteImport } from './routes/proposta.$token'
 import { Route as AuthenticatedAdminAssinaturaDigitalRouteImport } from './routes/_authenticated/admin.assinatura-digital'
+import { Route as AuthenticatedAdminBannersRouteImport } from './routes/_authenticated/admin.banners'
 import { Route as AuthenticatedAdminConfiguracoesRouteImport } from './routes/_authenticated/admin.configuracoes'
 import { Route as AuthenticatedAdminDadosImobiliariaRouteImport } from './routes/_authenticated/admin.dados-imobiliaria'
 import { Route as AuthenticatedAdminPosicionamentoRouteImport } from './routes/_authenticated/admin.posicionamento'
@@ -331,6 +332,12 @@ const AuthenticatedAdminAssinaturaDigitalRoute =
     path: '/admin/assinatura-digital',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAdminBannersRoute =
+  AuthenticatedAdminBannersRouteImport.update({
+    id: '/admin/banners',
+    path: '/admin/banners',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminConfiguracoesRoute =
   AuthenticatedAdminConfiguracoesRouteImport.update({
     id: '/admin/configuracoes',
@@ -533,6 +540,7 @@ export interface FileRoutesByFullPath {
   '/proposta/$token': typeof PropostaTokenRoute
   '/especialistas/': typeof EspecialistasIndexRoute
   '/admin/assinatura-digital': typeof AuthenticatedAdminAssinaturaDigitalRoute
+  '/admin/banners': typeof AuthenticatedAdminBannersRoute
   '/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/admin/dados-imobiliaria': typeof AuthenticatedAdminDadosImobiliariaRoute
   '/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
@@ -607,6 +615,7 @@ export interface FileRoutesByTo {
   '/proposta/$token': typeof PropostaTokenRoute
   '/especialistas': typeof EspecialistasIndexRoute
   '/admin/assinatura-digital': typeof AuthenticatedAdminAssinaturaDigitalRoute
+  '/admin/banners': typeof AuthenticatedAdminBannersRoute
   '/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/admin/dados-imobiliaria': typeof AuthenticatedAdminDadosImobiliariaRoute
   '/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
@@ -683,6 +692,7 @@ export interface FileRoutesById {
   '/proposta/$token': typeof PropostaTokenRoute
   '/especialistas/': typeof EspecialistasIndexRoute
   '/_authenticated/admin/assinatura-digital': typeof AuthenticatedAdminAssinaturaDigitalRoute
+  '/_authenticated/admin/banners': typeof AuthenticatedAdminBannersRoute
   '/_authenticated/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/_authenticated/admin/dados-imobiliaria': typeof AuthenticatedAdminDadosImobiliariaRoute
   '/_authenticated/admin/posicionamento': typeof AuthenticatedAdminPosicionamentoRoute
@@ -759,6 +769,7 @@ export interface FileRouteTypes {
     | '/proposta/$token'
     | '/especialistas/'
     | '/admin/assinatura-digital'
+    | '/admin/banners'
     | '/admin/configuracoes'
     | '/admin/dados-imobiliaria'
     | '/admin/posicionamento'
@@ -833,6 +844,7 @@ export interface FileRouteTypes {
     | '/proposta/$token'
     | '/especialistas'
     | '/admin/assinatura-digital'
+    | '/admin/banners'
     | '/admin/configuracoes'
     | '/admin/dados-imobiliaria'
     | '/admin/posicionamento'
@@ -908,6 +920,7 @@ export interface FileRouteTypes {
     | '/proposta/$token'
     | '/especialistas/'
     | '/_authenticated/admin/assinatura-digital'
+    | '/_authenticated/admin/banners'
     | '/_authenticated/admin/configuracoes'
     | '/_authenticated/admin/dados-imobiliaria'
     | '/_authenticated/admin/posicionamento'
@@ -1284,6 +1297,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAssinaturaDigitalRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin/banners': {
+      id: '/_authenticated/admin/banners'
+      path: '/admin/banners'
+      fullPath: '/admin/banners'
+      preLoaderRoute: typeof AuthenticatedAdminBannersRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin/configuracoes': {
       id: '/_authenticated/admin/configuracoes'
       path: '/admin/configuracoes'
@@ -1507,6 +1527,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedVendasPorRegiaoRoute: typeof AuthenticatedVendasPorRegiaoRoute
   AuthenticatedVisaoExecutivaRoute: typeof AuthenticatedVisaoExecutivaRoute
   AuthenticatedAdminAssinaturaDigitalRoute: typeof AuthenticatedAdminAssinaturaDigitalRoute
+  AuthenticatedAdminBannersRoute: typeof AuthenticatedAdminBannersRoute
   AuthenticatedAdminConfiguracoesRoute: typeof AuthenticatedAdminConfiguracoesRoute
   AuthenticatedAdminDadosImobiliariaRoute: typeof AuthenticatedAdminDadosImobiliariaRoute
   AuthenticatedAdminPosicionamentoRoute: typeof AuthenticatedAdminPosicionamentoRoute
@@ -1565,6 +1586,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedVisaoExecutivaRoute: AuthenticatedVisaoExecutivaRoute,
   AuthenticatedAdminAssinaturaDigitalRoute:
     AuthenticatedAdminAssinaturaDigitalRoute,
+  AuthenticatedAdminBannersRoute: AuthenticatedAdminBannersRoute,
   AuthenticatedAdminConfiguracoesRoute: AuthenticatedAdminConfiguracoesRoute,
   AuthenticatedAdminDadosImobiliariaRoute:
     AuthenticatedAdminDadosImobiliariaRoute,
