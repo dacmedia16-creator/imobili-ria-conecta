@@ -31,6 +31,7 @@ import { PlanoCtx, Aviso, Bloco, Stat } from "./campos";
 import { CorpoTela } from "./telas";
 import { Leitor, PaginaOriginal } from "./Leitor";
 import { usePlano, type StatusSalvar } from "./usePlano";
+import { BotaoBaixarPlano } from "./BaixarPdf";
 
 export type Vista =
   { v: "trilha" } | { v: "tela"; id: string } | { v: "book"; p: number } | { v: "fim" };
@@ -411,6 +412,14 @@ export function MeuPlano({
           titulo="Leia depois (opcional)"
           verPagina={setOriginal}
           abrirBook={abrirBook}
+        />
+        {/* Regra aprovada (t_65edd0b0): só com todas as telas da trilha completas; senão o botão não aparece. */}
+        <BotaoBaixarPlano
+          userId={userId}
+          S={S}
+          trilha={plano.trilha}
+          antes={h.enviar}
+          className="w-full border-primary text-primary"
         />
         <Button className="w-full" onClick={() => irTela("p52")}>
           Ver meu cockpit

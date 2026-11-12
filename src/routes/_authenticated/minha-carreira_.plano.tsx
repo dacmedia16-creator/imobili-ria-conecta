@@ -4,7 +4,7 @@ import { ArrowLeft, Target, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/visual/base";
-import { ehBroker, guardMeuPlanoRoute } from "@/lib/meu-plano-2027/modulo";
+import { ehBroker, ehLider, guardMeuPlanoRoute } from "@/lib/meu-plano-2027/modulo";
 import { TOTAL_PAGINAS } from "@/lib/meu-plano-2027/book";
 import { tela } from "@/lib/meu-plano-2027/telas";
 import { MeuPlano, type Vista } from "@/components/minha-carreira/meu-plano/MeuPlano";
@@ -47,6 +47,8 @@ function MeuPlanoPage() {
   const busca = Route.useSearch();
   const navigate = useNavigate({ from: "/minha-carreira/plano" });
   const broker = ehBroker(roles);
+  // Equipe: broker vê a imobiliária; team leader vê só a própria equipe (o banco filtra).
+  const veEquipe = broker || ehLider(roles);
 
   const ir = useCallback(
     (v: Vista, replace?: boolean) => {
@@ -83,7 +85,7 @@ function MeuPlanoPage() {
             <ArrowLeft className="mr-1 h-4 w-4" aria-hidden /> Minha carreira
           </Link>
         </Button>
-        {broker ? (
+        {veEquipe ? (
           <Button
             size="sm"
             variant={busca.v === "equipe" ? "default" : "outline"}
@@ -96,14 +98,18 @@ function MeuPlanoPage() {
           </Button>
         ) : null}
       </div>
-      {busca.v === "equipe" && broker ? (
+      {busca.v === "equipe" && veEquipe ? (
         <>
           <PageHeader
             icon={Users}
             title="Meu Plano 2027 — equipe"
-            description="Planos da imobiliária, somente leitura."
+            description={
+              broker
+                ? "Planos da imobiliária, somente leitura."
+                : "Planos da sua equipe, somente leitura."
+            }
           />
-          <EquipePlano aberto={busca.m ?? null} abrir={abrirMembro} />
+          <EquipePlano aberto={busca.m ?? null} abrir={abrirMembro} broker={broker} />
         </>
       ) : (
         <>
