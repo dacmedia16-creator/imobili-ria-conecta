@@ -32,6 +32,7 @@ import { CorpoTela } from "./telas";
 import { Leitor, PaginaOriginal } from "./Leitor";
 import { usePlano, type StatusSalvar } from "./usePlano";
 import { BotaoBaixarPlano } from "./BaixarPdf";
+import { IndiceTelas } from "./IndiceTelas";
 
 export type Vista =
   { v: "trilha" } | { v: "tela"; id: string } | { v: "book"; p: number } | { v: "fim" };
@@ -537,8 +538,8 @@ export function MeuPlano({
                 ? `Trilha ${TRILHAS[trilha].n} · tela ${viz.i + 1} de ${viz.total}`
                 : `Fora da trilha ${TRILHAS[trilha].n}`}
             </span>
-            <span>
-              {prog.pct}% ·{" "}
+            <span className="flex shrink-0 items-center gap-1">
+              {prog.pct}% · <IndiceTelas trilha={trilha} atual={t.id} S={S} irTela={irTela} /> ·{" "}
               <button
                 type="button"
                 className="font-semibold text-rose-800 dark:text-rose-300"
