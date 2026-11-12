@@ -372,6 +372,7 @@ export function MeuPlano({
           trilha={plano.trilha}
           irPagina={(n) => ir({ v: "book", p: n }, true)}
           preencher={(id) => irTela(id, vista.p)}
+          escolherTrilha={() => ir({ v: "trilha" })}
         />
       </>
     );

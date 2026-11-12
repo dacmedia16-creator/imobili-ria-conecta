@@ -30,6 +30,21 @@ export function SeloPagina({ id, S }: { id: string; S: Respostas }) {
   return <Pill tom="blue">✏️ exercício</Pill>;
 }
 
+/**
+ * Para onde vai o botão fixo "Ir para os exercícios" numa página do book SEM exercício:
+ * com trilha, a última tela em que parou (ui.ult, se for da trilha) ou a primeira da trilha;
+ * sem trilha, a tela de escolha de trilha.
+ */
+export function destinoExercicios(
+  S: Respostas,
+  trilha: Trilha | null,
+): { v: "tela"; id: string } | { v: "trilha" } {
+  if (!trilha) return { v: "trilha" };
+  const ult = S["ui.ult"];
+  if (typeof ult === "string" && ORDEM[trilha].includes(ult)) return { v: "tela", id: ult };
+  return { v: "tela", id: ORDEM[trilha][0] };
+}
+
 /** Leitor das 56 páginas do book (imagens estáticas; só a página aberta é baixada + a próxima). */
 export function Leitor({
   pagina,
@@ -37,12 +52,15 @@ export function Leitor({
   trilha,
   irPagina,
   preencher,
+  escolherTrilha,
 }: {
   pagina: number;
   S: Respostas;
   trilha: Trilha | null;
   irPagina: (n: number) => void;
   preencher: (id: string) => void;
+  /** Abre a tela de escolha de trilha (botão "Ir para os exercícios" de quem ainda não escolheu). */
+  escolherTrilha: () => void;
 }) {
   const n = Math.min(TOTAL_PAGINAS, Math.max(1, pagina));
   const [zoom, setZoom] = useState(false);
@@ -203,7 +221,20 @@ export function Leitor({
             <PencilLine className="mr-2 h-5 w-5" aria-hidden />{" "}
             {atalho ? `Ir ao exercício: ${ex.t}` : "✏️ Preencher esta página"}
           </Button>
-        ) : null}
+        ) : (
+          // Página sem exercício: no mesmo lugar do botão verde, leva para onde a pessoa preenche.
+          <Button
+            className="h-12 w-full basis-full bg-emerald-700 text-base font-semibold text-white hover:bg-emerald-800"
+            onClick={() => {
+              const d = destinoExercicios(S, trilha);
+              if (d.v === "tela") preencher(d.id);
+              else escolherTrilha();
+            }}
+            data-testid="ir-exercicios-fixo"
+          >
+            <PencilLine className="mr-2 h-5 w-5" aria-hidden /> Ir para os exercícios
+          </Button>
+        )}
         <Button
           variant="outline"
           className="flex-1"
