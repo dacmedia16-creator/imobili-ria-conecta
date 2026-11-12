@@ -152,6 +152,12 @@ SELECT pg_temp.ok(pg_temp.n('SELECT 1 FROM public.list_room_reservation_users()'
 SELECT pg_temp.ok(pg_temp.err(format($q$INSERT INTO public.room_reservations (organization_id, room, reserved_date, start_time,
   end_time, responsible_id, responsible_name, purpose) VALUES (%L, %L, current_date + 4, '14:00', '15:00', %L, 'UE Corretor', 'Reunião com cliente')$q$,
   pg_temp.id('orgA'), pg_temp.j('sala') #>> '{}', pg_temp.id('loc'))) IS NULL, 'reserva sala no próprio nome');
+SELECT pg_temp.ok(pg_temp.n('SELECT 1 FROM public.room_reservations WHERE responsible_id = auth.uid()') >= 1,
+  'vê a própria reserva');
+SELECT pg_temp.ok(pg_temp.err('SELECT public.get_room_reservation_cancellation_status()') IS NULL,
+  'situação de cancelamentos abre');
+SELECT pg_temp.ok(pg_temp.err(format('SELECT public.cancel_room_reservation(%L)',
+  (SELECT id FROM public.room_reservations WHERE responsible_id = auth.uid() LIMIT 1))) IS NULL, 'cancela a própria reserva');
 -- Mural
 SELECT pg_temp.ok(public.achievements_enabled(), 'Mural de Conquistas ligado para ele');
 SELECT pg_temp.ok(pg_temp.err('SELECT public.achievement_feed(20)') IS NULL AND pg_temp.n('SELECT 1 FROM public.achievement_posts') >= 1,
