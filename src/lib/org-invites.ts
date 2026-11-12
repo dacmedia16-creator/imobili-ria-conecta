@@ -42,7 +42,8 @@ export const INVITE_MODULES_OFF: readonly OrganizationModule[] = [
   "proposta_compra",
   // "locacao" (t_74426f94): nasce desligado; a plataforma liga por imobiliária.
   "locacao",
-  // "ajuda_max_locacao" (t_b037935e): nasce desligado; a plataforma liga por imobiliária.
+  // "ajuda_max_locacao" (t_b037935e): o convite não grava linha. Desde t_8fd40b23 sem linha = acompanha a
+  // Locação, que nasce desligada; então a imobiliária nova só vê o balão quando a Locação for ligada.
   "ajuda_max_locacao",
 ];
 
