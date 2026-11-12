@@ -51,6 +51,13 @@ SELECT pg_temp.id('orgA'), m, true FROM unnest(ARRAY['locacao', 'reserva_salas',
   'feedback_proprietario', 'oportunidades', 'leads', 'academia', 'vouchers_fotos', 'proposta_compra']) m
 ON CONFLICT (organization_id, module) DO UPDATE SET enabled = true;
 DELETE FROM public.organization_modules WHERE organization_id = pg_temp.id('orgA') AND module = 'ajuda_max_locacao';
+-- fot = um corretor-só da A que vira SÓ 'fotografo' (para provar que o só-Fotógrafo não muda).
+INSERT INTO ids SELECT 'fot', p.id FROM public.profiles p
+ WHERE p.ativo AND p.organization_id = pg_temp.id('orgA') AND p.id NOT IN (SELECT v FROM ids WHERE v IS NOT NULL)
+   AND (SELECT array_agg(role::text) FROM public.user_roles r WHERE r.user_id = p.id) = ARRAY['corretor']
+ ORDER BY p.id LIMIT 1;
+DELETE FROM public.user_roles WHERE user_id = pg_temp.id('fot');
+INSERT INTO public.user_roles (user_id, role, organization_id) VALUES (pg_temp.id('fot'), 'fotografo', pg_temp.id('orgA'));
 INSERT INTO public.locacao_papeis (organization_id, user_id, papel) VALUES (pg_temp.id('orgA'), pg_temp.id('ges'), 'gestora')
 ON CONFLICT DO NOTHING;
 INSERT INTO public.room_reservations (organization_id, room, reserved_date, start_time, end_time, responsible_id,
@@ -87,6 +94,31 @@ SELECT pg_temp.ok(EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'zz_locac
   AND EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'zz_locacao_fora' AND tablename = 'owner_feedback_actions')
   AND EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'zz_locacao_fora' AND tablename = 'carreira_diario'),
   'barreira cobre vendas, captações, ocorrências, feedback e carreira');
+-- Guarda contra tabela nova (t_00c1173c): toda tabela de public com organization_id/org_id que o navegador lê
+-- (SELECT para authenticated) precisa ter zz_locacao_fora, salvo as exceções da migration (entrada e área liberada).
+-- Se esta checagem falhar, a tabela nova precisa da barreira (ou entrar na lista de exceções, com motivo).
+CREATE FUNCTION pg_temp.sem_barreira() RETURNS text[] LANGUAGE sql AS $$
+  SELECT coalesce(array_agg(c.relname::text ORDER BY c.relname), ARRAY[]::text[]) FROM pg_class c
+   WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r', 'p')
+     AND has_table_privilege('authenticated', c.oid, 'SELECT')
+     AND EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.oid AND NOT a.attisdropped
+                  AND a.attname IN ('organization_id', 'org_id'))
+     AND c.relname NOT IN ('profiles', 'user_roles', 'organization_members', 'organizations',
+                           'organization_modules', 'notifications', 'user_tour_estado', 'profile_birthdates',
+                           'support_tickets', 'support_ticket_messages', 'push_subscriptions',
+                           'room_reservations', 'room_reservation_reminder_deliveries',
+                           'room_reservation_cancellation_penalties', 'agency_rooms',
+                           'achievement_posts', 'achievement_cheers', 'achievement_mutes')
+     AND NOT (c.relrowsecurity AND EXISTS (SELECT 1 FROM pg_policies p WHERE p.schemaname = 'public'
+                  AND p.tablename = c.relname AND p.policyname = 'zz_locacao_fora')) $$;
+SELECT pg_temp.ok(pg_temp.sem_barreira() = ARRAY[]::text[],
+  'nenhuma tabela com organization_id lida pelo navegador sem zz_locacao_fora: ' || pg_temp.sem_barreira()::text);
+-- A guarda pega mesmo uma tabela nova (criada e apagada aqui, dentro da transação).
+CREATE TABLE public.zz_teste_tabela_nova (id int, organization_id uuid);
+ALTER TABLE public.zz_teste_tabela_nova ENABLE ROW LEVEL SECURITY;
+GRANT SELECT ON public.zz_teste_tabela_nova TO authenticated;
+SELECT pg_temp.ok(pg_temp.sem_barreira() = ARRAY['zz_teste_tabela_nova'], 'a guarda acusa tabela nova sem a barreira');
+DROP TABLE public.zz_teste_tabela_nova;
 SELECT pg_temp.ok(public.eh_so_locacao(pg_temp.id('loc')) AND NOT public.eh_so_locacao(pg_temp.id('c2'))
   AND NOT public.eh_so_locacao(pg_temp.id('adm')) AND NOT public.eh_so_locacao(NULL),
   'eh_so_locacao: só o papel locacao sozinho (Locação + Corretor não conta)');
@@ -131,6 +163,16 @@ SELECT pg_temp.ok(pg_temp.err($q$INSERT INTO public.exclusive_captures (organiza
   'não cria captação exclusiva');
 SELECT pg_temp.ok(pg_temp.err($q$SELECT public.dashboard_stats()$q$) IS NULL
   AND (public.dashboard_stats()->>'minhas_vendas')::int = 0, 'Início abre sem erro e sem números de venda');
+-- Brechas da revisão t_70955df9 (t_00c1173c): RPCs que só olhavam auth.uid() e a Academia.
+SELECT pg_temp.ok(pg_temp.err($q$SELECT * FROM public.meu_realizado(current_date - 30, current_date)$q$) LIKE '42501%',
+  'meu_realizado (comissão/VGV/captações próprios): recusa (42501)');
+SELECT pg_temp.ok(pg_temp.err($q$SELECT public.photo_meu_resumo()$q$) LIKE '42501%Agendar fotos desligado%',
+  'photo_meu_resumo: recusa (Agendar fotos desligado para ele)');
+SELECT pg_temp.ok(pg_temp.err($q$SELECT public.photo_agendar(gen_random_uuid(), now() + interval '2 days', NULL)$q$)
+  LIKE '42501%Agendar fotos desligado%', 'photo_agendar: recusa antes de qualquer outra checagem');
+SELECT pg_temp.ok(NOT public.academia_has_active_adm_access(), 'Academia: porteiro recusa o só-Locação');
+SELECT pg_temp.ok(academia.user_org(auth.uid()) IS NULL AND academia.current_org() IS NULL,
+  'Academia: user_org / current_org = NULL para o só-Locação');
 
 -- 2) Só-Locação: o que ele pode ---------------------------------------------------------------------------------------
 SELECT pg_temp.ok(public.locacao_enabled(), 'Locação ligada para ele');
@@ -214,6 +256,29 @@ SELECT pg_temp.ok(pg_temp.err($q$SELECT public.vendas_por_regiao_todos(current_d
   'Locação + Corretor: Vendas por região abre');
 SELECT pg_temp.ok(pg_temp.err($q$SELECT public.carreira_ranking(current_date - 30, current_date)$q$) IS NULL,
   'Locação + Corretor: ranking da carreira abre');
+SELECT pg_temp.ok(pg_temp.err($q$SELECT * FROM public.meu_realizado(current_date - 30, current_date)$q$) IS NULL,
+  'Locação + Corretor: meu_realizado abre');
+SELECT pg_temp.ok(pg_temp.err($q$SELECT public.photo_meu_resumo()$q$) IS NULL, 'Locação + Corretor: photo_meu_resumo abre');
+SELECT pg_temp.ok(coalesce(pg_temp.err($q$SELECT public.photo_agendar(gen_random_uuid(), now() + interval '2 days', NULL)$q$), '')
+  NOT LIKE '%Agendar fotos desligado%', 'Locação + Corretor: photo_agendar passa pela chave do módulo');
+SELECT pg_temp.ok(public.academia_has_active_adm_access() AND academia.current_org() = pg_temp.id('orgA'),
+  'Locação + Corretor: Academia (porteiro e org) igual a antes');
+-- Admin (sem 'locacao'): nada muda.
+SELECT pg_temp.as_user(pg_temp.id('adm')::text);
+SELECT pg_temp.ok(pg_temp.err($q$SELECT * FROM public.meu_realizado(current_date - 30, current_date)$q$) IS NULL
+  AND pg_temp.err($q$SELECT public.photo_meu_resumo()$q$) IS NULL
+  AND public.academia_has_active_adm_access() AND academia.current_org() = pg_temp.id('orgA'),
+  'Admin: meu_realizado, photo_meu_resumo e Academia iguais a antes');
+-- Só-Fotógrafo: comportamento de antes mantido (Fotos abertas; porteiro da Academia ainda deixa passar).
+SELECT pg_temp.as_user(pg_temp.id('fot')::text);
+SELECT pg_temp.ok(pg_temp.id('fot') IS NOT NULL AND NOT public.eh_so_locacao(pg_temp.id('fot')), 'só-Fotógrafo não é só-Locação');
+SELECT pg_temp.ok(public.vouchers_fotos_enabled() AND pg_temp.err($q$SELECT public.photo_meu_resumo()$q$) IS NULL,
+  'só-Fotógrafo: Agendar fotos segue aberto (photo_meu_resumo)');
+SELECT pg_temp.ok(public.academia_has_active_adm_access() AND academia.current_org() = pg_temp.id('orgA'),
+  'só-Fotógrafo: Academia igual a antes (porteiro true, org da A)');
+SELECT pg_temp.ok(pg_temp.err($q$SELECT * FROM public.meu_realizado(current_date - 30, current_date)$q$) IS NULL,
+  'só-Fotógrafo: meu_realizado igual a antes (não recusa)');
+SELECT pg_temp.as_user(pg_temp.id('c2')::text);
 -- O só-Locação fica fora das listas de corretor (rankings/metas), como o Fotógrafo.
 SELECT pg_temp.ok(pg_temp.n(format($q$SELECT 1 FROM public.list_active_corretores() WHERE id = %L$q$, pg_temp.id('loc'))) = 0,
   'só-Locação fora da lista de corretores ativos');

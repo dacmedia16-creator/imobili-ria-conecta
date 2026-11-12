@@ -140,9 +140,26 @@ describe("banco: migration do papel Locação", () => {
       /locacao_papeis_papel_check|locacao_papel_definir|locacao_tem_papel|locacao_pode_ver/,
     );
   });
-  it("rollback restaura as 14 funções e apaga as 2 novas", () => {
+  it("fecha as brechas da revisão: meu_realizado, fotos e Academia (t_00c1173c)", () => {
+    expect(mig).toMatch(
+      /FUNCTION public\.meu_realizado\([\s\S]*?IF public\.eh_so_locacao\(_me\) THEN RAISE EXCEPTION/,
+    );
+    for (const fn of ["photo_meu_resumo", "photo_agendar"])
+      expect(mig, fn).toMatch(
+        new RegExp(
+          `FUNCTION public\\.${fn}\\([\\s\\S]*?IF NOT public\\.vouchers_fotos_enabled\\(\\) THEN`,
+        ),
+      );
+    expect(mig).toMatch(
+      /FUNCTION public\.academia_has_active_adm_access\([\s\S]*?AND NOT public\.eh_so_locacao\(p\.id\)/,
+    );
+    expect(mig).toMatch(
+      /FUNCTION academia\.user_org\([\s\S]*?IF public\.eh_so_locacao\(_user\) THEN RETURN NULL; END IF;/,
+    );
+  });
+  it("rollback restaura as 19 funções e apaga as 2 novas", () => {
     const rb = ler("../../docs/sql/rollback/20261122120100_papel_locacao.rollback.sql");
-    expect((rb.match(/CREATE OR REPLACE FUNCTION/g) ?? []).length).toBe(14);
+    expect((rb.match(/CREATE OR REPLACE FUNCTION/g) ?? []).length).toBe(19);
     expect(rb).toMatch(/DROP POLICY IF EXISTS zz_locacao_fora/);
     expect(rb).toMatch(/DROP FUNCTION IF EXISTS public\.eh_so_locacao\(uuid\)/);
     expect(rb).not.toMatch(/eh_so_locacao\(auth|so_locacao_ativo\(_/);
