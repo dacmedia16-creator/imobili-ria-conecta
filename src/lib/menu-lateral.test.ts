@@ -59,6 +59,8 @@ function menuAnterior(ctx: MenuContexto): Set<string> {
     ["/admin/usuarios", hasAny(["admin", "super_admin", "gestor", "team_leader"])],
     ["/admin/posicionamento", hasAny(["admin", "super_admin"])],
     ["/admin/dados-imobiliaria", hasAny(["admin", "super_admin"])],
+    // Banners do Início (t_75786f5c): item novo, admin/administrador principal/staff da imobiliária.
+    ["/admin/banners", hasAny(["admin", "super_admin", "staff"])],
     ["/admin/unidades-captacao", exclusiveVisible && hasAny(["admin", "super_admin"])],
     ["/admin/configuracoes", hasAny(["super_admin"])],
     ["/admin/assinatura-digital", hasAny(["super_admin"])],
@@ -210,6 +212,7 @@ describe("menu lateral agrupado", () => {
       "/admin/usuarios": "admin.usuarios.tsx",
       "/admin/posicionamento": "admin.posicionamento.tsx",
       "/admin/dados-imobiliaria": "admin.dados-imobiliaria.tsx",
+      "/admin/banners": "admin.banners.tsx",
       "/admin/unidades-captacao": "admin.unidades-captacao.tsx",
       "/admin/configuracoes": "admin.configuracoes.tsx",
       "/admin/assinatura-digital": "admin.assinatura-digital.tsx",

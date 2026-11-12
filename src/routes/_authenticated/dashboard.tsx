@@ -95,6 +95,7 @@ import { BorderBeam } from "@/components/magicui/border-beam";
 import { BentoCard, BentoGrid } from "@/components/magicui/bento-grid";
 import { exclusiveEnabled } from "@/lib/exclusive-captures-db";
 import { podeAcessarPainelEquipe } from "@/lib/painel-equipe-calc";
+import { BannerInicio } from "@/components/dashboard/BannerInicio";
 import {
   EmptyState,
   ErrorState,
@@ -402,6 +403,8 @@ function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Banner rotativo da imobiliária (t_75786f5c): some por completo quando não há banner. */}
+      <BannerInicio />
       {/* "Nova venda" saiu daqui: virou o atalho grande logo abaixo (mesma regra de papel). */}
       <PageHeader
         icon={LayoutDashboard}

@@ -38,6 +38,7 @@ import {
   HeartPulse,
   Camera,
   KeyRound,
+  GalleryHorizontal,
 } from "lucide-react";
 import { podeAtenderLeads, podeVerPainelLeads } from "@/lib/leads";
 import { podeAcessarCentralFinanceira } from "@/lib/financeiro-dashboard-calc";
@@ -310,6 +311,13 @@ export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
           label: "Dados da imobiliária",
           icon: Building2,
           show: hasAny(["admin", "super_admin"]),
+        },
+        {
+          // Banner do Início (t_75786f5c): cada imobiliária cadastra os seus. O banco recusa os demais.
+          to: "/admin/banners",
+          label: "Banners do Início",
+          icon: GalleryHorizontal,
+          show: hasAny(["admin", "super_admin", "staff"]),
         },
         {
           to: "/admin/unidades-captacao",
