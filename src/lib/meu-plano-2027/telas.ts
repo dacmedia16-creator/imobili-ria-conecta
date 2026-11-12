@@ -429,10 +429,20 @@ const PAGINA_IMPRESSA_FINAL: Record<number, number | null> = {
   56: null,
 };
 
-/** Rótulo da página com as duas numerações (Denis, 11/11): "pág. 19 · PDF 20". Sem número impresso (capa, PDF 46–48, 54–56), só "PDF N". */
+/**
+ * Páginas antes do PDF 46 sem número impresso no rodapé (conferido no PDF oficial, 12/11): propaganda da
+ * Cartilha (2), Sumário (3) e as aberturas de bloco/frases de página inteira (14, 18, 21, 26, 33, 35, 41, 42).
+ */
+const SEM_NUMERO_IMPRESSO = new Set([2, 3, 14, 18, 21, 26, 33, 35, 41, 42]);
+
+/** Rótulo da página com as duas numerações (Denis, 11/11): "pág. 19 · PDF 20". Sem número impresso (capa, aberturas, PDF 46–48, 54–56), só "PDF N". */
 export const rotuloPagina = (pdf: number) => {
   const impressa =
-    pdf in PAGINA_IMPRESSA_FINAL ? PAGINA_IMPRESSA_FINAL[pdf] : pdf > 1 ? pdf - 1 : null;
+    pdf in PAGINA_IMPRESSA_FINAL
+      ? PAGINA_IMPRESSA_FINAL[pdf]
+      : pdf > 1 && !SEM_NUMERO_IMPRESSO.has(pdf)
+        ? pdf - 1
+        : null;
   return impressa ? `pág. ${impressa} · PDF ${pdf}` : `PDF ${pdf}`;
 };
 

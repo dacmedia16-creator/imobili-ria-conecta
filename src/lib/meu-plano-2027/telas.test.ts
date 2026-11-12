@@ -85,6 +85,14 @@ describe("numeração e atalho do book (itens 1 e 10)", () => {
       expect(rotuloPagina(Number(pdf))).toBe(rotulo);
   });
 
+  it("antes do PDF 46, página sem número impresso no rodapé mostra só 'PDF N'", () => {
+    for (const pdf of [2, 3, 14, 18, 21, 26, 33, 35, 41, 42])
+      expect(rotuloPagina(pdf)).toBe(`PDF ${pdf}`);
+    // vizinhas com número impresso continuam com as duas numerações
+    for (const pdf of [4, 13, 15, 17, 19, 20, 22, 25, 27, 32, 34, 36, 40, 43])
+      expect(rotuloPagina(pdf)).toBe(`pág. ${pdf - 1} · PDF ${pdf}`);
+  });
+
   it("a página 11 do PDF tem o próprio exercício (quadro de KRIs), sem atalho para as Metas", () => {
     expect(telaDaPagina(11)?.id).toBe("p11");
     expect(exercicioDaPagina(11)).toBeUndefined();
