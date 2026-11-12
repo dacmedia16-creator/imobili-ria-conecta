@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { Respostas } from "./regras";
-import { ORDEM, exercicioDaPagina, progresso, rotuloPagina, statusTela } from "./telas";
+import {
+  ORDEM,
+  exercicioDaPagina,
+  progresso,
+  rotuloPagina,
+  statusTela,
+  telaDaPagina,
+} from "./telas";
 
 // Plano preenchido pelo book, sem escolher trilha (caso da simulação de 11/11: "0% preenchido").
 const S: Respostas = {
@@ -78,8 +85,9 @@ describe("numeração e atalho do book (itens 1 e 10)", () => {
       expect(rotuloPagina(Number(pdf))).toBe(rotulo);
   });
 
-  it("a página 11 do PDF leva ao exercício das Metas", () => {
-    expect(exercicioDaPagina(11)?.id).toBe("p32");
+  it("a página 11 do PDF tem o próprio exercício (quadro de KRIs), sem atalho para as Metas", () => {
+    expect(telaDaPagina(11)?.id).toBe("p11");
+    expect(exercicioDaPagina(11)).toBeUndefined();
     expect(exercicioDaPagina(12)).toBeUndefined();
   });
 });

@@ -25,7 +25,7 @@ import {
   soma,
   type Calc,
 } from "@/lib/meu-plano-2027/regras";
-import { ORDEM, P15_CAMPOS, rotuloPagina, tela } from "@/lib/meu-plano-2027/telas";
+import { KRIS, ORDEM, P15_CAMPOS, rotuloPagina, tela } from "@/lib/meu-plano-2027/telas";
 import { Pill } from "@/components/visual/base";
 import {
   Aviso,
@@ -523,6 +523,8 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
       );
     case "p32":
       return <TelaMetas extra={extras?.p32} irPara={extras?.irPara} />;
+    case "p11":
+      return <TelaKris irPara={extras?.irPara} />;
     case "p34":
       return (
         <>
@@ -1047,6 +1049,50 @@ function TelaMetas({ extra, irPara }: { extra?: ReactNode; irPara?: (id: string)
         </div>
       </details>
       {extra}
+    </>
+  );
+}
+
+/** Quadro de KRIs: a frase do Objetivo vem das Metas (mesmos números, sem campo novo); só as 6 ações são digitadas. */
+function TelaKris({ irPara }: { irPara?: (id: string) => void }) {
+  const { C } = usePlanoCtx();
+  return (
+    <>
+      <Bloco className="border-rose-900/40">
+        <Pill tom="red">OBJETIVO 2027</Pill>
+        <p className="mt-2 text-base" data-testid="kri-objetivo">
+          Ao final de 2027 eu terei <b>{fmt.int(C.creFim)}</b> CREs ativas na minha carteira e o
+          valor geral de comissão de <b>{fmt.brl0(C.vgc)}</b>, atingindo o <b>{C.clube || "—"}</b>.
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Estes números vêm de <Origem id="p32" irPara={irPara} />; para mudar, corrija lá.
+        </p>
+      </Bloco>
+      {KRIS.map((g) => (
+        <Bloco key={g.kri} titulo={g.kri}>
+          {g.kpis.map((p) => (
+            <Campo
+              key={p.k}
+              k={p.k}
+              label={
+                <>
+                  KPI · {p.n}
+                  <small className="block text-xs font-normal text-muted-foreground">
+                    Ações principais
+                  </small>
+                </>
+              }
+              tipo="area"
+              ph="Quais ações você vai repetir toda semana para mover este número?"
+              hint={`Exemplo do book: ${p.ex.join(" · ")}.`}
+            />
+          ))}
+        </Bloco>
+      ))}
+      <Citacao>
+        O objetivo orienta as ações; as ações, repetidas toda semana, produzem os resultados que
+        levam você ao objetivo.
+      </Citacao>
     </>
   );
 }

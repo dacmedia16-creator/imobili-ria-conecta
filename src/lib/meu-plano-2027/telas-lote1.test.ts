@@ -88,7 +88,7 @@ describe("Lote 1: telas", () => {
 });
 
 describe("Lote 1: leitor do book (itens 1, 10 e 12)", () => {
-  it("PDF 11 mostra as duas numerações e o atalho grande para as Metas", async () => {
+  it("PDF 11 mostra as duas numerações e o botão grande leva ao quadro de KRIs", async () => {
     const { Leitor } = await import("@/components/minha-carreira/meu-plano/Leitor");
     const ids: string[] = [];
     render(
@@ -102,8 +102,9 @@ describe("Lote 1: leitor do book (itens 1, 10 e 12)", () => {
     );
     expect(screen.getAllByText("pág. 10 · PDF 11").length).toBeGreaterThan(0);
     const fixo = screen.getByTestId("preencher-pagina-fixo");
-    expect(fixo.textContent).toContain("Ir ao exercício: Minhas metas para 2027");
+    // t_1bce8b3d: o PDF 11 ganhou o próprio exercício (antes era atalho para as Metas, p32).
+    expect(fixo.textContent).toContain("Preencher esta página");
     fixo.click();
-    expect(ids).toEqual(["p32"]);
+    expect(ids).toEqual(["p11"]);
   });
 });

@@ -36,11 +36,56 @@ export const P15_CAMPOS: [string, string, "money" | "int" | "pct", "tem" | "parc
   ["d.revisados", "% da carteira que teve o preço revisado", "pct", "nao"],
 ];
 
+/**
+ * Quadro de KRIs (book PDF 11; Caderno 1 pág. 24; Caderno 2 pág. 6): os 6 KPIs, cada um com a sua caixa
+ * "AÇÕES PRINCIPAIS" (campo kri.N). `ex` = ações impressas no book, só como exemplo (não preenchem nada).
+ */
+export const KRIS: { kri: string; kpis: { k: string; n: string; ex: string[] }[] }[] = [
+  {
+    kri: "KRI 1 · Captações com Representação Exclusiva (CREs)",
+    kpis: [
+      {
+        k: "kri.0",
+        n: "Novas CREs",
+        ex: ["Contatos com agendamento", "Primeira visita (V1)", "Segunda visita (V2)"],
+      },
+      { k: "kri.1", n: "CREs Canceladas/Expiradas", ex: ["Precificação", "Revisão do preço"] },
+      { k: "kri.2", n: "CREs Vendidas", ex: ["Execução do plano de marketing e venda"] },
+    ],
+  },
+  {
+    kri: "KRI 2 · Valor Geral de Comissão (VGC)",
+    kpis: [
+      { k: "kri.3", n: "Transações de Captações", ex: ["Atendimento de interessados"] },
+      {
+        k: "kri.4",
+        n: "Transações de Venda",
+        ex: ["Visita com compradores", "Propostas formalizadas"],
+      },
+      { k: "kri.5", n: "Ticket Médio por Transação", ex: ["Posicionamento", "Precificação"] },
+    ],
+  },
+];
+
 const A: Trilha[] = ["ativacao"];
 const P: Trilha[] = ["planejamento"];
 const AP: Trilha[] = ["ativacao", "planejamento"];
 
 export const TELAS: Tela[] = [
+  {
+    // Quadro de KRIs do book (PDF 11). Nos Cadernos (Caderno 1 pág. 24, Caderno 2 pág. 6) ele vem em
+    // branco logo depois do cockpit; por isso fica no fim das duas trilhas.
+    id: "p11",
+    pdf: 11,
+    ev: "Fechamento · KRIs e KPIs",
+    t: "Meus KRIs e KPIs: ações principais",
+    trilhas: AP,
+    leia: ["como"],
+    intro:
+      "Do objetivo do ano aos resultados-chave (KRI), aos indicadores (KPI) e às ações do dia a dia. Para cada indicador, escreva as ações que você vai repetir toda semana para mover esse número.",
+    req: [],
+    livre: "kri.",
+  },
   {
     id: "p15",
     pdf: 15,
@@ -325,6 +370,7 @@ export const ORDEM: Record<Trilha, string[]> = {
     "p44",
     "p45",
     "p52",
+    "p11",
   ],
   ativacao: [
     "p20",
@@ -341,6 +387,7 @@ export const ORDEM: Record<Trilha, string[]> = {
     "p51",
     "p45",
     "p52",
+    "p11",
   ],
 };
 
@@ -389,8 +436,11 @@ export const rotuloPagina = (pdf: number) => {
   return impressa ? `pág. ${impressa} · PDF ${pdf}` : `PDF ${pdf}`;
 };
 
-/** Páginas do book sem tela própria cujo exercício está em outra tela (PDF 11 "Ao final de 2027 eu terei…" → Metas). */
-export const ATALHO_PAGINA: Record<number, string> = { 11: "p32" };
+/**
+ * Páginas do book sem tela própria cujo exercício está em outra tela. O PDF 11 levava às Metas
+ * (Lote 1, item 10); agora tem o próprio exercício (quadro de KRIs, tela p11), então não precisa de atalho.
+ */
+export const ATALHO_PAGINA: Record<number, string> = {};
 export const exercicioDaPagina = (pdf: number) =>
   ATALHO_PAGINA[pdf] ? tela(ATALHO_PAGINA[pdf]) : undefined;
 
