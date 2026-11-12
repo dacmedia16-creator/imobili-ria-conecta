@@ -67,7 +67,8 @@ describe("Lote 1: telas", () => {
     tela("p37");
     expect(screen.getByText("Taxa de folga para quem desmarca (%)")).toBeTruthy();
     expect(screen.getByText("RESULTADO · CONTATOS COM AGENDAMENTO POR SEMANA")).toBeTruthy();
-    expect(screen.getByText(/V1 por mês ÷ 4 semanas/)).toBeTruthy();
+    // a bolinha da folga repete a fórmula do book; aqui é a conta visível
+    expect(screen.getByText(/^Conta: .*V1 por mês ÷ 4 semanas/)).toBeTruthy();
   });
 
   it("item 15: 6 em 10 é dado fixo da rede", () => {

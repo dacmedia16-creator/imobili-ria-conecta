@@ -10,6 +10,8 @@ import {
   type Respostas,
   type Valor,
 } from "@/lib/meu-plano-2027/regras";
+import { AJUDA, type IdAjuda } from "@/lib/meu-plano-2027/ajuda";
+import { InfoDot } from "@/components/dashboard/shared";
 
 /** Contexto de uma tela do plano: respostas, contas e se é somente leitura (visão do broker). */
 export type CtxPlano = {
@@ -27,6 +29,17 @@ export const usePlanoCtx = () => {
   if (!c) throw new Error("usePlanoCtx fora do PlanoCtx");
   return c;
 };
+
+/**
+ * Bolinha "i" com o "como preencher" da parte (textos em lib/meu-plano-2027/ajuda.ts). Usa o InfoDot do
+ * ADM MAX: abre no toque, no clique, no hover e no foco do teclado (Esc fecha). `canto` = no canto do
+ * bloco sem título; sem `canto`, fica ao lado do título e a explicação abre embaixo, alinhada ao 1º pai
+ * com `relative` (a linha do título).
+ */
+export function Dica({ id, canto }: { id: IdAjuda; canto?: boolean }) {
+  const a = AJUDA[id];
+  return <InfoDot inline={!canto} text={a.t} label={`Como preencher: ${a.nome}`} />;
+}
 
 export type TipoCampo = "money" | "pct" | "int" | "text" | "area" | "date" | "time";
 const PH: Partial<Record<TipoCampo, string>> = {
@@ -89,25 +102,51 @@ export function Inp({
   );
 }
 
+/** Rótulo do campo; com `ajuda`, a bolinha fica fora do <label> (tocar nela não foca o campo). */
+function Rotulo({
+  htmlFor,
+  ajuda,
+  children,
+}: {
+  htmlFor: string;
+  ajuda?: IdAjuda;
+  children: ReactNode;
+}) {
+  const label = (
+    <label htmlFor={htmlFor} className="block text-sm font-semibold">
+      {children}
+    </label>
+  );
+  if (!ajuda) return label;
+  return (
+    <div className="relative flex items-center gap-1.5">
+      {label}
+      <Dica id={ajuda} />
+    </div>
+  );
+}
+
 export function Campo({
   k,
   label,
   tipo = "text",
   ph,
   hint,
+  ajuda,
 }: {
   k: string;
   label: ReactNode;
   tipo?: TipoCampo;
   ph?: string;
   hint?: ReactNode;
+  ajuda?: IdAjuda;
 }) {
   const id = useId();
   return (
     <div className="space-y-1 pt-2">
-      <label htmlFor={id} className="block text-sm font-semibold">
+      <Rotulo htmlFor={id} ajuda={ajuda}>
         {label}
-      </label>
+      </Rotulo>
       <Inp k={k} tipo={tipo} ph={ph} id={id} />
       {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
     </div>
@@ -119,19 +158,21 @@ export function Selecao({
   label,
   opcoes,
   ph = "Escolha…",
+  ajuda,
 }: {
   k: string;
   label: ReactNode;
   opcoes: [string, string][];
   ph?: string;
+  ajuda?: IdAjuda;
 }) {
   const { S, set, ro } = usePlanoCtx();
   const id = useId();
   return (
     <div className="space-y-1 pt-2">
-      <label htmlFor={id} className="block text-sm font-semibold">
+      <Rotulo htmlFor={id} ajuda={ajuda}>
         {label}
-      </label>
+      </Rotulo>
       <select
         id={id}
         data-k={k}
@@ -279,14 +320,33 @@ export function Bloco({
   titulo,
   children,
   className,
+  ajuda,
 }: {
   titulo?: ReactNode;
   children: ReactNode;
   className?: string;
+  /** Bolinha "como preencher": ao lado do título ou, sem título, no canto do bloco. */
+  ajuda?: IdAjuda;
 }) {
   return (
-    <section className={cn("rounded-xl border bg-card p-3.5", className)}>
-      {titulo ? <h3 className="mb-1 text-base font-semibold">{titulo}</h3> : null}
+    <section
+      className={cn(
+        "rounded-xl border bg-card p-3.5",
+        ajuda && !titulo && "relative pt-7",
+        className,
+      )}
+    >
+      {titulo && ajuda ? (
+        // A bolinha fica fora do <h3> para o texto escondido da dica não entrar no nome do título.
+        <div className="relative mb-1 flex items-center gap-1.5">
+          <h3 className="text-base font-semibold">{titulo}</h3>
+          <Dica id={ajuda} />
+        </div>
+      ) : titulo ? (
+        <h3 className="mb-1 text-base font-semibold">{titulo}</h3>
+      ) : ajuda ? (
+        <Dica id={ajuda} canto />
+      ) : null}
       {children}
     </section>
   );
