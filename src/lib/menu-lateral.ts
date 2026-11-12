@@ -46,6 +46,7 @@ import { podeVerOcorrenciasConcluidas } from "@/lib/ocorrencias-concluidas";
 import { podeAcessarVendasPorRegiao } from "@/lib/vendas-por-regiao";
 import { podeAcessarPainelEquipe } from "@/lib/painel-equipe-calc";
 import { ehSoFotografo } from "@/lib/fotografo";
+import { ehSoLocacao } from "@/lib/papel-locacao";
 
 // Menu lateral agrupado (maquete aprovada por Denis em 12/10/2026, card t_7f4f77c8).
 // Só organiza e muda ícones: cada condição `show` é a MESMA que existia no AppShell antes
@@ -102,6 +103,9 @@ export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
   // Papel Fotógrafo (t_0666d3f0, Denis 05/11/2026: "é só fotógrafo"): só a área de fotos e a conta.
   // As rotas (src/routes/_authenticated/route.tsx) e o banco (RLS/is_active_user) repetem o bloqueio.
   if (ehSoFotografo(roles)) return menuFotografo();
+  // Papel Locação (t_1fe07126, Denis 12/11/2026): só Início, Locação, Reserva de salas, Mural e a conta.
+  // Cada item segue a chave do módulo; a rota (route.tsx) e o banco (RLS/is_active_user) repetem o bloqueio.
+  if (ehSoLocacao(roles)) return menuLocacao(ctx);
 
   return [
     {
@@ -388,7 +392,13 @@ export function menuFotografo(): NavGroup[] {
           show: true,
           search: { aba: "faixas" },
         },
-        { to: "/fotografo", label: "Sessões", icon: Camera, show: true, search: { aba: "sessoes" } },
+        {
+          to: "/fotografo",
+          label: "Sessões",
+          icon: Camera,
+          show: true,
+          search: { aba: "sessoes" },
+        },
         {
           to: "/fotografo",
           label: "Histórico",
@@ -404,6 +414,46 @@ export function menuFotografo(): NavGroup[] {
         { to: "/notificacoes", label: "Notificações", icon: Bell, show: true },
         { to: "/perfil", label: "Meu acesso", icon: ShieldCheck, show: true },
         { to: "/ajuda", label: "Meus chamados", icon: LifeBuoy, show: true },
+      ],
+    },
+  ];
+}
+
+/**
+ * Menu reduzido do só-Locação (t_1fe07126): Início, Locação, Reserva de salas, Mural de Conquistas e a conta.
+ * Locação, salas e mural continuam respeitando o módulo ligado na imobiliária. "Sugestões e erros" e a Ajuda
+ * MAX da locação ficam dentro da tela Locação (botão e balão), como para os outros papéis.
+ */
+export function menuLocacao(
+  ctx: Pick<MenuContexto, "roomVisible"> & Partial<MenuContexto>,
+): NavGroup[] {
+  return [
+    { items: [{ to: "/dashboard", label: "Início", icon: Home, show: true }] },
+    {
+      label: "Locação",
+      items: [
+        { to: "/locacoes", label: "Locação", icon: KeyRound, show: ctx.locacaoVisible === true },
+        {
+          to: "/reservas-salas",
+          label: "Reserva de salas",
+          icon: CalendarDays,
+          show: ctx.roomVisible,
+        },
+        {
+          to: "/mural-conquistas",
+          label: "Mural de Conquistas",
+          icon: Trophy,
+          show: ctx.achievementsVisible === true,
+        },
+      ],
+    },
+    {
+      label: "Conta e acesso",
+      items: [
+        { to: "/notificacoes", label: "Notificações", icon: Bell, show: true },
+        { to: "/perfil", label: "Meu acesso", icon: ShieldCheck, show: true },
+        { to: "/ajuda", label: "Meus chamados", icon: LifeBuoy, show: true },
+        { to: "/ajuda/wiki", label: "Wiki MAX", icon: BookOpen, show: true },
       ],
     },
   ];

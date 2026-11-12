@@ -4015,7 +4015,8 @@ export type Database = {
         | "team_leader"
         | "lancamento"
         | "staff"
-        | "fotografo";
+        | "fotografo"
+        | "locacao";
       doc_status: "pendente" | "enviado" | "aprovado" | "recusado";
       sale_status:
         | "rascunho"
@@ -4168,6 +4169,7 @@ export const Constants = {
         "lancamento",
         "staff",
         "fotografo",
+        "locacao",
       ],
       doc_status: ["pendente", "enviado", "aprovado", "recusado"],
       sale_status: [

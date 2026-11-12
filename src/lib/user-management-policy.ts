@@ -27,7 +27,8 @@ export type ManagedRole =
   | "admin"
   | "super_admin"
   | "staff"
-  | "fotografo";
+  | "fotografo"
+  | "locacao";
 
 export const ALL_MANAGED_ROLES: ManagedRole[] = [
   "corretor",
@@ -40,6 +41,7 @@ export const ALL_MANAGED_ROLES: ManagedRole[] = [
   "super_admin",
   "staff",
   "fotografo",
+  "locacao",
 ];
 
 const ADMIN_LEVEL: ManagedRole[] = ["admin", "super_admin"];

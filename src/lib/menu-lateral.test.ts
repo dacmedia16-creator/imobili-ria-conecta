@@ -18,6 +18,7 @@ import { podeAcessarCentralFinanceira } from "./financeiro-dashboard-calc";
 import { podeVerOcorrenciasConcluidas } from "./ocorrencias-concluidas";
 import { podeAcessarVendasPorRegiao } from "./vendas-por-regiao";
 import { podeAcessarPainelEquipe } from "./painel-equipe-calc";
+import { destinoLocacao } from "./papel-locacao";
 
 // Cópia fiel das condições do menu ANTES do agrupamento (AppShell em origin/main 7350d26).
 // Serve de prova de que nenhum papel ganhou nem perdeu item: só a ordem e o grupo mudaram.
@@ -160,7 +161,10 @@ describe("menu lateral agrupado", () => {
       feedbackVisible: true,
     });
     const doGrupo = (l: string) =>
-      grupos.find((g) => g.label === l)!.items.filter((i) => i.show).map((i) => i.to);
+      grupos
+        .find((g) => g.label === l)!
+        .items.filter((i) => i.show)
+        .map((i) => i.to);
     expect(doGrupo("Plataforma")).toEqual([
       "/plataforma/imobiliarias",
       "/plataforma/usuarios",
@@ -329,6 +333,92 @@ describe("menu lateral agrupado", () => {
         itensVisiveis(montarMenuLateral(real)),
       );
     }
+  });
+
+  // Papel Locação (t_1fe07126, Denis 12/11/2026): só Início, Locação, Reserva de salas, Mural e a conta.
+  const tudoLigado = (roles: string[], extra: Partial<MenuContexto> = {}): MenuContexto => ({
+    roles,
+    platformAdmin: false,
+    exclusiveVisible: true,
+    roomVisible: true,
+    feedbackVisible: true,
+    opportunitiesVisible: true,
+    achievementsVisible: true,
+    leadsVisible: true,
+    crmVisible: true,
+    fotosVisible: true,
+    carreiraVisible: true,
+    locacaoVisible: true,
+    ...extra,
+  });
+
+  it("só Locação vê só os itens permitidos, mesmo com todos os módulos ligados (t_1fe07126)", () => {
+    const menu = montarMenuLateral(tudoLigado(["locacao"]));
+    expect(menu.map((g) => g.label)).toEqual([undefined, "Locação", "Conta e acesso"]);
+    expect(itensVisiveis(menu)).toEqual([
+      "/dashboard",
+      "/locacoes",
+      "/reservas-salas",
+      "/mural-conquistas",
+      "/notificacoes",
+      "/perfil",
+      "/ajuda",
+      "/ajuda/wiki",
+    ]);
+    const rotulos = menu.flatMap((g) => g.items.filter((i) => i.show).map((i) => i.label));
+    for (const proibido of [
+      "Vendas",
+      "Mapa de captações",
+      "Feedback ao proprietário",
+      "Minha carreira",
+      "Vendas por região",
+      "Ocorrências concluídas",
+      "Captações exclusivas",
+      "Oportunidades",
+      "Agendar fotos",
+      "Usuários",
+    ])
+      expect(rotulos).not.toContain(proibido);
+    // Nenhum item do menu cai na guarda de rota.
+    for (const to of itensVisiveis(menu)) expect(destinoLocacao(["locacao"], to), to).toBeNull();
+  });
+
+  it("só Locação: Locação, salas e mural seguem o módulo ligado da imobiliária", () => {
+    const itens = (extra: Partial<MenuContexto>) =>
+      itensVisiveis(montarMenuLateral(tudoLigado(["locacao"], extra)));
+    expect(itens({ locacaoVisible: false })).not.toContain("/locacoes");
+    expect(itens({ roomVisible: false })).not.toContain("/reservas-salas");
+    expect(itens({ achievementsVisible: false })).not.toContain("/mural-conquistas");
+    expect(
+      itens({ locacaoVisible: false, roomVisible: false, achievementsVisible: false }),
+    ).toEqual(["/dashboard", "/notificacoes", "/perfil", "/ajuda", "/ajuda/wiki"]);
+  });
+
+  it("Locação + Corretor (ou Gestor, Admin...) vê tudo, igual a quem não tem Locação", () => {
+    for (const outro of [
+      "corretor",
+      "gestor",
+      "team_leader",
+      "admin",
+      "super_admin",
+      "financeiro",
+      "staff",
+    ]) {
+      const com = itensVisiveis(montarMenuLateral(tudoLigado(["locacao", outro])));
+      const sem = itensVisiveis(montarMenuLateral(tudoLigado([outro])));
+      expect(com, outro).toEqual(sem);
+    }
+    const corretor = itensVisiveis(montarMenuLateral(tudoLigado(["locacao", "corretor"])));
+    for (const to of [
+      "/vendas",
+      "/mapa-captacoes",
+      "/feedback",
+      "/minha-carreira",
+      "/vendas-por-regiao",
+      "/ocorrencias-concluidas",
+      "/exclusividades",
+    ])
+      expect(corretor, to).toContain(to);
   });
 
   it("iniciais do e-mail", () => {

@@ -96,6 +96,8 @@ import { BentoCard, BentoGrid } from "@/components/magicui/bento-grid";
 import { exclusiveEnabled } from "@/lib/exclusive-captures-db";
 import { podeAcessarPainelEquipe } from "@/lib/painel-equipe-calc";
 import { BannerInicio } from "@/components/dashboard/BannerInicio";
+import { InicioLocacao } from "@/components/dashboard/InicioLocacao";
+import { ehSoLocacao } from "@/lib/papel-locacao";
 import {
   EmptyState,
   ErrorState,
@@ -197,7 +199,13 @@ type VendaRecente = {
   assinada: boolean;
 } & ComplementoVendaRecente;
 
+// Papel Locação (t_1fe07126): quem é só Locação vê um Início próprio, sem números nem links de venda.
 function Dashboard() {
+  const { roles } = useAuth();
+  return ehSoLocacao(roles) ? <InicioLocacao /> : <DashboardCompleto />;
+}
+
+function DashboardCompleto() {
   const { user, roles, hasAny } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentes, setRecentes] = useState<VendaRecente[]>([]);

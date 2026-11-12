@@ -793,6 +793,56 @@ export const REGRAS_PAPEIS: RegraPapel[] = [
       ),
     },
   },
+  {
+    // Decisão de Denis (12/11/2026, t_1fe07126): o pessoal da locação vê só o que é da locação.
+    papel: "locacao",
+    resumo:
+      "Só a área de locação: Início, Locação, Reserva de salas, Mural de Conquistas e a própria conta. Não abre vendas, captações, mapa, feedback, carreira nem relatórios.",
+    areas: {
+      vendas: area(
+        [
+          it(
+            "Abre e acompanha locações na tela Locação; gestora, contratos, vistoria e financeiro da locação são atribuídos à parte, na própria tela.",
+          ),
+        ],
+        [
+          it(
+            "Não abre Vendas, Captações exclusivas, Feedback ao proprietário, Oportunidades nem o Mapa.",
+          ),
+          it("Não registra venda.", "registrar_venda"),
+        ],
+      ),
+      aprovacao: area([], [it("Não aprova venda.", "etapas_gestor"), NAO_CANCELA]),
+      contratos: area([], [it("Não monta nem confere contrato de venda.", "etapas_juridico")]),
+      ocorrencias: area(
+        [],
+        [
+          it("Não abre o relatório Ocorrências concluídas.", "ocorrencias_concluidas"),
+          it("Não preenche nem conclui ocorrência.", "concluir_ocorrencia"),
+        ],
+      ),
+      financeiro: area([], [SEM_FINANCEIRO]),
+      relatorios: area(
+        [],
+        [
+          it(
+            "Não abre Desempenho, Produção por pessoa, Painel da Equipe, Vendas por região nem Minha carreira, e fica fora de rankings e metas.",
+            "producao_desempenho",
+          ),
+        ],
+      ),
+      leads: SEM_LEADS,
+      usuarios: SEM_USUARIOS,
+      configuracoes: area(
+        [
+          it(
+            "Usa Sugestões e erros e a Ajuda MAX da Locação, reserva salas e vê o Mural de Conquistas.",
+          ),
+        ],
+        [it("Não acessa as configurações da imobiliária.")],
+      ),
+    },
+  },
 ];
 
 /** Regras gerais que valem para todos. */
@@ -857,8 +907,10 @@ export function menuDoPapel(papel: ManagedRole): string[] {
 
 /** Itens que todos os papéis veem (bloco "Todo mundo logado"). */
 export function menuComum(): string[] {
-  // O Fotógrafo (t_0666d3f0) tem menu próprio, só de fotos: fica fora do bloco comum.
-  const listas = ALL_MANAGED_ROLES.filter((r) => r !== "fotografo").map(menuDoPapel);
+  // Fotógrafo (t_0666d3f0) e Locação (t_1fe07126) têm menu próprio reduzido: ficam fora do bloco comum.
+  const listas = ALL_MANAGED_ROLES.filter((r) => r !== "fotografo" && r !== "locacao").map(
+    menuDoPapel,
+  );
   return listas[0].filter((l) => listas.every((x) => x.includes(l)));
 }
 

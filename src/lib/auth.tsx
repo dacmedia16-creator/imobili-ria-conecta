@@ -32,7 +32,8 @@ export type AppRole =
   | "super_admin"
   | "lancamento"
   | "staff"
-  | "fotografo";
+  | "fotografo"
+  | "locacao";
 
 type AuthCtx = {
   session: Session | null;
@@ -170,4 +171,6 @@ export const ROLE_LABEL: Record<AppRole, string> = {
   staff: "Staff",
   // Só a área de fotos (t_0666d3f0).
   fotografo: "Fotógrafo",
+  // Só a área de locação (t_1fe07126). Diferente dos papéis internos da Locação (gestora etc.).
+  locacao: "Locação",
 };
