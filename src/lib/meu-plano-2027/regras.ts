@@ -222,13 +222,14 @@ export function calc(S: Respostas, padrao?: Partial<TaxasFunil> | null) {
   // Passo 3 (p.26) DA COMISSÃO À TRANSAÇÃO
   const faixa = g("m.faixa");
   const bruta = ok(estiloAno) && faixa > 0 ? estiloAno / (faixa / 100) : NaN; // linha 3 = 1 ÷ 2
-  const ticket = ou(g("m.ticket"), d.ticket); // linha 4 (p.14)
+  // linha 4 (p.14). Ticket 0 no diagnóstico (corretor da Ativação sem histórico) = sem ticket, não R$ 0.
+  const ticket = ou(g("m.ticket"), d.ticket > 0 ? d.ticket : NaN);
   const pctTrans = g("m.pct");
   const comTrans = ticket > 0 && pctTrans > 0 ? (ticket * pctTrans) / 100 : NaN; // linha 6 = 4 × 5
   const trans = ok(bruta) && comTrans > 0 ? Math.ceil(bruta / comTrans) : NaN; // linha 7 = 3 ÷ 6, para cima
-  const transAcima = ok(trans) && ok(d.trans) && trans > d.trans * 1.5;
+  const transAcima = ok(trans) && d.trans > 0 && trans > d.trans * 1.5; // 0 no ano passado = sem histórico, sem aviso
   // Passo 3 (p.29) DA TRANSAÇÃO À CAPTAÇÃO
-  const conv = ou(g("m.conv"), d.conv);
+  const conv = ou(g("m.conv"), d.conv > 0 ? d.conv : NaN); // conversão 0 no diagnóstico = sem conversão
   const captAno = ok(trans) && conv > 0 ? Math.round(trans / (conv / 100)) : NaN; // book: 28 ÷ 22% = 127
   const captMes = ok(captAno) ? Math.ceil(captAno / 12) : NaN; // book: 11
   // p.30 MINHA CARTEIRA ALVO

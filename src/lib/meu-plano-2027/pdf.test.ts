@@ -14,6 +14,15 @@ import type { Respostas } from "./regras";
 
 // Plano completo da trilha Ativação (dados fictícios; números do exemplo do book).
 const ATIVACAO: Respostas = {
+  // Diagnóstico (pág. 14 a 16) de quem está começando: sem histórico, tudo 0 (t_8a8eb930).
+  ...Object.fromEntries(
+    ["comissao", "trans", "cres", "conv", "ticket", "dias", "ativos", "revisados"].map((k) => [
+      `d.${k}`,
+      "0",
+    ]),
+  ),
+  "or.0.c": "0",
+  ...Object.fromEntries([1, 1, 1, 1, 1, 1].map((v, i) => [`av.${i}`, String(v)])),
   "pq.frase": "Dar segurança à minha família",
   "pq.0": "Ver o cliente feliz com a chave na mão",
   ...Object.fromEntries(
