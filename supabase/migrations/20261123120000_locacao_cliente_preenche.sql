@@ -60,9 +60,13 @@ END $$;
 
 CREATE FUNCTION public.locacao_links_lista(_id uuid) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO '' AS $$
-DECLARE _l public.locacoes := public.locacao_pega(_id);
+DECLARE _l public.locacoes;
 BEGIN
-  PERFORM public.locacao_exige(_l, ARRAY['documentacao'], 'corretor');
+  -- Leitura (GET/transação só leitura): sem FOR UPDATE do locacao_pega. Mesmo filtro de org + visibilidade.
+  SELECT * INTO _l FROM public.locacoes WHERE id = _id AND organization_id = public.locacao_ctx();
+  IF _l.id IS NULL OR NOT public.locacao_pode_ver(_l) THEN
+    RAISE EXCEPTION 'Sem acesso a esta locação.' USING ERRCODE = '42501';
+  END IF;
   RETURN jsonb_build_object('modo', coalesce((SELECT modo FROM public.locacao_link_modos WHERE locacao_id = _id), 'corretor'),
     'links', (SELECT coalesce(jsonb_agg(jsonb_build_object('parte', parte, 'status', status,
       'expira_em', expira_em, 'enviado_em', enviado_em, 'dados', dados,

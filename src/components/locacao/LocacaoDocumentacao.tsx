@@ -545,6 +545,7 @@ export function LocacaoDocumentacao({ d, ctx, busy, rodar, recarregar, editavel,
             }
           >
             <Send className="mr-1 h-4 w-4" /> Enviar documentação à gestora
+            {aguardandoPartes ? " · aguardando partes" : ""}
           </Button>
         </div>
       )}
