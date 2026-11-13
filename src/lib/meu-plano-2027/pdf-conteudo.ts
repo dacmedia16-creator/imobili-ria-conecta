@@ -1,7 +1,8 @@
 /**
  * Conteúdo do PDF "Meu Plano 2027" (cartão t_65edd0b0; aprovado por Denis em 12/11/2026). Só dados e funções
  * puras: o desenho (pdf-lib) fica em pdf.ts. Regras aprovadas:
- *  - só existe para plano FINALIZADO = todas as telas do plano completas (o mesmo "X/Y telas completas");
+ *  - sai a qualquer momento, mesmo com o plano incompleto (t_b8aae132, Denis 13/11/2026, substitui a regra de
+ *    só gerar com todas as telas completas); incompleto ganha a linha "Plano X% preenchido (Y de 26 telas)";
  *  - todas as respostas, tela por tela, na ordem única do plano (t_296fc69e), com o rótulo da página do book;
  *  - no fim, os números calculados: meta oficial, carteira alvo, metas mês a mês com o total e KRIs;
  *  - campo vazio = "—" (nenhum valor inventado; números calculados sem base também saem "—").
@@ -68,11 +69,15 @@ export type PlanoPdfDados = {
 export type ConteudoPdf = {
   telas: number;
   total: number;
+  /** Mesmo % da tela de fim (campos obrigatórios preenchidos). */
+  pct: number;
+  /** "Plano X% preenchido (Y de N telas)" quando incompleto; null com todas as telas completas. */
+  aviso: string | null;
   secoes: SecaoPdf[];
   numeros: SecaoPdf[];
 };
 
-/** Regra 1 aprovada: o plano está finalizado quando TODAS as telas do plano (ordem única) estão completas. */
+/** Plano finalizado = TODAS as telas do plano (ordem única) completas. Não trava mais o PDF (t_b8aae132). */
 export function planoFinalizado(S: Respostas): boolean {
   const p = progresso(S);
   return p.total > 0 && p.telas === p.total;
@@ -552,13 +557,22 @@ function numerosCalculados(C: Calc, d: PlanoPdfDados): SecaoPdf[] {
   ];
 }
 
-/** Monta o conteúdo do PDF. Lança erro se o plano não estiver finalizado (regra 1). */
+/** Linha do topo do PDF para plano incompleto; null quando todas as telas estão completas. */
+export function avisoPreenchimento(p: {
+  pct: number;
+  telas: number;
+  total: number;
+}): string | null {
+  if (p.total > 0 && p.telas === p.total) return null;
+  return `Plano ${p.pct}% preenchido (${p.telas} de ${p.total} telas)`;
+}
+
+/** Monta o conteúdo do PDF com o que estiver preenchido (vazio = "—"), completo ou não. */
 export function conteudoPlanoPdf(
   d: PlanoPdfDados,
   taxasPadrao?: Partial<TaxasFunil> | null,
 ): ConteudoPdf {
   const S = d.respostas ?? {};
-  if (!planoFinalizado(S)) throw new Error("O plano ainda não está completo.");
   const C = calc(S, taxasPadrao);
   const p = progresso(S);
   const secoes = ORDEM.map((id) => {
@@ -574,6 +588,8 @@ export function conteudoPlanoPdf(
   return {
     telas: p.telas,
     total: p.total,
+    pct: p.pct,
+    aviso: avisoPreenchimento(p),
     secoes,
     numeros: numerosCalculados(C, d),
   };

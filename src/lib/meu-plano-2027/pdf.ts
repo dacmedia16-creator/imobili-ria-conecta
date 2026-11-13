@@ -175,6 +175,12 @@ export async function buildPlanoPdf(input: PlanoPdfInput): Promise<Uint8Array> {
     y -= h + 18;
   }
 
+  // ---------- plano incompleto: uma linha simples logo abaixo do cartão (t_b8aae132) ----------
+  if (conteudo.aviso) {
+    txt(conteudo.aviso, M + 4, y + 4, 9.5, bold, RED);
+    y -= 14;
+  }
+
   // ---------- desenho dos itens ----------
   const COL_ROT = W * 0.5;
   const desenhaCampo = (it: Extract<ItemPdf, { k: "campo" }>) => {
