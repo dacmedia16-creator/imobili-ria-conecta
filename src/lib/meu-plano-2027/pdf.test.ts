@@ -98,7 +98,7 @@ const valor = (c: ConteudoPdf, id: string, rot: string) =>
     itens(c, id).find((i) => i.k === "campo" && i.rot === rot) as Extract<ItemPdf, { k: "campo" }>
   )?.val?.replace(/\u00a0/g, " ");
 
-describe("quando o PDF existe (regra 1: todas as telas do plano completas)", () => {
+describe("plano finalizado (não trava mais o PDF, t_b8aae132)", () => {
   it("o plano de exemplo está 100% completo (mesmo critério do X/Y telas completas)", () => {
     const p = progresso(PLANEJAMENTO);
     expect(p.telas).toBe(p.total);
@@ -106,13 +106,14 @@ describe("quando o PDF existe (regra 1: todas as telas do plano completas)", () 
     expect(planoFinalizado(PLANEJAMENTO)).toBe(true);
   });
 
-  it("falta 1 tela = sem PDF; plano vazio = sem PDF", () => {
+  it("falta 1 tela = não finalizado, mas o PDF sai com o aviso de preenchimento", () => {
     const S = { ...PLANEJAMENTO };
     delete S["pa.cad"];
     expect(progresso(S).telas).toBe(progresso(S).total - 1);
     expect(planoFinalizado(S)).toBe(false);
     expect(planoFinalizado({})).toBe(false);
-    expect(() => conteudoPlanoPdf({ respostas: S })).toThrow(/não está completo/);
+    const c = conteudoPlanoPdf({ respostas: S });
+    expect(c.aviso).toBe(`Plano ${c.pct}% preenchido (25 de 26 telas)`);
   });
 
   it("plano antigo completo só na Ativação: faltam agora as telas p34–p44 (nada é apagado)", () => {
@@ -318,7 +319,7 @@ describe("geração do PDF (pdf-lib)", () => {
     expect(doc.getTitle()).toBe("Meu Plano 2027 - Ana Exemplo");
   });
 
-  it("sem logo e sem nome da imobiliária também gera; plano incompleto não gera", async () => {
+  it("sem logo e sem nome da imobiliária também gera; plano incompleto também gera", async () => {
     const bytes = await buildPlanoPdf({
       plano: { respostas: PLANEJAMENTO },
       colaborador: "Ana",
@@ -334,11 +335,10 @@ describe("geração do PDF (pdf-lib)", () => {
       logoPng: new Uint8Array([0x89, 0x50, 1, 2, 3]),
     });
     expect(comLixo.length).toBeGreaterThan(1000);
-    await expect(
-      buildPlanoPdf({
-        plano: { respostas: { "pq.frase": "x" } },
-        colaborador: "Ana",
-      }),
-    ).rejects.toThrow(/não está completo/);
+    const parcial = await buildPlanoPdf({
+      plano: { respostas: { "pq.frase": "x" } },
+      colaborador: "Ana",
+    });
+    expect((await PDFDocument.load(parcial)).getPageCount()).toBeGreaterThan(1);
   });
 });
