@@ -101,7 +101,10 @@ END $function$;
 
 DROP FUNCTION IF EXISTS public.exclusive_captor_eh_gestor(public.exclusive_captures);
 
--- Aviso pendente do evento novo vira o 'finalizado' antigo antes de recolocar a lista fechada.
+-- Evento novo vira o 'finalizado' antigo antes de recolocar a lista fechada. O que ainda não foi enviado
+-- é encerrado como ignorado (senão iria "O gestor precisa aprovar" para captação já aprovada).
+UPDATE public.clicksign_whatsapp_fila SET sent_at = now(), last_error = 'rollback_aprovada_auto'
+  WHERE evento = 'aprovada_auto' AND sent_at IS NULL;
 UPDATE public.clicksign_whatsapp_fila SET evento = 'finalizado' WHERE evento = 'aprovada_auto';
 ALTER TABLE public.clicksign_whatsapp_fila DROP CONSTRAINT clicksign_whatsapp_fila_evento_check;
 ALTER TABLE public.clicksign_whatsapp_fila ADD CONSTRAINT clicksign_whatsapp_fila_evento_check

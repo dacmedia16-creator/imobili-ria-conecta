@@ -182,6 +182,12 @@ DELETE FROM public.user_roles WHERE user_id = :'tl' AND role = 'team_leader';
 SELECT pg_temp.ok(NOT public.exclusive_captor_eh_gestor(c), 'ex-team leader: deixa de valer a regra')
   FROM public.exclusive_captures c WHERE c.id = :'ct';
 
+-- 8b) Gestor com vínculo inativo na imobiliária → não aprova ------------------------------------------
+UPDATE public.organization_members SET ativo = false WHERE user_id = :'gestor' AND organization_id = :'org';
+SELECT pg_temp.ok(NOT public.exclusive_captor_eh_gestor(c), 'gestor com vínculo inativo: deixa de valer a regra')
+  FROM public.exclusive_captures c WHERE c.id = :'cg';
+UPDATE public.organization_members SET ativo = true WHERE user_id = :'gestor' AND organization_id = :'org';
+
 -- 9) Devolver depois de aprovada automaticamente continua possível ---------------------------------------
 SELECT pg_temp.as_user(:'gestor');
 SET LOCAL ROLE authenticated;

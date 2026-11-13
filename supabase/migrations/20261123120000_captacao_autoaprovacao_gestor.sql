@@ -37,6 +37,9 @@ AS $function$
   SELECT _c.captor_id IS NOT NULL
     AND EXISTS (SELECT 1 FROM public.profiles p
                  WHERE p.id = _c.captor_id AND p.organization_id = _c.organization_id AND p.ativo IS TRUE)
+    -- Vínculo ativo com a imobiliária (o que is_active_user confere no caminho manual).
+    AND EXISTS (SELECT 1 FROM public.organization_members m
+                 WHERE m.user_id = _c.captor_id AND m.organization_id = _c.organization_id AND m.ativo IS TRUE)
     AND EXISTS (SELECT 1 FROM public.user_roles r
                  WHERE r.user_id = _c.captor_id AND r.organization_id = _c.organization_id
                    AND r.role IN ('gestor','team_leader'))
