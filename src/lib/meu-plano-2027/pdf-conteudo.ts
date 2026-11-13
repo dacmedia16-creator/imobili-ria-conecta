@@ -46,6 +46,7 @@ import {
   MESES,
   SEMANAS,
 } from "./listas";
+import { distribuicaoMes, temMesDigitado } from "./meses";
 
 export const VAZIO = "—";
 
@@ -504,19 +505,20 @@ function numerosCalculados(C: Calc, d: PlanoPdfDados): SecaoPdf[] {
     ),
     conta("Meta de CREs ativas no fim de 2027", cInt(C.creFim)),
   ];
-  const linhasMes: [string, number, (v: number) => string][] = [
-    ["Novas CREs", C.novas, cDec],
-    ["Canceladas/expiradas", C.canc, cDec],
-    ["CREs vendidas", C.vendidas, cDec],
-    ["Transações", C.transMeta, cDec],
-    ["VGC (R$ mil)", C.vgc / 1000, cDec],
-  ];
+  // Meses digitados pelo corretor (sugestão ÷ 12 onde vazio). Só planejamento: não entra em calc().
+  const dist = distribuicaoMes(d.respostas ?? {}, C);
   const mes: ItemPdf = {
     k: "tabela",
     cab: ["Meta", ...MESES, "Total"],
     pesos: [2.6, ...MESES.map(() => 1), 1.3],
-    linhas: linhasMes.map(([n, v, f]) => [n, ...MESES.map(() => f(v / 12)), f(v)]),
+    linhas: dist.map((l) => [l.rot, ...l.meses.map((x) => cDec(x.usado)), cDec(l.total)]),
   };
+  const avisosMes: ItemPdf[] = dist
+    .filter((l) => l.diverge)
+    .map((l) => ({
+      k: "texto",
+      t: `${l.rot}: os meses somam ${cDec(l.total)}; a meta do ano é ${cDec(l.anual)}.`,
+    }));
   const kris: ItemPdf[] = [
     { k: "sub", t: KRIS[0].kri },
     conta("Novas CREs", cInt(C.novas)),
@@ -541,8 +543,10 @@ function numerosCalculados(C: Calc, d: PlanoPdfDados): SecaoPdf[] {
       id: "n-mes",
       rotulo: "",
       ev: "Números do plano",
-      titulo: "Metas mês a mês (÷ 12) e total do ano",
-      itens: [mes],
+      titulo: temMesDigitado(dist)
+        ? "Metas mês a mês e total do ano"
+        : "Metas mês a mês (÷ 12) e total do ano",
+      itens: [mes, ...avisosMes],
     },
     {
       id: "n-kri",
