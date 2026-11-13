@@ -1,4 +1,4 @@
--- Desfaz 20261123120000_locacao_cliente_preenche. Revogar links e excluir rascunhos de clientes.
+-- Desfaz 20261124120000_locacao_cliente_preenche. Revogar links e excluir rascunhos de clientes.
 -- Os documentos já entregues ficam no bucket privado/tabela de documentos; exportar antes de executar em produção.
 BEGIN;
 CREATE OR REPLACE FUNCTION public.locacao_detalhe(_id uuid) RETURNS jsonb
