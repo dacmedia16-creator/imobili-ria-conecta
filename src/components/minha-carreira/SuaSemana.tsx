@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { Target } from "lucide-react";
 import { errorMessage } from "@/lib/errors";
 import { planoDb } from "@/lib/meu-plano-2027/modulo";
-import { ANO_PLANO } from "@/lib/meu-plano-2027/telas";
+import { ANO_PLANO, ORDEM } from "@/lib/meu-plano-2027/telas";
 import { AVISO_VIGENCIA, planoVigente } from "@/lib/meu-plano-2027/vigencia";
 import type { TaxasFunil } from "@/lib/meu-plano-2027/regras";
 import {
@@ -166,7 +166,7 @@ export function ConvitePlano() {
     >
       <p>Faça seu Meu Plano 2027 para ver suas metas da semana.</p>
       <Button asChild size="sm" data-testid="semana-convite-link">
-        <Link to="/minha-carreira/plano" search={{ v: "trilha" }}>
+        <Link to="/minha-carreira/plano" search={{ v: "tela", id: ORDEM[0] }}>
           <Target className="mr-1 h-4 w-4" aria-hidden /> Fazer meu plano
         </Link>
       </Button>

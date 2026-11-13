@@ -1,8 +1,8 @@
 /**
  * PDF "Meu Plano 2027" (A4 retrato, quantas páginas precisar). Cartão t_65edd0b0.
  * Visual no padrão dos PDFs do ADM MAX (owner-feedback-pdf.ts, ficha-colaborador-pdf.ts): faixa azul com linha
- * vermelha, nome e logo da imobiliária (sem logo, sai sem logo), cabeçalho com colaborador, trilha e data de
- * emissão; depois cada tela na ordem da trilha com o rótulo da página do book; no fim, os números calculados.
+ * vermelha, nome e logo da imobiliária (sem logo, sai sem logo), cabeçalho com colaborador, telas completas e
+ * data de emissão; depois cada tela na ordem única do plano com o rótulo da página do book; no fim, os números calculados.
  * O conteúdo vem de pdf-conteudo.ts (testado); aqui só desenha. pdf-lib já é dependência do projeto.
  */
 import { conteudoPlanoPdf, type ItemPdf, type PlanoPdfDados, type SecaoPdf } from "./pdf-conteudo";
@@ -161,7 +161,6 @@ export async function buildPlanoPdf(input: PlanoPdfInput): Promise<Uint8Array> {
     });
     const cols: [string, string][] = [
       ["Colaborador(a)", input.colaborador || "—"],
-      ["Trilha", conteudo.trilhaNome],
       ["Telas completas", `${conteudo.telas}/${conteudo.total}`],
       ["Emitido em", emitido],
     ];

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ANO_PLANO, CAMPO_VALIDO, type Trilha } from "@/lib/meu-plano-2027/telas";
+import { ANO_PLANO, CAMPO_VALIDO } from "@/lib/meu-plano-2027/telas";
 import {
   calc,
   metaOficialDoPlano,
@@ -19,7 +19,7 @@ import { erroPlano, planoDb } from "@/lib/meu-plano-2027/modulo";
  */
 export type Plano = {
   respostas: Respostas;
-  trilha: Trilha | null;
+  /** Dia 1 dos 90 dias de quem escolheu a trilha Ativação antes do caminho único (legado; só leitura). */
   ativacao_inicio: string | null;
   assinado_corretor_em: string | null;
   assinado_broker_em: string | null;
@@ -35,7 +35,6 @@ export type StatusSalvar = "ok" | "salvando" | "pendente" | "erro";
 
 const VAZIO: Plano = {
   respostas: {},
-  trilha: null,
   ativacao_inicio: null,
   assinado_corretor_em: null,
   assinado_broker_em: null,
@@ -131,7 +130,7 @@ export function usePlano(userId: string) {
       planoDb
         .from("carreira_plano")
         .select(
-          "respostas,trilha,ativacao_inicio,assinado_corretor_em,assinado_broker_em,meta_oficial,meta_oficial_em",
+          "respostas,ativacao_inicio,assinado_corretor_em,assinado_broker_em,meta_oficial,meta_oficial_em",
         )
         .eq("user_id", userId)
         .eq("ano", ANO_PLANO)
@@ -209,19 +208,6 @@ export function usePlano(userId: string) {
     [set],
   );
 
-  const escolherTrilha = useCallback(async (trilha: Trilha) => {
-    const { data, error } = await planoDb.rpc("carreira_plano_trilha", {
-      _ano: ANO_PLANO,
-      _trilha: trilha,
-    });
-    if (error) throw new Error(erroPlano(error.message));
-    setPlano((p) => ({
-      ...(p ?? VAZIO),
-      trilha,
-      ativacao_inicio: (data as string | null) ?? p?.ativacao_inicio ?? null,
-    }));
-  }, []);
-
   type MetaResp = {
     status: "gravada" | "existe";
     meta?: Plano["meta_oficial"];
@@ -290,7 +276,6 @@ export function usePlano(userId: string) {
     msg,
     set,
     setVarios,
-    escolherTrilha,
     assinar,
     usarMeta,
     recarregar: carregar,

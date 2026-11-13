@@ -1,11 +1,15 @@
 /**
- * Meu Plano 2027: lista das telas (1 página de exercício do book = 1 tela), ordem de cada trilha,
- * campos obrigatórios e progresso. Só dados e funções puras; o desenho de cada tela fica em
+ * Meu Plano 2027: lista das telas (1 página de exercício do book = 1 tela), ordem única (caminho só,
+ * igual ao book — Denis 13/11, t_296fc69e), campos obrigatórios e progresso. Só dados e funções puras; o desenho de cada tela fica em
  * src/components/minha-carreira/meu-plano/telas.tsx (mesmo id).
  */
 import { AFIRMACOES, NEGOCIO, PESSOAL, calc, cheio, ok, type Respostas } from "./regras";
 
 export const ANO_PLANO = 2027;
+/**
+ * Legado: valor da coluna carreira_plano.trilha de quem escolheu trilha antes do caminho único (13/11).
+ * A coluna e o dado ficam no banco, mas o app não usa mais para ordem, % nem PDF.
+ */
 export type Trilha = "ativacao" | "planejamento";
 
 export type Tela = {
@@ -14,7 +18,6 @@ export type Tela = {
   pdf: number;
   ev: string;
   t: string;
-  trilhas: Trilha[];
   intro: string;
   /** Campos que contam para "tela completa" e para o % do plano. */
   req: string[];
@@ -67,19 +70,14 @@ export const KRIS: { kri: string; kpis: { k: string; n: string; ex: string[] }[]
   },
 ];
 
-const A: Trilha[] = ["ativacao"];
-const P: Trilha[] = ["planejamento"];
-const AP: Trilha[] = ["ativacao", "planejamento"];
-
 export const TELAS: Tela[] = [
   {
-    // Quadro de KRIs do book (PDF 11). Nos Cadernos (Caderno 1 pág. 24, Caderno 2 pág. 6) ele vem em
-    // branco logo depois do cockpit; por isso fica no fim das duas trilhas.
+    // Quadro de KRIs do book (PDF 11). Nos Cadernos ele vem depois do cockpit, mas a ordem do plano segue
+    // a cartilha (Denis, 13/11): é a primeira tela.
     id: "p11",
     pdf: 11,
-    ev: "Fechamento · KRIs e KPIs",
+    ev: "Como usar · KRIs e KPIs",
     t: "Meus KRIs e KPIs: ações principais",
-    trilhas: AP,
     leia: ["como"],
     intro:
       "Do objetivo do ano aos resultados-chave (KRI), aos indicadores (KPI) e às ações do dia a dia. Para cada indicador, escreva as ações que você vai repetir toda semana para mover esse número.",
@@ -91,7 +89,6 @@ export const TELAS: Tela[] = [
     pdf: 15,
     ev: "Diagnóstico · Onde eu estou",
     t: "Meu ano em números",
-    trilhas: AP,
     intro:
       "Estes oito números são o seu ponto de partida (só venda, sem locação). No book eles vêm “preenchidos pelo sistema”: aqui o ADM MAX traz os que já tem.",
     req: P15_CAMPOS.map((x) => x[0]),
@@ -101,7 +98,6 @@ export const TELAS: Tela[] = [
     pdf: 16,
     ev: "Diagnóstico · Onde eu estou",
     t: "De onde vieram meus negócios",
-    trilhas: AP,
     intro:
       "Nos últimos 12 meses, de onde vieram os negócios que você fechou? Anote a quantidade nas origens que geraram negócio.",
     req: ["or.0.c"],
@@ -111,7 +107,6 @@ export const TELAS: Tela[] = [
     pdf: 17,
     ev: "Diagnóstico · Onde eu estou",
     t: "Onde eu estou hoje",
-    trilhas: AP,
     intro:
       "Pensando no seu último ano, dê uma nota de 1 a 5 para cada afirmação. 1 = discordo totalmente · 5 = concordo totalmente.",
     req: AFIRMACOES.map((_, i) => `av.${i}`),
@@ -121,7 +116,6 @@ export const TELAS: Tela[] = [
     pdf: 20,
     ev: "Passo 1 · Aspirações",
     t: "Meu porquê",
-    trilhas: AP,
     leia: ["porque"],
     intro:
       "Saber o seu “porquê” é mais importante do que saber o seu “como”. Responda o que quiser das 7 perguntas; a única obrigatória é a frase final.",
@@ -132,7 +126,6 @@ export const TELAS: Tela[] = [
     pdf: 22,
     ev: "Passo 2 · Meu número",
     t: "Meu orçamento pessoal",
-    trilhas: AP,
     intro:
       "Estime o gasto mensal de cada grupo. Não busque exatidão, busque ordem de grandeza. Despesa anual entra dividida por 12 (IPVA de R$ 1.200 = R$ 100/mês).",
     req: PESSOAL.map((_, i) => `op.${i}`),
@@ -142,7 +135,6 @@ export const TELAS: Tela[] = [
     pdf: 23,
     ev: "Passo 2 · Meu número",
     t: "Meu orçamento do negócio",
-    trilhas: AP,
     intro:
       "O que custa manter o seu negócio rodando, por mês. Nenhum orçamento nasce perfeito: comece pela estimativa e corrija conforme acompanha.",
     req: NEGOCIO.map((_, i) => `on.${i}`),
@@ -152,7 +144,6 @@ export const TELAS: Tela[] = [
     pdf: 24,
     ev: "Passo 2 · Meu número",
     t: "Meus sonhos",
-    trilhas: AP,
     intro:
       "Três coisas que você quer realizar em 2027 e que custam dinheiro. Sonho sem valor escrito é desejo. Sonho com valor escrito é meta.",
     req: ["so.0.t", "so.0.v"],
@@ -162,7 +153,6 @@ export const TELAS: Tela[] = [
     pdf: 25,
     ev: "Passo 2 · Meu número",
     t: "O número do meu estilo de vida",
-    trilhas: AP,
     intro:
       "A soma das despesas pessoais, do negócio e dos sonhos, já com o imposto. É o número que sustenta todo o resto do plano.",
     req: ["es.aliq"],
@@ -172,7 +162,6 @@ export const TELAS: Tela[] = [
     pdf: 27,
     ev: "Passo 3 · Onde eu quero chegar",
     t: "Da comissão à transação",
-    trilhas: AP,
     leia: ["clubes"],
     intro:
       "Agora o número da sua vida vira quantidade de transações. A linha 1 vem da tela anterior.",
@@ -183,7 +172,6 @@ export const TELAS: Tela[] = [
     pdf: 30,
     ev: "Passo 3 · Onde eu quero chegar",
     t: "Da transação à captação",
-    trilhas: AP,
     intro: "Toda transação começa em uma captação. Esta é a conta mais importante do seu plano.",
     req: ["m.conv"],
   },
@@ -192,7 +180,6 @@ export const TELAS: Tela[] = [
     pdf: 31,
     ev: "Passo 3 · Onde eu quero chegar",
     t: "Minha carteira alvo",
-    trilhas: AP,
     intro:
       "Captar é um fluxo. Carteira é um estoque. O indicador mais direto da saúde do seu negócio é o volume de CREs ativas.",
     req: ["m.alvo"],
@@ -202,7 +189,6 @@ export const TELAS: Tela[] = [
     pdf: 32,
     ev: "Passo 3 · Onde eu quero chegar",
     t: "Minhas metas para 2027",
-    trilhas: AP,
     intro:
       "O objetivo do ano em uma frase. Os números já vêm das telas anteriores (sugestão do sistema); ajuste se quiser. No fim, um toque transforma isso na sua meta oficial de 2027.",
     req: ["mt.creFim"],
@@ -212,7 +198,6 @@ export const TELAS: Tela[] = [
     pdf: 34,
     ev: "Passo 4 · Onde eu jogo",
     t: "Meu posicionamento",
-    trilhas: P,
     intro:
       "Comece pela região; dentro dela, escolha o tipo de imóvel e a faixa de preço em que você converte mais. A essência da estratégia é definir o que não será feito.",
     req: ["pos.regiao", "pos.tipo", "pos.de", "pos.ate"],
@@ -222,7 +207,6 @@ export const TELAS: Tela[] = [
     pdf: 36,
     ev: "Passo 5 · Como eu executo",
     t: "Minha semana padrão",
-    trilhas: P,
     intro:
       "Distribua as suas horas úteis entre os quatro blocos. A soma é o seu compromisso semanal. Plano que não vira semana não vira resultado.",
     req: ["sp.0", "sp.1", "sp.2", "sp.3", "sp.dia"],
@@ -232,7 +216,6 @@ export const TELAS: Tela[] = [
     pdf: 37,
     ev: "Passo 5 · Como eu executo",
     t: "Meu funil de captação",
-    trilhas: P,
     intro:
       "Toda CRE nasce de um funil: lead, atendimento, agendamento, V1, V2. Faça a conta de trás para frente; o sistema faz por você a partir das suas taxas.",
     req: [],
@@ -243,7 +226,6 @@ export const TELAS: Tela[] = [
     pdf: 38,
     ev: "Passo 5 · Como eu executo",
     t: "Minha régua de revisão de preço",
-    trilhas: P,
     intro:
       "A página mais importante do plano. Todo imóvel entra na régua no dia da assinatura da CRE: dia 30 leitura de mercado · dia 60 primeira revisão · dia 90 decisão com o proprietário.",
     req: ["rv.mes", "rv.dias", "rv.ritual"],
@@ -253,7 +235,6 @@ export const TELAS: Tela[] = [
     pdf: 39,
     ev: "Passo 5 · Como eu executo",
     t: "Onde vou investir em marketing",
-    trilhas: P,
     intro:
       "Suas três maiores origens do ano passado são o ponto de partida, não a lista de canais da moda. Escolha no máximo 3 canais.",
     req: ["mk.invest"],
@@ -263,7 +244,6 @@ export const TELAS: Tela[] = [
     pdf: 40,
     ev: "Passo 5 · Como eu executo",
     t: "Minha agenda de desenvolvimento",
-    trilhas: P,
     leia: ["buffini"],
     intro:
       "Quem aprende, evolui. Quem aplica, lucra. Escolha o que estudar a partir dos seus números mais fracos.",
@@ -274,7 +254,6 @@ export const TELAS: Tela[] = [
     pdf: 43,
     ev: "Passo 6 · Como eu acompanho",
     t: "Meu painel mensal",
-    trilhas: P,
     recorrente: true,
     intro:
       "Cinco números, uma vez por mês. Leva dez minutos. A linha META DO ANO já vem do seu plano.",
@@ -285,7 +264,6 @@ export const TELAS: Tela[] = [
     pdf: 44,
     ev: "Passo 6 · Como eu acompanho",
     t: "Meu acompanhamento semanal",
-    trilhas: P,
     recorrente: true,
     intro:
       "No papel: “imprima ou copie esta página todo mês”. Aqui: a tabela da semana, com a meta já calculada pelo seu funil.",
@@ -297,7 +275,6 @@ export const TELAS: Tela[] = [
     pdf: 45,
     ev: "Passo 6 · Como eu acompanho",
     t: "Meu pacto com o broker",
-    trilhas: AP,
     intro:
       "Plano sem quem cobre é diário. Este pacto é o que transforma o seu plano em compromisso.",
     req: ["pa.nome", "pa.c.0", "pa.cad"],
@@ -305,9 +282,8 @@ export const TELAS: Tela[] = [
   {
     id: "p49",
     pdf: 49,
-    ev: "Trilha Ativação · Para quem está começando",
+    ev: "Ativação · Primeiros 90 dias",
     t: "Meus primeiros 90 dias",
-    trilhas: A,
     leia: ["dados"],
     intro:
       "Não é faturamento, não é ranking, não é clube. A sua meta é uma só: A PRIMEIRA VENDA. Primeira CRE até o dia 45, três CREs até o dia 90.",
@@ -316,9 +292,8 @@ export const TELAS: Tela[] = [
   {
     id: "p50",
     pdf: 50,
-    ev: "Trilha Ativação · Para quem está começando",
+    ev: "Ativação · Primeiros 90 dias",
     t: "Minhas 4 primeiras semanas",
-    trilhas: A,
     intro: "Marque o que já fez. Você volta aqui durante o mês.",
     req: [],
     livre: "sem.",
@@ -326,11 +301,10 @@ export const TELAS: Tela[] = [
   {
     id: "p51",
     pdf: 51,
-    ev: "Trilha Ativação · Para quem está começando",
+    ev: "Ativação · Primeiros 90 dias",
     t: "Primeira captação e primeira venda",
-    trilhas: A,
     intro:
-      "Os marcos da primeira captação e da primeira venda. Quando fechar a primeira venda, faça o plano completo (trilha Planejamento).",
+      "Os marcos da primeira captação e da primeira venda. Marque o que já aconteceu; quem já captou e vendeu marca tudo de uma vez.",
     req: [],
     livre: "mc.",
   },
@@ -339,77 +313,45 @@ export const TELAS: Tela[] = [
     pdf: 52,
     ev: "Fechamento",
     t: "Meu cockpit: meu plano em uma página",
-    trilhas: AP,
     intro:
       "Tudo o que você decidiu, numa página só, montado automaticamente pelas suas respostas. Toque no número da página para corrigir na origem.",
     req: [],
   },
 ];
 
-export const ORDEM: Record<Trilha, string[]> = {
-  planejamento: [
-    "p15",
-    "p16",
-    "p17",
-    "p20",
-    "p22",
-    "p23",
-    "p24",
-    "p25",
-    "p27",
-    "p30",
-    "p31",
-    "p32",
-    "p34",
-    "p36",
-    "p37",
-    "p38",
-    "p39",
-    "p40",
-    "p43",
-    "p44",
-    "p45",
-    "p52",
-    "p11",
-  ],
-  // Diagnóstico (pág. 14 a 16 do book = PDF 15 a 17) também na Ativação (Denis, 12/11): o corretor
-  // preenche no sistema, sem a apostila, e o ticket médio da pág. 26 (p27) sai daqui.
-  ativacao: [
-    "p15",
-    "p16",
-    "p17",
-    "p20",
-    "p22",
-    "p23",
-    "p24",
-    "p25",
-    "p27",
-    "p30",
-    "p31",
-    "p32",
-    "p49",
-    "p50",
-    "p51",
-    "p45",
-    "p52",
-    "p11",
-  ],
-};
-
-export const TRILHAS: Record<Trilha, { n: string; quem: string; o: string; obj: string }> = {
-  ativacao: {
-    n: "Ativação",
-    quem: "Quem está iniciando na REMAX",
-    o: "Diagnóstico, Passos 1 a 3 e o bloco Ativação",
-    obj: "A primeira venda",
-  },
-  planejamento: {
-    n: "Planejamento",
-    quem: "Quem já atua na REMAX",
-    o: "O plano inteiro (Diagnóstico + Passos 1 a 6)",
-    obj: "Meta financeira, território e rotina",
-  },
-};
+/**
+ * Ordem única do plano (Denis, 13/11, t_296fc69e: "uma trilha só"). Segue a CARTILHA (book), na ordem
+ * das páginas; os 2 Cadernos de exercícios não ditam a ordem. Por isso o quadro de KRIs (PDF 11) abre o
+ * plano. Todos passam por todas as telas.
+ */
+export const ORDEM: string[] = [
+  "p11",
+  "p15",
+  "p16",
+  "p17",
+  "p20",
+  "p22",
+  "p23",
+  "p24",
+  "p25",
+  "p27",
+  "p30",
+  "p31",
+  "p32",
+  "p34",
+  "p36",
+  "p37",
+  "p38",
+  "p39",
+  "p40",
+  "p43",
+  "p44",
+  "p45",
+  "p49",
+  "p50",
+  "p51",
+  "p52",
+];
 
 const POR_ID = new Map(TELAS.map((t) => [t.id, t]));
 export const tela = (id: string) => POR_ID.get(id);
@@ -459,8 +401,20 @@ export const ATALHO_PAGINA: Record<number, string> = {};
 export const exercicioDaPagina = (pdf: number) =>
   ATALHO_PAGINA[pdf] ? tela(ATALHO_PAGINA[pdf]) : undefined;
 
-/** Sem trilha escolhida (entrou pelo book ou por "Preencher esta página"), o resto do plano usa Planejamento. */
-export const TRILHA_PADRAO: Trilha = "planejamento";
+const DATA_ISO = /^\d{4}-\d{2}-\d{2}$/;
+/**
+ * Dia 1 dos 90 dias (telas p49/p50). Ordem: 1) ativacao_inicio já gravado no banco (quem escolheu a trilha
+ * Ativação antes do caminho único: nada muda); 2) a data que o próprio corretor marca em p49 (campo
+ * d90.inicio, nas respostas); 3) sem nenhuma das duas, null (a tela pede a data).
+ */
+export function inicioNoventaDias(
+  ativacaoInicio: string | null | undefined,
+  S: Respostas,
+): string | null {
+  if (typeof ativacaoInicio === "string" && DATA_ISO.test(ativacaoInicio)) return ativacaoInicio;
+  const d = S["d90.inicio"];
+  return typeof d === "string" && DATA_ISO.test(d) ? d : null;
+}
 
 /**
  * Campo obrigatório que conta como preenchido mesmo vazio, porque a conta já usa uma sugestão válida
@@ -478,8 +432,8 @@ const calcPreguicoso = (S: Respostas) => {
   return () => (c ??= calc(S));
 };
 
-export function progresso(S: Respostas, trilha: Trilha | null | undefined) {
-  const ids = ORDEM[trilha ?? TRILHA_PADRAO];
+export function progresso(S: Respostas) {
+  const ids = ORDEM;
   const C = calcPreguicoso(S);
   const req = ids.flatMap((id) => tela(id)!.req);
   const feitos = req.filter((k) => preenchido(k, S, C)).length;
@@ -507,9 +461,9 @@ export function statusTela(id: string, S: Respostas): "ok" | "parc" | "vazio" | 
   return Object.keys(S).some((k) => k.startsWith(p.livre!) && cheio(S[k])) ? "ok" : "vazio";
 }
 
-/** Próxima/anterior dentro da trilha. Fora da trilha: volta para a escolha / vai ao fim. */
-export function vizinhos(id: string, trilha: Trilha) {
-  const ids = ORDEM[trilha];
+/** Próxima/anterior na ordem única. Na primeira tela não há anterior; depois da última vem o fim. */
+export function vizinhos(id: string) {
+  const ids = ORDEM;
   const i = ids.indexOf(id);
   return {
     i,

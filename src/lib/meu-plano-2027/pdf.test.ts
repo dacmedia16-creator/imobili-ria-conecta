@@ -9,10 +9,10 @@ import {
   type ItemPdf,
 } from "./pdf-conteudo";
 import { buildPlanoPdf, limpa } from "./pdf";
-import { ORDEM, progresso, rotuloPagina, tela } from "./telas";
+import { ORDEM, progresso, rotuloPagina, statusTela, tela } from "./telas";
 import { calc, fmt, type Respostas } from "./regras";
 
-// Plano completo da trilha Ativação (dados fictícios; números do exemplo do book).
+// Plano antigo da trilha Ativação (dados fictícios; números do exemplo do book): sem p34–p44.
 const ATIVACAO: Respostas = {
   // Diagnóstico (pág. 14 a 16) de quem está começando: sem histórico, tudo 0 (t_8a8eb930).
   ...Object.fromEntries(
@@ -54,7 +54,7 @@ const ATIVACAO: Respostas = {
   "kri.0": "Ligar para 20 proprietários por dia",
 };
 
-// Planejamento: Ativação + as telas só da trilha Planejamento.
+// Plano completo no caminho único: Ativação + as telas que eram só da trilha Planejamento.
 const PLANEJAMENTO: Respostas = {
   ...ATIVACAO,
   "d.comissao": "200.000",
@@ -98,52 +98,45 @@ const valor = (c: ConteudoPdf, id: string, rot: string) =>
     itens(c, id).find((i) => i.k === "campo" && i.rot === rot) as Extract<ItemPdf, { k: "campo" }>
   )?.val?.replace(/\u00a0/g, " ");
 
-describe("quando o PDF existe (regra 1: todas as telas da trilha completas)", () => {
-  it("os planos de exemplo estão 100% completos (mesmo critério do X/Y telas completas)", () => {
-    for (const [S, t] of [
-      [ATIVACAO, "ativacao"],
-      [PLANEJAMENTO, "planejamento"],
-    ] as const) {
-      const p = progresso(S, t);
-      expect(p.telas).toBe(p.total);
-      expect(planoFinalizado(S, t)).toBe(true);
-    }
+describe("quando o PDF existe (regra 1: todas as telas do plano completas)", () => {
+  it("o plano de exemplo está 100% completo (mesmo critério do X/Y telas completas)", () => {
+    const p = progresso(PLANEJAMENTO);
+    expect(p.telas).toBe(p.total);
+    expect(p.total).toBe(ORDEM.length);
+    expect(planoFinalizado(PLANEJAMENTO)).toBe(true);
   });
 
-  it("falta 1 tela = sem PDF; sem trilha = sem PDF", () => {
-    const S = { ...ATIVACAO };
+  it("falta 1 tela = sem PDF; plano vazio = sem PDF", () => {
+    const S = { ...PLANEJAMENTO };
     delete S["pa.cad"];
-    expect(progresso(S, "ativacao").telas).toBe(progresso(S, "ativacao").total - 1);
-    expect(planoFinalizado(S, "ativacao")).toBe(false);
-    expect(planoFinalizado(PLANEJAMENTO, null)).toBe(false);
-    expect(planoFinalizado({}, "planejamento")).toBe(false);
-    // Plano completo na Ativação ainda não é completo no Planejamento.
-    expect(planoFinalizado(ATIVACAO, "planejamento")).toBe(false);
-    expect(() => conteudoPlanoPdf({ respostas: S, trilha: "ativacao" })).toThrow(
-      /não está completo/,
-    );
+    expect(progresso(S).telas).toBe(progresso(S).total - 1);
+    expect(planoFinalizado(S)).toBe(false);
+    expect(planoFinalizado({})).toBe(false);
+    expect(() => conteudoPlanoPdf({ respostas: S })).toThrow(/não está completo/);
+  });
+
+  it("plano antigo completo só na Ativação: faltam agora as telas p34–p44 (nada é apagado)", () => {
+    expect(planoFinalizado(ATIVACAO)).toBe(false);
+    const faltam = ORDEM.filter((id) => ["vazio", "parc"].includes(statusTela(id, ATIVACAO)!));
+    expect(faltam).toEqual(["p34", "p36", "p37", "p38", "p39", "p40", "p44"]);
   });
 });
 
 describe("conteúdo do PDF", () => {
   const c = conteudoPlanoPdf({
     respostas: PLANEJAMENTO,
-    trilha: "planejamento",
     assinado_corretor_em: "2026-11-12T13:00:00Z",
   });
 
-  it("todas as telas, na ordem da trilha, com o rótulo da página do book", () => {
-    expect(c.secoes.map((s) => s.id)).toEqual(ORDEM.planejamento);
+  it("todas as telas, na ordem única, com o rótulo da página do book", () => {
+    expect(c.secoes.map((s) => s.id)).toEqual(ORDEM);
     for (const s of c.secoes) {
       expect(s.rotulo).toBe(rotuloPagina(tela(s.id)!.pdf));
       expect(s.titulo).toBe(tela(s.id)!.t);
       expect(s.itens.length).toBeGreaterThan(0);
     }
     expect(c.secoes.find((s) => s.id === "p20")!.rotulo).toBe("pág. 19 · PDF 20");
-    expect(c.trilhaNome).toBe("Planejamento");
-    expect(`${c.telas}/${c.total}`).toBe(
-      `${ORDEM.planejamento.length}/${ORDEM.planejamento.length}`,
-    );
+    expect(`${c.telas}/${c.total}`).toBe(`${ORDEM.length}/${ORDEM.length}`);
   });
 
   it("traz as respostas como foram digitadas", () => {
@@ -217,11 +210,13 @@ describe("conteúdo do PDF", () => {
 
   it("número sem base sai — (não inventa)", () => {
     // Ativação sem diagnóstico: o ticket digitado existe, mas não há CREs vendidas digitadas → calcula pela conversão.
-    const a = conteudoPlanoPdf({ respostas: ATIVACAO, trilha: "ativacao" });
-    expect(a.secoes.map((s) => s.id)).toEqual(ORDEM.ativacao);
-    expect(valor(a, "p52", "Horas/semana: captação · atendimento · desenvolvimento")).toBe(
-      "não faz parte da trilha Ativação",
+    const a = conteudoPlanoPdf({ respostas: PLANEJAMENTO });
+    expect(a.secoes.map((s) => s.id)).toEqual(ORDEM);
+    // Caminho único: nenhuma linha do cockpit sai como "não faz parte da trilha".
+    expect(valor(a, "p52", "Horas/semana: captação · atendimento · desenvolvimento")).not.toMatch(
+      /trilha/,
     );
+    expect(valor(a, "p52", "1ª CRE · 3 CREs · 1ª venda")).toBe("20/01/2027 · — · 10/04/2027");
     expect(valor(a, "p49", "Três CREs (até o dia 90)")).toBe(VAZIO);
     expect(valor(a, "p49", "Primeira CRE assinada (até o dia 45)")).toBe("20/01/2027");
   });
@@ -239,11 +234,11 @@ describe("PDF: bloco mês a mês com meses digitados (t_14aebf47)", () => {
     Array.from({ length: 12 }, (_, i) => `mt.mes.${l}.${i + 1}`),
   );
   const blocoMes = (S: Respostas) =>
-    conteudoPlanoPdf({ respostas: S, trilha: "ativacao" }).numeros.find((s) => s.id === "n-mes")!;
+    conteudoPlanoPdf({ respostas: S }).numeros.find((s) => s.id === "n-mes")!;
 
   it("sem mês digitado: tabela idêntica à anterior (anual ÷ 12 e total = anual)", () => {
-    const C = calc(ATIVACAO);
-    const s = blocoMes(ATIVACAO);
+    const C = calc(PLANEJAMENTO);
+    const s = blocoMes(PLANEJAMENTO);
     expect(s.titulo).toBe("Metas mês a mês (÷ 12) e total do ano");
     expect(s.itens).toHaveLength(1);
     const antigo: [string, number][] = [
@@ -259,7 +254,7 @@ describe("PDF: bloco mês a mês com meses digitados (t_14aebf47)", () => {
   });
 
   it("com mês digitado: mostra o valor, sugestão nos vazios, total e aviso", () => {
-    const S = { ...ATIVACAO, "mt.mes.novas.1": "9" };
+    const S = { ...PLANEJAMENTO, "mt.mes.novas.1": "9" };
     const C = calc(S);
     const s = blocoMes(S);
     expect(s.titulo).toBe("Metas mês a mês e total do ano");
@@ -276,22 +271,22 @@ describe("PDF: bloco mês a mês com meses digitados (t_14aebf47)", () => {
   });
 
   it("todo o resto do PDF (meta oficial, carteira, KRIs, telas) é idêntico com meses digitados", () => {
-    const S1: Respostas = { ...ATIVACAO };
+    const S1: Respostas = { ...PLANEJAMENTO };
     MES_K.forEach((k, i) => (S1[k] = String(i % 5)));
-    const a = conteudoPlanoPdf({ respostas: ATIVACAO, trilha: "ativacao" });
-    const b = conteudoPlanoPdf({ respostas: S1, trilha: "ativacao" });
+    const a = conteudoPlanoPdf({ respostas: PLANEJAMENTO });
+    const b = conteudoPlanoPdf({ respostas: S1 });
     const semMes = (c: ConteudoPdf) => ({
       ...c,
       numeros: c.numeros.filter((x) => x.id !== "n-mes"),
     });
     expect(semMes(b)).toEqual(semMes(a));
-    expect(calc(S1)).toEqual(calc(ATIVACAO));
+    expect(calc(S1)).toEqual(calc(PLANEJAMENTO));
   });
 
   it("gera o PDF (pdf-lib) com meses digitados", async () => {
-    const S = { ...ATIVACAO, "mt.mes.novas.1": "9", "mt.mes.vgc.12": "50" };
+    const S = { ...PLANEJAMENTO, "mt.mes.novas.1": "9", "mt.mes.vgc.12": "50" };
     const bytes = await buildPlanoPdf({
-      plano: { respostas: S, trilha: "ativacao" },
+      plano: { respostas: S },
       colaborador: "Ana",
       logoPng: null,
       agencyName: null,
@@ -308,7 +303,7 @@ describe("geração do PDF (pdf-lib)", () => {
 
   it("A4, com logo, várias páginas, e o texto das respostas aparece no arquivo", async () => {
     const bytes = await buildPlanoPdf({
-      plano: { respostas: PLANEJAMENTO, trilha: "planejamento" },
+      plano: { respostas: PLANEJAMENTO },
       colaborador: "Ana Exemplo 😊",
       agencyName: "RE/MAX Exemplo",
       logoPng: new Uint8Array(readFileSync("public/remax-logo-transparent.png")),
@@ -325,7 +320,7 @@ describe("geração do PDF (pdf-lib)", () => {
 
   it("sem logo e sem nome da imobiliária também gera; plano incompleto não gera", async () => {
     const bytes = await buildPlanoPdf({
-      plano: { respostas: ATIVACAO, trilha: "ativacao" },
+      plano: { respostas: PLANEJAMENTO },
       colaborador: "Ana",
       logoPng: null,
       agencyName: null,
@@ -334,14 +329,14 @@ describe("geração do PDF (pdf-lib)", () => {
     expect((await PDFDocument.load(bytes)).getPageCount()).toBeGreaterThan(1);
     // Logo inválido: segue sem logo.
     const comLixo = await buildPlanoPdf({
-      plano: { respostas: ATIVACAO, trilha: "ativacao" },
+      plano: { respostas: PLANEJAMENTO },
       colaborador: "Ana",
       logoPng: new Uint8Array([0x89, 0x50, 1, 2, 3]),
     });
     expect(comLixo.length).toBeGreaterThan(1000);
     await expect(
       buildPlanoPdf({
-        plano: { respostas: { "pq.frase": "x" }, trilha: "ativacao" },
+        plano: { respostas: { "pq.frase": "x" } },
         colaborador: "Ana",
       }),
     ).rejects.toThrow(/não está completo/);

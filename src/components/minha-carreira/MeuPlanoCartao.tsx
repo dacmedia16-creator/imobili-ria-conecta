@@ -5,14 +5,13 @@ import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ehBroker, ehLider, meuPlanoEnabled, planoDb } from "@/lib/meu-plano-2027/modulo";
-import { ANO_PLANO, ORDEM, rotuloPagina, type Trilha } from "@/lib/meu-plano-2027/telas";
+import { ANO_PLANO, ORDEM, rotuloPagina } from "@/lib/meu-plano-2027/telas";
 import type { Respostas } from "@/lib/meu-plano-2027/regras";
 import { MeuPlanoResumo } from "./meu-plano/MeuPlano";
 import { BotaoBaixarPlano } from "./meu-plano/BaixarPdf";
 
 type Linha = {
   respostas: Respostas;
-  trilha: Trilha | null;
   meta_oficial: {
     meta_comissao: number | null;
     meta_vendas: number | null;
@@ -33,12 +32,11 @@ export function MeuPlanoCartao({ userId }: { userId: string }) {
       setLigado(true);
       const { data } = await planoDb
         .from("carreira_plano")
-        .select("respostas,trilha,meta_oficial")
+        .select("respostas,meta_oficial")
         .eq("user_id", userId)
         .eq("ano", ANO_PLANO)
         .maybeSingle();
-      if (vivo)
-        setLinha((data as Linha | null) ?? { respostas: {}, trilha: null, meta_oficial: null });
+      if (vivo) setLinha((data as Linha | null) ?? { respostas: {}, meta_oficial: null });
     });
     return () => {
       vivo = false;
@@ -47,11 +45,11 @@ export function MeuPlanoCartao({ userId }: { userId: string }) {
 
   if (!ligado) return null;
   const S = linha?.respostas ?? {};
-  const trilha = linha?.trilha ?? null;
   const ult =
-    typeof S["ui.ult"] === "string" && trilha && ORDEM[trilha].includes(S["ui.ult"] as string)
+    typeof S["ui.ult"] === "string" && ORDEM.includes(S["ui.ult"] as string)
       ? (S["ui.ult"] as string)
       : null;
+  const comecou = !!ult || Object.keys(S).some((k) => !k.startsWith("ui.") && !k.startsWith("ms."));
   const pag = Number(S["ui.pag"]) || 1;
 
   return (
@@ -66,11 +64,8 @@ export function MeuPlanoCartao({ userId }: { userId: string }) {
       </CardHeader>
       <CardContent className="space-y-3">
         <Button asChild className="h-12 w-full text-base" data-testid="abrir-meu-plano">
-          <Link
-            to="/minha-carreira/plano"
-            search={trilha ? { v: "tela", id: ult ?? ORDEM[trilha][0] } : { v: "trilha" }}
-          >
-            🎯 Meu Plano 2027 · {trilha ? (ult ? "continuar" : "começar") : "novo"}
+          <Link to="/minha-carreira/plano" search={{ v: "tela", id: ult ?? ORDEM[0] }}>
+            🎯 Meu Plano 2027 · {comecou ? "continuar" : "começar"}
           </Link>
         </Button>
         <Button
@@ -83,8 +78,8 @@ export function MeuPlanoCartao({ userId }: { userId: string }) {
             {pag > 1 ? `· continuar ${rotuloPagina(pag)}` : "· 56 páginas"}
           </Link>
         </Button>
-        {linha ? <MeuPlanoResumo S={S} trilha={trilha} metaOficial={linha.meta_oficial} /> : null}
-        <BotaoBaixarPlano userId={userId} S={S} trilha={trilha} />
+        {linha ? <MeuPlanoResumo S={S} metaOficial={linha.meta_oficial} /> : null}
+        <BotaoBaixarPlano userId={userId} S={S} />
         {ehBroker(roles) || ehLider(roles) ? (
           <Button asChild size="sm" variant="secondary" className="w-full">
             <Link to="/minha-carreira/plano" search={{ v: "equipe" }}>

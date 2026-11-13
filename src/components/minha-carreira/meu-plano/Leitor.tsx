@@ -12,12 +12,10 @@ import {
 } from "@/lib/meu-plano-2027/book";
 import {
   ORDEM,
-  TRILHAS,
   exercicioDaPagina,
   rotuloPagina,
   statusTela,
   telaDaPagina,
-  type Trilha,
 } from "@/lib/meu-plano-2027/telas";
 import type { Respostas } from "@/lib/meu-plano-2027/regras";
 
@@ -31,36 +29,27 @@ export function SeloPagina({ id, S }: { id: string; S: Respostas }) {
 }
 
 /**
- * Para onde vai o botão fixo "Ir para os exercícios" numa página do book SEM exercício:
- * com trilha, a última tela em que parou (ui.ult, se for da trilha) ou a primeira da trilha;
- * sem trilha, a tela de escolha de trilha.
+ * Para onde vai quem quer "continuar" o plano (botão fixo "Ir para os exercícios" numa página do book SEM
+ * exercício, cartão de Minha carreira, link antigo ?v=trilha): a última tela em que parou (ui.ult) ou a
+ * primeira do plano. Caminho único (t_296fc69e): não existe mais tela de escolha de trilha.
  */
-export function destinoExercicios(
-  S: Respostas,
-  trilha: Trilha | null,
-): { v: "tela"; id: string } | { v: "trilha" } {
-  if (!trilha) return { v: "trilha" };
+export function destinoExercicios(S: Respostas): { v: "tela"; id: string } {
   const ult = S["ui.ult"];
-  if (typeof ult === "string" && ORDEM[trilha].includes(ult)) return { v: "tela", id: ult };
-  return { v: "tela", id: ORDEM[trilha][0] };
+  if (typeof ult === "string" && ORDEM.includes(ult)) return { v: "tela", id: ult };
+  return { v: "tela", id: ORDEM[0] };
 }
 
 /** Leitor das 56 páginas do book (imagens estáticas; só a página aberta é baixada + a próxima). */
 export function Leitor({
   pagina,
   S,
-  trilha,
   irPagina,
   preencher,
-  escolherTrilha,
 }: {
   pagina: number;
   S: Respostas;
-  trilha: Trilha | null;
   irPagina: (n: number) => void;
   preencher: (id: string) => void;
-  /** Abre a tela de escolha de trilha (botão "Ir para os exercícios" de quem ainda não escolheu). */
-  escolherTrilha: () => void;
 }) {
   const n = Math.min(TOTAL_PAGINAS, Math.max(1, pagina));
   const [zoom, setZoom] = useState(false);
@@ -69,7 +58,6 @@ export function Leitor({
   // Página com exercício próprio ou atalho para o exercício que está em outra tela (PDF 11 → Metas).
   const ex = telaDaPagina(n) ?? exercicioDaPagina(n);
   const atalho = !!ex && ex.pdf !== n;
-  const naTrilha = ex && trilha ? ORDEM[trilha].includes(ex.id) : true;
 
   useEffect(() => {
     setZoom(false);
@@ -180,12 +168,6 @@ export function Leitor({
               A frase desta página é montada na tela “{ex.t}” ({rotuloPagina(ex.pdf)}).
             </span>
           ) : null}
-          {!naTrilha && trilha ? (
-            <span className="basis-full text-xs text-muted-foreground">
-              Esta página não faz parte da trilha {TRILHAS[trilha].n}; dá para preencher assim
-              mesmo.
-            </span>
-          ) : null}
         </div>
       ) : null}
       <div className={cn("bg-zinc-800", zoom && "max-h-[75vh] overflow-auto")}>
@@ -225,11 +207,7 @@ export function Leitor({
           // Página sem exercício: no mesmo lugar do botão verde, leva para onde a pessoa preenche.
           <Button
             className="h-12 w-full basis-full bg-emerald-700 text-base font-semibold text-white hover:bg-emerald-800"
-            onClick={() => {
-              const d = destinoExercicios(S, trilha);
-              if (d.v === "tela") preencher(d.id);
-              else escolherTrilha();
-            }}
+            onClick={() => preencher(destinoExercicios(S).id)}
             data-testid="ir-exercicios-fixo"
           >
             <PencilLine className="mr-2 h-5 w-5" aria-hidden /> Ir para os exercícios

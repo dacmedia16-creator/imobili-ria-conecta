@@ -1,8 +1,8 @@
 /**
  * Conteúdo do PDF "Meu Plano 2027" (cartão t_65edd0b0; aprovado por Denis em 12/11/2026). Só dados e funções
  * puras: o desenho (pdf-lib) fica em pdf.ts. Regras aprovadas:
- *  - só existe para plano FINALIZADO = todas as telas da trilha completas (o mesmo "X/Y telas completas");
- *  - todas as respostas, tela por tela, na ordem da trilha, com o rótulo da página do book (rotuloPagina);
+ *  - só existe para plano FINALIZADO = todas as telas do plano completas (o mesmo "X/Y telas completas");
+ *  - todas as respostas, tela por tela, na ordem única do plano (t_296fc69e), com o rótulo da página do book;
  *  - no fim, os números calculados: meta oficial, carteira alvo, metas mês a mês com o total e KRIs;
  *  - campo vazio = "—" (nenhum valor inventado; números calculados sem base também saem "—").
  */
@@ -28,16 +28,7 @@ import {
   type TaxasFunil,
   type Valor,
 } from "./regras";
-import {
-  KRIS,
-  ORDEM,
-  P15_CAMPOS,
-  TRILHAS,
-  progresso,
-  rotuloPagina,
-  tela,
-  type Trilha,
-} from "./telas";
+import { KRIS, ORDEM, P15_CAMPOS, inicioNoventaDias, progresso, rotuloPagina, tela } from "./telas";
 import {
   ATIVIDADES_SEMANA,
   BLOCOS_SEMANA,
@@ -61,7 +52,7 @@ export type SecaoPdf = { id: string; rotulo: string; ev: string; titulo: string;
 
 export type PlanoPdfDados = {
   respostas: Respostas;
-  trilha: Trilha | null;
+  /** Legado (quem escolheu a trilha Ativação antes do caminho único): dia 1 dos 90 dias. */
   ativacao_inicio?: string | null;
   assinado_corretor_em?: string | null;
   assinado_broker_em?: string | null;
@@ -75,18 +66,15 @@ export type PlanoPdfDados = {
 };
 
 export type ConteudoPdf = {
-  trilha: Trilha;
-  trilhaNome: string;
   telas: number;
   total: number;
   secoes: SecaoPdf[];
   numeros: SecaoPdf[];
 };
 
-/** Regra 1 aprovada: o plano está finalizado quando TODAS as telas da trilha escolhida estão completas. */
-export function planoFinalizado(S: Respostas, trilha: Trilha | null | undefined): boolean {
-  if (!trilha) return false;
-  const p = progresso(S, trilha);
+/** Regra 1 aprovada: o plano está finalizado quando TODAS as telas do plano (ordem única) estão completas. */
+export function planoFinalizado(S: Respostas): boolean {
+  const p = progresso(S);
   return p.total > 0 && p.telas === p.total;
 }
 
@@ -358,7 +346,7 @@ function itensDaTela(id: string, S: Respostas, C: Calc, d: PlanoPdfDados): ItemP
       ];
     case "p49":
       return [
-        conta("Início da trilha Ativação", d.ativacao_inicio ? dataBR(d.ativacao_inicio) : VAZIO),
+        conta("Início dos 90 dias (dia 1)", dataBR(inicioNoventaDias(d.ativacao_inicio, S))),
         campo("Primeira CRE assinada (até o dia 45)", data(s("d90.cre1"))),
         campo("Três CREs (até o dia 90)", data(s("d90.cre3"))),
         campo("Primeira venda", data(s("d90.venda1"))),
@@ -380,7 +368,7 @@ function itensDaTela(id: string, S: Respostas, C: Calc, d: PlanoPdfDados): ItemP
         campo("Data da minha primeira venda", data(s("mc.dataVenda"))),
       ];
     case "p52":
-      return cockpit(S, C, d.trilha ?? "planejamento");
+      return cockpit(S, C);
     case "p11":
       return [
         conta(
@@ -398,10 +386,8 @@ function itensDaTela(id: string, S: Respostas, C: Calc, d: PlanoPdfDados): ItemP
 }
 
 /** O cockpit (p52) é montado pelas outras telas: mesmas linhas da tela. */
-function cockpit(S: Respostas, C: Calc, trilha: Trilha): ItemPdf[] {
+function cockpit(S: Respostas, C: Calc): ItemPdf[] {
   const s = (k: string) => (typeof S[k] === "string" ? (S[k] as string).trim() : "");
-  const fora = (id: string) => trilha === "ativacao" && !ORDEM.ativacao.includes(id);
-  const FORA = "não faz parte da trilha Ativação";
   const v = (x: string) => x || VAZIO;
   const horas = [C.horasCapt, C.horasAtend, C.horasEstudo]
     .map((x) => (ok(x) && x > 0 ? `${x}h` : VAZIO))
@@ -412,29 +398,27 @@ function cockpit(S: Respostas, C: Calc, trilha: Trilha): ItemPdf[] {
     conta("Número do meu estilo de vida: por ano", cBrl(C.estiloAno)),
     conta("Número do meu estilo de vida: por mês", cBrl(C.estiloMes)),
     { k: "sub", t: "Minha rotina" },
-    conta("Horas/semana: captação · atendimento · desenvolvimento", fora("p36") ? FORA : horas),
-    conta("Dia fixo da revisão de preço", fora("p36") ? FORA : v(nomeDia(S["sp.dia"]))),
+    conta("Horas/semana: captação · atendimento · desenvolvimento", horas),
+    conta("Dia fixo da revisão de preço", v(nomeDia(S["sp.dia"]))),
     conta(
       "Funil do mês: prospecções · V1 · V2 · captações",
-      fora("p37") ? FORA : [C.contMes, C.v1Mes, C.v2Mes, C.captMes].map(cInt).join(" · "),
+      [C.contMes, C.v1Mes, C.v2Mes, C.captMes].map(cInt).join(" · "),
     ),
     conta(
       "Canais de marketing · investimento/mês",
-      fora("p39") ? FORA : C.canais.length ? `${C.canais.join(", ")} · ${cBrl0(C.invest)}` : VAZIO,
+      C.canais.length ? `${C.canais.join(", ")} · ${cBrl0(C.invest)}` : VAZIO,
     ),
     conta(
       "Habilidade nº 1 · horas de estudo/semana",
-      fora("p40") ? FORA : s("de.h.0") ? `${s("de.h.0")} · ${s("de.horas") || VAZIO}h` : VAZIO,
+      s("de.h.0") ? `${s("de.h.0")} · ${s("de.horas") || VAZIO}h` : VAZIO,
     ),
     { k: "sub", t: "Onde eu jogo / posicionamento" },
-    conta("Minha região", fora("p34") ? FORA : v(s("pos.regiao"))),
+    conta("Minha região", v(s("pos.regiao"))),
     conta(
       "Tipo de imóvel e faixa de preço",
-      fora("p34")
-        ? FORA
-        : s("pos.tipo")
-          ? `${s("pos.tipo")} · ${cBrl0(num(S["pos.de"]))} a ${cBrl0(num(S["pos.ate"]))}`
-          : VAZIO,
+      s("pos.tipo")
+        ? `${s("pos.tipo")} · ${cBrl0(num(S["pos.de"]))} a ${cBrl0(num(S["pos.ate"]))}`
+        : VAZIO,
     ),
     { k: "sub", t: "Minha meta 2027" },
     conta("Transações que preciso fechar no ano", cInt(C.trans)),
@@ -444,17 +428,14 @@ function cockpit(S: Respostas, C: Calc, trilha: Trilha): ItemPdf[] {
     ),
     conta("CREs ativas no fim de 2027", cInt(C.creFim)),
     conta("VGC de 2027 · clube", ok(C.vgc) ? `${cBrl0(C.vgc)} · ${C.clube || VAZIO}` : VAZIO),
+    { k: "sub", t: "Meus primeiros 90 dias" },
+    conta(
+      "1ª CRE · 3 CREs · 1ª venda",
+      [s("d90.cre1"), s("d90.cre3"), s("d90.venda1")]
+        .map((x) => (x ? dataBR(x) : VAZIO))
+        .join(" · "),
+    ),
   ];
-  if (trilha === "ativacao")
-    itens.push(
-      { k: "sub", t: "Meus primeiros 90 dias" },
-      conta(
-        "1ª CRE · 3 CREs · 1ª venda",
-        [s("d90.cre1"), s("d90.cre3"), s("d90.venda1")]
-          .map((x) => (x ? dataBR(x) : VAZIO))
-          .join(" · "),
-      ),
-    );
   itens.push(
     { k: "sub", t: "Como eu executo" },
     conta(
@@ -564,11 +545,10 @@ export function conteudoPlanoPdf(
   taxasPadrao?: Partial<TaxasFunil> | null,
 ): ConteudoPdf {
   const S = d.respostas ?? {};
-  if (!planoFinalizado(S, d.trilha)) throw new Error("O plano ainda não está completo.");
-  const trilha = d.trilha as Trilha;
+  if (!planoFinalizado(S)) throw new Error("O plano ainda não está completo.");
   const C = calc(S, taxasPadrao);
-  const p = progresso(S, trilha);
-  const secoes = ORDEM[trilha].map((id) => {
+  const p = progresso(S);
+  const secoes = ORDEM.map((id) => {
     const t = tela(id)!;
     return {
       id,
@@ -579,8 +559,6 @@ export function conteudoPlanoPdf(
     };
   });
   return {
-    trilha,
-    trilhaNome: TRILHAS[trilha].n,
     telas: p.telas,
     total: p.total,
     secoes,

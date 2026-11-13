@@ -29,7 +29,6 @@ function tela(id: string, R: Respostas = S) {
     set: () => undefined,
     ro: true,
     inicio: null,
-    trilha: "planejamento" as const,
   };
   return render(createElement(PlanoCtx.Provider, { value: ctx }, createElement(CorpoTela, { id })));
 }
@@ -49,17 +48,14 @@ describe("carteira alvo: número de CREs ativas (book pág. 30)", () => {
   it("é só registro: não muda nenhuma conta nem o % preenchido", () => {
     const com = { ...S, "m.carteira": "17" };
     expect(calc(com)).toEqual(calc(S));
-    expect(progresso(com, "planejamento")).toEqual(progresso(S, "planejamento"));
-    expect(progresso(com, "ativacao")).toEqual(progresso(S, "ativacao"));
+    expect(progresso(com)).toEqual(progresso(S));
+    expect(progresso(com)).toEqual(progresso(S));
   });
 });
 
 describe("quadro de KRIs: ações principais (book PDF 11; Caderno 1 pág. 24; Caderno 2 pág. 6)", () => {
-  it("fica nas duas trilhas, logo depois do cockpit, como nos Cadernos", () => {
-    for (const t of ["planejamento", "ativacao"] as const) {
-      const o = ORDEM[t];
-      expect(o.indexOf("p11")).toBe(o.indexOf("p52") + 1);
-    }
+  it("abre o plano: a ordem segue a cartilha (PDF 11 é a primeira página com exercício)", () => {
+    expect(ORDEM[0]).toBe("p11");
   });
 
   it("6 campos de texto, um por KPI, na ordem do book", () => {
@@ -104,10 +100,10 @@ describe("quadro de KRIs: ações principais (book PDF 11; Caderno 1 pág. 24; C
   it("não entra no % preenchido nem nas contas; a tela fica 'preenchida' com qualquer ação", () => {
     const com = { ...S, "kri.0": "20 contatos por dia" };
     expect(calc(com)).toEqual(calc(S));
-    expect(progresso(com, "planejamento").pct).toBe(progresso(S, "planejamento").pct);
+    expect(progresso(com).pct).toBe(progresso(S).pct);
     expect(statusTela("p11", S)).toBe("vazio");
     expect(statusTela("p11", com)).toBe("ok");
-    expect(progresso(com, "planejamento").telas).toBe(progresso(S, "planejamento").telas + 1);
+    expect(progresso(com).telas).toBe(progresso(S).telas + 1);
   });
 
   it("nomes de campo aceitos pelo banco (mesma regra de carreira_plano_salvar)", () => {

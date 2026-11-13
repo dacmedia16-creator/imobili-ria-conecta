@@ -15,27 +15,25 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ErrorState, ListSkeleton, Pill } from "@/components/visual/base";
 import { calc, fmt, metaOficialDoPlano, type Respostas } from "@/lib/meu-plano-2027/regras";
 import {
-  ORDEM,
-  TRILHAS,
-  TRILHA_PADRAO,
+  inicioNoventaDias,
   progresso,
   rotuloPagina,
   tela,
   vizinhos,
-  type Trilha,
 } from "@/lib/meu-plano-2027/telas";
 import { LEIA } from "@/lib/meu-plano-2027/book";
 import { erroPlano, planoDb } from "@/lib/meu-plano-2027/modulo";
 import { metasDoCalc, snapshotMudou } from "@/lib/meta-atividades";
 import { PlanoCtx, Aviso, Bloco, Stat } from "./campos";
 import { CorpoTela } from "./telas";
-import { Leitor, PaginaOriginal } from "./Leitor";
+import { Leitor, PaginaOriginal, destinoExercicios } from "./Leitor";
 import { usePlano, type StatusSalvar } from "./usePlano";
 import { BotaoBaixarPlano } from "./BaixarPdf";
 import { IndiceTelas } from "./IndiceTelas";
 
+/** "inicio" = continuar de onde parou (ui.ult) ou a 1ª tela. Também recebe o link antigo ?v=trilha. */
 export type Vista =
-  { v: "trilha" } | { v: "tela"; id: string } | { v: "book"; p: number } | { v: "fim" };
+  { v: "inicio" } | { v: "tela"; id: string } | { v: "book"; p: number } | { v: "fim" };
 
 const dataHora = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "";
@@ -121,7 +119,7 @@ function LeiaAntes({
   );
 }
 
-/** Tela do corretor: escolha de trilha, passo a passo, leitor do book e fim. */
+/** Tela do corretor: passo a passo (caminho único, t_296fc69e), leitor do book e fim. */
 export function MeuPlano({
   userId,
   vista,
@@ -139,7 +137,6 @@ export function MeuPlano({
   const [ocupado, setOcupado] = useState(false);
   const S: Respostas = plano?.respostas ?? {};
   const C = useMemo(() => calc(S, h.taxasPadrao), [S, h.taxasPadrao]);
-  const trilha: Trilha = plano?.trilha ?? "planejamento";
 
   // Meta x atividades (t_09c29e96): cópia das metas da semana (campos ms.*) para o team leader, que não
   // lê o plano. Atualiza junto com o plano, a partir da mesma calc().
@@ -155,12 +152,7 @@ export function MeuPlano({
     if (!plano) return;
     if (vista.v === "book" && String(S["ui.pag"] ?? "") !== String(vista.p))
       h.set("ui.pag", String(vista.p));
-    if (
-      vista.v === "tela" &&
-      plano.trilha &&
-      ORDEM[plano.trilha].includes(vista.id) &&
-      S["ui.ult"] !== vista.id
-    )
+    if (vista.v === "tela" && vizinhos(vista.id).i >= 0 && S["ui.ult"] !== vista.id)
       h.set("ui.ult", vista.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vista, !!plano]);
@@ -181,23 +173,23 @@ export function MeuPlano({
     [ir],
   );
 
+  // Sem tela de escolha de trilha: "inicio" (e o link antigo ?v=trilha) vai direto aos exercícios.
+  useEffect(() => {
+    if (plano && vista.v === "inicio") ir(destinoExercicios(plano.respostas ?? {}), true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vista.v, !!plano]);
+
   if (h.erroCarga)
     return <ErrorState onRetry={() => void h.recarregar()}>{h.erroCarga}</ErrorState>;
   if (!plano) return <ListSkeleton />;
 
-  const ctx = { S, C, set: h.set, ro: false, inicio: plano.ativacao_inicio, trilha };
-
-  async function escolher(t: Trilha) {
-    setOcupado(true);
-    try {
-      await h.escolherTrilha(t);
-      irTela(ORDEM[t][0]);
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setOcupado(false);
-    }
-  }
+  const ctx = {
+    S,
+    C,
+    set: h.set,
+    ro: false,
+    inicio: inicioNoventaDias(plano.ativacao_inicio, S),
+  };
 
   async function trazerNumeros() {
     setOcupado(true);
@@ -286,83 +278,8 @@ export function MeuPlano({
     <PaginaOriginal pdf={original} onFechar={() => setOriginal(null)} abrirNoBook={abrirBook} />
   ) : null;
 
-  // ----- Escolha de trilha -----
-  if (vista.v === "trilha") {
-    return (
-      <div className="space-y-3" data-testid="meu-plano-trilha">
-        <Button
-          className="w-full bg-gradient-to-r from-rose-900 to-rose-700 text-white"
-          onClick={() => abrirBook(Number(S["ui.pag"]) || 1)}
-        >
-          <BookOpen className="mr-2 h-4 w-4" aria-hidden /> Ler o book completo · 56 páginas
-        </Button>
-        <Bloco className="border-primary/40">
-          <p className="text-[11px] font-bold uppercase tracking-wide text-primary">
-            Como usar este plano
-          </p>
-          <h2 className="text-lg font-semibold">Escolha a sua trilha</h2>
-          <p className="text-sm">
-            Este book não é um livro para ler. É uma ferramenta para preencher, assinar e levar para
-            o ano. Leva de 50 a 60 minutos. Aqui você <b>lê e preenche na mesma tela</b>, uma página
-            por vez, e tudo é salvo a cada campo.
-          </p>
-          <Button size="sm" variant="outline" className="mt-2" onClick={() => setOriginal(13)}>
-            🖼 ver página original
-          </Button>
-        </Bloco>
-        {(Object.keys(TRILHAS) as Trilha[]).map((k) => {
-          const t = TRILHAS[k];
-          const on = plano.trilha === k;
-          return (
-            <button
-              key={k}
-              type="button"
-              disabled={ocupado}
-              onClick={() => void escolher(k)}
-              data-trilha={k}
-              className={`block w-full rounded-2xl border-2 p-4 text-left ${on ? "border-primary bg-primary/10" : "bg-card"}`}
-            >
-              <b className="text-lg">
-                {on ? "✔ " : ""}Trilha {t.n}
-              </b>
-              <span className="block text-sm">{t.quem}</span>
-              <span className="block text-sm text-muted-foreground">
-                Preenche: {t.o} · <b>{ORDEM[k].length} telas</b>
-              </span>
-              <span className="mt-1.5 inline-block">
-                <Pill tom="blue">Objetivo: {t.obj}</Pill>
-              </span>
-            </button>
-          );
-        })}
-        <Bloco titulo="O que você vai ter no fim">
-          <ol className="list-decimal pl-5 text-sm">
-            <li>O número que a sua vida custa</li>
-            <li>Quantas captações você precisa fazer para chegar nele</li>
-            <li>Onde você vai jogar e no que vai se especializar</li>
-            <li>O que você faz toda semana</li>
-            <li>Um pacto assinado com o seu broker</li>
-          </ol>
-        </Bloco>
-        <LeiaAntes
-          ids={[
-            "carta",
-            "cultura",
-            "modelo",
-            "dados",
-            "conceitos",
-            "como",
-            "areas",
-            "agenda",
-            "loja",
-          ]}
-          verPagina={setOriginal}
-          abrirBook={abrirBook}
-        />
-        {modal}
-      </div>
-    );
-  }
+  // ----- Sem tela de escolha de trilha (t_296fc69e): o efeito acima leva direto aos exercícios. -----
+  if (vista.v === "inicio") return <ListSkeleton />;
 
   // ----- Leitor do book -----
   if (vista.v === "book") {
@@ -371,10 +288,8 @@ export function MeuPlano({
         <Leitor
           pagina={vista.p}
           S={S}
-          trilha={plano.trilha}
           irPagina={(n) => ir({ v: "book", p: n }, true)}
           preencher={(id) => irTela(id, vista.p)}
-          escolherTrilha={() => ir({ v: "trilha" })}
         />
       </>
     );
@@ -382,7 +297,7 @@ export function MeuPlano({
 
   // ----- Fim -----
   if (vista.v === "fim") {
-    const p = progresso(S, plano.trilha);
+    const p = progresso(S);
     return (
       <div className="space-y-3" data-testid="meu-plano-fim">
         <Bloco className="bg-primary text-center text-primary-foreground">
@@ -402,23 +317,16 @@ export function MeuPlano({
             {typeof S["pq.frase"] === "string" && S["pq.frase"] ? S["pq.frase"] : "(seu porquê)"}
           </div>
         </Bloco>
-        {plano.trilha === "ativacao" ? (
-          <Aviso tom="green">
-            Quando fechar a primeira venda, faça a trilha Planejamento: suas respostas dos Passos 1
-            a 3 já estarão lá.
-          </Aviso>
-        ) : null}
         <LeiaAntes
           ids={["empreendedor"]}
           titulo="Leia depois (opcional)"
           verPagina={setOriginal}
           abrirBook={abrirBook}
         />
-        {/* Regra aprovada (t_65edd0b0): só com todas as telas da trilha completas; senão o botão não aparece. */}
+        {/* Regra aprovada (t_65edd0b0): só com todas as telas do plano completas; senão o botão não aparece. */}
         <BotaoBaixarPlano
           userId={userId}
           S={S}
-          trilha={plano.trilha}
           antes={h.enviar}
           className="w-full border-primary text-primary"
         />
@@ -433,8 +341,8 @@ export function MeuPlano({
   // ----- Tela de exercício -----
   const t = tela(vista.id);
   if (!t) return <ErrorState>Tela não encontrada.</ErrorState>;
-  const viz = vizinhos(t.id, trilha);
-  const prog = progresso(S, plano.trilha);
+  const viz = vizinhos(t.id);
+  const prog = progresso(S);
   const meta = metaOficialDoPlano(C);
   const mo = plano.meta_oficial;
   const metaMudou =
@@ -533,13 +441,9 @@ export function MeuPlano({
       <div className="space-y-3 pb-20" data-testid={`tela-${t.id}`}>
         <div className="sticky top-0 z-20 -mx-4 border-b bg-background/95 px-4 py-1.5 backdrop-blur md:static md:mx-0 md:rounded-lg md:border">
           <div className="flex justify-between text-xs text-muted-foreground">
-            <span>
-              {viz.i >= 0
-                ? `Trilha ${TRILHAS[trilha].n} · tela ${viz.i + 1} de ${viz.total}`
-                : `Fora da trilha ${TRILHAS[trilha].n}`}
-            </span>
+            <span>{viz.i >= 0 ? `Tela ${viz.i + 1} de ${viz.total}` : "Página do book"}</span>
             <span className="flex shrink-0 items-center gap-1">
-              {prog.pct}% · <IndiceTelas trilha={trilha} atual={t.id} S={S} irTela={irTela} /> ·{" "}
+              {prog.pct}% · <IndiceTelas atual={t.id} S={S} irTela={irTela} /> ·{" "}
               <button
                 type="button"
                 className="font-semibold text-rose-800 dark:text-rose-300"
@@ -591,12 +495,12 @@ export function MeuPlano({
         {barraSalvar}
         <LeiaAntes ids={t.leia} verPagina={setOriginal} abrirBook={abrirBook} />
         <CorpoTela id={t.id} extras={extras} />
-        {viz.i < 0 ? <Aviso>Esta página não faz parte da trilha {TRILHAS[trilha].n}.</Aviso> : null}
         <NavInferior>
           <Button
             variant="outline"
             className="flex-1"
-            onClick={() => (viz.anterior ? irTela(viz.anterior) : ir({ v: "trilha" }))}
+            disabled={!viz.anterior}
+            onClick={() => viz.anterior && irTela(viz.anterior)}
           >
             <ChevronLeft className="mr-1 h-4 w-4" aria-hidden /> Voltar
           </Button>
@@ -638,32 +542,26 @@ export const NavInferior = ({ children }: { children: ReactNode }) => (
 /** Resumo no cartão de Minha carreira: progresso e meta oficial. */
 export function MeuPlanoResumo({
   S,
-  trilha,
   metaOficial,
 }: {
   S: Respostas;
-  trilha: Trilha | null;
   metaOficial: {
     meta_comissao: number | null;
     meta_vendas: number | null;
     meta_captacoes: number | null;
   } | null;
 }) {
-  const p = progresso(S, trilha);
-  // Sem trilha mas com respostas (entrou pelo book): mostra o % pela trilha padrão, como o resto do plano.
+  const p = progresso(S);
   return (
     <div className="space-y-2">
-      {trilha || p.pct > 0 ? (
+      {p.pct > 0 || p.telas > 0 ? (
         <div className="grid grid-cols-2 gap-2">
           <Stat v={`${p.pct}%`} rot="do plano preenchido" />
-          <Stat
-            v={`${p.telas}/${p.total}`}
-            rot={`telas · trilha ${TRILHAS[trilha ?? TRILHA_PADRAO].n}`}
-          />
+          <Stat v={`${p.telas}/${p.total}`} rot="telas completas" />
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">
-          Você ainda não escolheu sua trilha. Leva de 50 a 60 minutos.
+          Você ainda não começou o seu plano. Dá para fazer aos poucos: tudo é salvo a cada campo.
         </p>
       )}
       {metaOficial ? (

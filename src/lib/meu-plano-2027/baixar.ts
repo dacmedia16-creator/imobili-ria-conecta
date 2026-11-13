@@ -1,5 +1,5 @@
 import { loadCurrentAgencyBrand, logoForPdf } from "@/lib/agency-brand";
-import { ANO_PLANO, type Trilha } from "./telas";
+import { ANO_PLANO } from "./telas";
 import type { Respostas } from "./regras";
 import { erroPlano, planoDb } from "./modulo";
 import { nomeArquivoPlano, planoFinalizado, type PlanoPdfDados } from "./pdf-conteudo";
@@ -14,7 +14,7 @@ export async function baixarPlanoPdf(userId: string, nome?: string | null): Prom
     planoDb
       .from("carreira_plano")
       .select(
-        "respostas,trilha,ativacao_inicio,assinado_corretor_em,assinado_broker_em,meta_oficial,meta_oficial_em",
+        "respostas,ativacao_inicio,assinado_corretor_em,assinado_broker_em,meta_oficial,meta_oficial_em",
       )
       .eq("user_id", userId)
       .eq("ano", ANO_PLANO)
@@ -31,8 +31,7 @@ export async function baixarPlanoPdf(userId: string, nome?: string | null): Prom
   if (p.error) throw new Error(erroPlano(p.error.message));
   if (!p.data) throw new Error("Você não tem acesso a este plano.");
   const plano = { ...(p.data as PlanoPdfDados), respostas: (p.data.respostas ?? {}) as Respostas };
-  if (!planoFinalizado(plano.respostas, plano.trilha as Trilha | null))
-    throw new Error("O plano ainda não está completo.");
+  if (!planoFinalizado(plano.respostas)) throw new Error("O plano ainda não está completo.");
   const tx = t.data as {
     funil_v2_cre: number | null;
     funil_v1_v2: number | null;
