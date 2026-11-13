@@ -93,6 +93,22 @@ SELECT public.locacao_link_enviar((SELECT t FROM toks WHERE k='c'),repeat('5',64
 SELECT public.locacao_link_enviar((SELECT t FROM toks WHERE k='d'),repeat('5',64));
 SELECT public.locacao_link_enviar((SELECT t FROM toks WHERE k='e'),repeat('5',64));
 RESET ROLE;
+-- A trava dos dados do contrato (20261112120000) continua valendo no modo cliente.
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub','ebffaded-075c-493f-89e2-1d3d62901dc4',true);
+SELECT set_config('request.jwt.claims','{"sub":"ebffaded-075c-493f-89e2-1d3d62901dc4","role":"authenticated"}',true);
+SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_enviar_documentacao(%L)',(SELECT id FROM fixture WHERE k='A')))='22023','partes enviadas, mas sem dados do contrato não vai à gestão');
+RESET ROLE;
+INSERT INTO public.locacao_contrato_dados (locacao_id, organization_id, valores)
+SELECT id, '00000000-0000-4000-8000-000000000001', jsonb_build_object(
+  'loc_nome','Locatário Fictício','loc_cpf','529.982.247-25','loc_rg','1','loc_nacionalidade','brasileira','loc_estado_civil','solteiro(a)',
+  'loc_profissao','x','loc_endereco','Rua Fictícia, 1','prop_nome','Empresa Fictícia','prop_cpf','111.444.777-35','prop_rg','2',
+  'prop_nacionalidade','brasileira','prop_estado_civil','solteiro(a)','prop_profissao','x','prop_endereco','Rua Fictícia, 2',
+  'fia_nome','Fiador Fictício','fia_cpf','390.533.447-05','fia_rg','3','fia_nacionalidade','brasileira','fia_estado_civil','solteiro(a)',
+  'fia_profissao','x','fia_endereco','Rua Fictícia, 3','fia_matricula','123','fia_cartorio','1º','imv_inscricao','1','imv_energia','1',
+  'imv_agua','1','imv_vagas','não possui','prazo_meses','30','inicio','2026-12-01','dia_vencimento','10')
+FROM fixture WHERE k='A'
+ON CONFLICT (locacao_id) DO UPDATE SET valores = EXCLUDED.valores;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub','ebffaded-075c-493f-89e2-1d3d62901dc4',true);
 SELECT set_config('request.jwt.claims','{"sub":"ebffaded-075c-493f-89e2-1d3d62901dc4","role":"authenticated"}',true);

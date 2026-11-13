@@ -248,7 +248,7 @@ $$;
 
 CREATE OR REPLACE FUNCTION public.locacao_enviar_documentacao(_id uuid) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
-DECLARE _l public.locacoes := public.locacao_pega(_id); _f text[]; _parte text;
+DECLARE _l public.locacoes := public.locacao_pega(_id); _f text[]; _c text[]; _parte text;
 BEGIN
   PERFORM public.locacao_exige(_l, ARRAY['documentacao'], 'corretor');
   IF EXISTS (SELECT 1 FROM public.locacao_link_modos WHERE locacao_id = _id AND modo = 'cliente') THEN
@@ -262,6 +262,11 @@ BEGIN
   _f := public.locacao_docs_faltando(_l);
   IF cardinality(_f) > 0 THEN
     RAISE EXCEPTION 'Faltam % documento(s): %', cardinality(_f), array_to_string(_f, '; ') USING ERRCODE = '22023';
+  END IF;
+  -- Mantém a trava dos dados do contrato publicada em 20261112120000_locacao_documentos_ia.
+  _c := public.locacao_contrato_faltando(_l);
+  IF cardinality(_c) > 0 THEN
+    RAISE EXCEPTION 'Complete os dados do contrato: %', array_to_string(_c, ', ') USING ERRCODE = '22023';
   END IF;
   _l := public.locacao_mover(_id, 'conferencia', false, NULL);
   PERFORM public.locacao_docs_situacao(_id);

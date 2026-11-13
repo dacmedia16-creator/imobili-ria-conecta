@@ -33,6 +33,7 @@ BEGIN
 END $$;
 CREATE OR REPLACE FUNCTION public.locacao_docs_completos_em(_l public.locacoes) RETURNS timestamptz
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$
+  -- Por item: o 1º arquivo válido (2º arquivo do mesmo item não empurra a data). Depois: o item entregue por último.
   SELECT CASE WHEN cardinality(public.locacao_docs_faltando(_l)) = 0 THEN coalesce(
     (SELECT max(primeiro) FROM (SELECT min(d.enviado_em) AS primeiro FROM public.locacao_documentos d
       WHERE d.locacao_id = _l.id AND d.removido_em IS NULL AND NOT public.locacao_doc_opcional(d.item)
@@ -41,12 +42,16 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$
 $$;
 CREATE OR REPLACE FUNCTION public.locacao_enviar_documentacao(_id uuid) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
-DECLARE _l public.locacoes := public.locacao_pega(_id); _f text[];
+DECLARE _l public.locacoes := public.locacao_pega(_id); _f text[]; _c text[];
 BEGIN
   PERFORM public.locacao_exige(_l, ARRAY['documentacao'], 'corretor');
   _f := public.locacao_docs_faltando(_l);
   IF cardinality(_f) > 0 THEN
     RAISE EXCEPTION 'Faltam % documento(s): %', cardinality(_f), array_to_string(_f, '; ') USING ERRCODE = '22023';
+  END IF;
+  _c := public.locacao_contrato_faltando(_l);
+  IF cardinality(_c) > 0 THEN
+    RAISE EXCEPTION 'Complete os dados do contrato: %', array_to_string(_c, ', ') USING ERRCODE = '22023';
   END IF;
   _l := public.locacao_mover(_id, 'conferencia', false, NULL);
   PERFORM public.locacao_evento(_l, 'corretor', 'Documentação completa enviada para conferência');
