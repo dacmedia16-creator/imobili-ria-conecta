@@ -95,7 +95,10 @@ describe("avisos de aprovação", () => {
   });
   it("o prefixo é o mesmo que a migration grava no histórico", () => {
     const mig = readFileSync(
-      resolve(__dirname, "../../supabase/migrations/20261123120000_captacao_autoaprovacao_gestor.sql"),
+      resolve(
+        __dirname,
+        "../../supabase/migrations/20261123120000_captacao_autoaprovacao_gestor.sql",
+      ),
       "utf8",
     );
     expect(mig).toContain(`'${PREFIXO_APROVACAO_AUTOMATICA} contrato assinado pela Clicksign`);
