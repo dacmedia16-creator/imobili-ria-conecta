@@ -174,6 +174,7 @@ import {
   captacaoDoProprioGestor,
   DATA_ASSINATURA_MIN,
   podeCaptadorInformarData,
+  PREFIXO_APROVACAO_AUTOMATICA,
   textoAprovacao,
 } from "@/lib/captacoes-painel";
 import { deveGerarPdfAuto, PDF_AUTO_FALHA } from "@/lib/captacao-pdf-auto";
@@ -2376,8 +2377,8 @@ function ExclusiveDetail() {
                   <p className="text-sm">
                     Campos e documentos completos. Como a captação é sua e você é gestor/team
                     leader, não precisa aprovar os próprios documentos: o envio já gera o PDF para
-                    assinatura. Depois é só mandar para assinatura e aprovar com o contrato
-                    assinado.
+                    assinatura. Depois é só mandar para assinatura pela Clicksign: quando todos
+                    assinarem, a captação é aprovada automaticamente.
                   </p>
                 ) : manual ? (
                   <p className="text-sm">
@@ -2386,7 +2387,8 @@ function ExclusiveDetail() {
                   </p>
                 ) : (
                   <p className="text-sm">
-                    Campos e documentos completos. O gestor confere e gera o contrato.
+                    Campos e documentos completos. O gestor confere e gera o contrato. Se for
+                    assinado pela Clicksign, a captação é aprovada sozinha quando todos assinarem.
                   </p>
                 )}
                 {dirty && !missing.length && (
@@ -2509,10 +2511,23 @@ function ExclusiveDetail() {
                         ? "Confira o PDF assinado e a data de assinatura. Ao aprovar, a captação passa a contar como assinada, entra no mapa e no alerta de vencimento."
                         : clicksignManualInstructions}
                   </p>
+                  {!manual && !dossieMissing && capture.status === "em_assinatura" && (
+                    <p
+                      className="text-sm text-muted-foreground"
+                      data-testid="aprovacao-automatica-info"
+                    >
+                      Quando a Clicksign devolver o contrato assinado por todos, a captação é
+                      aprovada automaticamente. Se assinar fora da Clicksign, anexe e aprove aqui.
+                    </p>
+                  )}
                   {dossieMissing && (
                     <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900">
-                      O Plano de Marketing é obrigatório e está sem ações marcadas. Devolva ao
-                      corretor para marcar antes de aprovar.{" "}
+                      O Plano de Marketing é obrigatório e está sem ações marcadas.{" "}
+                      {manual
+                        ? "Devolva ao corretor para marcar antes de aprovar."
+                        : proprioGestor
+                          ? "Por isso a aprovação automática não acontece. Devolva a captação para marcar ao menos 1 ação antes de aprovar."
+                          : "Por isso a aprovação automática não acontece. Devolva ao corretor para marcar antes de aprovar."}{" "}
                       <button
                         type="button"
                         className="font-medium text-primary underline"
@@ -2678,9 +2693,13 @@ function ExclusiveDetail() {
                     </div>
                   );
                 }
+                // Aprovação automática (t_2cbd375c): o banco grava o captador como autor, mas foi o sistema.
+                const autor = h.detail?.startsWith(PREFIXO_APROVACAO_AUTOMATICA)
+                  ? "sistema (Clicksign)"
+                  : autorDoHistorico(h, user?.id);
                 return (
                   <div key={h.id} className="border-b py-1">
-                    Em {quando} · {h.action} · {autorDoHistorico(h, user?.id)}
+                    Em {quando} · {h.action} · {autor}
                     {h.detail ? ` · ${h.detail}` : ""}
                   </div>
                 );

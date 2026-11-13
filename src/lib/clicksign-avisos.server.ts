@@ -8,7 +8,8 @@ import { normalizePhone, whatsappText } from "./room-reservation-reminders";
  * notificações. Só 4 eventos vão para o WhatsApp: enviado, finalizado (todos assinaram), recusado e
  * prazo perto de vencer. Texto sem CPF, e-mail ou nome de cliente.
  */
-export type EventoWhats = "enviado" | "finalizado" | "recusado" | "prazo_perto";
+/** aprovada_auto: todos assinaram e a captação já foi aprovada automaticamente (t_e433a198/t_2cbd375c). */
+export type EventoWhats = "enviado" | "finalizado" | "recusado" | "prazo_perto" | "aprovada_auto";
 
 export type PendenteWhats = {
   id: number;
@@ -48,6 +49,11 @@ export function textoWhatsClicksign(
               "O gestor precisa aprovar a captação.",
             ],
       );
+    case "aprovada_auto":
+      return corpo("Contrato assinado por todos", [
+        "O contrato assinado já está disponível para baixar no sistema.",
+        "A captação foi aprovada automaticamente.",
+      ]);
     case "recusado":
       return corpo("Assinatura recusada", [
         "Um signatário recusou a assinatura na Clicksign e o envio foi cancelado.",
