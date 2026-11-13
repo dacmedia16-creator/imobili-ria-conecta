@@ -999,7 +999,7 @@ function DistribuicaoMes() {
   const L = distribuicaoMes(S, C);
   const avisos = L.filter((l) => l.diverge);
   return (
-    <details className="rounded-xl border bg-card" data-testid="dist-mes">
+    <details open className="rounded-xl border bg-card" data-testid="dist-mes">
       <summary className="cursor-pointer px-3 py-2.5 text-sm font-semibold">
         {temMesDigitado(L) ? "Distribuição mês a mês" : "Distribuição mês a mês (÷ 12)"}
       </summary>
