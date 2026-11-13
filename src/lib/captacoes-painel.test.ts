@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   alternarCard,
@@ -6,6 +8,7 @@ import {
   contarPainel,
   noCard,
   podeCaptadorInformarData,
+  PREFIXO_APROVACAO_AUTOMATICA,
   textoAprovacao,
 } from "./captacoes-painel";
 import { deveRecarregar, INTERVALO_MIN_RECARGA_MS } from "./use-recarregar-ao-focar";
@@ -73,6 +76,29 @@ describe("avisos de aprovação", () => {
       textoAprovacao([{ action: "aprovar", created_at: "2026-10-15T13:31:00Z", actor_nome: null }]),
     ).toBe("Captação aprovada por gestor em 15/10/2026 às 10:31");
     expect(textoAprovacao([])).toBe("Captação aprovada");
+  });
+  it("aprovação automática (captação do próprio gestor/TL) aparece como automática (t_e433a198)", () => {
+    const auto = {
+      action: "aprovar",
+      created_at: "2026-11-13T13:31:00Z",
+      actor_nome: "Gestor Exemplo",
+      detail: `${PREFIXO_APROVACAO_AUTOMATICA} contrato assinado pela Clicksign e Plano de Marketing marcado`,
+    };
+    expect(textoAprovacao([auto])).toBe(
+      "Captação aprovada automaticamente em 13/11/2026 às 10:31 (contrato assinado pela Clicksign)",
+    );
+    // Devolvida e aprovada de novo pelo botão: vale a última (manual).
+    const manual = { ...auto, created_at: "2026-11-14T13:31:00Z", detail: null };
+    expect(textoAprovacao([auto, manual])).toBe(
+      "Captação aprovada por Gestor Exemplo em 14/11/2026 às 10:31",
+    );
+  });
+  it("o prefixo é o mesmo que a migration grava no histórico", () => {
+    const mig = readFileSync(
+      resolve(__dirname, "../../supabase/migrations/20261123120000_captacao_autoaprovacao_gestor.sql"),
+      "utf8",
+    );
+    expect(mig).toContain(`'${PREFIXO_APROVACAO_AUTOMATICA} contrato assinado pela Clicksign`);
   });
 });
 

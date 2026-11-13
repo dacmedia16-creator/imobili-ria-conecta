@@ -136,6 +136,9 @@ export function podeCaptadorInformarData(
   );
 }
 
+/** Início do detalhe gravado por clicksign_attach_signed na aprovação automática (migration 20261123120000). */
+export const PREFIXO_APROVACAO_AUTOMATICA = "Aprovada automaticamente:";
+
 /**
  * Captação do próprio gestor/team leader (Denis 22/10/2026, t_83e2ee96): quem envia já é quem
  * revisaria, então "Enviar" não para em "Enviada ao gestor" esperando ele mesmo — envia e já gera o
@@ -173,12 +176,17 @@ export function dataHoraSaoPaulo(iso: string): string {
  * Sem evento: só "Captação aprovada". Nome, nunca UUID (sem nome: "gestor").
  */
 export function textoAprovacao(
-  history: Pick<CaptureEvent, "action" | "created_at" | "actor_nome">[],
+  history: (Pick<CaptureEvent, "action" | "created_at" | "actor_nome"> & {
+    detail?: string | null;
+  })[],
 ): string {
   const ultima = [...history]
     .filter((h) => h.action === "aprovar")
     .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
   if (!ultima) return "Captação aprovada";
+  // Captação do próprio gestor/TL aprovada pelo banco ao chegar o assinado da Clicksign (t_e433a198).
+  if (ultima.detail?.startsWith(PREFIXO_APROVACAO_AUTOMATICA))
+    return `Captação aprovada automaticamente em ${dataHoraSaoPaulo(ultima.created_at)} (contrato assinado pela Clicksign)`;
   const quem = ultima.actor_nome?.trim() || "gestor";
   return `Captação aprovada por ${quem} em ${dataHoraSaoPaulo(ultima.created_at)}`;
 }
