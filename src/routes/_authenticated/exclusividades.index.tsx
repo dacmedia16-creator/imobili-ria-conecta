@@ -1,7 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { CAPTACAO_STATUS_TOM } from "@/lib/cores-status";
 import {
   archiveCapture,
   createCapture,
@@ -44,11 +43,21 @@ import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 import { vouchersFotosEnabled } from "@/lib/vouchers-fotos-module";
 import {
   alternarCard,
+  captacaoMinhaVez,
+  contarEtapas,
   contarPainel,
+  ETAPAS_CAPTACAO,
   noCard,
+  noFiltroEtapa,
   PAINEL_CARDS,
+  podeGerirCaptacao,
+  SELO_ETAPA,
+  type ContextoVez,
+  type FiltroEtapa,
   type PainelCardKey,
 } from "@/lib/captacoes-painel";
+import { fetchLedMemberIds } from "@/lib/team";
+import { CaptacaoStepper } from "@/components/exclusividades/CaptacaoStepper";
 import { useRecarregarAoFocar } from "@/lib/use-recarregar-ao-focar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -92,6 +101,19 @@ function ExclusiveList() {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   // Cartão do painel de contadores selecionado (filtra a lista; clicar de novo limpa).
   const [card, setCard] = useState<PainelCardKey | null>(null);
+  // Chips por etapa + "Aguardando minha ação" (t_abf93125). Só tela; a RLS decide o que aparece.
+  const [etapa, setEtapa] = useState<FiltroEtapa>("todas");
+  const isAdmin = hasAny(["admin", "super_admin"]);
+  const isGestor = hasAny(["gestor", "team_leader"]);
+  // Liderados (mesma hierarquia de is_lead_of): "Sua vez" do gestor só nas captações da equipe dele.
+  const [liderados, setLiderados] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!user?.id || !isGestor || isAdmin) return;
+    fetchLedMemberIds(user.id)
+      .then(setLiderados)
+      .catch(() => undefined);
+  }, [user?.id, isGestor, isAdmin]);
+  const ctxVez: ContextoVez = { userId: user?.id, admin: isAdmin, gestor: isGestor, liderados };
   // Transferência em lote (t_997545e5): só dono/gestor; o banco confere de novo.
   const podeTransferirLote = papelPodeTransferir(hasAny);
   const [transferindoLote, setTransferindoLote] = useState(false);
@@ -105,6 +127,7 @@ function ExclusiveList() {
   }, [transferindoLote]);
   const today = hojeSaoPaulo();
   const contagem = contarPainel(captures, today);
+  const contagemEtapas = contarEtapas(captures, ctxVez);
   const archivedCount = captures.filter((c) => c.archived_at).length;
   // "Vencendo": exclusividade assinada que vence em até 30 dias ou já venceu (renovar).
   const expiring = (c: Capture) => {
@@ -117,6 +140,7 @@ function ExclusiveList() {
     .filter((c) => showArchived || !onlyExpiring || expiring(c))
     .filter((c) => matchFilters(c, filters, today, units))
     .filter((c) => showArchived || !card || noCard(c, card, today))
+    .filter((c) => showArchived || noFiltroEtapa(c, etapa, ctxVez))
     .sort((a, b) =>
       onlyExpiring
         ? (captureValidity(a, today)?.daysLeft ?? 0) - (captureValidity(b, today)?.daysLeft ?? 0)
@@ -260,6 +284,7 @@ function ExclusiveList() {
                 data-testid={`painel-${p.key}`}
                 onClick={() => {
                   setShowArchived(false);
+                  setEtapa("todas");
                   setCard((atual) => alternarCard(atual, p.key));
                 }}
                 className={`rounded-lg border p-3 text-left transition hover:shadow-sm ${p.classe} ${ativo ? "ring-2 ring-current ring-offset-1" : ""}`}
@@ -308,6 +333,55 @@ function ExclusiveList() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3 border-b pb-4">
+          {!loading && !showArchived && (
+            <div className="space-y-1.5" data-testid="chips-etapa">
+              <p className="text-xs text-muted-foreground">Filtrar por etapa</p>
+              <div className="flex flex-wrap gap-2">
+                {(
+                  [
+                    { key: "minha_vez", texto: "★ Aguardando minha ação" },
+                    { key: "todas", texto: "Todas" },
+                    ...ETAPAS_CAPTACAO.map((e, i) => ({
+                      key: e.key,
+                      texto: `${i + 1} · ${e.chip}`,
+                    })),
+                  ] as { key: FiltroEtapa; texto: string }[]
+                ).map((chip) => {
+                  const ativo = etapa === chip.key;
+                  return (
+                    <button
+                      key={chip.key}
+                      type="button"
+                      aria-pressed={ativo}
+                      data-testid={`chip-etapa-${chip.key}`}
+                      onClick={() => {
+                        setCard(null);
+                        setEtapa((atual) =>
+                          atual === chip.key && chip.key !== "todas" ? "todas" : chip.key,
+                        );
+                      }}
+                      className={`inline-flex items-center rounded-full border px-3 py-1 text-[13px] transition ${
+                        ativo
+                          ? "border-primary bg-primary font-semibold text-primary-foreground"
+                          : chip.key === "minha_vez"
+                            ? "border-orange-400 bg-background text-orange-800 hover:bg-orange-50"
+                            : "border-input bg-background hover:bg-muted"
+                      }`}
+                    >
+                      {chip.texto}
+                      <span
+                        className={`ml-1.5 min-w-[18px] rounded-full px-1.5 text-center text-[11px] tabular-nums ${
+                          ativo ? "bg-background text-primary" : "bg-muted text-foreground"
+                        }`}
+                      >
+                        {contagemEtapas[chip.key]}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <CapturesFilters
             captures={captures.filter((c) => !!c.archived_at === showArchived)}
             value={filters}
@@ -333,13 +407,18 @@ function ExclusiveList() {
                 ? "Nenhuma captação arquivada."
                 : onlyExpiring
                   ? "Nenhuma exclusividade vencendo nos próximos 30 dias."
-                  : filtersActive(filters)
-                    ? "Nenhuma captação com esses filtros."
-                    : "Nenhuma captação disponível."}
+                  : etapa === "minha_vez"
+                    ? "Nada aguardando sua ação agora."
+                    : filtersActive(filters) || etapa !== "todas"
+                      ? "Nenhuma captação com esses filtros."
+                      : "Nenhuma captação disponível."}
             </EmptyState>
           ) : (
             visible.map((c) => {
-              const manager = hasAny(["gestor", "team_leader", "admin", "super_admin"]);
+              // Mesma regra de exclusive_is_manager (papel + equipe), não só o papel.
+              const manager = podeGerirCaptacao(c, ctxVez);
+              const minhaVez = captacaoMinhaVez(c, ctxVez);
+              const selo = SELO_ETAPA[c.status];
               const property = c.form_data.imovel;
               const validity = captureValidity(c, today);
               // "Excluir" fica FORA do link (item 11 t_532125eb): botão dentro de <a> é HTML inválido e,
@@ -354,8 +433,9 @@ function ExclusiveList() {
               return (
                 <div
                   key={c.id}
-                  className="min-w-0 rounded-md border transition-colors hover:bg-muted/50"
+                  className={`min-w-0 rounded-md border transition-colors hover:bg-muted/50 ${minhaVez ? "border-primary/60 ring-1 ring-primary/30" : ""}`}
                   data-testid="captacao-cartao"
+                  data-minha-vez={minhaVez ? "sim" : undefined}
                 >
                   <Link
                     to="/exclusividades/$id"
@@ -386,8 +466,25 @@ function ExclusiveList() {
                           {ownerListSuffix(c.form_data)}
                         </p>
                       </div>
-                      <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1" />
+                      <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
+                        <span
+                          className={`whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-bold ${selo.classe}`}
+                          data-testid="selo-etapa"
+                        >
+                          {selo.texto}
+                        </span>
+                        {minhaVez && (
+                          <span
+                            className="whitespace-nowrap rounded-full bg-primary px-2 py-0.5 text-[11px] font-semibold text-primary-foreground"
+                            data-testid="selo-sua-vez"
+                          >
+                            Sua vez
+                          </span>
+                        )}
+                        <ArrowRight className="hidden h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1 sm:block" />
+                      </div>
                     </div>
+                    <CaptacaoStepper status={c.status} />
                     <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
                       <span className="rounded-full border px-2 py-0.5">
                         {captureUnitLabel(c, units)}
@@ -400,19 +497,11 @@ function ExclusiveList() {
                           Cadastro manual
                         </span>
                       )}
-                      <span
-                        className={`rounded-full px-2 py-0.5 font-medium ${CAPTACAO_STATUS_TOM[c.status]}`}
-                      >
-                        {
-                          {
-                            rascunho: "Rascunho",
-                            devolvida: "Devolvida",
-                            enviada: "Enviada",
-                            em_assinatura: "Em assinatura",
-                            aprovada: "Aprovada",
-                          }[c.status]
-                        }
-                      </span>
+                      {c.status === "rascunho" && (
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-700">
+                          Rascunho
+                        </span>
+                      )}
                       {validity && (
                         <span
                           className={`rounded-full px-2 py-0.5 font-medium ${VALIDITY_STYLE[validity.level]}`}
