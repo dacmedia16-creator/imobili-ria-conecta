@@ -323,7 +323,7 @@ export function MeuPlano({
           verPagina={setOriginal}
           abrirBook={abrirBook}
         />
-        {/* Regra aprovada (t_65edd0b0): só com todas as telas do plano completas; senão o botão não aparece. */}
+        {/* t_b8aae132 (Denis 13/11/2026): o botão aparece sempre, mesmo com telas incompletas. */}
         <BotaoBaixarPlano
           userId={userId}
           S={S}

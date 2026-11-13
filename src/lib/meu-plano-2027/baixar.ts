@@ -2,7 +2,7 @@ import { loadCurrentAgencyBrand, logoForPdf } from "@/lib/agency-brand";
 import { ANO_PLANO } from "./telas";
 import type { Respostas } from "./regras";
 import { erroPlano, planoDb } from "./modulo";
-import { nomeArquivoPlano, planoFinalizado, type PlanoPdfDados } from "./pdf-conteudo";
+import { nomeArquivoPlano, type PlanoPdfDados } from "./pdf-conteudo";
 
 /**
  * Baixa o PDF do plano de `userId` (cartão t_65edd0b0). Lê o plano DIRETO da tabela carreira_plano, pela RLS de
@@ -29,9 +29,9 @@ export async function baixarPlanoPdf(userId: string, nome?: string | null): Prom
       : planoDb.from("profiles").select("nome").eq("id", userId).maybeSingle(),
   ]);
   if (p.error) throw new Error(erroPlano(p.error.message));
-  if (!p.data) throw new Error("Você não tem acesso a este plano.");
+  if (!p.data)
+    throw new Error("Plano não encontrado: ainda não foi começado ou você não tem acesso.");
   const plano = { ...(p.data as PlanoPdfDados), respostas: (p.data.respostas ?? {}) as Respostas };
-  if (!planoFinalizado(plano.respostas)) throw new Error("O plano ainda não está completo.");
   const tx = t.data as {
     funil_v2_cre: number | null;
     funil_v1_v2: number | null;

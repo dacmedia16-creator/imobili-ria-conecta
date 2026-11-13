@@ -4,10 +4,10 @@ import { FileDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Respostas } from "@/lib/meu-plano-2027/regras";
 import { baixarPlanoPdf } from "@/lib/meu-plano-2027/baixar";
-import { planoFinalizado } from "@/lib/meu-plano-2027/pdf-conteudo";
 
 /**
- * Botão "Baixar meu plano em PDF". Só aparece com o plano finalizado (todas as telas do plano completas).
+ * Botão "Baixar meu plano em PDF". Aparece sempre, mesmo com o plano incompleto (t_b8aae132): o PDF sai com o
+ * que estiver preenchido e a linha "Plano X% preenchido (Y de 26 telas)".
  * `antes` roda primeiro (ex.: enviar o que ainda está na fila do aparelho).
  */
 export function BotaoBaixarPlano({
@@ -26,7 +26,6 @@ export function BotaoBaixarPlano({
   className?: string;
 }) {
   const [ocupado, setOcupado] = useState(false);
-  if (!planoFinalizado(S)) return null;
   async function baixar() {
     setOcupado(true);
     try {
