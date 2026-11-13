@@ -26,6 +26,7 @@ import {
   type Calc,
 } from "@/lib/meu-plano-2027/regras";
 import { KRIS, ORDEM, P15_CAMPOS, rotuloPagina, tela } from "@/lib/meu-plano-2027/telas";
+import { chaveMes, distribuicaoMes, temMesDigitado } from "@/lib/meu-plano-2027/meses";
 import {
   BLOCOS_SEMANA,
   MARCOS_CAPT,
@@ -979,51 +980,83 @@ function TelaMetas({ extra, irPara }: { extra?: ReactNode; irPara?: (id: string)
           <Aviso>VGC abaixo do Executive Club (R$ 173.010).</Aviso>
         ) : null}
       </Bloco>
-      <details className="rounded-xl border bg-card">
-        <summary className="cursor-pointer px-3 py-2.5 text-sm font-semibold">
-          Distribuição mês a mês (÷ 12)
-        </summary>
-        <div className="overflow-x-auto px-3 pb-3">
-          <table className="min-w-[560px] text-xs">
+      <DistribuicaoMes />
+      {extra}
+    </>
+  );
+}
+
+/**
+ * Distribuição mês a mês: cada mês é um campo (mt.mes.<linha>.<n>); vazio = sugestão (anual ÷ 12) no
+ * placeholder. Só planejamento: a soma não muda nenhuma conta; se não bater com a meta anual, só avisa.
+ */
+function DistribuicaoMes() {
+  const { S, C } = usePlanoCtx();
+  const L = distribuicaoMes(S, C);
+  const avisos = L.filter((l) => l.diverge);
+  return (
+    <details className="rounded-xl border bg-card" data-testid="dist-mes">
+      <summary className="cursor-pointer px-3 py-2.5 text-sm font-semibold">
+        {temMesDigitado(L) ? "Distribuição mês a mês" : "Distribuição mês a mês (÷ 12)"}
+      </summary>
+      <div className="px-3 pb-3">
+        <p className="mb-2 text-xs text-muted-foreground">
+          Planeje cada mês. Mês em branco usa a sugestão (meta do ano ÷ 12). Os meses não mudam a
+          meta do ano.
+        </p>
+        <div className="overflow-x-auto">
+          <table className="text-xs">
             <thead>
               <tr>
-                <th className="py-1 pr-2 text-left">Meta</th>
+                <th className="sticky left-0 z-10 bg-card py-1 pr-2 text-left">Meta</th>
                 <th className="pr-2">Anual</th>
                 {MESES.map((m) => (
-                  <th key={m} className="pr-1">
+                  <th key={m} className="px-0.5">
                     {m}
                   </th>
                 ))}
+                <th className="sticky right-0 z-10 bg-card pl-2">Soma</th>
               </tr>
             </thead>
             <tbody>
-              {(
-                [
-                  ["Novas CREs", C.novas],
-                  ["Canceladas/expiradas", C.canc],
-                  ["CREs vendidas", C.vendidas],
-                  ["Transações", C.transMeta],
-                  ["VGC (R$ mil)", C.vgc / 1000],
-                ] as [string, number][]
-              ).map(([n, v]) => (
-                <tr key={n} className="border-t">
-                  <td className="py-1 pr-2">{n}</td>
-                  <td className="pr-2 text-center font-semibold">{fmt.dec(v)}</td>
-                  {MESES.map((m) => (
-                    <td key={m} className="pr-1 text-center">
-                      {fmt.dec(v / 12)}
+              {L.map((l) => (
+                <tr key={l.id} className="border-t">
+                  <td className="sticky left-0 z-10 whitespace-nowrap bg-card py-1 pr-2">
+                    {l.rot}
+                  </td>
+                  <td className="pr-2 text-center font-semibold">{fmt.dec(l.anual)}</td>
+                  {MESES.map((m, i) => (
+                    <td key={m} className="px-0.5 py-1">
+                      <Inp
+                        k={chaveMes(l.id, i + 1)}
+                        tipo="int"
+                        ph={ok(l.sugestao) ? fmt.dec(l.sugestao) : ""}
+                        label={`${l.rot} em ${m}`}
+                        className="h-8 w-11 px-0.5 text-center text-xs md:text-xs"
+                      />
                     </td>
                   ))}
+                  <td className={cnSoma(l.diverge)} data-testid={`dist-soma-${l.id}`}>
+                    {fmt.dec(l.total)}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </details>
-      {extra}
-    </>
+        {avisos.map((l) => (
+          <Aviso key={l.id}>
+            {l.rot}: seus meses somam <b>{fmt.dec(l.total)}</b>; a meta do ano é{" "}
+            <b>{fmt.dec(l.anual)}</b>.
+          </Aviso>
+        ))}
+      </div>
+    </details>
   );
 }
+const cnSoma = (diverge: boolean) =>
+  "sticky right-0 z-10 bg-card pl-2 text-center font-semibold" +
+  (diverge ? " text-amber-700 dark:text-amber-300" : "");
 
 /** Quadro de KRIs: a frase do Objetivo vem das Metas (mesmos números, sem campo novo); só as 6 ações são digitadas. */
 function TelaKris({ irPara }: { irPara?: (id: string) => void }) {

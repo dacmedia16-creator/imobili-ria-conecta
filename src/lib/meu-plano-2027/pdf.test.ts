@@ -10,7 +10,7 @@ import {
 } from "./pdf-conteudo";
 import { buildPlanoPdf, limpa } from "./pdf";
 import { ORDEM, progresso, rotuloPagina, tela } from "./telas";
-import type { Respostas } from "./regras";
+import { calc, fmt, type Respostas } from "./regras";
 
 // Plano completo da trilha Ativação (dados fictícios; números do exemplo do book).
 const ATIVACAO: Respostas = {
@@ -231,6 +231,72 @@ describe("conteúdo do PDF", () => {
       "meu-plano-2027-ana-conceicao-d-avila.pdf",
     );
     expect(nomeArquivoPlano(null)).toBe("meu-plano-2027.pdf");
+  });
+});
+
+describe("PDF: bloco mês a mês com meses digitados (t_14aebf47)", () => {
+  const MES_K = ["novas", "canc", "vendidas", "trans", "vgc"].flatMap((l) =>
+    Array.from({ length: 12 }, (_, i) => `mt.mes.${l}.${i + 1}`),
+  );
+  const blocoMes = (S: Respostas) =>
+    conteudoPlanoPdf({ respostas: S, trilha: "ativacao" }).numeros.find((s) => s.id === "n-mes")!;
+
+  it("sem mês digitado: tabela idêntica à anterior (anual ÷ 12 e total = anual)", () => {
+    const C = calc(ATIVACAO);
+    const s = blocoMes(ATIVACAO);
+    expect(s.titulo).toBe("Metas mês a mês (÷ 12) e total do ano");
+    expect(s.itens).toHaveLength(1);
+    const antigo: [string, number][] = [
+      ["Novas CREs", C.novas],
+      ["Canceladas/expiradas", C.canc],
+      ["CREs vendidas", C.vendidas],
+      ["Transações", C.transMeta],
+      ["VGC (R$ mil)", C.vgc / 1000],
+    ];
+    expect((s.itens[0] as Extract<ItemPdf, { k: "tabela" }>).linhas).toEqual(
+      antigo.map(([n, v]) => [n, ...Array.from({ length: 12 }, () => fmt.dec(v / 12)), fmt.dec(v)]),
+    );
+  });
+
+  it("com mês digitado: mostra o valor, sugestão nos vazios, total e aviso", () => {
+    const S = { ...ATIVACAO, "mt.mes.novas.1": "9" };
+    const C = calc(S);
+    const s = blocoMes(S);
+    expect(s.titulo).toBe("Metas mês a mês e total do ano");
+    const novas = (s.itens[0] as Extract<ItemPdf, { k: "tabela" }>).linhas[0];
+    expect(novas[0]).toBe("Novas CREs");
+    expect(novas[1]).toBe("9");
+    expect(novas[2]).toBe(fmt.dec(C.novas / 12));
+    const total = 9 + 11 * (C.novas / 12);
+    expect(novas[13]).toBe(fmt.dec(total));
+    expect(s.itens[1]).toEqual({
+      k: "texto",
+      t: `Novas CREs: os meses somam ${fmt.dec(total)}; a meta do ano é ${fmt.dec(C.novas)}.`,
+    });
+  });
+
+  it("todo o resto do PDF (meta oficial, carteira, KRIs, telas) é idêntico com meses digitados", () => {
+    const S1: Respostas = { ...ATIVACAO };
+    MES_K.forEach((k, i) => (S1[k] = String(i % 5)));
+    const a = conteudoPlanoPdf({ respostas: ATIVACAO, trilha: "ativacao" });
+    const b = conteudoPlanoPdf({ respostas: S1, trilha: "ativacao" });
+    const semMes = (c: ConteudoPdf) => ({
+      ...c,
+      numeros: c.numeros.filter((x) => x.id !== "n-mes"),
+    });
+    expect(semMes(b)).toEqual(semMes(a));
+    expect(calc(S1)).toEqual(calc(ATIVACAO));
+  });
+
+  it("gera o PDF (pdf-lib) com meses digitados", async () => {
+    const S = { ...ATIVACAO, "mt.mes.novas.1": "9", "mt.mes.vgc.12": "50" };
+    const bytes = await buildPlanoPdf({
+      plano: { respostas: S, trilha: "ativacao" },
+      colaborador: "Ana",
+      logoPng: null,
+      agencyName: null,
+    });
+    expect(bytes.length).toBeGreaterThan(1000);
   });
 });
 
