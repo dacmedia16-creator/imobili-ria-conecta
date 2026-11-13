@@ -11,6 +11,8 @@ import {
 import { buildPlanoPdf, limpa } from "./pdf";
 import { ORDEM, progresso, rotuloPagina, statusTela, tela } from "./telas";
 import { calc, fmt, type Respostas } from "./regras";
+import { chavesTabela, sugestoesMes } from "./meses";
+import { MESES } from "./listas";
 
 // Plano antigo da trilha Ativação (dados fictícios; números do exemplo do book): sem p34–p44.
 const ATIVACAO: Respostas = {
@@ -187,25 +189,14 @@ describe("conteúdo do PDF", () => {
     expect(valor(c, "n-meta", "Gravada em Minha carreira")).toBe("ainda não gravada");
     expect(valor(c, "n-carteira", "Onde eu quero estar")).toBe("16 a 18 CREs ativas");
     expect(valor(c, "n-carteira", "Meta de CREs ativas no fim de 2027")).toBe("16");
-    const mes = itens(c, "n-mes")[0] as Extract<ItemPdf, { k: "tabela" }>;
-    expect(mes.cab).toEqual([
-      "Meta",
-      "Jan",
-      "Fev",
-      "Mar",
-      "Abr",
-      "Mai",
-      "Jun",
-      "Jul",
-      "Ago",
-      "Set",
-      "Out",
-      "Nov",
-      "Dez",
-      "Total",
-    ]);
-    expect(mes.linhas).toHaveLength(5);
-    expect(mes.linhas.every((l) => l.length === 14)).toBe(true);
+    const tabs = itens(c, "n-mes").filter((i) => i.k === "tabela") as Extract<
+      ItemPdf,
+      { k: "tabela" }
+    >[];
+    expect(tabs).toHaveLength(2);
+    expect(tabs[0].cab).toEqual(["Meta", "Anual", ...MESES]);
+    expect(tabs.map((t) => t.linhas.length)).toEqual([4, 5]);
+    expect(tabs.every((t) => t.linhas.every((l) => l.length === 14))).toBe(true);
     expect(valor(c, "n-kri", "Transações de venda")).toBe("0");
   });
 
@@ -230,42 +221,52 @@ describe("conteúdo do PDF", () => {
   });
 });
 
-describe("PDF: bloco mês a mês com meses digitados (t_14aebf47)", () => {
-  const MES_K = ["novas", "canc", "vendidas", "trans", "vgc"].flatMap((l) =>
-    Array.from({ length: 12 }, (_, i) => `mt.mes.${l}.${i + 1}`),
-  );
+describe("PDF: metas mês a mês em 2 tabelas (9 linhas, cartilha)", () => {
   const blocoMes = (S: Respostas) =>
     conteudoPlanoPdf({ respostas: S }).numeros.find((s) => s.id === "n-mes")!;
+  const tabelas = (S: Respostas) =>
+    blocoMes(S).itens.filter((i) => i.k === "tabela") as Extract<ItemPdf, { k: "tabela" }>[];
 
-  it("sem mês digitado: tabela idêntica à anterior (anual ÷ 12 e total = anual)", () => {
-    const C = calc(PLANEJAMENTO);
+  it("sem mês digitado: subtítulos, 9 linhas na ordem da cartilha e sem aviso", () => {
     const s = blocoMes(PLANEJAMENTO);
     expect(s.titulo).toBe("Metas mês a mês (÷ 12) e total do ano");
-    expect(s.itens).toHaveLength(1);
-    const antigo: [string, number][] = [
-      ["Novas CREs", C.novas],
-      ["Canceladas/expiradas", C.canc],
-      ["CREs vendidas", C.vendidas],
-      ["Transações", C.transMeta],
-      ["VGC (R$ mil)", C.vgc / 1000],
-    ];
-    expect((s.itens[0] as Extract<ItemPdf, { k: "tabela" }>).linhas).toEqual(
-      antigo.map(([n, v]) => [n, ...Array.from({ length: 12 }, () => fmt.dec(v / 12)), fmt.dec(v)]),
-    );
+    expect(s.itens.filter((i) => i.k === "sub").map((i) => (i as { t: string }).t)).toEqual([
+      "Distribuição mês a mês — CREs",
+      "Distribuição mês a mês — VGC",
+    ]);
+    expect(tabelas(PLANEJAMENTO).flatMap((t) => t.linhas.map((l) => l[0]))).toEqual([
+      "Novas CREs",
+      "Canceladas/expiradas",
+      "CREs vendidas",
+      "= Imóveis em estoque",
+      "Transações de captação",
+      "Transações de venda",
+      "Comissão média por transação (R$)",
+      "= Transações",
+      "= VGC (R$)",
+    ]);
+    const C = calc(PLANEJAMENTO);
+    const vgc = tabelas(PLANEJAMENTO)[1].linhas[4];
+    expect(vgc[1]).toBe(fmt.int(C.vgc));
+    expect(tabelas(PLANEJAMENTO)[0].linhas[3][1]).toBe(`${fmt.dec(C.estoqueFim)} (dez)`);
+    // Só o texto da fórmula; nenhum aviso de divergência.
+    expect(s.itens.filter((i) => i.k === "texto")).toHaveLength(1);
   });
 
-  it("com mês digitado: mostra o valor, sugestão nos vazios, total e aviso", () => {
-    const S = { ...PLANEJAMENTO, "mt.mes.novas.1": "9" };
+  it("com mês digitado: mostra o valor, sugestão nos vazios e aviso de soma", () => {
+    const S = { ...PLANEJAMENTO, "mt.mes.novas.1": "99" };
     const C = calc(S);
     const s = blocoMes(S);
     expect(s.titulo).toBe("Metas mês a mês e total do ano");
-    const novas = (s.itens[0] as Extract<ItemPdf, { k: "tabela" }>).linhas[0];
-    expect(novas[0]).toBe("Novas CREs");
-    expect(novas[1]).toBe("9");
-    expect(novas[2]).toBe(fmt.dec(C.novas / 12));
-    const total = 9 + 11 * (C.novas / 12);
-    expect(novas[13]).toBe(fmt.dec(total));
-    expect(s.itens[1]).toEqual({
+    const novas = tabelas(S)[0].linhas[0];
+    expect(novas[2]).toBe("99");
+    const total =
+      99 +
+      sugestoesMes(C.novas)
+        .slice(1)
+        .reduce((a, b) => a + b, 0);
+    expect(novas[1]).toBe(fmt.dec(total));
+    expect(s.itens).toContainEqual({
       k: "texto",
       t: `Novas CREs: os meses somam ${fmt.dec(total)}; a meta do ano é ${fmt.dec(C.novas)}.`,
     });
@@ -273,7 +274,7 @@ describe("PDF: bloco mês a mês com meses digitados (t_14aebf47)", () => {
 
   it("todo o resto do PDF (meta oficial, carteira, KRIs, telas) é idêntico com meses digitados", () => {
     const S1: Respostas = { ...PLANEJAMENTO };
-    MES_K.forEach((k, i) => (S1[k] = String(i % 5)));
+    [...chavesTabela("cres"), ...chavesTabela("vgc")].forEach((k, i) => (S1[k] = String(i % 5)));
     const a = conteudoPlanoPdf({ respostas: PLANEJAMENTO });
     const b = conteudoPlanoPdf({ respostas: S1 });
     const semMes = (c: ConteudoPdf) => ({
@@ -284,8 +285,14 @@ describe("PDF: bloco mês a mês com meses digitados (t_14aebf47)", () => {
     expect(calc(S1)).toEqual(calc(PLANEJAMENTO));
   });
 
-  it("gera o PDF (pdf-lib) com meses digitados", async () => {
-    const S = { ...PLANEJAMENTO, "mt.mes.novas.1": "9", "mt.mes.vgc.12": "50" };
+  it("gera o PDF (pdf-lib) com meses digitados e chaves antigas ignoradas", async () => {
+    const S = {
+      ...PLANEJAMENTO,
+      "mt.mes.novas.1": "9",
+      "mt.mes.com.12": "7.000",
+      "mt.mes.vgc.12": "50",
+      "mt.mes.trans.3": "4",
+    };
     const bytes = await buildPlanoPdf({
       plano: { respostas: S },
       colaborador: "Ana",

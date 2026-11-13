@@ -38,7 +38,7 @@ import {
   MESES,
   SEMANAS,
 } from "./listas";
-import { distribuicaoMes, temMesDigitado } from "./meses";
+import { tabelasMes, temMesDigitado, type LinhaMes } from "./meses";
 
 export const VAZIO = "—";
 
@@ -491,20 +491,33 @@ function numerosCalculados(C: Calc, d: PlanoPdfDados): SecaoPdf[] {
     ),
     conta("Meta de CREs ativas no fim de 2027", cInt(C.creFim)),
   ];
-  // Meses digitados pelo corretor (sugestão ÷ 12 onde vazio). Só planejamento: não entra em calc().
-  const dist = distribuicaoMes(d.respostas ?? {}, C);
-  const mes: ItemPdf = {
-    k: "tabela",
-    cab: ["Meta", ...MESES, "Total"],
-    pesos: [2.6, ...MESES.map(() => 1), 1.3],
-    linhas: dist.map((l) => [l.rot, ...l.meses.map((x) => cDec(x.usado)), cDec(l.total)]),
-  };
-  const avisosMes: ItemPdf[] = dist
-    .filter((l) => l.diverge)
-    .map((l) => ({
-      k: "texto",
-      t: `${l.rot}: os meses somam ${cDec(l.total)}; a meta do ano é ${cDec(l.anual)}.`,
-    }));
+  // Duas tabelas mês a mês (cartilha): meses digitados, sugestão nos vazios e linhas calculadas (=).
+  // Só planejamento: não entra em calc().
+  const tabs = tabelasMes(d.respostas ?? {}, C);
+  const celula = (l: LinhaMes, v: number) => (l.dinheiro ? cInt(v) : cDec(v));
+  const itensMes: ItemPdf[] = tabs.flatMap((t): ItemPdf[] => [
+    { k: "sub", t: t.titulo },
+    {
+      k: "tabela",
+      cab: ["Meta", "Anual", ...MESES],
+      pesos: [2.6, 1.3, ...MESES.map(() => 1)],
+      linhas: t.linhas.map((l) => [
+        (l.calc ? "= " : "") + l.rot + (l.dinheiro ? " (R$)" : ""),
+        celula(l, l.anual) + (l.notaAnual === "= dezembro" ? " (dez)" : ""),
+        ...l.meses.map((x) => celula(l, x.usado)),
+      ]),
+    },
+    ...t.linhas
+      .filter((l) => l.diverge)
+      .map((l): ItemPdf => ({
+        k: "texto",
+        t: `${l.rot}: os meses somam ${l.dinheiro ? cBrl0(l.anual) : cDec(l.anual)}; a meta do ano é ${l.dinheiro ? cBrl0(l.meta) : cDec(l.meta)}.`,
+      })),
+  ]);
+  itensMes.push({
+    k: "texto",
+    t: "Estoque: imóveis ativos no início + novas − canceladas/expiradas − vendidas (acumulado; anual = dezembro). Transações: captação + venda. VGC: transações × comissão média do mês.",
+  });
   const kris: ItemPdf[] = [
     { k: "sub", t: KRIS[0].kri },
     conta("Novas CREs", cInt(C.novas)),
@@ -529,10 +542,10 @@ function numerosCalculados(C: Calc, d: PlanoPdfDados): SecaoPdf[] {
       id: "n-mes",
       rotulo: "",
       ev: "Números do plano",
-      titulo: temMesDigitado(dist)
+      titulo: temMesDigitado(tabs)
         ? "Metas mês a mês e total do ano"
         : "Metas mês a mês (÷ 12) e total do ano",
-      itens: [mes, ...avisosMes],
+      itens: itensMes,
     },
     {
       id: "n-kri",
