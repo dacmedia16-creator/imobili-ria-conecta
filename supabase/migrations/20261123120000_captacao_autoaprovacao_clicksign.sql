@@ -1,5 +1,6 @@
--- Captação do próprio gestor/TL aprovada automaticamente quando a Clicksign devolve o contrato assinado
--- (t_e433a198, decisão de Denis 13/11/2026, tópico 6238).
+-- Captação aprovada automaticamente quando a Clicksign devolve o contrato assinado por todos.
+-- t_e433a198 (só gestor/TL) ampliado em t_2cbd375c: decisão de Denis 13/11/2026, tópico 6238: "qualquer
+-- captação que voltar da assinatura assinada teria que se aprovar sozinha". Vale para corretor, gestor e TL.
 --
 -- Onde: dentro de clicksign_attach_signed (chamada pelo webhook clicksign-webhook no document_closed), na
 -- MESMA transação que anexa o PDF assinado. Assim:
@@ -10,42 +11,30 @@
 --     aguardando a aprovação manual, como hoje (subtransação com EXCEPTION).
 -- Regras (todas precisam valer):
 --   1) fluxo normal (não é cadastro manual), envelope REAL (não modo teste), captação não arquivada/descartada;
---   2) quem capta (captor_id) é gestor ou team leader ATIVO da mesma imobiliária;
---   3) PDF gerado pelo sistema antes do assinado (já garantido pelas travas de cima: _gerado e status);
---   4) Plano de Marketing ok (mesma regra de exclusive_plano_ok / 'aprovar' manual, escrita inline: a função
+--   2) PDF gerado pelo sistema antes do assinado (já garantido pelas travas de cima: _gerado e status);
+--   3) Plano de Marketing ok (mesma regra de exclusive_plano_ok / 'aprovar' manual, escrita inline: a função
 --      original depende do JWT e, no webhook, responderia "ok" com o Plano vazio).
+--   Quem é o captador (corretor, gestor ou TL) não importa.
 -- Aprovação igual à manual: status 'aprovada', signed_on = coalesce(signed_on, hoje SP), histórico 'aprovar'
--- (autor = o próprio gestor/TL, detalhe "Aprovada automaticamente: …"). Corretor comum, cadastro manual e
--- falta de Plano: nada muda (continua aguardando o gestor). Devolver depois continua igual (exclusive_transition
--- não é alterada).
+-- com detalhe "Aprovada automaticamente: …". Autor do histórico = o captador (actor_id é obrigatório e o
+-- gatilho de autoria exige alguém da imobiliária; sem captador, quem enviou à Clicksign). A tela mostra
+-- "aprovada automaticamente pelo sistema", nunca "aprovada por <captador>".
+-- Cadastro manual, envelope de teste e falta de Plano: nada muda (continua aguardando o gestor).
+-- Devolver depois continua igual (exclusive_transition não é alterada).
 -- Aviso: no "todos assinaram" da captação aprovada sozinha, o sino diz que já foi aprovada e o WhatsApp usa o
--- evento novo 'aprovada_auto' (texto próprio no Worker). Os demais avisos ficam iguais.
--- Rollback: supabase/rollback/20261123120000_captacao_autoaprovacao_gestor.sql
+-- evento novo 'aprovada_auto' (texto próprio no Worker). Quem recebe é o mesmo de hoje
+-- (clicksign_aviso_destinos): captador, líder e co-líderes da equipe dele e quem enviou à Clicksign.
+-- Os demais avisos ficam iguais. A aprovação automática não chama o aviso da aprovação manual (só a tela
+-- chama), então não há aviso duplicado.
+-- Rollback: supabase/rollback/20261123120000_captacao_autoaprovacao_clicksign.sql
 BEGIN;
 
 ALTER TABLE public.clicksign_whatsapp_fila DROP CONSTRAINT clicksign_whatsapp_fila_evento_check;
 ALTER TABLE public.clicksign_whatsapp_fila ADD CONSTRAINT clicksign_whatsapp_fila_evento_check
   CHECK (evento IN ('enviado','finalizado','recusado','prazo_perto','aprovada_auto'));
 
--- Captador é gestor/TL ativo da imobiliária da captação (sem depender do JWT: roda no webhook).
-CREATE OR REPLACE FUNCTION public.exclusive_captor_eh_gestor(_c public.exclusive_captures)
- RETURNS boolean
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO ''
-AS $function$
-  SELECT _c.captor_id IS NOT NULL
-    AND EXISTS (SELECT 1 FROM public.profiles p
-                 WHERE p.id = _c.captor_id AND p.organization_id = _c.organization_id AND p.ativo IS TRUE)
-    -- Vínculo ativo com a imobiliária (o que is_active_user confere no caminho manual).
-    AND EXISTS (SELECT 1 FROM public.organization_members m
-                 WHERE m.user_id = _c.captor_id AND m.organization_id = _c.organization_id AND m.ativo IS TRUE)
-    AND EXISTS (SELECT 1 FROM public.user_roles r
-                 WHERE r.user_id = _c.captor_id AND r.organization_id = _c.organization_id
-                   AND r.role IN ('gestor','team_leader'))
-$function$;
-REVOKE ALL ON FUNCTION public.exclusive_captor_eh_gestor(public.exclusive_captures) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.exclusive_captor_eh_gestor(public.exclusive_captures) TO service_role;
+-- Função auxiliar da 1ª versão (só gestor/TL), que nunca foi aplicada; defensivo para ambiente de teste.
+DROP FUNCTION IF EXISTS public.exclusive_captor_eh_gestor(public.exclusive_captures);
 
 CREATE OR REPLACE FUNCTION public.clicksign_attach_signed(_envelope uuid, _path text, _file_name text)
  RETURNS text
@@ -92,15 +81,14 @@ BEGIN
   INSERT INTO public.exclusive_history (capture_id, actor_id, action, detail)
     VALUES (_e.capture_id, _e.created_by, 'documento_anexado',
       'assinado:0 (Clicksign, automático' || CASE WHEN _e.is_test THEN ', TESTE' ELSE '' END || ')');
-  -- Aprovação automática da captação do próprio gestor/TL (t_e433a198). Antes de fechar o envelope, para o
-  -- aviso "todos assinaram" (gatilho do envelope) já saber que a captação foi aprovada.
+  -- Aprovação automática de toda captação do fluxo normal (t_e433a198, ampliada em t_2cbd375c). Antes de
+  -- fechar o envelope, para o aviso "todos assinaram" (gatilho do envelope) já saber que foi aprovada.
   BEGIN
     SELECT * INTO _c FROM public.exclusive_captures WHERE id = _e.capture_id;
     -- Plano de Marketing: MESMA regra de exclusive_plano_ok, escrita aqui porque aquela função tem dono
     -- mt_1b_definer (sem bypass de RLS) e, sem JWT (webhook), não enxerga módulos/ações e responde "ok"
     -- com o Plano vazio. shortcut: se a regra de exclusive_plano_ok mudar, mudar aqui também.
     IF NOT _e.is_test AND NOT _c.manual AND _c.archived_at IS NULL AND _c.discarded_at IS NULL
-       AND public.exclusive_captor_eh_gestor(_c)
        AND (NOT (coalesce((SELECT m.enabled FROM public.organization_modules m
                             WHERE m.organization_id = _c.organization_id
                               AND m.module = 'feedback_proprietario'), false)
@@ -113,11 +101,22 @@ BEGIN
       UPDATE public.exclusive_captures SET status = 'aprovada', updated_at = now(),
         signed_on = coalesce(signed_on, _hoje) WHERE id = _c.id;
       INSERT INTO public.exclusive_history (capture_id, actor_id, action, detail)
-        VALUES (_c.id, _c.captor_id, 'aprovar',
-          'Aprovada automaticamente: contrato assinado pela Clicksign e Plano de Marketing marcado (captação do próprio gestor/team leader)');
+        VALUES (_c.id,
+          -- Autor: o captador se ainda for da imobiliária (gatilho de autoria); senão quem enviou à Clicksign.
+          CASE WHEN EXISTS (SELECT 1 FROM public.profiles p
+                             WHERE p.id = _c.captor_id AND p.organization_id = _c.organization_id)
+               THEN _c.captor_id ELSE _e.created_by END,
+          'aprovar', 'Aprovada automaticamente: contrato assinado pela Clicksign e Plano de Marketing marcado');
     END IF;
   EXCEPTION WHEN others THEN
     RAISE WARNING 'captação: aprovação automática não aconteceu: %', left(SQLERRM, 120);
+    -- Deixa rastro na própria captação: o gestor vê no histórico que precisa aprovar pelo botão.
+    BEGIN
+      INSERT INTO public.exclusive_history (capture_id, actor_id, action, detail)
+        VALUES (_e.capture_id, _e.created_by, 'aprovacao_auto_falhou',
+          'Aprovação automática não aconteceu; aprove pelo botão. Motivo técnico: ' || left(SQLERRM, 120));
+    EXCEPTION WHEN others THEN NULL;
+    END;
   END;
   UPDATE public.clicksign_envelopes SET status = 'closed', signed_document_id = _doc,
     last_event = 'document_closed', updated_at = now() WHERE id = _envelope;
@@ -142,7 +141,7 @@ BEGIN
         true, NEW.created_by);
     ELSIF NEW.status = 'closed' AND NEW.signed_document_id IS NOT NULL
           AND OLD.signed_document_id IS NULL THEN
-      -- Captação do próprio gestor/TL já aprovada na mesma transação (clicksign_attach_signed).
+      -- Captação já aprovada na mesma transação (clicksign_attach_signed, aprovação automática).
       _auto := NOT _venda AND EXISTS (SELECT 1 FROM public.exclusive_captures c
         WHERE c.id = NEW.capture_id AND c.status = 'aprovada');
       PERFORM public.clicksign_aviso(NEW, 'finalizado',

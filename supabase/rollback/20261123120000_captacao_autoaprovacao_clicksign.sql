@@ -1,6 +1,6 @@
--- Rollback de 20261123120000_captacao_autoaprovacao_gestor (t_e433a198).
+-- Rollback de 20261123120000_captacao_autoaprovacao_clicksign (t_e433a198, ampliada em t_2cbd375c).
 -- Volta clicksign_attach_signed e clicksign_envelope_aviso_trg aos corpos de produção de 13/11/2026
--- (pg_get_functiondef), apaga a função nova e devolve a lista de eventos do WhatsApp.
+-- (pg_get_functiondef; md5 f9de7a33… e 4cb4c8df…, relidos em 13/11) e devolve a lista de eventos do WhatsApp.
 -- NÃO desfaz aprovações automáticas já feitas: elas ficam como aprovações normais (o gestor pode devolver
 -- pela tela, como hoje). Para listá-las: exclusive_history action='aprovar' AND detail LIKE 'Aprovada automaticamente%'.
 BEGIN;
@@ -98,8 +98,6 @@ BEGIN
   END;
   RETURN NULL;
 END $function$;
-
-DROP FUNCTION IF EXISTS public.exclusive_captor_eh_gestor(public.exclusive_captures);
 
 -- Evento novo vira o 'finalizado' antigo antes de recolocar a lista fechada. O que ainda não foi enviado
 -- é encerrado como ignorado (senão iria "O gestor precisa aprovar" para captação já aprovada).

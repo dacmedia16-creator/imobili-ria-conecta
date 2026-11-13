@@ -8,7 +8,7 @@ import { normalizePhone, whatsappText } from "./room-reservation-reminders";
  * notificações. Só 4 eventos vão para o WhatsApp: enviado, finalizado (todos assinaram), recusado e
  * prazo perto de vencer. Texto sem CPF, e-mail ou nome de cliente.
  */
-/** aprovada_auto: todos assinaram e a captação do próprio gestor/TL já foi aprovada (t_e433a198). */
+/** aprovada_auto: todos assinaram e a captação já foi aprovada automaticamente (t_e433a198/t_2cbd375c). */
 export type EventoWhats = "enviado" | "finalizado" | "recusado" | "prazo_perto" | "aprovada_auto";
 
 export type PendenteWhats = {

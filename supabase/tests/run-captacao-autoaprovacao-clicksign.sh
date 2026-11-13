@@ -2,13 +2,13 @@
 # Aprovação automática da captação do próprio gestor/TL (migration 20261123120000, t_e433a198) numa ÚNICA
 # transação revertida (homologação ou clone, nunca produção): fingerprint A -> up -> suíte -> rollback ->
 # fingerprint == A -> reaplica -> suíte de novo -> ROLLBACK. Nada fica gravado.
-# Uso: PSQL="psql <conninfo da homologação>" bash supabase/tests/run-captacao-autoaprovacao-gestor.sh
+# Uso: PSQL="psql <conninfo da homologação>" bash supabase/tests/run-captacao-autoaprovacao-clicksign.sh
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 PSQL="${PSQL:?defina PSQL (homologação ou banco descartável; nunca produção)}"
-MIG="$ROOT/supabase/migrations/20261123120000_captacao_autoaprovacao_gestor.sql"
-RB="$ROOT/supabase/rollback/20261123120000_captacao_autoaprovacao_gestor.sql"
+MIG="$ROOT/supabase/migrations/20261123120000_captacao_autoaprovacao_clicksign.sql"
+RB="$ROOT/supabase/rollback/20261123120000_captacao_autoaprovacao_clicksign.sql"
 strip() { grep -v -E '^(BEGIN|COMMIT|ROLLBACK);\s*$' "$1"; }
 FP="SELECT 'FP=' || md5(coalesce((SELECT string_agg(x, ',' ORDER BY x) FROM (
   SELECT 'fn:'||p.oid::regprocedure::text||':'||p.prosecdef::text||':'||coalesce(p.proacl::text,'')||':'||md5(p.prosrc) x
@@ -21,7 +21,7 @@ FP="SELECT 'FP=' || md5(coalesce((SELECT string_agg(x, ',' ORDER BY x) FROM (
   strip "$MIG"
   echo "\\echo [migration ok]"
   echo "SAVEPOINT suite;"
-  strip "$HERE/captacao_autoaprovacao_gestor.sql"
+  strip "$HERE/captacao_autoaprovacao_clicksign.sql"
   echo "RESET ROLE;"
   echo "ROLLBACK TO SAVEPOINT suite;"
   strip "$RB"

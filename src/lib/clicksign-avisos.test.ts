@@ -212,7 +212,7 @@ describe("texto das 4 mensagens (sem CPF, e-mail ou nome de cliente)", () => {
     expect(v).not.toContain("gestor precisa aprovar");
     expect(v).toContain(`${URL_APP}/vendas/${SALE}`);
   });
-  it("aprovada_auto: captação do próprio gestor/TL já aprovada, sem pedir aprovação (t_e433a198)", () => {
+  it("aprovada_auto: captação já aprovada automaticamente, sem pedir aprovação (t_2cbd375c)", () => {
     const t = textoWhatsClicksign(pend({ evento: "aprovada_auto" }), URL_APP);
     expect(t).toMatch(/^\*Contrato assinado por todos\*/);
     expect(t).toContain("A captação foi aprovada automaticamente.");

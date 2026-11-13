@@ -242,7 +242,10 @@ export function podeCaptadorInformarData(
   );
 }
 
-/** Início do detalhe gravado por clicksign_attach_signed na aprovação automática (migration 20261123120000). */
+/**
+ * Início do detalhe gravado por clicksign_attach_signed na aprovação automática (migration 20261123120000).
+ * O autor gravado é o captador (actor_id é obrigatório), mas a tela mostra "automaticamente", sem nome.
+ */
 export const PREFIXO_APROVACAO_AUTOMATICA = "Aprovada automaticamente:";
 
 /**
@@ -290,7 +293,7 @@ export function textoAprovacao(
     .filter((h) => h.action === "aprovar")
     .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
   if (!ultima) return "Captação aprovada";
-  // Captação do próprio gestor/TL aprovada pelo banco ao chegar o assinado da Clicksign (t_e433a198).
+  // Aprovada pelo banco ao chegar o assinado da Clicksign (t_e433a198, toda captação desde t_2cbd375c).
   if (ultima.detail?.startsWith(PREFIXO_APROVACAO_AUTOMATICA))
     return `Captação aprovada automaticamente em ${dataHoraSaoPaulo(ultima.created_at)} (contrato assinado pela Clicksign)`;
   const quem = ultima.actor_nome?.trim() || "gestor";

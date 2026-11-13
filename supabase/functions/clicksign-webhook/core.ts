@@ -3,9 +3,9 @@
 // URL por organização: /functions/v1/clicksign-webhook/<webhook_slug>. Valida o Content-Hmac
 // (sha256 = HMAC-SHA256 do corpo BRUTO com o segredo daquela org) em tempo constante, registra o
 // evento de forma idempotente (org + sha256 do corpo) e, quando o documento fecha, baixa o PDF
-// assinado e anexa como "assinado". A aprovação continua com o gestor, exceto na captação do próprio
-// gestor/TL com Plano de Marketing: aí o banco (clicksign_attach_signed) aprova na mesma transação
-// (migration 20261123120000, t_e433a198). O retorno segue 'attached' nos dois casos.
+// assinado e anexa como "assinado". Com o Plano de Marketing marcado, o banco (clicksign_attach_signed)
+// aprova a captação na mesma transação, seja de corretor, gestor ou TL (migration 20261123120000,
+// t_e433a198/t_2cbd375c). Sem Plano, segue aguardando o gestor. O retorno segue 'attached' nos dois casos.
 import {
   ClicksignClient,
   normEmail,

@@ -77,18 +77,24 @@ describe("avisos de aprovação", () => {
     ).toBe("Captação aprovada por gestor em 15/10/2026 às 10:31");
     expect(textoAprovacao([])).toBe("Captação aprovada");
   });
-  it("aprovação automática (captação do próprio gestor/TL) aparece como automática (t_e433a198)", () => {
+  it("aprovação automática aparece como automática, sem o nome do captador (t_2cbd375c)", () => {
     const auto = {
       action: "aprovar",
       created_at: "2026-11-13T13:31:00Z",
-      actor_nome: "Gestor Exemplo",
+      actor_nome: "Carlos Corretor",
       detail: `${PREFIXO_APROVACAO_AUTOMATICA} contrato assinado pela Clicksign e Plano de Marketing marcado`,
     };
     expect(textoAprovacao([auto])).toBe(
       "Captação aprovada automaticamente em 13/11/2026 às 10:31 (contrato assinado pela Clicksign)",
     );
     // Devolvida e aprovada de novo pelo botão: vale a última (manual).
-    const manual = { ...auto, created_at: "2026-11-14T13:31:00Z", detail: null };
+    expect(textoAprovacao([auto])).not.toContain("Carlos");
+    const manual = {
+      ...auto,
+      actor_nome: "Gestor Exemplo",
+      created_at: "2026-11-14T13:31:00Z",
+      detail: null,
+    };
     expect(textoAprovacao([auto, manual])).toBe(
       "Captação aprovada por Gestor Exemplo em 14/11/2026 às 10:31",
     );
@@ -97,7 +103,7 @@ describe("avisos de aprovação", () => {
     const mig = readFileSync(
       resolve(
         __dirname,
-        "../../supabase/migrations/20261123120000_captacao_autoaprovacao_gestor.sql",
+        "../../supabase/migrations/20261123120000_captacao_autoaprovacao_clicksign.sql",
       ),
       "utf8",
     );
