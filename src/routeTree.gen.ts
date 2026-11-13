@@ -53,6 +53,7 @@ import { Route as ConviteCadastroRouteImport } from './routes/convite.cadastro'
 import { Route as EspecialistasIndexRouteImport } from './routes/especialistas.index'
 import { Route as EspecialistasSlugRouteImport } from './routes/especialistas.$slug'
 import { Route as LeadFormTokenRouteImport } from './routes/lead-form.$token'
+import { Route as LocacaoLinkTokenRouteImport } from './routes/locacao-link.$token'
 import { Route as PropostaTokenRouteImport } from './routes/proposta.$token'
 import { Route as AuthenticatedAdminAssinaturaDigitalRouteImport } from './routes/_authenticated/admin.assinatura-digital'
 import { Route as AuthenticatedAdminBannersRouteImport } from './routes/_authenticated/admin.banners'
@@ -321,6 +322,11 @@ const LeadFormTokenRoute = LeadFormTokenRouteImport.update({
   path: '/lead-form/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LocacaoLinkTokenRoute = LocacaoLinkTokenRouteImport.update({
+  id: '/locacao-link/$token',
+  path: '/locacao-link/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PropostaTokenRoute = PropostaTokenRouteImport.update({
   id: '/proposta/$token',
   path: '/proposta/$token',
@@ -537,6 +543,7 @@ export interface FileRoutesByFullPath {
   '/convite/cadastro': typeof ConviteCadastroRoute
   '/especialistas/$slug': typeof EspecialistasSlugRoute
   '/lead-form/$token': typeof LeadFormTokenRoute
+  '/locacao-link/$token': typeof LocacaoLinkTokenRoute
   '/proposta/$token': typeof PropostaTokenRoute
   '/especialistas/': typeof EspecialistasIndexRoute
   '/admin/assinatura-digital': typeof AuthenticatedAdminAssinaturaDigitalRoute
@@ -612,6 +619,7 @@ export interface FileRoutesByTo {
   '/convite/cadastro': typeof ConviteCadastroRoute
   '/especialistas/$slug': typeof EspecialistasSlugRoute
   '/lead-form/$token': typeof LeadFormTokenRoute
+  '/locacao-link/$token': typeof LocacaoLinkTokenRoute
   '/proposta/$token': typeof PropostaTokenRoute
   '/especialistas': typeof EspecialistasIndexRoute
   '/admin/assinatura-digital': typeof AuthenticatedAdminAssinaturaDigitalRoute
@@ -689,6 +697,7 @@ export interface FileRoutesById {
   '/convite/cadastro': typeof ConviteCadastroRoute
   '/especialistas/$slug': typeof EspecialistasSlugRoute
   '/lead-form/$token': typeof LeadFormTokenRoute
+  '/locacao-link/$token': typeof LocacaoLinkTokenRoute
   '/proposta/$token': typeof PropostaTokenRoute
   '/especialistas/': typeof EspecialistasIndexRoute
   '/_authenticated/admin/assinatura-digital': typeof AuthenticatedAdminAssinaturaDigitalRoute
@@ -766,6 +775,7 @@ export interface FileRouteTypes {
     | '/convite/cadastro'
     | '/especialistas/$slug'
     | '/lead-form/$token'
+    | '/locacao-link/$token'
     | '/proposta/$token'
     | '/especialistas/'
     | '/admin/assinatura-digital'
@@ -841,6 +851,7 @@ export interface FileRouteTypes {
     | '/convite/cadastro'
     | '/especialistas/$slug'
     | '/lead-form/$token'
+    | '/locacao-link/$token'
     | '/proposta/$token'
     | '/especialistas'
     | '/admin/assinatura-digital'
@@ -917,6 +928,7 @@ export interface FileRouteTypes {
     | '/convite/cadastro'
     | '/especialistas/$slug'
     | '/lead-form/$token'
+    | '/locacao-link/$token'
     | '/proposta/$token'
     | '/especialistas/'
     | '/_authenticated/admin/assinatura-digital'
@@ -965,6 +977,7 @@ export interface RootRouteChildren {
   ConviteCadastroRoute: typeof ConviteCadastroRoute
   EspecialistasSlugRoute: typeof EspecialistasSlugRoute
   LeadFormTokenRoute: typeof LeadFormTokenRoute
+  LocacaoLinkTokenRoute: typeof LocacaoLinkTokenRoute
   PropostaTokenRoute: typeof PropostaTokenRoute
   EspecialistasIndexRoute: typeof EspecialistasIndexRoute
   ApiAvisosExclusividadeTesteRoute: typeof ApiAvisosExclusividadeTesteRoute
@@ -1281,6 +1294,13 @@ declare module '@tanstack/react-router' {
       path: '/lead-form/$token'
       fullPath: '/lead-form/$token'
       preLoaderRoute: typeof LeadFormTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/locacao-link/$token': {
+      id: '/locacao-link/$token'
+      path: '/locacao-link/$token'
+      fullPath: '/locacao-link/$token'
+      preLoaderRoute: typeof LocacaoLinkTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/proposta/$token': {
@@ -1636,6 +1656,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConviteCadastroRoute: ConviteCadastroRoute,
   EspecialistasSlugRoute: EspecialistasSlugRoute,
   LeadFormTokenRoute: LeadFormTokenRoute,
+  LocacaoLinkTokenRoute: LocacaoLinkTokenRoute,
   PropostaTokenRoute: PropostaTokenRoute,
   EspecialistasIndexRoute: EspecialistasIndexRoute,
   ApiAvisosExclusividadeTesteRoute: ApiAvisosExclusividadeTesteRoute,
