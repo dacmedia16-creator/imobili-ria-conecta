@@ -26,7 +26,14 @@ import {
   type Calc,
 } from "@/lib/meu-plano-2027/regras";
 import { KRIS, ORDEM, P15_CAMPOS, rotuloPagina, tela } from "@/lib/meu-plano-2027/telas";
-import { chaveMes, distribuicaoMes, temMesDigitado } from "@/lib/meu-plano-2027/meses";
+import {
+  chaveMes,
+  chavesTabela,
+  tabelasMes,
+  type IdLinhaDigita,
+  type IdTabelaMes,
+  type LinhaMes,
+} from "@/lib/meu-plano-2027/meses";
 import {
   BLOCOS_SEMANA,
   MARCOS_CAPT,
@@ -35,6 +42,7 @@ import {
   SEMANAS,
 } from "@/lib/meu-plano-2027/listas";
 import { Pill } from "@/components/visual/base";
+import { cn } from "@/lib/utils";
 import {
   Aviso,
   Bloco,
@@ -953,6 +961,7 @@ function TelaMetas({ extra, irPara }: { extra?: ReactNode; irPara?: (id: string)
           ph={sug(C.estoqueFim)}
         />
       </Bloco>
+      <TabelaMesBloco id="cres" />
       <Bloco titulo="Valor geral de comissão (VGC)" ajuda="p32.vgc">
         <Linha k="mt.tCapt" rot="Meta de transações de captação" tipo="int" ph={sug(C.trans)} />
         <Linha
@@ -984,83 +993,204 @@ function TelaMetas({ extra, irPara }: { extra?: ReactNode; irPara?: (id: string)
           <Aviso>VGC abaixo do Executive Club (R$ 173.010).</Aviso>
         ) : null}
       </Bloco>
-      <DistribuicaoMes />
+      <TabelaMesBloco id="vgc" />
       {extra}
     </>
   );
 }
 
 /**
- * Distribuição mês a mês: cada mês é um campo (mt.mes.<linha>.<n>); vazio = sugestão (anual ÷ 12) no
- * placeholder. Só planejamento: a soma não muda nenhuma conta; se não bater com a meta anual, só avisa.
+ * Tabela mês a mês de um bloco (cartilha; maquete t_88a3e82e). Linhas digitáveis gravam
+ * mt.mes.<linha>.<n> (vazio = sugestão cinza no placeholder); linhas "=" são calculadas e não editam.
+ * Computador: Anual + Jan…Dez lado a lado. Celular: um mês por linha. Só planejamento: não muda calc().
  */
-function DistribuicaoMes() {
-  const { S, C } = usePlanoCtx();
-  const L = distribuicaoMes(S, C);
-  const avisos = L.filter((l) => l.diverge);
+function TabelaMesBloco({ id }: { id: IdTabelaMes }) {
+  const { S, C, set, ro } = usePlanoCtx();
+  const t = tabelasMes(S, C).find((x) => x.id === id)!;
+  const digitadas = t.linhas.filter((l) => !l.calc);
+  const algum = digitadas.some((l) => l.algumDigitado);
+  const valor = (l: LinhaMes, v: number) => (l.dinheiro ? fmt.int(v) : fmt.dec(v));
+  const limpar = () => chavesTabela(id).forEach((k) => cheio(S[k]) && set(k, ""));
+  const celInp = (l: LinhaMes, i: number, cls: string) => (
+    <Inp
+      k={chaveMes(l.id as IdLinhaDigita, i + 1)}
+      tipo={l.dinheiro ? "money" : "int"}
+      ph={ok(l.meses[i].sugestao) ? valor(l, l.meses[i].sugestao) : ""}
+      label={`${l.rot} em ${MESES[i]}`}
+      className={cls}
+    />
+  );
+  const conferencia = (l: LinhaMes) =>
+    l.diverge ? (
+      <span className="block text-[10px] font-semibold leading-tight text-red-700 dark:text-red-300">
+        ⚠ meta do ano: {l.dinheiro ? fmt.brl0(l.meta) : fmt.dec(l.meta)}
+      </span>
+    ) : ok(l.meta) && ok(l.anual) ? (
+      <span className="block text-[10px] leading-tight text-emerald-700 dark:text-emerald-300">
+        ✓ bate com o ano
+      </span>
+    ) : l.notaAnual ? (
+      <span className="block text-[10px] leading-tight text-muted-foreground">({l.notaAnual})</span>
+    ) : null;
+  const cnCalc = "bg-sky-50 font-semibold text-sky-800 dark:bg-sky-950/40 dark:text-sky-200";
   return (
-    <details className="rounded-xl border bg-card" data-testid="dist-mes">
-      <summary className="cursor-pointer px-3 py-2.5 text-sm font-semibold">
-        {temMesDigitado(L) ? "Distribuição mês a mês" : "Distribuição mês a mês (÷ 12)"}
-      </summary>
-      <div className="px-3 pb-3">
-        <p className="mb-2 text-xs text-muted-foreground">
-          Planeje cada mês. Mês em branco usa a sugestão (meta do ano ÷ 12). Os meses não mudam a
-          meta do ano.
-        </p>
-        <div className="overflow-x-auto">
-          <table className="text-xs">
-            <thead>
-              <tr>
-                <th className="sticky left-0 z-10 bg-card py-1 pr-2 text-left">Meta</th>
-                <th className="pr-2">Anual</th>
-                {MESES.map((m) => (
-                  <th key={m} className="px-0.5">
-                    {m}
-                  </th>
-                ))}
-                <th className="sticky right-0 z-10 bg-card pl-2">Soma</th>
-              </tr>
-            </thead>
-            <tbody>
-              {L.map((l) => (
-                <tr key={l.id} className="border-t">
-                  <td className="sticky left-0 z-10 whitespace-nowrap bg-card py-1 pr-2">
-                    {l.rot}
-                  </td>
-                  <td className="pr-2 text-center font-semibold">{fmt.dec(l.anual)}</td>
-                  {MESES.map((m, i) => (
-                    <td key={m} className="px-0.5 py-1">
-                      <Inp
-                        k={chaveMes(l.id, i + 1)}
-                        tipo="int"
-                        ph={ok(l.sugestao) ? fmt.dec(l.sugestao) : ""}
-                        label={`${l.rot} em ${m}`}
-                        className="h-8 w-11 px-0.5 text-center text-xs md:text-xs"
-                      />
-                    </td>
-                  ))}
-                  <td className={cnSoma(l.diverge)} data-testid={`dist-soma-${l.id}`}>
-                    {fmt.dec(l.total)}
-                  </td>
-                </tr>
+    <section className="rounded-xl border bg-card p-3" data-testid={`dist-mes-${id}`}>
+      <h4 className="text-sm font-semibold">
+        {t.titulo}
+        {algum ? "" : " (÷ 12)"}
+      </h4>
+      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+        <span className="rounded border bg-background px-1.5 py-0.5">você digita</span>
+        <span className="rounded border bg-background px-1.5 py-0.5">
+          cinza = sugestão {id === "vgc" ? "(ano ÷ 12; comissão = valor do ano)" : "(ano ÷ 12)"}
+        </span>
+        <span className={cn("rounded px-1.5 py-0.5", cnCalc)}>= azul: calculado (não edita)</span>
+        {!ro ? (
+          <button
+            type="button"
+            onClick={limpar}
+            disabled={!algum}
+            className="ml-auto rounded border px-2 py-0.5 text-[11px] font-medium text-foreground disabled:opacity-40"
+            data-testid={`dist-limpar-${id}`}
+          >
+            Voltar tudo para a sugestão
+          </button>
+        ) : null}
+      </div>
+
+      {/* Computador: Anual + 12 meses sem rolagem lateral. */}
+      <table className="mt-2 hidden w-full table-fixed border-collapse text-[11px] md:table">
+        <colgroup>
+          <col className="w-[104px]" />
+          <col className="w-[68px]" />
+          {MESES.map((m) => (
+            <col key={m} />
+          ))}
+        </colgroup>
+        <thead>
+          <tr className="bg-slate-800 text-white">
+            <th className="rounded-tl px-1.5 py-1 text-left font-semibold">Meta</th>
+            <th className="bg-slate-600 px-1 py-1 font-semibold">Anual</th>
+            {MESES.map((m, i) => (
+              <th key={m} className={cn("px-0.5 py-1 font-semibold", i === 11 && "rounded-tr")}>
+                {m}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {t.linhas.map((l) => (
+            <tr
+              key={l.id}
+              className={cn("border-b", l.calc && cnCalc)}
+              data-testid={`dist-linha-${l.id}`}
+            >
+              <td className="px-1 py-1 text-[10.5px] leading-tight">
+                {l.calc ? "= " : ""}
+                {l.rot}
+                {l.dinheiro ? " (R$)" : ""}
+              </td>
+              <td
+                className="bg-muted/60 px-1 py-1 text-center font-semibold"
+                data-testid={`dist-anual-${l.id}`}
+              >
+                {valor(l, l.anual)}
+                {conferencia(l)}
+              </td>
+              {MESES.map((m, i) => (
+                <td
+                  key={m}
+                  className={cn(
+                    "px-[1px] py-1 text-center tabular-nums",
+                    l.dinheiro && "text-[9.5px] tracking-tighter",
+                  )}
+                >
+                  {l.calc
+                    ? valor(l, l.meses[i].usado)
+                    : celInp(
+                        l,
+                        i,
+                        cn(
+                          "h-7 w-full min-w-0 px-0 text-center text-[11px] md:text-[11px]",
+                          l.dinheiro && "text-[9.5px] tracking-tighter md:text-[9.5px]",
+                        ),
+                      )}
+                </td>
               ))}
-            </tbody>
-          </table>
-        </div>
-        {avisos.map((l) => (
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* Celular: um mês por linha. */}
+      <table className="mt-2 w-full table-fixed border-collapse text-[11px] md:hidden">
+        <colgroup>
+          <col className="w-[34px]" />
+          {t.linhas.map((l) => (
+            <col key={l.id} className={l.dinheiro ? "w-[22%]" : undefined} />
+          ))}
+        </colgroup>
+        <thead>
+          <tr className="bg-slate-800 text-white">
+            <th className="px-1 py-1 text-left font-semibold">Mês</th>
+            {t.linhas.map((l) => (
+              <th
+                key={l.id}
+                className={cn("px-0.5 py-1 font-semibold leading-tight", l.calc && "bg-sky-800")}
+              >
+                {l.calc ? "= " : ""}
+                {l.curto}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {MESES.map((m, i) => (
+            <tr key={m} className="border-b">
+              <td className="px-1 py-1 font-semibold">{m}</td>
+              {t.linhas.map((l) => (
+                <td key={l.id} className={cn("px-[1px] py-1 text-center", l.calc && cnCalc)}>
+                  {l.calc ? (
+                    <span className="tabular-nums">{valor(l, l.meses[i].usado)}</span>
+                  ) : (
+                    celInp(l, i, "h-8 w-full min-w-0 px-0.5 text-center text-xs md:text-xs")
+                  )}
+                </td>
+              ))}
+            </tr>
+          ))}
+          <tr className="bg-muted/60">
+            <td className="px-1 py-1 font-semibold">Ano</td>
+            {t.linhas.map((l) => (
+              <td
+                key={l.id}
+                className={cn("px-0.5 py-1 text-center font-semibold", l.calc && cnCalc)}
+              >
+                {valor(l, l.anual)}
+                {conferencia(l)}
+              </td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
+
+      {t.linhas
+        .filter((l) => l.diverge)
+        .map((l) => (
           <Aviso key={l.id}>
-            {l.rot}: seus meses somam <b>{fmt.dec(l.total)}</b>; a meta do ano é{" "}
-            <b>{fmt.dec(l.anual)}</b>.
+            {l.rot}: seus meses somam <b>{l.dinheiro ? fmt.brl0(l.anual) : fmt.dec(l.anual)}</b>; a
+            meta do ano é <b>{l.dinheiro ? fmt.brl0(l.meta) : fmt.dec(l.meta)}</b>. Os meses não
+            mudam a meta do ano.
           </Aviso>
         ))}
-      </div>
-    </details>
+      <p className="mt-2 text-[11px] italic text-muted-foreground">
+        {id === "cres"
+          ? "Como calcular estoque: imóveis ativos no início + novas − canceladas/expiradas − vendidas (acumulado mês a mês; o anual é dezembro)."
+          : "Como calcular transações: captação + venda · VGC: transações × comissão média do mês."}
+      </p>
+    </section>
   );
 }
-const cnSoma = (diverge: boolean) =>
-  "sticky right-0 z-10 bg-card pl-2 text-center font-semibold" +
-  (diverge ? " text-amber-700 dark:text-amber-300" : "");
 
 /** Quadro de KRIs: a frase do Objetivo vem das Metas (mesmos números, sem campo novo); só as 6 ações são digitadas. */
 function TelaKris({ irPara }: { irPara?: (id: string) => void }) {
