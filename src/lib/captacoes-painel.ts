@@ -102,6 +102,112 @@ export function alternarCard(
   return atual === clicado ? null : clicado;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Etapas visíveis na lista (t_abf93125, maquete aprovada por Denis em 13/11/2026). Só tela: os 5
+// status reais viram 4 passos; nenhuma regra, permissão ou dado muda.
+
+export type EtapaCaptacao = "corretor" | "gestor" | "assinatura" | "aprovada";
+
+export const ETAPAS_CAPTACAO: { key: EtapaCaptacao; label: string; chip: string }[] = [
+  { key: "corretor", label: "Corretor", chip: "Com o corretor" },
+  { key: "gestor", label: "Gestor", chip: "Com o gestor" },
+  { key: "assinatura", label: "Assinatura", chip: "Em assinatura" },
+  { key: "aprovada", label: "Aprovada", chip: "Aprovada" },
+];
+
+const ETAPA_DO_STATUS: Record<CaptureStatus, EtapaCaptacao> = {
+  rascunho: "corretor",
+  devolvida: "corretor",
+  enviada: "gestor",
+  em_assinatura: "assinatura",
+  aprovada: "aprovada",
+};
+
+export function etapaCaptacao(status: CaptureStatus): EtapaCaptacao {
+  return ETAPA_DO_STATUS[status];
+}
+
+/** Índice 0..3 da etapa (para a barra). */
+export function indiceEtapa(status: CaptureStatus): number {
+  return ETAPAS_CAPTACAO.findIndex((e) => e.key === ETAPA_DO_STATUS[status]);
+}
+
+/** Selo da etapa no canto do cartão (mesmas cores de cores-status: laranja = vez do gestor). */
+export const SELO_ETAPA: Record<CaptureStatus, { texto: string; classe: string }> = {
+  rascunho: { texto: "Com o corretor", classe: "bg-slate-100 text-slate-700" },
+  devolvida: { texto: "Devolvida ao corretor", classe: "bg-amber-100 text-amber-900" },
+  enviada: { texto: "Com o gestor", classe: "bg-orange-100 text-orange-800" },
+  em_assinatura: { texto: "Em assinatura", classe: "bg-sky-100 text-sky-800" },
+  aprovada: { texto: "Aprovada", classe: "bg-emerald-100 text-emerald-800" },
+};
+
+/** Quem está olhando a lista. `liderados` = fetchLedMemberIds (mesma hierarquia de is_lead_of). */
+export type ContextoVez = {
+  userId: string | null | undefined;
+  admin: boolean;
+  /** Tem papel gestor ou team_leader. */
+  gestor: boolean;
+  liderados: ReadonlySet<string>;
+};
+
+type CaptacaoVez = Pick<Capture, "status" | "captor_id" | "archived_at"> & {
+  discarded_at?: string | null;
+};
+
+/**
+ * Pode agir como gestor nesta captação? Réplica na tela de exclusive_is_manager: admin/super_admin
+ * em qualquer uma; gestor/TL só quando o captador é ele mesmo ou alguém que ele lidera
+ * (is_lead_of: equipe, líder auxiliar ou subequipe). Só o papel NÃO basta: um gestor que enxerga
+ * outras equipes não pode ver "Sua vez" nas captações delas.
+ * shortcut: os liderados vêm de team_members/teams/team_co_leaders lidos pelo navegador; se a RLS
+ * esconder alguma equipe dele, o selo some (falha para o lado seguro, o banco continua decidindo).
+ */
+export function podeGerirCaptacao(c: Pick<Capture, "captor_id">, ctx: ContextoVez): boolean {
+  if (ctx.admin) return true;
+  if (!ctx.gestor || !ctx.userId) return false;
+  return c.captor_id === ctx.userId || ctx.liderados.has(c.captor_id);
+}
+
+/**
+ * "Sua vez": a próxima ação é de quem está olhando.
+ * - Corretor (qualquer papel): as próprias captações em rascunho ou devolvidas.
+ * - Gestor: as enviadas que ele pode gerir (podeGerirCaptacao).
+ * Em assinatura a vez é do proprietário (maquete aprovada), e aprovada já terminou.
+ */
+export function captacaoMinhaVez(c: CaptacaoVez, ctx: ContextoVez): boolean {
+  if (!captacaoAtiva(c) || !ctx.userId) return false;
+  if (c.status === "rascunho" || c.status === "devolvida") return c.captor_id === ctx.userId;
+  if (c.status === "enviada") return podeGerirCaptacao(c, ctx);
+  return false;
+}
+
+export type FiltroEtapa = "minha_vez" | "todas" | EtapaCaptacao;
+
+export function noFiltroEtapa(c: CaptacaoVez, filtro: FiltroEtapa, ctx: ContextoVez): boolean {
+  if (filtro === "todas") return true;
+  if (filtro === "minha_vez") return captacaoMinhaVez(c, ctx);
+  return etapaCaptacao(c.status) === filtro;
+}
+
+/** Contadores dos chips, só das captações ativas (as arquivadas têm botão próprio). */
+export function contarEtapas(list: CaptacaoVez[], ctx: ContextoVez): Record<FiltroEtapa, number> {
+  const out: Record<FiltroEtapa, number> = {
+    minha_vez: 0,
+    todas: 0,
+    corretor: 0,
+    gestor: 0,
+    assinatura: 0,
+    aprovada: 0,
+  };
+  for (const c of list) {
+    if (!captacaoAtiva(c)) continue;
+    out.todas++;
+    out[etapaCaptacao(c.status)]++;
+    if (captacaoMinhaVez(c, ctx)) out.minha_vez++;
+  }
+  return out;
+}
+
 export const AVISO_SEM_ASSINADO = "Anexe o contrato assinado (PDF) para liberar a aprovação.";
 /** Texto de aprovarBloqueio() para a mesma falta — a tela esconde para não repetir o aviso âmbar. */
 export const BLOQUEIO_SEM_ASSINADO = "Anexe o contrato assinado antes de aprovar.";
