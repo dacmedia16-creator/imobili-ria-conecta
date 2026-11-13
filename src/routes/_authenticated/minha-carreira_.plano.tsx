@@ -13,6 +13,7 @@ import { EquipePlano } from "@/components/minha-carreira/meu-plano/Equipe";
 // Meu Plano 2027 (cartão t_1ac2e95d). Rota própria fora do layout de Minha carreira. Só abre com o
 // módulo "meu_plano_2027" ligado na imobiliária; o banco repete a regra (RLS + RPCs).
 type Busca = {
+  // "trilha" = link antigo (antes do caminho único): abre direto os exercícios, de onde parou.
   v?: "trilha" | "tela" | "book" | "fim" | "equipe";
   id?: string;
   p?: number;
@@ -57,7 +58,9 @@ function MeuPlanoPage() {
           ? { v: "tela", id: v.id }
           : v.v === "book"
             ? { v: "book", p: v.p }
-            : { v: v.v };
+            : v.v === "fim"
+              ? { v: "fim" }
+              : {};
       void navigate({ search, replace });
     },
     [navigate],
@@ -75,7 +78,7 @@ function MeuPlanoPage() {
         ? { v: "book", p: busca.p ?? 1 }
         : busca.v === "fim"
           ? { v: "fim" }
-          : { v: "trilha" };
+          : { v: "inicio" };
 
   return (
     <div className="mx-auto max-w-2xl space-y-3">
@@ -113,7 +116,7 @@ function MeuPlanoPage() {
         </>
       ) : (
         <>
-          {vista.v === "trilha" ? (
+          {vista.v === "inicio" ? (
             <PageHeader
               icon={Target}
               title="Meu Plano 2027"

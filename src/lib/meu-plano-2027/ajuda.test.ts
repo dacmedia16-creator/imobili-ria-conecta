@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * Meu Plano 2027 (cartão t_991ba51f): bolinha "i" com o "como preencher" em cada parte dos exercícios,
- * nas duas trilhas. Renderiza as telas com respostas fictícias, sem banco.
+ * em todas as telas do caminho único. Renderiza as telas com respostas fictícias, sem banco.
  */
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
@@ -14,8 +14,8 @@ import { CorpoTela } from "@/components/minha-carreira/meu-plano/telas";
 
 const S: Respostas = { "d.ticket": "700.000", "d.conv": "22", "m.faixa": "45", "m.pct": "3" };
 
-function tela(id: string, trilha: "ativacao" | "planejamento" = "planejamento") {
-  const ctx = { S, C: calc(S), set: () => undefined, ro: false, inicio: null, trilha };
+function tela(id: string) {
+  const ctx = { S, C: calc(S), set: () => undefined, ro: false, inicio: null };
   return render(createElement(PlanoCtx.Provider, { value: ctx }, createElement(CorpoTela, { id })));
 }
 const dicas = (c: HTMLElement) => within(c).queryAllByRole("button", { name: /^Como preencher: / });
@@ -26,19 +26,18 @@ const SEM_CAMPO = new Set(["p52"]);
 afterEach(cleanup);
 
 describe("bolinha 'como preencher'", () => {
-  for (const t of ["planejamento", "ativacao"] as const)
-    it(`toda tela de exercício da trilha ${t} tem pelo menos uma bolinha`, () => {
-      for (const id of ORDEM[t]) {
-        if (SEM_CAMPO.has(id)) continue;
-        const { container, unmount } = tela(id, t);
-        expect(dicas(container).length, `${id} · ${telaInfo(id)?.t}`).toBeGreaterThan(0);
-        unmount();
-      }
-    });
+  it("toda tela de exercício do plano tem pelo menos uma bolinha", () => {
+    for (const id of ORDEM) {
+      if (SEM_CAMPO.has(id)) continue;
+      const { container, unmount } = tela(id);
+      expect(dicas(container).length, `${id} · ${telaInfo(id)?.t}`).toBeGreaterThan(0);
+      unmount();
+    }
+  });
 
   it("todo texto do arquivo é usado em alguma tela, e nenhuma tela pede texto que não existe", () => {
     const usados = new Set<string>();
-    for (const id of new Set([...ORDEM.planejamento, ...ORDEM.ativacao])) {
+    for (const id of ORDEM) {
       const { container, unmount } = tela(id);
       for (const b of dicas(container)) {
         const nome = b.getAttribute("aria-label")!.replace("Como preencher: ", "");

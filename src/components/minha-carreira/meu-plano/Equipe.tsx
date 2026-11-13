@@ -4,14 +4,7 @@ import { ChevronLeft, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState, ListSkeleton, Pill } from "@/components/visual/base";
 import { calc, cheio, type Respostas, type TaxasFunil } from "@/lib/meu-plano-2027/regras";
-import {
-  ANO_PLANO,
-  ORDEM,
-  TRILHAS,
-  progresso,
-  tela,
-  type Trilha,
-} from "@/lib/meu-plano-2027/telas";
+import { ANO_PLANO, ORDEM, inicioNoventaDias, progresso, tela } from "@/lib/meu-plano-2027/telas";
 import { erroPlano, planoDb } from "@/lib/meu-plano-2027/modulo";
 import { PlanoCtx, Bloco, Stat } from "./campos";
 import { Cockpit, CorpoTela } from "./telas";
@@ -20,7 +13,8 @@ import { BotaoBaixarPlano } from "./BaixarPdf";
 type Membro = {
   user_id: string;
   nome: string;
-  trilha: Trilha | null;
+  /** Legado: trilha escolhida antes do caminho único (o banco ainda devolve; o app não usa). */
+  trilha: string | null;
   ativacao_inicio: string | null;
   respostas: Respostas;
   assinado_corretor_em: string | null;
@@ -81,7 +75,7 @@ export function EquipePlano({
   }, [carregar]);
 
   const linhas = useMemo(
-    () => (lista ?? []).map((m) => ({ m, p: progresso(m.respostas, m.trilha) })),
+    () => (lista ?? []).map((m) => ({ m, p: progresso(m.respostas) })),
     [lista],
   );
 
@@ -90,11 +84,16 @@ export function EquipePlano({
 
   const m = aberto ? lista.find((x) => x.user_id === aberto) : null;
   if (aberto && m) {
-    const trilha: Trilha = m.trilha ?? "planejamento";
     const S = m.respostas;
     const C = calc(S, taxas);
-    const ctx = { S, C, set: () => undefined, ro: true, inicio: m.ativacao_inicio, trilha };
-    const p = progresso(S, m.trilha);
+    const ctx = {
+      S,
+      C,
+      set: () => undefined,
+      ro: true,
+      inicio: inicioNoventaDias(m.ativacao_inicio, S),
+    };
+    const p = progresso(S);
     async function assinarBroker() {
       setOcupado(true);
       const { error } = await planoDb.rpc("carreira_plano_assinar_broker", {
@@ -117,17 +116,11 @@ export function EquipePlano({
           <Bloco className="border-dashed border-rose-700/60">
             <p className="text-sm">
               <Eye className="mr-1 inline h-4 w-4" aria-hidden />
-              Somente leitura · plano de <b>{m.nome}</b> ·{" "}
-              {m.trilha ? `trilha ${TRILHAS[m.trilha].n}` : "sem trilha"} · {p.pct}% preenchido
+              Somente leitura · plano de <b>{m.nome}</b> · {p.telas}/{p.total} telas · {p.pct}%
+              preenchido
             </p>
           </Bloco>
-          <BotaoBaixarPlano
-            userId={m.user_id}
-            nome={m.nome}
-            S={S}
-            trilha={m.trilha}
-            rotulo="Baixar o plano em PDF"
-          />
+          <BotaoBaixarPlano userId={m.user_id} nome={m.nome} S={S} rotulo="Baixar o plano em PDF" />
           <h3 className="text-base font-semibold">Cockpit (plano em uma página)</h3>
           <Cockpit />
           <Bloco titulo="Pacto com o broker">
@@ -157,25 +150,23 @@ export function EquipePlano({
             )}
           </Bloco>
           <h3 className="pt-2 text-base font-semibold">Todas as respostas, página por página</h3>
-          {ORDEM[trilha]
-            .filter((id) => id !== "p52")
-            .map((id) => {
-              const t = tela(id)!;
-              const f = t.req.filter((k) => cheio(S[k])).length;
-              return (
-                <details key={id} className="rounded-xl border bg-card">
-                  <summary className="flex cursor-pointer items-center justify-between gap-2 px-3 py-2.5 text-sm font-semibold">
-                    <span>{t.t}</span>
-                    <Pill tom={t.req.length && f === t.req.length ? "green" : "slate"}>
-                      {t.req.length ? `${f}/${t.req.length}` : "—"}
-                    </Pill>
-                  </summary>
-                  <fieldset disabled className="space-y-3 px-3 pb-3">
-                    <CorpoTela id={id} />
-                  </fieldset>
-                </details>
-              );
-            })}
+          {ORDEM.filter((id) => id !== "p52").map((id) => {
+            const t = tela(id)!;
+            const f = t.req.filter((k) => cheio(S[k])).length;
+            return (
+              <details key={id} className="rounded-xl border bg-card">
+                <summary className="flex cursor-pointer items-center justify-between gap-2 px-3 py-2.5 text-sm font-semibold">
+                  <span>{t.t}</span>
+                  <Pill tom={t.req.length && f === t.req.length ? "green" : "slate"}>
+                    {t.req.length ? `${f}/${t.req.length}` : "—"}
+                  </Pill>
+                </summary>
+                <fieldset disabled className="space-y-3 px-3 pb-3">
+                  <CorpoTela id={id} />
+                </fieldset>
+              </details>
+            );
+          })}
         </div>
       </PlanoCtx.Provider>
     );
@@ -202,7 +193,7 @@ export function EquipePlano({
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{x.nome}</p>
                 <p className="text-xs text-muted-foreground">
-                  {x.trilha ? TRILHAS[x.trilha].n : "sem trilha"} ·{" "}
+                  {p.telas}/{p.total} telas ·{" "}
                   {x.updated_at ? `mexeu em ${quando(x.updated_at)}` : "não começou"}
                 </p>
                 <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
@@ -213,7 +204,7 @@ export function EquipePlano({
                 </div>
               </div>
               <b className="w-10 text-right text-sm tabular-nums">{p.pct}%</b>
-              {x.trilha || Object.keys(x.respostas).length ? (
+              {x.updated_at || Object.keys(x.respostas).length ? (
                 <Button
                   size="sm"
                   variant="secondary"

@@ -2,20 +2,18 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { FileDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { Trilha } from "@/lib/meu-plano-2027/telas";
 import type { Respostas } from "@/lib/meu-plano-2027/regras";
 import { baixarPlanoPdf } from "@/lib/meu-plano-2027/baixar";
 import { planoFinalizado } from "@/lib/meu-plano-2027/pdf-conteudo";
 
 /**
- * Botão "Baixar meu plano em PDF". Só aparece com o plano finalizado (todas as telas da trilha completas).
+ * Botão "Baixar meu plano em PDF". Só aparece com o plano finalizado (todas as telas do plano completas).
  * `antes` roda primeiro (ex.: enviar o que ainda está na fila do aparelho).
  */
 export function BotaoBaixarPlano({
   userId,
   nome,
   S,
-  trilha,
   rotulo = "Baixar meu plano em PDF",
   antes,
   className,
@@ -23,13 +21,12 @@ export function BotaoBaixarPlano({
   userId: string;
   nome?: string | null;
   S: Respostas;
-  trilha: Trilha | null;
   rotulo?: string;
   antes?: () => Promise<unknown>;
   className?: string;
 }) {
   const [ocupado, setOcupado] = useState(false);
-  if (!planoFinalizado(S, trilha)) return null;
+  if (!planoFinalizado(S)) return null;
   async function baixar() {
     setOcupado(true);
     try {

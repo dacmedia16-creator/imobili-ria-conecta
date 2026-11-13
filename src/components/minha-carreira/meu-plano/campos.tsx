@@ -19,9 +19,8 @@ export type CtxPlano = {
   C: Calc;
   set: (k: string, v: Valor) => void;
   ro: boolean;
-  /** Dia de início da trilha Ativação (YYYY-MM-DD) — os 90 dias contam daqui. */
+  /** Dia 1 dos 90 dias (YYYY-MM-DD), de inicioNoventaDias(): ativacao_inicio gravado ou d90.inicio. */
   inicio: string | null;
-  trilha: "ativacao" | "planejamento";
 };
 export const PlanoCtx = createContext<CtxPlano | null>(null);
 export const usePlanoCtx = () => {

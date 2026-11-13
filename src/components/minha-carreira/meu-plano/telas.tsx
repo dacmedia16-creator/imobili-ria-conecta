@@ -97,7 +97,7 @@ function Sub({
 }
 
 export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
-  const { S, C, inicio, trilha } = usePlanoCtx();
+  const { S, C, inicio, ro } = usePlanoCtx();
   switch (id) {
     case "p15":
       return (
@@ -119,13 +119,11 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
               </div>
             ))}
           </Bloco>
-          {trilha === "ativacao" ? (
-            <p className="text-xs text-muted-foreground" data-testid="p15-sem-historico">
-              Começando agora e ainda sem histórico? Digite 0 no que não tiver. O ticket médio e a
-              conversão daqui entram nas contas de “Da comissão à transação” e “Da transação à
-              captação”; com 0, essas telas pedem o seu valor.
-            </p>
-          ) : null}
+          <p className="text-xs text-muted-foreground" data-testid="p15-sem-historico">
+            Começando agora e ainda sem histórico? Digite 0 no que não tiver. O ticket médio e a
+            conversão daqui entram nas contas de “Da comissão à transação” e “Da transação à
+            captação”; com 0, essas telas pedem o seu valor.
+          </p>
           <p className="text-xs text-muted-foreground">
             *Transação é cada lado de um negócio: captar o imóvel vendido = 1 transação de captação;
             trazer o comprador = 1 transação de venda. Os dois lados = 2 transações.
@@ -327,16 +325,11 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
                     <Origem id="p15" irPara={extras?.irPara} />. Digite aqui só se quiser outro
                     valor.
                   </>
-                ) : trilha === "ativacao" ? (
-                  <>
-                    Preencha o “Ticket médio das transações vendidas” em{" "}
-                    <Origem id="p15" irPara={extras?.irPara} /> ou digite aqui. Ainda sem histórico?
-                    Use o preço médio dos imóveis da sua região.
-                  </>
                 ) : (
                   <>
-                    ⚠ Falta o ticket: preencha o diagnóstico em{" "}
-                    <Origem id="p15" irPara={extras?.irPara} /> ou digite aqui.
+                    ⚠ Falta o ticket: preencha o “Ticket médio das transações vendidas” em{" "}
+                    <Origem id="p15" irPara={extras?.irPara} /> ou digite aqui. Ainda sem histórico?
+                    Use o preço médio dos imóveis da sua região.
                   </>
                 )
               }
@@ -776,6 +769,8 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
         </>
       );
     case "p49": {
+      // Dia 1 vindo do banco (escolheu a trilha Ativação antes do caminho único): fica fixo, como antes.
+      const fixo = !!inicio && inicio !== S["d90.inicio"];
       const d45 = inicio ? addDias(inicio, 45) : null;
       const d90 = inicio ? addDias(inicio, 90) : null;
       const cre1 = typeof S["d90.cre1"] === "string" ? (S["d90.cre1"] as string) : "";
@@ -786,14 +781,23 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
             <Stat v="7 em 10" rot="vendem no 1º ano com 3 CREs em 90 dias" />
           </div>
           <Bloco titulo="Minhas datas-alvo" ajuda="p49.datas">
-            <p className="text-sm text-muted-foreground">
+            {/* Dia 1: ativacao_inicio já gravado (quem escolheu Ativação antes) ou a data marcada aqui. */}
+            {!fixo && !ro ? (
+              <Campo
+                k="d90.inicio"
+                label="Meu dia 1 (os 90 dias contam daqui)"
+                tipo="date"
+                hint="Use o dia em que você começou na imobiliária ou o dia em que começa este plano."
+              />
+            ) : null}
+            <p className="text-sm text-muted-foreground" data-testid="p49-inicio">
               {inicio ? (
                 <>
-                  Início da sua trilha: <b>{dataBR(inicio)}</b> · dia 45 = <b>{dataBR(d45)}</b> ·
-                  dia 90 = <b>{dataBR(d90)}</b>
+                  Início dos 90 dias: <b>{dataBR(inicio)}</b> · dia 45 = <b>{dataBR(d45)}</b> · dia
+                  90 = <b>{dataBR(d90)}</b>
                 </>
               ) : (
-                "Os 90 dias contam a partir do dia em que você começa a trilha Ativação."
+                "Os 90 dias contam a partir do seu dia 1. Marque a data acima."
               )}
             </p>
             <Campo k="d90.cre1" label="Primeira CRE assinada (até o dia 45)" tipo="date" />
@@ -1222,18 +1226,15 @@ function LinhaCk({
   val,
   ref_,
   irPara,
-  fora,
 }: {
   rot: string;
   val: string;
   ref_?: string;
   irPara?: (id: string) => void;
-  fora?: string | null;
 }) {
-  const { trilha } = usePlanoCtx();
   const tem = !!val && val !== "—";
   const p = ref_ ? tela(ref_) : undefined;
-  const naTrilha = ref_ ? ORDEM[trilha].includes(ref_) : false;
+  const naTrilha = ref_ ? ORDEM.includes(ref_) : false;
   return (
     <div className="flex justify-between gap-3 border-b border-dashed py-2 text-sm last:border-0">
       <span>
@@ -1259,17 +1260,14 @@ function LinhaCk({
             : "max-w-[55%] text-right text-muted-foreground"
         }
       >
-        {tem ? val : fora || "—"}
+        {tem ? val : "—"}
       </span>
     </div>
   );
 }
 
 export function Cockpit({ irPara }: { irPara?: (id: string) => void }) {
-  const { S, C, trilha } = usePlanoCtx();
-  const foraA = "não faz parte da trilha Ativação";
-  const fora = (id: string) =>
-    trilha === "ativacao" && !ORDEM.ativacao.includes(id) ? foraA : null;
+  const { S, C } = usePlanoCtx();
   const s = (k: string) => (typeof S[k] === "string" ? (S[k] as string) : "");
   const horas = [C.horasCapt, C.horasAtend, C.horasEstudo]
     .map((x) => (ok(x) && x > 0 ? `${x}h` : "—"))
@@ -1299,59 +1297,45 @@ export function Cockpit({ irPara }: { irPara?: (id: string) => void }) {
         <Sec>MINHA ROTINA</Sec>
         <LinhaCk
           rot="Horas/semana: captação · atendimento · desenvolvimento"
-          val={fora("p36") ? "" : horas}
+          val={horas}
           ref_="p36"
           irPara={irPara}
-          fora={fora("p36")}
         />
         <LinhaCk
           rot="Dia fixo da revisão de preço"
-          val={fora("p36") ? "" : (nomeDia(S["sp.dia"]) ?? "")}
+          val={nomeDia(S["sp.dia"]) ?? ""}
           ref_="p36"
           irPara={irPara}
-          fora={fora("p36")}
         />
         <LinhaCk
           rot="Funil do mês: prospecções · V1 · V2 · captações"
-          val={fora("p37") ? "" : [C.contMes, C.v1Mes, C.v2Mes, C.captMes].map(fmt.int).join(" · ")}
+          val={[C.contMes, C.v1Mes, C.v2Mes, C.captMes].map(fmt.int).join(" · ")}
           ref_="p37"
           irPara={irPara}
-          fora={fora("p37")}
         />
         <LinhaCk
           rot="Canais de marketing · investimento/mês"
-          val={
-            fora("p39") || !C.canais.length ? "" : `${C.canais.join(", ")} · ${fmt.brl0(C.invest)}`
-          }
+          val={!C.canais.length ? "" : `${C.canais.join(", ")} · ${fmt.brl0(C.invest)}`}
           ref_="p39"
           irPara={irPara}
-          fora={fora("p39")}
         />
         <LinhaCk
           rot="Habilidade nº 1 · horas de estudo/semana"
-          val={fora("p40") || !s("de.h.0") ? "" : `${s("de.h.0")} · ${s("de.horas") || "—"}h`}
+          val={!s("de.h.0") ? "" : `${s("de.h.0")} · ${s("de.horas") || "—"}h`}
           ref_="p40"
           irPara={irPara}
-          fora={fora("p40")}
         />
         <Sec>ONDE EU JOGO / POSICIONAMENTO</Sec>
-        <LinhaCk
-          rot="Minha região"
-          val={s("pos.regiao")}
-          ref_="p34"
-          irPara={irPara}
-          fora={fora("p34")}
-        />
+        <LinhaCk rot="Minha região" val={s("pos.regiao")} ref_="p34" irPara={irPara} />
         <LinhaCk
           rot="Tipo de imóvel e faixa de preço"
           val={
-            fora("p34") || !s("pos.tipo")
+            !s("pos.tipo")
               ? ""
               : `${s("pos.tipo")} · ${fmt.brl0(num(S["pos.de"]))} a ${fmt.brl0(num(S["pos.ate"]))}`
           }
           ref_="p34"
           irPara={irPara}
-          fora={fora("p34")}
         />
         <Sec>MINHA META 2027</Sec>
         <LinhaCk
@@ -1378,19 +1362,13 @@ export function Cockpit({ irPara }: { irPara?: (id: string) => void }) {
           ref_="p32"
           irPara={irPara}
         />
-        {trilha === "ativacao" ? (
-          <>
-            <Sec>MEUS PRIMEIROS 90 DIAS</Sec>
-            <LinhaCk
-              rot="1ª CRE · 3 CREs · 1ª venda"
-              val={[s("d90.cre1"), s("d90.cre3"), s("d90.venda1")]
-                .map((x) => dataBR(x))
-                .join(" · ")}
-              ref_="p49"
-              irPara={irPara}
-            />
-          </>
-        ) : null}
+        <Sec>MEUS PRIMEIROS 90 DIAS</Sec>
+        <LinhaCk
+          rot="1ª CRE · 3 CREs · 1ª venda"
+          val={[s("d90.cre1"), s("d90.cre3"), s("d90.venda1")].map((x) => dataBR(x)).join(" · ")}
+          ref_="p49"
+          irPara={irPara}
+        />
         <Sec>COMO EU EXECUTO</Sec>
         <LinhaCk
           rot="Dia e hora do acompanhamento"

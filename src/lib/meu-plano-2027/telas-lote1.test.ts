@@ -11,7 +11,7 @@ import { PlanoCtx } from "@/components/minha-carreira/meu-plano/campos";
 import { CorpoTela } from "@/components/minha-carreira/meu-plano/telas";
 import { destinoExercicios } from "@/components/minha-carreira/meu-plano/Leitor";
 import { TOTAL_PAGINAS } from "./book";
-import { ORDEM, exercicioDaPagina, telaDaPagina, type Trilha } from "./telas";
+import { ORDEM, exercicioDaPagina, telaDaPagina } from "./telas";
 
 const S: Respostas = {
   "d.conv": "42",
@@ -30,7 +30,6 @@ function tela(id: string, R: Respostas = S) {
     set: () => undefined,
     ro: true,
     inicio: null,
-    trilha: "planejamento" as const,
   };
   return render(createElement(PlanoCtx.Provider, { value: ctx }, createElement(CorpoTela, { id })));
 }
@@ -99,10 +98,8 @@ describe("Lote 1: leitor do book (itens 1, 10 e 12)", () => {
       createElement(Leitor, {
         pagina: 11,
         S: {},
-        trilha: null,
         irPagina: () => undefined,
         preencher: (id: string) => ids.push(id),
-        escolherTrilha: () => ids.push("TRILHA"),
       }),
     );
     expect(screen.getAllByText("pág. 10 · PDF 11").length).toBeGreaterThan(0);
@@ -115,17 +112,15 @@ describe("Lote 1: leitor do book (itens 1, 10 e 12)", () => {
 });
 
 describe('t_9887c656: botão fixo "Ir para os exercícios" em todas as páginas do book', () => {
-  async function abrir(pagina: number, trilha: Trilha | null, R: Respostas = {}) {
+  async function abrir(pagina: number, R: Respostas = {}) {
     const { Leitor } = await import("@/components/minha-carreira/meu-plano/Leitor");
     const ids: string[] = [];
     render(
       createElement(Leitor, {
         pagina,
         S: R,
-        trilha,
         irPagina: () => undefined,
         preencher: (id: string) => ids.push(id),
-        escolherTrilha: () => ids.push("TRILHA"),
       }),
     );
     return ids;
@@ -140,10 +135,8 @@ describe('t_9887c656: botão fixo "Ir para os exercícios" em todas as páginas 
         createElement(Leitor, {
           pagina: p,
           S: {},
-          trilha: "planejamento",
           irPagina: () => undefined,
           preencher: () => undefined,
-          escolherTrilha: () => undefined,
         }),
       );
       const n =
@@ -155,35 +148,31 @@ describe('t_9887c656: botão fixo "Ir para os exercícios" em todas as páginas 
   });
 
   it("página com exercício: só o botão verde do Lote 1, sem duplicar", async () => {
-    const ids = await abrir(11, "planejamento");
+    const ids = await abrir(11);
     expect(screen.queryByTestId("ir-exercicios-fixo")).toBeNull();
     screen.getByTestId("preencher-pagina-fixo").click();
     expect(ids).toEqual(["p11"]);
   });
 
-  it("página sem exercício, com trilha: volta à última tela (ui.ult) ou à primeira da trilha", async () => {
+  it("página sem exercício: volta à última tela (ui.ult) ou à primeira do plano", async () => {
     expect(telaDaPagina(SEM_EX) ?? exercicioDaPagina(SEM_EX)).toBeUndefined();
-    const ult = ORDEM.planejamento[3];
-    let ids = await abrir(SEM_EX, "planejamento", { "ui.ult": ult });
+    const ult = ORDEM[3];
+    let ids = await abrir(SEM_EX, { "ui.ult": ult });
     expect(screen.queryByTestId("preencher-pagina-fixo")).toBeNull();
     const b = screen.getByTestId("ir-exercicios-fixo");
     expect(b.textContent).toContain("Ir para os exercícios");
     b.click();
     expect(ids).toEqual([ult]);
     cleanup();
-    ids = await abrir(SEM_EX, "ativacao");
+    ids = await abrir(SEM_EX);
     screen.getByTestId("ir-exercicios-fixo").click();
-    expect(ids).toEqual([ORDEM.ativacao[0]]);
-    // ui.ult de outra trilha não vale: vai para a primeira da trilha atual.
-    expect(destinoExercicios({ "ui.ult": "nao-existe" }, "planejamento")).toEqual({
-      v: "tela",
-      id: ORDEM.planejamento[0],
-    });
+    expect(ids).toEqual([ORDEM[0]]);
+    // ui.ult que não é tela do plano: vai para a primeira.
+    expect(destinoExercicios({ "ui.ult": "nao-existe" })).toEqual({ v: "tela", id: ORDEM[0] });
   });
 
-  it("página sem exercício, sem trilha: abre a escolha de trilha", async () => {
-    const ids = await abrir(SEM_EX, null, { "ui.ult": ORDEM.planejamento[2] });
-    screen.getByTestId("ir-exercicios-fixo").click();
-    expect(ids).toEqual(["TRILHA"]);
+  it("não existe mais escolha de trilha: plano antigo da Ativação parado em p49 continua em p49", () => {
+    expect(destinoExercicios({ "ui.ult": "p49" })).toEqual({ v: "tela", id: "p49" });
+    expect(destinoExercicios({ "ui.ult": "p38" })).toEqual({ v: "tela", id: "p38" });
   });
 });
