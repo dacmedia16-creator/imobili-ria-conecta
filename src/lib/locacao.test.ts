@@ -7,7 +7,11 @@ import {
   dataPagamento,
   diasParado,
   extensaoDoc,
-  faltasPreAnalise,
+  cpfValido,
+  faltasPreAprovacao,
+  reaisNumero,
+  reaisParaBanco,
+  reaisParaTela,
   lerConfig,
   lerContexto,
   lerDetalhe,
@@ -204,33 +208,77 @@ describe("leitura fechada do banco", () => {
     expect(c.papeis).toEqual(["gestora"]);
     expect(c.veComissao).toBe(true);
   });
-  it("pré-análise: lista o que falta (o banco repete a regra)", () => {
+  it("pré-aprovação: lista o que falta pela garantia (o banco repete a regra)", () => {
+    const semFiador = { nome: "", cpf: "", renda: "", matricula: "" };
     const vazio = {
-      candidato: { cpf: "", nome: "", nascimento: "", telefone: "", email: "" },
+      garantia: "seguro_fianca" as const,
+      cep: "",
       endereco: "",
       aluguel: 0,
+      condominio: null,
+      iptu: null,
+      candidato: { cpf: "", nome: "", nascimento: "", telefone: "", email: "", renda: "" },
+      fiador: semFiador,
+      observacao: "",
     };
-    expect(faltasPreAnalise(vazio)).toEqual([
-      "CPF",
-      "nome completo",
-      "data de nascimento",
-      "telefone",
-      "e-mail",
+    expect(faltasPreAprovacao(vazio)).toEqual([
+      "CEP",
       "endereço do imóvel",
       "aluguel",
+      "condomínio",
+      "IPTU",
+      "CPF do locatário",
+      "nome completo do locatário",
+      "data de nascimento do locatário",
+      "telefone do locatário",
+      "e-mail do locatário",
     ]);
     const ok = {
+      ...vazio,
+      cep: "18000-000",
+      endereco: "Rua Teste, 100",
+      aluguel: 2000,
+      condominio: 0,
+      iptu: 0,
       candidato: {
-        cpf: "000.111.222-33",
+        cpf: "529.982.247-25",
         nome: "Fulano Teste",
         nascimento: "1990-01-01",
         telefone: "(15) 90000-0000",
         email: "a@b.co",
+        renda: "",
       },
-      endereco: "Rua Teste, 100",
-      aluguel: 2000,
     };
-    expect(faltasPreAnalise(ok)).toEqual([]);
+    // Condomínio/IPTU zero valem (não tem); seguro fiança não pede renda.
+    expect(faltasPreAprovacao(ok)).toEqual([]);
+    expect(faltasPreAprovacao({ ...ok, garantia: "caucao" })).toEqual(["renda do locatário"]);
+    expect(faltasPreAprovacao({ ...ok, garantia: "fiador" })).toEqual([
+      "renda do locatário",
+      "nome completo do fiador",
+      "CPF do fiador",
+      "renda do fiador",
+      "nº da matrícula do imóvel do fiador",
+    ]);
+    expect(faltasPreAprovacao({ ...ok, garantia: "loft" })).toEqual([]);
+    expect(faltasPreAprovacao({ ...ok, garantia: "outras" })).toEqual(["observação da garantia"]);
+    expect(
+      faltasPreAprovacao({ ...ok, candidato: { ...ok.candidato, cpf: "529.982.247-26" } }),
+    ).toEqual(["CPF do locatário"]);
+  });
+  it("valores em R$: aceita 0 em condomínio/IPTU, renda precisa ser > 0", () => {
+    expect(reaisNumero("0")).toBe(0);
+    expect(reaisNumero("0,00")).toBe(0);
+    expect(reaisNumero("R$ 7.800,50")).toBe(7800.5);
+    expect(reaisNumero("2.500")).toBe(2500);
+    expect(reaisNumero("12.5")).toBe(12.5);
+    expect(reaisNumero("")).toBeNull();
+    expect(reaisNumero("abc")).toBeNull();
+    expect(reaisParaBanco("0")).toBe("");
+    expect(reaisParaBanco("7.800,00")).toBe("7800.00");
+    expect(reaisParaTela(0)).toBe("0,00");
+    expect(reaisParaTela("")).toBe("");
+    expect(cpfValido("52998224725")).toBe(true);
+    expect(cpfValido("111.111.111-11")).toBe(false);
   });
   it("arquivo: só PDF e imagem", () => {
     expect(extensaoDoc("RG.PDF")).toBe("pdf");

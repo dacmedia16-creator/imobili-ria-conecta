@@ -2,6 +2,8 @@
 // da venda: selo, nova tentativa, só preenche campo vazio) e ele confere/completa os dados do contrato.
 // O banco repete toda checagem (corretor, etapa, campos válidos, trava de envio).
 import { useMemo, useState, type ReactNode } from "react";
+import { LocacaoLinks, type StatusLink } from "./LocacaoLinks";
+import { podeEnviarLinks } from "@/lib/locacao-links";
 import { toast } from "sonner";
 import {
   FileUp,
@@ -245,6 +247,9 @@ export function LocacaoDocumentacao({ d, ctx, busy, rodar, recarregar, editavel,
   const [form, setForm] = useState<Record<string, string>>(() => ({ ...base.valores }));
   const [lendo, setLendo] = useState<Record<string, boolean>>({});
   const [salvando, setSalvando] = useState(false);
+  const [convites, setConvites] = useState<StatusLink | null>(null);
+  const aguardandoPartes =
+    convites?.modo === "cliente" && !podeEnviarLinks(convites.modo, d.garantia, convites.links);
 
   // Campos que o corretor ainda não mexeu acompanham o banco (a IA pode ter preenchido algo novo).
   const [vistos, setVistos] = useState(base.valores);
@@ -328,6 +333,7 @@ export function LocacaoDocumentacao({ d, ctx, busy, rodar, recarregar, editavel,
 
   return (
     <div className="space-y-4">
+      <LocacaoLinks id={d.id} garantia={d.garantia} editavel={editavel} onStatus={setConvites} />
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <span>
           Checklist para garantia <b>{GARANTIA_LABEL[d.garantia]}</b> — {feitos}/{total}{" "}
@@ -509,16 +515,27 @@ export function LocacaoDocumentacao({ d, ctx, busy, rodar, recarregar, editavel,
                 🔒 <b>Falta preencher ({faltasDados.length}):</b> {faltasDados.join(", ")}.
               </>,
             )}
+          {aguardandoPartes &&
+            aviso("amber", "Aguarde o envio de todas as partes antes de confirmar à gestora.")}
           {!d.faltando.length &&
             !faltasDados.length &&
-            aviso("green", <>Tudo anexado e preenchido. Pode enviar para conferência.</>)}
+            !aguardandoPartes &&
+            aviso(
+              "green",
+              <>Tudo anexado e preenchido. Confira os dados e confirme o envio à gestora.</>,
+            )}
         </div>
       )}
       {editavel && (
         <div className="flex justify-end">
           <Button
             disabled={
-              ocupado || d.faltando.length > 0 || faltasDados.length > 0 || invalidos.length > 0
+              ocupado ||
+              !convites ||
+              aguardandoPartes ||
+              d.faltando.length > 0 ||
+              faltasDados.length > 0 ||
+              invalidos.length > 0
             }
             onClick={() =>
               void rodar(async () => {
@@ -528,6 +545,7 @@ export function LocacaoDocumentacao({ d, ctx, busy, rodar, recarregar, editavel,
             }
           >
             <Send className="mr-1 h-4 w-4" /> Enviar documentação à gestora
+            {aguardandoPartes ? " · aguardando partes" : ""}
           </Button>
         </div>
       )}
