@@ -16,6 +16,8 @@ import {
   fileTooBigMessage,
   MAX_CLICKSIGN_FILE_BYTES,
   mimeForFilename,
+  nomeDocumentoClicksign,
+  normName,
   notifySigners,
   sendFailure,
   sha256Hex,
@@ -289,13 +291,24 @@ async function handleSaleSend(deps: SaleDeps, b: Record<string, unknown>): Promi
   let built: EnvelopeResult;
   try {
     const prefix = ctx.testMode ? "TESTE - " : "";
-    const ext = ctx.contrato.fileName.toLowerCase().split(".").pop();
+    const ext = ctx.contrato.fileName.toLowerCase().split(".").pop() ?? "pdf";
+    // t_aa274590: "Contrato de Compra e Venda – ID do imóvel – Corretor(es)". Vários corretores
+    // (captador/vendedor) entram todos, em ordem alfabética, ligados por " e ".
+    const corretores = [...new Set(ctx.corretores.map((c) => normName(c.nome)).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, "pt-BR"))
+      .join(" e ");
+    const nome = nomeDocumentoClicksign(
+      "Contrato de Compra e Venda",
+      [ctx.imovel, corretores],
+      ext,
+      prefix,
+    );
     built = await buildEnvelope(
       client,
       {
-        name: `${prefix}Contrato de compra e venda - ${ctx.imovel || saleId.slice(0, 8)}`,
+        name: nome.name,
         deadlineAt: deadlineIso(ctx.deadlineDays),
-        filename: `${prefix.replace(/ - $/, "-")}contrato-venda-${saleId.slice(0, 8)}.${ext}`,
+        filename: nome.filename,
         pdf: file,
         mime,
         metadata: { origem: "adm-max-venda", sale_id: saleId, row: envelopeRow },

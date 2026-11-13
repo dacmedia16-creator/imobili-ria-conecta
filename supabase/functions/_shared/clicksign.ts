@@ -842,6 +842,47 @@ export function requirementIdsFor(reqResp: any, signerId: string, documentId: st
     .map((r: any) => String(r.id));
 }
 
+/** Teto do nome do envelope na Clicksign (o buildEnvelope já corta em 100). */
+export const DOC_NAME_MAX = 100;
+
+/** Limpa um trecho do nome: tira caracteres inválidos em nome de arquivo e espaços repetidos. */
+function trechoNome(v: unknown): string {
+  if (typeof v !== "string") return "";
+  return (
+    v
+      // eslint-disable-next-line no-control-regex -- remove caracteres de controle de propósito
+      .replace(/[\u0000-\u001f\u007f\\/:*?"<>|]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      // Sem traço/ponto solto nas pontas (evita "– –" e nome terminando em ponto).
+      .replace(/^[\s.\-–]+|[\s.\-–]+$/g, "")
+  );
+}
+
+/**
+ * Nome do documento na Clicksign (t_aa274590): "Título – trecho – trecho". Trecho vazio é omitido
+ * (nunca "undefined" nem traço duplo). Devolve o nome do envelope e o do arquivo (com extensão).
+ */
+export function nomeDocumentoClicksign(
+  titulo: string,
+  trechos: unknown[],
+  ext: string,
+  prefixo = "",
+): { name: string; filename: string } {
+  const partes = [titulo, ...trechos].map(trechoNome).filter(Boolean);
+  let base = prefixo + partes.join(" – ");
+  if (base.length > DOC_NAME_MAX) {
+    // Corta na última palavra inteira (sem "Confe…") e sem traço solto no fim.
+    const corte = base.slice(0, DOC_NAME_MAX + 1);
+    const esp = corte.lastIndexOf(" ");
+    // Palavra enorme (sem espaço perto do fim): corte seco, para não perder o trecho inteiro.
+    const limpo = esp > DOC_NAME_MAX - 30 ? corte.slice(0, esp) : corte.slice(0, DOC_NAME_MAX);
+    base = limpo.replace(/[\s–-]+$/, "");
+  }
+  const e = (ext || "pdf").toLowerCase().replace(/[^a-z0-9]/g, "") || "pdf";
+  return { name: base, filename: `${base}.${e}` };
+}
+
 /** Data limite RFC 3339 a N dias (máx. 90 pela Clicksign). */
 export function deadlineIso(days: number, now = new Date()): string {
   const d = Math.min(Math.max(Math.trunc(days) || 30, 1), 90);
