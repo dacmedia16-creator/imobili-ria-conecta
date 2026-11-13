@@ -27,12 +27,12 @@ const nome: Record<ParteLink, string> = {
   locatario: "Locatário",
   fiador: "Fiador",
 };
-const PILL: Record<string, [string, string]> = {
+export const PILL: Record<string, [string, string]> = {
   nao_aberto: ["Não aberto", "bg-slate-100 text-slate-700"],
   em_preenchimento: ["Em preenchimento", "bg-amber-100 text-amber-800"],
   enviado: ["Enviado ao corretor", "bg-emerald-100 text-emerald-800"],
 };
-const dataHora = (iso: string) => {
+export const dataHora = (iso: string) => {
   const d = new Date(iso);
   const tz = { timeZone: "America/Sao_Paulo" } as const;
   return `${d.toLocaleDateString("pt-BR", tz)} às ${d.toLocaleTimeString("pt-BR", {
@@ -43,7 +43,7 @@ const dataHora = (iso: string) => {
 };
 const rotuloCampo = (k: string) => CAMPOS_CONTRATO.find((c) => c.k === k)?.label ?? k;
 
-function Opcao({
+export function Opcao({
   ativo,
   titulo,
   texto,

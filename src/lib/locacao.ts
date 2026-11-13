@@ -14,7 +14,8 @@ export type EtapaLocacao =
   | "comissao";
 
 export type PapelLocacao = "corretor" | "gestora" | "contratos" | "vistoria" | "comissao";
-export type Garantia = "fiador" | "caucao" | "seguro_fianca";
+export type Garantia =
+  "fiador" | "caucao" | "seguro_fianca" | "loft" | "titulo_capitalizacao" | "outras";
 
 export const ETAPAS: { key: EtapaLocacao; label: string; papel: PapelLocacao }[] = [
   { key: "pre_analise", label: "Pré-análise", papel: "corretor" },
@@ -36,10 +37,14 @@ export const PAPEL_LABEL: Record<PapelLocacao, string> = {
   comissao: "Comissão (mês seguinte)",
 };
 
+// Ordem da maquete aprovada (13/11, t_b2ce1207). Espelho de locacao_garantia_rotulo() no banco.
 export const GARANTIA_LABEL: Record<Garantia, string> = {
-  fiador: "Fiador",
-  caucao: "Caução",
   seguro_fianca: "Seguro-fiança",
+  caucao: "Caução",
+  fiador: "Fiador",
+  loft: "Loft (antiga CredPago)",
+  titulo_capitalizacao: "Título de capitalização",
+  outras: "Caucionamento / outras",
 };
 
 export const MINUTA_LABEL: Record<string, string> = {
@@ -95,7 +100,7 @@ const obj = (v: unknown): Record<string, unknown> =>
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 
 const ETAPA_KEYS = new Set(ETAPAS.map((e) => e.key));
-const GARANTIAS = new Set<Garantia>(["fiador", "caucao", "seguro_fianca"]);
+const GARANTIAS = new Set<Garantia>(Object.keys(GARANTIA_LABEL) as Garantia[]);
 
 export type Titularidade = Record<
   "cpfl" | "saae" | "gas",
@@ -113,7 +118,15 @@ export type Locacao = {
   devolvida: boolean;
   motivoDevolucao: string | null;
   etapaDesde: string;
-  candidato: { cpf: string; nome: string; nascimento: string; telefone: string; email: string };
+  candidato: {
+    cpf: string;
+    nome: string;
+    nascimento: string;
+    telefone: string;
+    email: string;
+    /** Renda mensal em reais, texto "1234.56" (caução e fiador; t_b2ce1207). */
+    renda: string;
+  };
   endereco: string;
   tipo: "residencial" | "comercial";
   garantia: Garantia;
@@ -174,10 +187,15 @@ export type FichaLocacao = {
   proprietarioPessoa: Pessoa;
   fiadorPessoa: Pessoa;
   proprietario: { nome: string; telefone: string; email: string };
-  /** Garantia fora da lista atual (CredPago, título de capitalização…): texto livre, lista final a confirmar. */
+  /** Observação da garantia (Loft, título, caucionamento/outras): texto livre. */
   garantiaOutra: string;
   observacoes: string;
+  /** CEP do imóvel (pré-aprovação, t_b2ce1207). */
+  cep: string;
+  /** Fiador na pré-aprovação: renda em reais "1234.56" e nº da matrícula do imóvel. */
+  fiador: FiadorPre;
 };
+export type FiadorPre = { nome: string; cpf: string; renda: string; matricula: string };
 
 export type LeituraDoc = "pendente" | "ok" | "falhou" | "sem_leitura" | null;
 export type DocumentoLocacao = {
@@ -238,6 +256,7 @@ const pessoa = (v: unknown): Pessoa => (v === "pj" ? "pj" : "pf");
 export function lerFicha(raw: unknown): FichaLocacao {
   const f = obj(raw);
   const p = obj(f.proprietario);
+  const fi = obj(f.fiador);
   return {
     imovelId: s(f.imovel_id),
     mobilia: MOBILIAS.has(s(f.mobilia)) ? (s(f.mobilia) as Mobilia) : "",
@@ -249,6 +268,8 @@ export function lerFicha(raw: unknown): FichaLocacao {
     proprietario: { nome: s(p.nome), telefone: s(p.telefone), email: s(p.email) },
     garantiaOutra: s(f.garantia_outra),
     observacoes: s(f.observacoes),
+    cep: s(f.cep),
+    fiador: { nome: s(fi.nome), cpf: s(fi.cpf), renda: s(fi.renda), matricula: s(fi.matricula) },
   };
 }
 
@@ -270,21 +291,14 @@ export function fichaParaBanco(f: FichaLocacao): Record<string, unknown> {
     },
     garantia_outra: t(f.garantiaOutra),
     observacoes: t(f.observacoes),
+    cep: t(f.cep),
+    fiador: {
+      nome: t(f.fiador.nome),
+      cpf: t(f.fiador.cpf),
+      renda: t(f.fiador.renda),
+      matricula: t(f.fiador.matricula),
+    },
   };
-}
-
-/** O que falta da ficha cadastral para enviar à gestora (o banco repete a regra em locacao_enviar_pre). */
-export function faltasFicha(f: FichaLocacao, captadorId: string | null): string[] {
-  const x: string[] = [];
-  if (!f.imovelId.trim()) x.push("ID do imóvel");
-  if (!f.mobilia) x.push("mobília");
-  if (!(f.metragem > 0)) x.push("metragem");
-  if (f.locatarioEndereco.trim().length < 8) x.push("endereço atual do locatário");
-  if (f.proprietario.nome.trim().length < 3) x.push("nome do proprietário");
-  if (!f.proprietario.telefone.trim() && !f.proprietario.email.trim())
-    x.push("telefone ou e-mail do proprietário");
-  if (!captadorId) x.push("corretor captador");
-  return x;
 }
 
 /** Item opcional da lista de documentos: o nome termina em "(opcional)". Aparece no checklist, não trava. */
@@ -332,6 +346,7 @@ export function lerLocacao(raw: unknown): Locacao {
       nascimento: s(c.nascimento),
       telefone: s(c.telefone),
       email: s(c.email),
+      renda: s(c.renda),
     },
     endereco: s(o.endereco),
     tipo: o.tipo === "comercial" ? "comercial" : "residencial",
@@ -607,16 +622,122 @@ export function resumoPorEtapa(lista: Locacao[], agora: Date = new Date()): Resu
 }
 
 // ----------------------------------------------------------------------------------------------------------------
-// Pré-análise: o que falta para enviar (o banco repete a regra).
-export function faltasPreAnalise(l: Pick<Locacao, "candidato" | "endereco" | "aluguel">): string[] {
+// Pré-aprovação por garantia (maquete aprovada por Denis em 13/11, t_b2ce1207). SOMENTE dados, nenhum anexo.
+// Espelho de locacao_pre_parte_faltando / locacao_pre_faltando (mesma ordem e mesmo texto; o banco repete tudo).
+// Substitui faltasPreAnalise + faltasFicha: ID do imóvel, mobília, metragem, proprietário, endereço atual e captador
+// continuam na ficha, mas não travam mais o envio à gestora.
+
+/** CPF com dígitos verificadores (com ou sem pontuação). Espelho de locacao_cpf_ok(). */
+export function cpfValido(v: string): boolean {
+  if (!/^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$/.test(v)) return false;
+  const d = v.replace(/\D/g, "");
+  if (/^(\d)\1{10}$/.test(d)) return false;
+  for (const n of [9, 10]) {
+    let soma = 0;
+    for (let i = 0; i < n; i++) soma += Number(d[i]) * (n + 1 - i);
+    const r = ((soma * 10) % 11) % 10;
+    if (r !== Number(d[n])) return false;
+  }
+  return true;
+}
+
+/** Valor em reais guardado como "1234.56" (> 0). Espelho de locacao_renda_ok(). */
+export function rendaValida(v: string): boolean {
+  return /^\d{1,9}(\.\d{1,2})?$/.test(v) && Number(v) > 0;
+}
+
+/** Texto digitado em R$ ("7.800,00", "R$ 7800", "2500", "0") → número ≥ 0; vazio ou inválido → null. */
+export function reaisNumero(v: string): number | null {
+  const t = v.replace(/R\$|\s/g, "");
+  if (!t) return null;
+  // Com vírgula: ponto é milhar. Sem vírgula: ponto seguido de 3 dígitos também é milhar ("2.500").
+  const norm = t.includes(",")
+    ? t.replace(/\./g, "").replace(",", ".")
+    : /^\d{1,3}(\.\d{3})+$/.test(t)
+      ? t.replace(/\./g, "")
+      : t;
+  if (!/^\d+(\.\d{1,2})?$/.test(norm)) return null;
+  const n = Number(norm);
+  return Number.isFinite(n) && n < 1e9 ? n : null;
+}
+
+/** Renda digitada em R$ → "7800.00" do banco; vazio, zero ou inválido → "". */
+export function reaisParaBanco(v: string): string {
+  const n = reaisNumero(v);
+  return n !== null && n > 0 ? n.toFixed(2) : "";
+}
+
+/** "7800.00" (ou número) → "7.800,00" (campo da tela, sem o "R$"). */
+export function reaisParaTela(v: string | number): string {
+  const n = Number(v);
+  return v !== "" && Number.isFinite(n)
+    ? n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : "";
+}
+
+export const pedeRendaLocatario = (g: Garantia) => g === "caucao" || g === "fiador";
+
+const dataValida = (v: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const d = new Date(`${v}T00:00:00Z`);
+  return (
+    !Number.isNaN(d.getTime()) &&
+    d.toISOString().slice(0, 10) === v &&
+    v >= "1900-01-01" &&
+    v <= "2100-12-31"
+  );
+};
+
+export type LocatarioPre = Locacao["candidato"];
+
+/** O que falta de UMA parte (locatário ou fiador) para a garantia. */
+export function faltasParte(
+  parte: "locatario" | "fiador",
+  garantia: Garantia,
+  d: Partial<LocatarioPre & FiadorPre>,
+): string[] {
   const f: string[] = [];
-  if (!/^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$/.test(l.candidato.cpf.trim())) f.push("CPF");
-  if (l.candidato.nome.trim().length < 5) f.push("nome completo");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(l.candidato.nascimento)) f.push("data de nascimento");
-  if (l.candidato.telefone.replace(/\D/g, "").length < 10) f.push("telefone");
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(l.candidato.email.trim())) f.push("e-mail");
-  if (l.endereco.trim().length < 8) f.push("endereço do imóvel");
-  if (!(l.aluguel > 0)) f.push("aluguel");
+  const t = (k: keyof (LocatarioPre & FiadorPre)) => (d[k] ?? "").trim();
+  if (parte === "locatario") {
+    if (!cpfValido(t("cpf"))) f.push("CPF do locatário");
+    if (t("nome").length < 5) f.push("nome completo do locatário");
+    if (!dataValida(t("nascimento"))) f.push("data de nascimento do locatário");
+    if (t("telefone").replace(/\D/g, "").length < 10) f.push("telefone do locatário");
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(t("email"))) f.push("e-mail do locatário");
+    if (pedeRendaLocatario(garantia) && !rendaValida(t("renda"))) f.push("renda do locatário");
+  } else if (garantia === "fiador") {
+    if (t("nome").length < 5) f.push("nome completo do fiador");
+    if (!cpfValido(t("cpf"))) f.push("CPF do fiador");
+    if (!rendaValida(t("renda"))) f.push("renda do fiador");
+    if (!t("matricula")) f.push("nº da matrícula do imóvel do fiador");
+  }
+  return f;
+}
+
+/**
+ * Tudo o que falta para enviar a pré-aprovação à gestora. Condomínio e IPTU: null = campo vazio na tela (0 = não
+ * tem). Só a tela cobra esses dois: o banco guarda 0 por padrão e não distingue "vazio" de "zero".
+ */
+export function faltasPreAprovacao(x: {
+  garantia: Garantia;
+  cep: string;
+  endereco: string;
+  aluguel: number;
+  condominio?: number | null;
+  iptu?: number | null;
+  candidato: LocatarioPre;
+  fiador: FiadorPre;
+  observacao: string;
+}): string[] {
+  const f: string[] = [];
+  if (!/^\d{5}-?\d{3}$/.test(x.cep.trim())) f.push("CEP");
+  if (x.endereco.trim().length < 8) f.push("endereço do imóvel");
+  if (!(x.aluguel > 0)) f.push("aluguel");
+  if (x.condominio === null) f.push("condomínio");
+  if (x.iptu === null) f.push("IPTU");
+  f.push(...faltasParte("locatario", x.garantia, x.candidato));
+  f.push(...faltasParte("fiador", x.garantia, x.fiador));
+  if (x.garantia === "outras" && x.observacao.trim().length < 3) f.push("observação da garantia");
   return f;
 }
 
@@ -636,6 +757,10 @@ const GRUPOS_DOC: { key: string; label: string }[] = [
   { key: "fiador", label: GARANTIA_LABEL.fiador },
   { key: "caucao", label: GARANTIA_LABEL.caucao },
   { key: "seguro_fianca", label: GARANTIA_LABEL.seguro_fianca },
+  // t_b2ce1207: garantias novas começam sem lista; a gestão inclui em Regras.
+  { key: "loft", label: GARANTIA_LABEL.loft },
+  { key: "titulo_capitalizacao", label: GARANTIA_LABEL.titulo_capitalizacao },
+  { key: "outras", label: GARANTIA_LABEL.outras },
   { key: "proprietario", label: "Proprietário" },
   // t_28e583e2: listas PJ (formulários reais de 10/11). Fiador PJ sem lista → usa a do fiador.
   { key: "locatario_pj", label: "Locatário PJ" },
@@ -662,7 +787,10 @@ export function textoParaDocs(texto: string): Record<string, string[]> {
     }
   }
   // Grupo PJ vazio não é gravado: o banco usa a lista PJ padrão ou, sem ela, a PF da mesma parte.
-  for (const k of Object.keys(out)) if (k.endsWith("_pj") && !out[k].length) delete out[k];
+  // Garantias novas (t_b2ce1207) sem itens também não são gravadas: vazio e ausente = sem lista.
+  const semLista = new Set(["loft", "titulo_capitalizacao", "outras"]);
+  for (const k of Object.keys(out))
+    if ((k.endsWith("_pj") || semLista.has(k)) && !out[k].length) delete out[k];
   return out;
 }
 

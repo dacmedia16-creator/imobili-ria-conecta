@@ -5,7 +5,6 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   docsParaTexto,
-  faltasFicha,
   fichaParaBanco,
   itemOpcional,
   lerDetalhe,
@@ -30,7 +29,11 @@ const fichaOk = (): FichaLocacao => ({
   proprietario: { nome: "Proprietário Exemplo", telefone: "(15) 90000-0002", email: "" },
   garantiaOutra: "",
   observacoes: "",
+  cep: "18000-000",
+  fiador: { nome: "", cpf: "", renda: "", matricula: "" },
 });
+// t_b2ce1207 redefine locacao_ficha_ok com cep e fiador.
+const PRE = readFileSync("supabase/migrations/20261124130000_locacao_pre_aprovacao.sql", "utf8");
 
 const padrao = (): Record<string, string[]> => {
   const json =
@@ -39,25 +42,14 @@ const padrao = (): Record<string, string[]> => {
 };
 
 describe("ficha de abertura (corretor preenche)", () => {
-  it("lista o que falta da ficha, na ordem do formulário", () => {
+  it("ficha complementar vazia NÃO trava a pré-aprovação (t_b2ce1207)", () => {
     const vazia = lerFicha({});
-    expect(faltasFicha(vazia, null)).toEqual([
-      "ID do imóvel",
-      "mobília",
-      "metragem",
-      "endereço atual do locatário",
-      "nome do proprietário",
-      "telefone ou e-mail do proprietário",
-      "corretor captador",
-    ]);
-    expect(faltasFicha(fichaOk(), "uuid-captador")).toEqual([]);
-  });
-  it("proprietário: basta telefone OU e-mail", () => {
-    const f = fichaOk();
-    f.proprietario = { nome: "Fulano", telefone: "", email: "a@b.co" };
-    expect(faltasFicha(f, "x")).toEqual([]);
-    f.proprietario.email = "";
-    expect(faltasFicha(f, "x")).toEqual(["telefone ou e-mail do proprietário"]);
+    expect(vazia.cep).toBe("");
+    expect(vazia.fiador).toEqual({ nome: "", cpf: "", renda: "", matricula: "" });
+    // O banco não exige mais ficha completa em locacao_enviar_pre: só locacao_pre_faltando.
+    const enviar = /FUNCTION public\.locacao_enviar_pre[\s\S]*?END \$\$;/.exec(PRE)?.[0] ?? "";
+    expect(enviar).toMatch(/locacao_pre_faltando/);
+    expect(enviar).not.toMatch(/corretor captador|ID do imóvel/);
   });
   it("campo vazio vai como null (sai da ficha no banco) e PF/PJ sempre vai", () => {
     const b = fichaParaBanco({ ...fichaOk(), observacoes: "  ", metragem: 0 });
@@ -79,10 +71,11 @@ describe("ficha de abertura (corretor preenche)", () => {
     expect(f.proprietario).toEqual({ nome: "", telefone: "", email: "" });
   });
   it("chaves que o front manda = chaves que o banco aceita (locacao_ficha_ok)", () => {
-    const corpo = /FUNCTION public\.locacao_ficha_ok[\s\S]*?END \$\$;/.exec(MIG)?.[0] ?? "";
+    const corpo = /FUNCTION public\.locacao_ficha_ok[\s\S]*?END \$\$;/.exec(PRE)?.[0] ?? "";
     const doBanco = new Set([...corpo.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]));
     for (const k of Object.keys(fichaParaBanco(fichaOk()))) expect(doBanco.has(k)).toBe(true);
-    for (const k of ["nome", "telefone", "email"]) expect(doBanco.has(k)).toBe(true);
+    for (const k of ["nome", "telefone", "email", "cpf", "renda", "matricula"])
+      expect(doBanco.has(k)).toBe(true);
   });
   it("detalhe traz ficha, captador, partes e a data da documentação completa", () => {
     const d = lerDetalhe({
