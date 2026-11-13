@@ -4,6 +4,8 @@
 import {
   buildCaptureSigners,
   buildEnvelope,
+  captureOwnerList,
+  nomeDocumentoClicksign,
   ClicksignActivationUnknownError,
   ClicksignClient,
   ClicksignError,
@@ -220,12 +222,23 @@ export async function handleSend(deps: SendDeps, body: unknown): Promise<CoreRes
   let built: EnvelopeResult;
   try {
     const prefix = ctx.testMode ? "TESTE - " : "";
+    // t_aa274590: "Contrato de Exclusividade – Proprietário – Bairro – Corretor".
+    const nome = nomeDocumentoClicksign(
+      "Contrato de Exclusividade",
+      [
+        captureOwnerList(ctx.form)[0]?.nome_completo,
+        (ctx.form.imovel as Record<string, unknown> | undefined)?.bairro,
+        tw.corretor.nome,
+      ],
+      "pdf",
+      prefix,
+    );
     built = await buildEnvelope(
       client,
       {
-        name: `${prefix}Termo de exclusividade - captação ${captureId.slice(0, 8)}`,
+        name: nome.name,
         deadlineAt: deadlineIso(ctx.deadlineDays),
-        filename: `${prefix.replace(/ - $/, "-")}termo-exclusividade-${captureId.slice(0, 8)}.pdf`,
+        filename: nome.filename,
         pdf,
         metadata: { origem: "adm-max-captacao", capture_id: captureId, row: envelopeRow },
         signers,
