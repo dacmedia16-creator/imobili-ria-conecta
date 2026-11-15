@@ -12,7 +12,13 @@
 // envia as mensagens pendentes pela ZionTalk (só com LEADS_IA_ENVIO_REAL=on + chave própria).
 // LGPD: nunca registrar em log telefone, texto, token ou corpo. Só códigos de resultado.
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { escolherCanal, linkAnuncioDoLead, primeiraComLinkProibido } from "./leads-ia-canal";
+import {
+  escolherCanal,
+  linkAnuncioDoLead,
+  primeiraComLinkProibido,
+  type CanalIa,
+} from "./leads-ia-canal";
+import { aquecerUmaRodada, escolherCanalAquecer, type DepsAquecer } from "./leads-aquecer";
 import {
   argsBusca,
   argsNome,
@@ -292,7 +298,26 @@ export type DepsRetorno = {
   aceiteResultado?: (respostaId: string, ok: boolean) => Promise<unknown>;
   /** t_99359490: lead_config.ia_permuta_fluxo da imobiliária. Opcional; erro = desligada. */
   permutaFluxo?: (orgId: string) => Promise<boolean>;
+  /**
+   * t_a2cae373: por qual chip saem as mensagens do lead (lead_aquecer_chip_do_lead). Lead retomado pelo aquecimento
+   * nunca sai pelo chip de atendimento, e o chip do aquecimento só envia para esses leads. Sem ela = atendimento.
+   */
+  chipDoLead?: (leadId: string) => Promise<ChipDoLead>;
+  /** t_a2cae373: canal do chip do aquecimento (rota /api/leads/aquecer). Sem ele = chip de atendimento. */
+  canalAquecer?: CanalIa;
+  /** t_a2cae373: erro de envio pelo chip do aquecimento (lead_aquecer_falha_canal: 401/403/404/410 pausam o chip). */
+  falhaCanal?: (erro: string) => Promise<unknown>;
 };
+
+export type ChipDoLead = "atendimento" | "aquecer" | "aquecer_teste" | "bloqueado";
+
+/** t_a2cae373: lê o chip do lead. Função ausente (migration não aplicada) = atendimento; outro erro = bloqueado. */
+export async function chipDoLeadDb(db: SupabaseClient, leadId: string): Promise<ChipDoLead> {
+  const { data, error } = await db.rpc("lead_aquecer_chip_do_lead", { _lead: leadId });
+  if (error)
+    return error.code === "PGRST202" || error.code === "42883" ? "atendimento" : "bloqueado";
+  return data === "aquecer" || data === "aquecer_teste" ? data : "atendimento";
+}
 
 /** t_99359490: chave lead_config.ia_permuta_fluxo. Coluna ausente (migration não aplicada) ou erro = desligada. */
 export async function permutaFluxoDb(db: SupabaseClient, orgId: string): Promise<boolean> {
@@ -590,10 +615,25 @@ export async function responderEEnviar(banco: RespostaBanco, msg: MensagemZion, 
 /** Envia o que estiver pendente para o lead (o banco confere lista de liberados, opt-out, limites). */
 export async function enviarPendentes(
   leadId: string,
-  deps: Pick<DepsRetorno, "reservar" | "resultado" | "env" | "fetchFn" | "linkAnuncio">,
+  deps: Pick<
+    DepsRetorno,
+    | "reservar"
+    | "resultado"
+    | "env"
+    | "fetchFn"
+    | "linkAnuncio"
+    | "chipDoLead"
+    | "canalAquecer"
+    | "falhaCanal"
+  >,
 ): Promise<number> {
-  const canal = escolherCanal(deps.env, deps.fetchFn);
+  // t_a2cae373: cada chip só envia para os seus leads (sem fallback entre o chip de atendimento e o do aquecimento).
+  const canal = deps.canalAquecer ?? escolherCanal(deps.env, deps.fetchFn);
   if (canal.nome !== "ziontalk") return 0; // envio real desligado: fica "aguardando envio"
+  const chip: ChipDoLead = deps.chipDoLead
+    ? await deps.chipDoLead(leadId).catch(() => "bloqueado" as const)
+    : "atendimento";
+  if (chip !== (deps.canalAquecer ? "aquecer" : "atendimento")) return 0;
   let enviadas = 0;
   for (let i = 0; i < MAX_ENVIOS_POR_EVENTO; i++) {
     const { data, error } = await deps.reservar(leadId);
@@ -620,6 +660,8 @@ export async function enviarPendentes(
         "leads ia retorno: envio ZionTalk falhou",
         r.status === "falhou" ? r.erro : r.status,
       );
+      if (r.status === "falhou" && deps.falhaCanal)
+        await deps.falhaCanal(r.erro).catch(() => undefined);
       break; // nunca repete sozinho
     }
     enviadas++;
@@ -644,6 +686,8 @@ export type DepsReengajar = Pick<
   /** t_ccaa41c0: 1ª mensagem automática e aviso ao corretor. Sem elas (ou com a migration ausente), não rodam. */
   primeiraProximo?: DepsPrimeiraAuto["primeiraProximo"];
   avisos?: Pick<DepsAvisoCorretor, "avisosReservar" | "avisoResultado">;
+  /** t_a2cae373: aquecimento de leads parados (chip próprio). Sem ele (ou com a migration ausente), não roda. */
+  aquecer?: Omit<DepsAquecer, "env" | "fetchFn">;
 };
 
 // --- Lembrete rápido de 15 min (t_b3f753a5) ------------------------------------------------------------------
@@ -807,7 +851,7 @@ export async function primeiraAutoUmaVez(
 // corretores não mudam.
 export type DepsEspera = Pick<
   DepsRetorno,
-  "reservar" | "resultado" | "env" | "fetchFn" | "linkAnuncio"
+  "reservar" | "resultado" | "env" | "fetchFn" | "linkAnuncio" | "chipDoLead"
 > & {
   esperaPreparar: () => Promise<{ data: unknown; error: { code?: string } | null }>;
 };
@@ -838,6 +882,7 @@ export async function depsEsperaReais(): Promise<DepsEspera> {
     resultado: async (msgId, ok) =>
       await db.rpc("lead_ia_envio_resultado", { _msg: msgId, _ok: ok }),
     linkAnuncio: (leadId) => linkAnuncioDoLead(db, leadId),
+    chipDoLead: (leadId) => chipDoLeadDb(db, leadId),
     env: process.env as Record<string, string | undefined>,
     esperaPreparar: async () => await db.rpc("lead_ia_espera_preparar"),
   };
@@ -872,7 +917,50 @@ export async function receberReengajar(request: Request, deps: DepsReengajar): P
       r: "erro" as const,
     }));
   if (deps.avisos) await enviarAvisosCorretor(null, { ...deps, ...deps.avisos }).catch(() => 0);
+  // t_a2cae373: aquecimento de leads parados, pelo chip próprio. Erro nele não muda a resposta.
+  if (deps.aquecer)
+    await aquecerUmaRodada({ ...deps.aquecer, env: deps.env, fetchFn: deps.fetchFn }).catch(() => ({
+      r: "erro" as const,
+    }));
   return json(r.r === "erro" ? 503 : 200, r.r);
+}
+
+/**
+ * t_a2cae373: retorno do chip do AQUECIMENTO (POST /api/leads/aquecer/<token>). Mesmo handler e mesma Nicole do
+ * retorno de atendimento; o banco (lead_aquecer_retorno_receber) põe a mensagem na MESMA conversa do lead e as
+ * respostas saem pelo chip do aquecimento (nunca pelo de atendimento).
+ */
+export async function depsRetornoAquecerReais(request: Request): Promise<DepsRetorno> {
+  const base = await depsReais(request);
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const db = supabaseAdmin as unknown as SupabaseClient;
+  const { canal, chip } = escolherCanalAquecer(base.env, base.fetchFn);
+  return {
+    ...base,
+    ...depsEnvioAquecer(db, chip),
+    receber: async (token, msg) =>
+      await db.rpc("lead_aquecer_retorno_receber", { _token: token, _msg: msg }),
+    canalAquecer: canal,
+    avisos: undefined, // aviso ao corretor sai na rodada do pg_cron, pelo chip de atendimento (não é o cliente)
+  };
+}
+
+/**
+ * t_a2cae373: reserva própria do chip do aquecimento (lead_aquecer_envio_reservar confere no banco: lead retomado
+ * pelo aquecimento real, mesmo chip, aquecimento ligado e sem pausa, opt-out) e freio em erro de canal.
+ */
+export function depsEnvioAquecer(
+  db: SupabaseClient,
+  chip: string | null,
+): Pick<DepsRetorno, "reservar" | "falhaCanal"> {
+  return {
+    reservar: async (leadId) =>
+      chip
+        ? await db.rpc("lead_aquecer_envio_reservar", { _lead: leadId, _chip: chip })
+        : { data: [], error: null },
+    falhaCanal: async (erro) =>
+      chip ? await db.rpc("lead_aquecer_falha_canal", { _chip: chip, _erro: erro }) : null,
+  };
 }
 
 export async function depsReengajarReais(request: Request): Promise<DepsReengajar> {
@@ -899,6 +987,19 @@ export async function depsReengajarReais(request: Request): Promise<DepsReengaja
     // Migration 20261030220000: enquanto não for aplicada, as RPCs falham e nada sai (só registra "erro").
     primeiraProximo: async () => await db.rpc("lead_ia_primeira_auto_proximo"),
     avisos: base.avisos,
+    // Migration 20261125120000 (t_a2cae373): enquanto não for aplicada, as RPCs falham e nada sai (só registra "erro").
+    aquecer: {
+      preparar: async (chip) => await db.rpc("lead_aquecer_preparar", { _chip: chip }),
+      resultado: async (envioId, status, erro) =>
+        await db.rpc("lead_aquecer_resultado", { _envio: envioId, _status: status, _erro: erro }),
+      pendentes: async (chip) => await db.rpc("lead_aquecer_pendentes", { _chip: chip }),
+      enviarPendentesLead: (leadId, canal) =>
+        enviarPendentes(leadId, {
+          ...base,
+          ...depsEnvioAquecer(db, escolherCanalAquecer(base.env, base.fetchFn).chip),
+          canalAquecer: canal,
+        }),
+    },
   };
 }
 
@@ -997,6 +1098,7 @@ export async function depsReais(request: Request): Promise<DepsRetorno> {
     aceiteResultado: async (respostaId, ok) =>
       await db.rpc("lead_aceite_whats_resultado", { _id: respostaId, _ok: ok }),
     permutaFluxo: (orgId) => permutaFluxoDb(db, orgId),
+    chipDoLead: (leadId) => chipDoLeadDb(db, leadId),
     env: process.env as Record<string, string | undefined>,
     emSegundoPlano: typeof wu === "function" ? (p) => wu.call(request, p) : undefined,
   };

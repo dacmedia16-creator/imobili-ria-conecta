@@ -83,6 +83,7 @@ import { Route as AuthenticatedVendasNovaRouteImport } from './routes/_authentic
 import { Route as ApiAvisosExclusividadeTesteRouteImport } from './routes/api/avisos-exclusividade/teste'
 import { Route as ApiLeadsReengajarRouteImport } from './routes/api/leads/reengajar'
 import { Route as AuthenticatedVendasLancamentoNovaRouteImport } from './routes/_authenticated/vendas.lancamento.nova'
+import { Route as ApiLeadsAquecerTokenRouteImport } from './routes/api/leads/aquecer.$token'
 import { Route as ApiLeadsGrupoOlxTokenRouteImport } from './routes/api/leads/grupo-olx.$token'
 import { Route as ApiLeadsZiontalkTokenRouteImport } from './routes/api/leads/ziontalk.$token'
 
@@ -495,6 +496,11 @@ const AuthenticatedVendasLancamentoNovaRoute =
     path: '/vendas/lancamento/nova',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiLeadsAquecerTokenRoute = ApiLeadsAquecerTokenRouteImport.update({
+  id: '/api/leads/aquecer/$token',
+  path: '/api/leads/aquecer/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiLeadsGrupoOlxTokenRoute = ApiLeadsGrupoOlxTokenRouteImport.update({
   id: '/api/leads/grupo-olx/$token',
   path: '/api/leads/grupo-olx/$token',
@@ -580,6 +586,7 @@ export interface FileRoutesByFullPath {
   '/locacoes/': typeof AuthenticatedLocacoesIndexRoute
   '/vendas/': typeof AuthenticatedVendasIndexRoute
   '/vendas/lancamento/nova': typeof AuthenticatedVendasLancamentoNovaRoute
+  '/api/leads/aquecer/$token': typeof ApiLeadsAquecerTokenRoute
   '/api/leads/grupo-olx/$token': typeof ApiLeadsGrupoOlxTokenRoute
   '/api/leads/ziontalk/$token': typeof ApiLeadsZiontalkTokenRoute
 }
@@ -657,6 +664,7 @@ export interface FileRoutesByTo {
   '/locacoes': typeof AuthenticatedLocacoesIndexRoute
   '/vendas': typeof AuthenticatedVendasIndexRoute
   '/vendas/lancamento/nova': typeof AuthenticatedVendasLancamentoNovaRoute
+  '/api/leads/aquecer/$token': typeof ApiLeadsAquecerTokenRoute
   '/api/leads/grupo-olx/$token': typeof ApiLeadsGrupoOlxTokenRoute
   '/api/leads/ziontalk/$token': typeof ApiLeadsZiontalkTokenRoute
 }
@@ -736,6 +744,7 @@ export interface FileRoutesById {
   '/_authenticated/locacoes/': typeof AuthenticatedLocacoesIndexRoute
   '/_authenticated/vendas/': typeof AuthenticatedVendasIndexRoute
   '/_authenticated/vendas/lancamento/nova': typeof AuthenticatedVendasLancamentoNovaRoute
+  '/api/leads/aquecer/$token': typeof ApiLeadsAquecerTokenRoute
   '/api/leads/grupo-olx/$token': typeof ApiLeadsGrupoOlxTokenRoute
   '/api/leads/ziontalk/$token': typeof ApiLeadsZiontalkTokenRoute
 }
@@ -815,6 +824,7 @@ export interface FileRouteTypes {
     | '/locacoes/'
     | '/vendas/'
     | '/vendas/lancamento/nova'
+    | '/api/leads/aquecer/$token'
     | '/api/leads/grupo-olx/$token'
     | '/api/leads/ziontalk/$token'
   fileRoutesByTo: FileRoutesByTo
@@ -892,6 +902,7 @@ export interface FileRouteTypes {
     | '/locacoes'
     | '/vendas'
     | '/vendas/lancamento/nova'
+    | '/api/leads/aquecer/$token'
     | '/api/leads/grupo-olx/$token'
     | '/api/leads/ziontalk/$token'
   id:
@@ -970,6 +981,7 @@ export interface FileRouteTypes {
     | '/_authenticated/locacoes/'
     | '/_authenticated/vendas/'
     | '/_authenticated/vendas/lancamento/nova'
+    | '/api/leads/aquecer/$token'
     | '/api/leads/grupo-olx/$token'
     | '/api/leads/ziontalk/$token'
   fileRoutesById: FileRoutesById
@@ -995,6 +1007,7 @@ export interface RootRouteChildren {
   EspecialistasIndexRoute: typeof EspecialistasIndexRoute
   ApiAvisosExclusividadeTesteRoute: typeof ApiAvisosExclusividadeTesteRoute
   ApiLeadsReengajarRoute: typeof ApiLeadsReengajarRoute
+  ApiLeadsAquecerTokenRoute: typeof ApiLeadsAquecerTokenRoute
   ApiLeadsGrupoOlxTokenRoute: typeof ApiLeadsGrupoOlxTokenRoute
   ApiLeadsZiontalkTokenRoute: typeof ApiLeadsZiontalkTokenRoute
 }
@@ -1519,6 +1532,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedVendasLancamentoNovaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/leads/aquecer/$token': {
+      id: '/api/leads/aquecer/$token'
+      path: '/api/leads/aquecer/$token'
+      fullPath: '/api/leads/aquecer/$token'
+      preLoaderRoute: typeof ApiLeadsAquecerTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/leads/grupo-olx/$token': {
       id: '/api/leads/grupo-olx/$token'
       path: '/api/leads/grupo-olx/$token'
@@ -1682,6 +1702,7 @@ const rootRouteChildren: RootRouteChildren = {
   EspecialistasIndexRoute: EspecialistasIndexRoute,
   ApiAvisosExclusividadeTesteRoute: ApiAvisosExclusividadeTesteRoute,
   ApiLeadsReengajarRoute: ApiLeadsReengajarRoute,
+  ApiLeadsAquecerTokenRoute: ApiLeadsAquecerTokenRoute,
   ApiLeadsGrupoOlxTokenRoute: ApiLeadsGrupoOlxTokenRoute,
   ApiLeadsZiontalkTokenRoute: ApiLeadsZiontalkTokenRoute,
 }

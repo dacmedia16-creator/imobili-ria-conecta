@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LeadsIaConfig, type SalvarIaPendente } from "@/components/leads/LeadsIaConfig";
 import { LeadsIaRetornoConfig } from "@/components/leads/LeadsIaRetornoConfig";
+import { LeadsAquecerConfig } from "@/components/leads/LeadsAquecerConfig";
 import { errorMessage } from "@/lib/errors";
 import { DISTRIBUICAO_LABEL, urlGrupoOlx, validarConfig, type LeadConfig } from "@/lib/leads";
 import { configurarFormulario, salvarConfig, tokenGrupoOlx } from "@/lib/leads-db";
@@ -290,6 +291,7 @@ export function LeadsConfigDialog({
 
           {admin && <LeadsIaConfig open={open} salvarPendenteRef={iaPendente} />}
           <LeadsIaRetornoConfig open={open} admin={admin} />
+          <LeadsAquecerConfig open={open} admin={admin} />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
