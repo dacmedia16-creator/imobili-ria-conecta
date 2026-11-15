@@ -15,6 +15,7 @@ DECLARE
   SEG timestamptz := '2026-11-16 13:00:00+00'; -- segunda 10h de Brasília
   DOM timestamptz := '2026-11-15 13:00:00+00'; -- domingo 10h
   NOITE timestamptz := '2026-11-16 23:30:00+00'; -- segunda 20h30
+  TER timestamptz := '2026-11-17 13:00:00+00'; -- terça 10h (seção 12: dia sem envios anteriores)
   LS uuid[] := ARRAY[]::uuid[]; LB uuid; r record; _n integer; _x text; _j jsonb; _env uuid; _lead uuid;
   _a public.lead_aquecer; _cv public.lead_conversas; _tok text := 'tokAquecerTesteFicticio_0123456789abcdefghijklmn';
   _ids uuid[] := ARRAY[]::uuid[]; _txts text[]; _ok boolean; _err text;
@@ -61,9 +62,13 @@ BEGIN
          aquecer_rampa_desde = (SEG AT TIME ZONE 'America/Sao_Paulo')::date, aquecer_proximo_em = NULL,
          aquecer_pausado_em = NULL, ia_canal_numero = '15911110000',
          aquecer_freio_taxa = 0.50, -- na A o roteiro gera 1 SAIR em 5 envios; o freio por taxa é provado na B (20%)
-         aquecer_retorno_token_hash = encode(extensions.digest(_tok, 'sha256'), 'hex')
+         aquecer_retorno_token_hash = encode(extensions.digest(_tok, 'sha256'), 'hex'),
+         -- Seções 1-11 testam as outras regras: modo 'todos' com início no futuro (lead_ia_liberado segue falso
+         -- para todos). A lista de liberados é testada na seção 12.
+         ia_envio_modo = 'todos', ia_envio_desde = '2099-01-01'
    WHERE organization_id = A;
-  UPDATE public.lead_config SET ia_ativa = true, ia_canal = 'teste' WHERE organization_id = B;
+  UPDATE public.lead_config SET ia_ativa = true, ia_canal = 'teste', ia_envio_modo = 'todos', ia_envio_desde = '2099-01-01'
+   WHERE organization_id = B;
 
   -- 1) Seleção dos 30 dias -----------------------------------------------------------------------------------------
   SELECT string_agg(i::text || '=' || public.lead_aquecer_elegivel(l, 30)::text, ' ' ORDER BY i) INTO _x
@@ -385,6 +390,76 @@ BEGIN
   INSERT INTO _t (nome, ok, info) SELECT 'admin retoma (rampa recomeça) e ve a previa',
     aquecer_pausado_em IS NULL AND aquecer_rampa_desde = (now() AT TIME ZONE 'America/Sao_Paulo')::date AND jsonb_array_length(_j) = 4,
     _j->>0 FROM public.lead_config WHERE organization_id = A;
+
+  -- 12) Lista de liberados da Nicole (ia_envio_modo = 'lista'): o aquecimento só escolhe número da lista -------------
+  -- Lead 16 (na lista) e 17 (fora), parados 40 dias e aceitos. Conversa da Nicole levada para 40 dias atrás e parada.
+  _ids := ARRAY[]::uuid[];
+  FOR i IN 16..17 LOOP
+    INSERT INTO public.leads (organization_id, nome, telefone, origem, etapa, created_at, aceito_em)
+    VALUES (A, 'Teste Aquecer ' || i, '+55159999' || lpad(i::text, 5, '0'), 'manual', 'em_atendimento',
+            now() - interval '40 days', now() - interval '40 days') RETURNING id INTO _lead;
+    UPDATE public.lead_mensagens SET created_at = now() - interval '40 days'
+     WHERE conversa_id IN (SELECT id FROM public.lead_conversas WHERE lead_id = _lead);
+    UPDATE public.lead_conversas SET estado = 'parada', passo = 'fim', encerrada_em = now() - interval '40 days'
+     WHERE lead_id = _lead;
+    _ids := _ids || _lead;
+  END LOOP;
+  UPDATE public.lead_config SET ia_envio_modo = 'lista', ia_envio_desde = NULL, ia_envio_allowlist = ARRAY['15999900016'],
+         aquecer_pausado_em = NULL, aquecer_pausa_motivo = NULL, aquecer_limite_dia = 50,
+         aquecer_rampa_desde = (now() AT TIME ZONE 'America/Sao_Paulo')::date - 60
+   WHERE organization_id = A;
+  INSERT INTO _t (nome, ok, info) VALUES ('lista: 16 e 17 passam na regra dos 30 dias (so a lista separa)',
+    public.lead_aquecer_elegivel((SELECT l FROM public.leads l WHERE id = _ids[1]), 30)
+    AND public.lead_aquecer_elegivel((SELECT l FROM public.leads l WHERE id = _ids[2]), 30), '');
+  -- Esvazia a fila: chama o preparo até não sair mais nada; tudo que sair tem de ser da lista.
+  SELECT count(*) INTO _n
+    FROM public.lead_aquecer_envios e JOIN public.lead_aquecer aq ON aq.id = e.aquecer_id JOIN public.leads l ON l.id = aq.lead_id
+   WHERE e.organization_id = A AND NOT (public.lead_ia_contatos(l.telefone, NULL) && ARRAY['15999900016']);
+  _txts := ARRAY[]::text[]; _ok := true;
+  FOR k IN 1..20 LOOP
+    UPDATE public.lead_config SET aquecer_proximo_em = NULL WHERE organization_id = A;
+    SELECT * INTO r FROM public.lead_aquecer_preparar(NULL, TER) p
+     WHERE p.lead_id IN (SELECT id FROM public.leads WHERE organization_id = A);
+    EXIT WHEN r.envio_id IS NULL;
+    _txts := _txts || r.lead_id::text;
+    _ok := _ok AND public.lead_ia_contatos(r.telefone, NULL) && ARRAY['15999900016'];
+    PERFORM public.lead_aquecer_resultado(r.envio_id, 'teste');
+    r := NULL;
+  END LOOP;
+  INSERT INTO _t (nome, ok, info) VALUES ('lista: 1o envio so para numero da lista (16 sim)',
+    _ok AND _ids[1]::text = ANY (_txts), coalesce(array_length(_txts, 1), 0)::text || ' envio(s)');
+  INSERT INTO _t (nome, ok, info) VALUES ('lista: numero fora da lista (17) nunca e escolhido', NOT (_ids[2]::text = ANY (_txts)),
+    coalesce(array_length(_txts, 1), 0)::text);
+  INSERT INTO _t (nome, ok, info) SELECT 'lista: nenhum envio novo de numero fora da lista na A',
+    count(*) = _n, (count(*) - _n)::text
+    FROM public.lead_aquecer_envios e JOIN public.lead_aquecer aq ON aq.id = e.aquecer_id JOIN public.leads l ON l.id = aq.lead_id
+   WHERE e.organization_id = A AND NOT (public.lead_ia_contatos(l.telefone, NULL) && ARRAY['15999900016']);
+  -- Lembrete: 17 (fora) tem envio MAIS ANTIGO que o 16 (seria o 1º da fila), mas só o 16 (na lista) recebe.
+  UPDATE public.lead_aquecer SET estado = 'enviado', enviado_em = now() - interval '5 days'
+   WHERE lead_id = _ids[2] AND estado IN ('enviando', 'enviado', 'lembrete');
+  IF NOT FOUND THEN
+    INSERT INTO public.lead_aquecer (organization_id, lead_id, estado, modo_real, enviado_em)
+    VALUES (A, _ids[2], 'enviado', false, now() - interval '5 days');
+  END IF;
+  UPDATE public.lead_aquecer SET enviado_em = now() - interval '4 days' WHERE lead_id = _ids[1] AND estado = 'enviado';
+  UPDATE public.lead_aquecer SET estado = 'frio', finalizado_em = now()
+   WHERE organization_id = A AND estado IN ('enviado', 'lembrete') AND lead_id <> ALL (_ids);
+  UPDATE public.lead_config SET aquecer_proximo_em = NULL WHERE organization_id = A;
+  SELECT * INTO r FROM public.lead_aquecer_preparar(NULL, TER) p WHERE p.lead_id IN (SELECT id FROM public.leads WHERE organization_id = A);
+  INSERT INTO _t (nome, ok, info) VALUES ('lista: lembrete so para numero da lista (16, nao o 17 mais antigo)',
+    r.lead_id = _ids[1], coalesce(CASE r.lead_id WHEN _ids[1] THEN '16' WHEN _ids[2] THEN '17' ELSE r.lead_id::text END, 'nada'));
+  INSERT INTO _t (nome, ok, info) SELECT 'lista: lembrete do 17 (fora da lista) nao sai', estado = 'enviado', estado
+    FROM public.lead_aquecer WHERE lead_id = _ids[2];
+  -- Lista vazia: nada sai.
+  UPDATE public.lead_config SET ia_envio_allowlist = '{}', aquecer_proximo_em = NULL WHERE organization_id = A;
+  UPDATE public.lead_aquecer SET estado = 'frio', finalizado_em = now() WHERE organization_id = A AND lead_id = _ids[1];
+  SELECT count(*) INTO _n FROM public.lead_aquecer_preparar(NULL, TER) p WHERE p.lead_id IN (SELECT id FROM public.leads WHERE organization_id = A);
+  INSERT INTO _t (nome, ok, info) VALUES ('lista vazia: nada sai (nem o lembrete do 17)', _n = 0, _n::text);
+  -- Modo 'todos' segue funcionando: o lembrete do 17 sai.
+  UPDATE public.lead_config SET ia_envio_modo = 'todos', ia_envio_desde = '2099-01-01', aquecer_proximo_em = NULL WHERE organization_id = A;
+  SELECT * INTO r FROM public.lead_aquecer_preparar(NULL, TER) p WHERE p.lead_id IN (SELECT id FROM public.leads WHERE organization_id = A);
+  INSERT INTO _t (nome, ok, info) VALUES ('modo todos: sem restricao de lista (lembrete do 17 sai)',
+    r.lead_id = _ids[2], coalesce(r.lead_id::text, 'nada'));
 END $$;
 
 SELECT CASE WHEN ok THEN 'OK   ' ELSE 'FAIL ' END || nome || CASE WHEN ok THEN '' ELSE '  [' || coalesce(info, '') || ']' END FROM _t ORDER BY n;
