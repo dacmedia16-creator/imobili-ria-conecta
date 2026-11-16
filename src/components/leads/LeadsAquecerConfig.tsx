@@ -11,9 +11,12 @@ import {
   lerAquecerPainel,
   lerAquecerPrevia,
   pausarAquecer,
+  retomarChip,
   salvarAquecer,
   tokenRetornoAquecer,
+  tokenRetornoChip,
   validarAquecer,
+  type AquecerChip,
   type AquecerConfig,
   type AquecerPainel,
 } from "@/lib/leads-aquecer-db";
@@ -28,6 +31,8 @@ export function LeadsAquecerConfig({ open, admin }: { open: boolean; admin: bool
   const [previa, setPrevia] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [url, setUrl] = useState("");
+  // t_879234c7: link recém-gerado de um chip (mostrado uma vez, só nesta tela).
+  const [urlChip, setUrlChip] = useState<{ id: string; url: string } | null>(null);
 
   const carregar = useCallback(async () => {
     // Qualquer falha (sem conexão, migration ausente, sem permissão) = o bloco não aparece.
@@ -44,6 +49,7 @@ export function LeadsAquecerConfig({ open, admin }: { open: boolean; admin: bool
   useEffect(() => {
     if (!open) {
       setUrl("");
+      setUrlChip(null);
       return;
     }
     void carregar();
@@ -107,6 +113,42 @@ export function LeadsAquecerConfig({ open, admin }: { open: boolean; admin: bool
     }
   };
 
+  const gerarChip = async (k: AquecerChip) => {
+    if (
+      k.retorno_em &&
+      !window.confirm(
+        `Gerar um link novo para o chip ${k.chip} desliga o link atual dele. Continuar?`,
+      )
+    )
+      return;
+    setBusy(true);
+    try {
+      const t = await tokenRetornoChip(k.id, "gerar");
+      if (!t) throw new Error("Não foi possível gerar o link.");
+      setUrlChip({ id: k.id, url: urlRetornoAquecer(window.location.origin, t) });
+      toast.success(`Link gerado. Cole no painel da ZionTalk, no canal do chip ${k.chip}.`);
+      await carregar();
+    } catch (e) {
+      toast.error(errorMessage(e, "Não foi possível gerar o link."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const retomar = async (k: AquecerChip) => {
+    setBusy(true);
+    try {
+      await retomarChip(k.id);
+      toast.success(`Chip ${k.chip} retomado. O limite dele recomeça do início da rampa.`);
+      await carregar();
+    } catch (e) {
+      toast.error(errorMessage(e, "Não foi possível retomar o chip."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const chips = c.chips ?? [];
   const n = (v: number | undefined) => (v ?? 0).toLocaleString("pt-BR");
 
   return (
@@ -238,9 +280,95 @@ export function LeadsAquecerConfig({ open, admin }: { open: boolean; admin: bool
         Intervalo variado de 5 a 15 min entre envios, só seg. a sáb. das 9h às 19h (domingo segue a
         opção de domingo da IA). Freio automático: erro no canal do chip ou muitas falhas/pedidos de
         SAIR pausam sozinhos e avisam o administrador. Elegíveis agora:{" "}
-        {c.elegiveis >= 500 ? "500 ou mais" : n(c.elegiveis)}. Chip:{" "}
-        {c.chip ?? "não configurado (modo teste)"}.
+        {c.elegiveis >= 500 ? "500 ou mais" : n(c.elegiveis)}.
+        {chips.length === 0 && <> Chip: {c.chip ?? "não configurado (modo teste)"}.</>}
       </p>
+
+      {chips.length > 0 && (
+        <div className="space-y-1" data-testid="aq-chips">
+          <span className="text-xs font-medium">
+            Chips do aquecimento ({chips.length}) — os envios se dividem entre eles; cada cliente
+            fica sempre no mesmo chip.
+          </span>
+          <ul className="space-y-1">
+            {chips.map((k) => (
+              <li key={k.id} className="space-y-1 rounded-md border p-2 text-xs" data-testid="aq-chip">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium">{k.chip}</span>
+                  <span
+                    className={
+                      k.pausado_em
+                        ? "rounded bg-amber-100 px-1.5 py-0.5 text-amber-900"
+                        : "rounded bg-emerald-50 px-1.5 py-0.5 text-emerald-800"
+                    }
+                  >
+                    {k.pausado_em ? "Pausado" : "Ativo"}
+                  </span>
+                </div>
+                <div className="text-muted-foreground">
+                  Hoje: {k.enviados_hoje} de {k.limite_hoje} envios
+                  {k.ultimo_envio
+                    ? ` · último envio ${new Date(k.ultimo_envio).toLocaleString("pt-BR")}`
+                    : " · ainda sem envio"}
+                  {" · "}
+                  {k.retorno_em
+                    ? `link de retorno ativo desde ${new Date(k.retorno_em).toLocaleString("pt-BR")}`
+                    : "sem link de retorno"}
+                </div>
+                {k.pausado_em && (
+                  <div className="text-amber-900">
+                    Pausado em {new Date(k.pausado_em).toLocaleString("pt-BR")}:{" "}
+                    {k.pausa_motivo ?? "sem motivo"}. Os outros chips seguem.
+                  </div>
+                )}
+                {admin && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() => void gerarChip(k)}
+                    >
+                      {k.retorno_em ? "Gerar link novo do retorno" : "Gerar link do retorno"}
+                    </Button>
+                    {k.pausado_em && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => void retomar(k)}
+                      >
+                        Retomar chip
+                      </Button>
+                    )}
+                  </div>
+                )}
+                {urlChip?.id === k.id && (
+                  <div className="flex gap-2">
+                    <Input
+                      readOnly
+                      value={urlChip.url}
+                      onFocus={(e) => e.currentTarget.select()}
+                      aria-label={`Link do retorno do chip ${k.chip}`}
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        void navigator.clipboard
+                          .writeText(urlChip.url)
+                          .then(() => toast.success("Link copiado."))
+                      }
+                    >
+                      Copiar
+                    </Button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {previa.length > 0 && (
         <div className="space-y-1 rounded-md bg-muted/50 p-2 text-xs">
@@ -298,11 +426,13 @@ export function LeadsAquecerConfig({ open, admin }: { open: boolean; admin: bool
                 Pausar agora
               </Button>
             )}
-            <Button size="sm" variant="outline" disabled={busy} onClick={() => void gerar()}>
-              {c.retorno_em ? "Gerar link novo do retorno" : "Gerar link do retorno"}
-            </Button>
+            {chips.length === 0 && (
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => void gerar()}>
+                {c.retorno_em ? "Gerar link novo do retorno" : "Gerar link do retorno"}
+              </Button>
+            )}
           </div>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-[11px] text-muted-foreground" hidden={chips.length > 0}>
             O link do retorno vai no painel da ZionTalk, no canal do chip do aquecimento (não no da
             IA de atendimento). As respostas caem na mesma conversa do lead.{" "}
             {c.retorno_em
