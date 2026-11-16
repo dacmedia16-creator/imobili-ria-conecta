@@ -135,12 +135,15 @@ SELECT pg_temp.ok((public.locacao_modelo_salvar('seguro_porto', pg_temp.j('por2'
 SELECT pg_temp.ok(jsonb_array_length(public.locacao_modelo_historico('fiador')) = 3
   AND (public.locacao_modelo_historico('fiador')->0->>'versao')::int = 2
   AND (public.locacao_modelo_historico('fiador')->2->>'padrao')::boolean, 'histórico: v2, v1 e o padrão do sistema');
-SELECT pg_temp.ok((public.locacao_modelo_restaurar('fiador', 0)->>'versao')::int = 3
+-- (gravar e conferir em comandos separados: função STABLE não enxerga o que o mesmo comando acabou de gravar)
+SELECT pg_temp.put('r1', public.locacao_modelo_restaurar('fiador', 0));
+SELECT pg_temp.ok((pg_temp.j('r1')->>'versao')::int = 3
   AND public.locacao_modelo_ler('fiador')->'paragrafos' = pg_temp.j('fia0')
   AND public.locacao_modelo_historico('fiador')->0->>'restaurada_de' = '0', 'restaurar o padrão grava a v3 com o texto padrão');
 SELECT pg_temp.ok(pg_temp.err('SELECT public.locacao_modelo_restaurar(''seguro_porto'', 0)') LIKE '22023%exigido pela seguradora%',
   'restaurar texto de seguradora também pede confirmação');
-SELECT pg_temp.ok((public.locacao_modelo_restaurar('seguro_porto', 1, true)->>'versao')::int = 3
+SELECT pg_temp.put('r2', public.locacao_modelo_restaurar('seguro_porto', 1, true));
+SELECT pg_temp.ok((pg_temp.j('r2')->>'versao')::int = 3
   AND public.locacao_modelo_ler('seguro_porto')->'paragrafos' = pg_temp.j('por1'), 'restaurar a v1 (com confirmação) grava a v3');
 SELECT pg_temp.as_user(pg_temp.id('c2')::text);
 SELECT pg_temp.ok(pg_temp.err('SELECT public.locacao_modelo_salvar(''fiador'', ''[]''::jsonb)') LIKE '42501%'
@@ -228,8 +231,9 @@ SELECT pg_temp.as_user(pg_temp.id('b1')::text);
 SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_anexo_ver(%L)', pg_temp.anexo_id(pg_temp.p('ap1')))) LIKE '42501%',
   'outra imobiliária não baixa');
 SELECT pg_temp.as_user(pg_temp.id('adm')::text);
-SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_pos_acao(%L, ''entregar_chaves'')', pg_temp.id('L'))) IS NULL
-  AND public.locacao_detalhe(pg_temp.id('L'))->>'chave_em' IS NOT NULL, 'com a apólice anexada, a chave é entregue');
+SELECT pg_temp.put('ch', to_jsonb(coalesce(pg_temp.err(format('SELECT public.locacao_pos_acao(%L, ''entregar_chaves'')', pg_temp.id('L'))), '')));
+SELECT pg_temp.ok((pg_temp.j('ch')#>>'{}') = ''
+  AND public.locacao_detalhe(pg_temp.id('L'))->>'etapa' = 'comissao', 'com a apólice anexada, a chave é entregue');
 RESET ROLE;
 
 SELECT CASE WHEN ok THEN 'ok   ' ELSE 'FALHA ' END || msg FROM r;

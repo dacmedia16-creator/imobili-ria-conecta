@@ -143,6 +143,7 @@ BEGIN
        OR (_e ? 'trava' AND jsonb_typeof(_e->'trava') <> 'boolean')
        OR (_e ? 'dest' AND (_e->>'dest') NOT IN ('residencial', 'comercial'))
        OR (_e ? 'cond' AND (_e->>'cond') NOT IN ('isencao_multa'))
+       OR (_e ? 'adaptado' AND jsonb_typeof(_e->'adaptado') <> 'boolean')
        OR (_e->>'id') !~ '^[a-z0-9_-]{1,24}$' THEN
       RAISE EXCEPTION 'Modelo inválido: cláusula mal formada.' USING ERRCODE = '22023';
     END IF;
@@ -170,7 +171,8 @@ BEGIN
       END LOOP;
     END IF;
     _out := _out || jsonb_strip_nulls(jsonb_build_object('id', _e->>'id', 't', _t,
-      'trava', CASE WHEN coalesce((_e->>'trava')::boolean, false) THEN true END, 'dest', _e->>'dest', 'cond', _e->>'cond'));
+      'trava', CASE WHEN coalesce((_e->>'trava')::boolean, false) THEN true END, 'dest', _e->>'dest', 'cond', _e->>'cond',
+      'adaptado', CASE WHEN coalesce((_e->>'adaptado')::boolean, false) THEN true END));
   END LOOP;
   FOREACH _x IN ARRAY ARRAY['LOCADOR', 'LOCATARIO', 'OBJETO', 'PRAZO', 'ASSINATURAS']
                  || CASE WHEN _chave = 'fiador' THEN ARRAY['FIADOR'] ELSE ARRAY[]::text[] END LOOP
