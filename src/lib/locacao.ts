@@ -107,12 +107,35 @@ export type Titularidade = Record<
   { aplica: boolean; protocolo: string | null }
 >;
 
+/** Tipo do imóvel escolhido ao abrir a locação (t_8f09d406, item 2). */
+export type ImovelTipo = "condominio" | "casa" | "comercial";
+export const IMOVEL_TIPO_LABEL: Record<ImovelTipo, string> = {
+  condominio: "Condomínio (apto ou condomínio fechado)",
+  casa: "Casa de rua",
+  comercial: "Comercial",
+};
+/** Prazo sugerido (editável): 30 meses residencial, 36 comercial (item 4). */
+export const prazoPadraoMeses = (tipo: "residencial" | "comercial"): number =>
+  tipo === "comercial" ? 36 : 30;
+/** Equipe gravada na abertura (item 5): não muda se o corretor trocar de equipe depois. */
+export type EquipeGravada = {
+  id: string | null;
+  nome: string | null;
+  gestorNome: string | null;
+  teamLeaderNome: string | null;
+  gravadaEm: string | null;
+};
+
 export type Locacao = {
   id: string;
   codigo: string;
   corretorId: string;
   corretorNome: string;
   coordenadorNome: string | null;
+  imovelTipo: ImovelTipo | null;
+  equipe: EquipeGravada;
+  /** Bloco/apto (ficha.complemento), também na lista. */
+  complemento: string | null;
   etapa: EtapaLocacao;
   situacao: "ativa" | "encerrada";
   devolvida: boolean;
@@ -194,6 +217,8 @@ export type FichaLocacao = {
   observacoes: string;
   /** CEP do imóvel (pré-aprovação, t_b2ce1207). */
   cep: string;
+  /** Bloco/apto do imóvel locado (t_8f09d406, item 1). */
+  complemento: string;
   /** Fiador na pré-aprovação: renda em reais "1234.56" e nº da matrícula do imóvel. */
   fiador: FiadorPre;
 };
@@ -302,6 +327,7 @@ export function lerFicha(raw: unknown): FichaLocacao {
     garantiaOutra: s(f.garantia_outra),
     observacoes: s(f.observacoes),
     cep: s(f.cep),
+    complemento: s(f.complemento),
     fiador: { nome: s(fi.nome), cpf: s(fi.cpf), renda: s(fi.renda), matricula: s(fi.matricula) },
   };
 }
@@ -325,6 +351,7 @@ export function fichaParaBanco(f: FichaLocacao): Record<string, unknown> {
     garantia_outra: t(f.garantiaOutra),
     observacoes: t(f.observacoes),
     cep: t(f.cep),
+    complemento: t(f.complemento),
     fiador: {
       nome: t(f.fiador.nome),
       cpf: t(f.fiador.cpf),
@@ -368,6 +395,18 @@ export function lerLocacao(raw: unknown): Locacao {
     corretorId: s(o.corretor_id),
     corretorNome: s(o.corretor_nome) || "—",
     coordenadorNome: sn(o.coordenador_nome),
+    imovelTipo:
+      o.imovel_tipo === "condominio" || o.imovel_tipo === "casa" || o.imovel_tipo === "comercial"
+        ? o.imovel_tipo
+        : null,
+    equipe: {
+      id: sn(o.equipe_id),
+      nome: sn(o.equipe_nome),
+      gestorNome: sn(o.equipe_gestor_nome),
+      teamLeaderNome: sn(o.equipe_tl_nome),
+      gravadaEm: sn(o.equipe_gravada_em),
+    },
+    complemento: sn(o.complemento) ?? (sn(obj(o.ficha).complemento) || null),
     etapa: ETAPA_KEYS.has(etapa) ? etapa : "pre_analise",
     situacao: o.situacao === "encerrada" ? "encerrada" : "ativa",
     devolvida: b(o.devolvida),
