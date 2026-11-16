@@ -3,7 +3,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { extensaoDoc, TAMANHO_MAX_DOC } from "@/lib/locacao";
+import { extensaoDoc, extensaoMinuta, TAMANHO_MAX_DOC } from "@/lib/locacao";
 
 const db = supabase as unknown as SupabaseClient;
 
@@ -104,6 +104,64 @@ export async function anexarDocumento(
   });
   return typeof reg?.id === "string" ? reg.id : "";
 }
+
+const MIME_MINUTA: Record<string, string> = {
+  pdf: "application/pdf",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+};
+
+/**
+ * Guarda um arquivo de minuta (t_f8f83f9f): servidor confere o papel e gera URL assinada → upload direto ao bucket
+ * privado → registra a versão (v1, v2…). origem "gerada" = PDF do modelo ("Gerar e guardar"); "anexo" = feito por fora.
+ */
+export async function guardarMinuta(
+  locacaoId: string,
+  arquivo: Blob,
+  nome: string,
+  origem: "anexo" | "gerada",
+): Promise<number> {
+  const ext = extensaoMinuta(nome);
+  if (!ext) throw new Error("Envie a minuta em PDF ou Word (.doc/.docx).");
+  if (arquivo.size > TAMANHO_MAX_DOC) throw new Error("Arquivo maior que 16 MB.");
+  const { prepararEnvioMinutaLocacao } = await import("@/lib/locacao.functions");
+  const { path, token } = await prepararEnvioMinutaLocacao({ data: { locacaoId, ext } });
+  const { error } = await supabase.storage
+    .from("locacao-documentos")
+    .uploadToSignedUrl(path, token, arquivo, { contentType: MIME_MINUTA[ext] });
+  if (error) throw new Error(error.message);
+  const reg = await rpc<{ versao?: unknown }>("locacao_minuta_registrar", {
+    _id: locacaoId,
+    _path: path,
+    _nome: nome.slice(0, 200),
+    _origem: origem,
+  });
+  return typeof reg?.versao === "number" ? reg.versao : 0;
+}
+
+export async function baixarMinuta(minutaId: string): Promise<void> {
+  // Abre a aba ainda no clique (senão o navegador bloqueia como pop-up) e só depois põe a URL assinada.
+  const aba = window.open("", "_blank");
+  if (aba) aba.opener = null;
+  try {
+    const { linkMinutaLocacao } = await import("@/lib/locacao.functions");
+    const { url } = await linkMinutaLocacao({ data: { minutaId } });
+    if (aba) aba.location.href = url;
+    else window.location.href = url;
+  } catch (e) {
+    aba?.close();
+    throw e;
+  }
+}
+
+export const registrarAndamento = (id: string, texto: string, aguardando: string | null) =>
+  rpc<{ id: string }>("locacao_andamento_registrar", {
+    _id: id,
+    _texto: texto,
+    _aguardando: aguardando,
+  });
+export const resolverAndamento = (andamentoId: string, texto: string | null = null) =>
+  rpc<boolean>("locacao_andamento_resolver", { _andamento: andamentoId, _texto: texto });
 
 /** Leitura por IA de um documento (t_127811ca). Nunca lança por falha da IA: devolve o selo. */
 export async function lerDocumentoIa(documentoId: string) {
