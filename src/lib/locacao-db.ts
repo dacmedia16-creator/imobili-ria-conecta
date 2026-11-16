@@ -78,6 +78,27 @@ export const listarPapeisLocacao = () => rpc<unknown[]>("locacao_papeis_lista");
 export const definirPapelLocacao = (userId: string, papel: string, ativo: boolean) =>
   rpc<boolean>("locacao_papel_definir", { _user: userId, _papel: papel, _ativo: ativo });
 
+/** Modelos por imobiliária: toda edição/volta grava versão nova no banco. */
+export const listarModelosLocacao = () => rpc<unknown[]>("locacao_modelos_listar");
+export const lerModeloLocacao = (chave: string, versao: number | null = null) =>
+  rpc<unknown>("locacao_modelo_ler", { _chave: chave, _versao: versao });
+export const historicoModeloLocacao = (chave: string) =>
+  rpc<unknown[]>("locacao_modelo_historico", { _chave: chave });
+export const salvarModeloLocacao = (
+  chave: string,
+  paragrafos: unknown[],
+  nota: string,
+  confirma: boolean,
+) =>
+  rpc<unknown>("locacao_modelo_salvar", {
+    _chave: chave,
+    _paragrafos: paragrafos,
+    _nota: nota,
+    _confirma: confirma,
+  });
+export const restaurarModeloLocacao = (chave: string, versao: number, confirma: boolean) =>
+  rpc<unknown>("locacao_modelo_restaurar", { _chave: chave, _versao: versao, _confirma: confirma });
+
 /**
  * Envia um documento: servidor confere e gera URL assinada → upload direto ao bucket → registra no banco.
  * Se o registro falhar, o arquivo fica órfão no bucket privado (ninguém lê sem registro).
@@ -111,6 +132,52 @@ const MIME_MINUTA: Record<string, string> = {
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 };
 
+export async function anexarGarantiaLocacao(
+  locacaoId: string,
+  tipo: "apolice" | "loft_termos",
+  arquivo: File,
+  numero: string,
+): Promise<void> {
+  const ext = extensaoDoc(arquivo.name);
+  if (!ext) throw new Error("Envie PDF ou imagem (JPG, PNG, WEBP).");
+  if (arquivo.size > TAMANHO_MAX_DOC) throw new Error("Arquivo maior que 16 MB.");
+  const mime: Record<string, string> = {
+    pdf: "application/pdf",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    png: "image/png",
+    webp: "image/webp",
+  };
+  if (arquivo.type !== mime[ext]) throw new Error("O tipo do arquivo não confere com a extensão.");
+  const { prepararEnvioAnexoLocacao } = await import("@/lib/locacao.functions");
+  const { path, token } = await prepararEnvioAnexoLocacao({ data: { locacaoId, tipo, ext } });
+  const { error } = await supabase.storage
+    .from("locacao-documentos")
+    .uploadToSignedUrl(path, token, arquivo, { contentType: mime[ext] });
+  if (error) throw new Error(error.message);
+  await rpc("locacao_anexo_registrar", {
+    _id: locacaoId,
+    _tipo: tipo,
+    _path: path,
+    _nome: arquivo.name.slice(0, 200),
+    _numero: numero.trim() || null,
+  });
+}
+
+export async function abrirAnexoLocacao(anexoId: string): Promise<void> {
+  const aba = window.open("", "_blank");
+  if (aba) aba.opener = null;
+  try {
+    const { linkAnexoLocacao } = await import("@/lib/locacao.functions");
+    const { url } = await linkAnexoLocacao({ data: { anexoId } });
+    if (aba) aba.location.href = url;
+    else window.location.href = url;
+  } catch (e) {
+    aba?.close();
+    throw e;
+  }
+}
+
 /**
  * Guarda um arquivo de minuta (t_f8f83f9f): servidor confere o papel e gera URL assinada → upload direto ao bucket
  * privado → registra a versão (v1, v2…). origem "gerada" = PDF do modelo ("Gerar e guardar"); "anexo" = feito por fora.
@@ -120,6 +187,7 @@ export async function guardarMinuta(
   arquivo: Blob,
   nome: string,
   origem: "anexo" | "gerada",
+  modelo?: { chave: string; versao: number },
 ): Promise<number> {
   const ext = extensaoMinuta(nome);
   if (!ext) throw new Error("Envie a minuta em PDF ou Word (.doc/.docx).");
@@ -135,6 +203,7 @@ export async function guardarMinuta(
     _path: path,
     _nome: nome.slice(0, 200),
     _origem: origem,
+    ...(modelo ? { _modelo_chave: modelo.chave, _modelo_versao: modelo.versao } : {}),
   });
   return typeof reg?.versao === "number" ? reg.versao : 0;
 }
