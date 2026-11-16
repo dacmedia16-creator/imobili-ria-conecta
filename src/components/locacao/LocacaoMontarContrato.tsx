@@ -79,7 +79,11 @@ export function LocacaoMontarContrato({
   const faltas = faltasMontagem(d, m, valores);
   const chave = chaveModeloLocacao(d, v);
   const modelo = modeloDaMontagem(d, m, valores);
-  const garantiaAtiva = chave ? grupoGarantia(chave) : d.garantia === "seguro_fianca" ? "seguro" : "";
+  const garantiaAtiva = chave
+    ? grupoGarantia(chave)
+    : d.garantia === "seguro_fianca"
+      ? "seguro"
+      : "";
   const camposGarantiaAtivos = CAMPOS_GARANTIA[garantiaAtiva] ?? [];
   const mudar = (k: string, value: string) => {
     setValores((old) => ({ ...old, [k]: value }));
@@ -102,7 +106,10 @@ export function LocacaoMontarContrato({
   };
   const nomePdf = `contrato-${d.codigo.replace(/[^a-zA-Z0-9-]/g, "-")}.pdf`;
   // Revalida a trava no servidor imediatamente antes de gerar e usa somente os dados salvos.
-  const montarPdf = async (): Promise<{ blob: Blob; modelo?: { chave: string; versao: number } }> => {
+  const montarPdf = async (): Promise<{
+    blob: Blob;
+    modelo?: { chave: string; versao: number };
+  }> => {
     const fresh = (await lerMontagem(d.id)) as Montagem;
     const salvos = camposIniciais(d, fresh);
     const paragrafos = textoContrato(d, fresh, salvos);
@@ -157,16 +164,25 @@ export function LocacaoMontarContrato({
   return (
     <section className="space-y-4 rounded-lg border p-4" data-testid="locacao-montar-contrato">
       <header>
-        <h3 className="font-semibold">Montar contrato — {d.tipo === "comercial" ? "comercial" : "residencial"} · {modelo?.titulo || d.garantia.replaceAll("_", " ")}{modelo ? ` (modelo v${modelo.versao})` : ""}</h3>
+        <h3 className="font-semibold">
+          Montar contrato — {d.tipo === "comercial" ? "comercial" : "residencial"} ·{" "}
+          {modelo?.titulo || d.garantia.replaceAll("_", " ")}
+          {modelo ? ` (modelo v${modelo.versao})` : ""}
+        </h3>
         <p className="text-xs text-muted-foreground">
           Monte, confira e use “Gerar e guardar”: o PDF vira uma versão da minuta que o corretor
           baixa. Não gera cobrança, repasse ou assinatura. A minuta mantém a versão do modelo usada.
         </p>
         {d.tipo === "comercial" && modelo?.tipo !== "comercial" && (
-          <p className="text-xs text-amber-700">Texto-base residencial com bloco de destinação comercial adaptado. Conferência jurídica necessária.</p>
+          <p className="text-xs text-amber-700">
+            Texto-base residencial com bloco de destinação comercial adaptado. Conferência jurídica
+            necessária.
+          </p>
         )}
         {modelo?.chave === "seguro_porto" && (
-          <p className="text-xs text-amber-700">Porto Seguro: o texto original usa IGP-M. Confirmar com Larissa antes de enviar.</p>
+          <p className="text-xs text-amber-700">
+            Porto Seguro: o texto original usa IGP-M. Confirmar com Larissa antes de enviar.
+          </p>
         )}
       </header>
       <nav aria-label="Passos do contrato" className="flex flex-wrap gap-1">
@@ -218,36 +234,58 @@ export function LocacaoMontarContrato({
       )}
       {passo === 5 && (
         <div className="space-y-3 text-sm">
-          <p><b>Garantia:</b> {d.garantia.replaceAll("_", " ")} · {modelo?.titulo || "escolha abaixo"}</p>
+          <p>
+            <b>Garantia:</b> {d.garantia.replaceAll("_", " ")} ·{" "}
+            {modelo?.titulo || "escolha abaixo"}
+          </p>
           {d.garantia === "seguro_fianca" && (
             <div className="space-y-1">
               <Label htmlFor="mont-seguradora">Seguradora</Label>
-              <select id="mont-seguradora" value={v.seg_seguradora || ""} disabled={busy}
+              <select
+                id="mont-seguradora"
+                value={v.seg_seguradora || ""}
+                disabled={busy}
                 className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-                onChange={(e) => mudar("d_seg_seguradora", e.target.value)}>
+                onChange={(e) => mudar("d_seg_seguradora", e.target.value)}
+              >
                 <option value="">— Escolha a seguradora —</option>
                 <option value="porto">Porto Seguro</option>
                 <option value="pottencial">Pottencial</option>
                 <option value="tokio">Tokio Marine</option>
                 <option value="almada">Almada</option>
               </select>
-              <p className="text-xs text-muted-foreground">O nº da apólice pode ficar vazio até a seguradora emiti-la. Sem anexo, as chaves não são entregues.</p>
+              <p className="text-xs text-muted-foreground">
+                O nº da apólice pode ficar vazio até a seguradora emiti-la. Sem anexo, as chaves não
+                são entregues.
+              </p>
             </div>
           )}
           {(d.garantia === "caucao" || d.garantia === "outras") && (
             <div className="space-y-1">
               <Label htmlFor="mont-tipo-caucao">Tipo de caução</Label>
-              <select id="mont-tipo-caucao" value={v.cau_tipo || ""} disabled={busy}
+              <select
+                id="mont-tipo-caucao"
+                value={v.cau_tipo || ""}
+                disabled={busy}
                 className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-                onChange={(e) => mudar("d_cau_tipo", e.target.value)}>
+                onChange={(e) => mudar("d_cau_tipo", e.target.value)}
+              >
                 <option value="">— Escolha a modalidade —</option>
                 {d.garantia === "caucao" && <option value="dinheiro">Dinheiro</option>}
                 <option value="imovel">Imóvel caucionado</option>
               </select>
             </div>
           )}
-          {d.garantia === "fiador" && <p>Matrícula: {v.fia_matricula || "—"} · Cartório: {v.fia_cartorio || "—"}</p>}
-          {d.garantia === "seguro_fianca" && !m.apolice && <p className="text-amber-700">Apólice pendente — anexe para liberar a entrega de chaves.</p>}
+          {d.garantia === "fiador" && (
+            <p>
+              Matrícula: {v.fia_matricula || "—"} · Cartório: {v.fia_cartorio || "—"}
+            </p>
+          )}
+          {d.garantia === "seguro_fianca" && !m.apolice && (
+            <p className="text-amber-700">
+              Apólice pendente — anexe para liberar a entrega de chaves.
+            </p>
+          )}
         </div>
       )}
       {passo === 6 && (
@@ -257,11 +295,15 @@ export function LocacaoMontarContrato({
       )}
       <div className="grid gap-3 sm:grid-cols-2">
         {Object.entries(CAMPOS_DOCUMENTO)
-          .filter(([key, index]) =>
-            index === passo && key !== "seg_seguradora" && key !== "cau_tipo" &&
-            (!key.startsWith("fia_") || d.garantia === "fiador") &&
-            (!CAMPOS_GARANTIA.fiador.includes(key) || d.garantia === "fiador") &&
-            (!Object.values(CAMPOS_GARANTIA).some((grupo) => grupo.includes(key)) || camposGarantiaAtivos.includes(key)),
+          .filter(
+            ([key, index]) =>
+              index === passo &&
+              key !== "seg_seguradora" &&
+              key !== "cau_tipo" &&
+              (!key.startsWith("fia_") || d.garantia === "fiador") &&
+              (!CAMPOS_GARANTIA.fiador.includes(key) || d.garantia === "fiador") &&
+              (!Object.values(CAMPOS_GARANTIA).some((grupo) => grupo.includes(key)) ||
+                camposGarantiaAtivos.includes(key)),
           )
           .map(([key]) => (
             <div key={key} className="space-y-1">
@@ -278,7 +320,11 @@ export function LocacaoMontarContrato({
         {Object.entries(CAMPOS)
           .filter(([key, cfg]) => {
             if (cfg.passo !== passo) return false;
-            if ((key === "fia_imovel_endereco" || key.startsWith("fia_")) && d.garantia !== "fiador") return false;
+            if (
+              (key === "fia_imovel_endereco" || key.startsWith("fia_")) &&
+              d.garantia !== "fiador"
+            )
+              return false;
             if (key.endsWith("_adicionais_sexo")) return false;
             if (key === "prop_sexo" && d.ficha.proprietarioPessoa === "pj") return false;
             if (key === "loc_sexo" && d.ficha.locatarioPessoa === "pj") return false;

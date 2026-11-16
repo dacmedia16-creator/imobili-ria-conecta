@@ -99,14 +99,30 @@ export const linkMinutaLocacao = createServerFn({ method: "POST" })
 
 export const prepararEnvioAnexoLocacao = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: unknown) => z.object({ locacaoId: z.string().uuid(), tipo: z.enum(["apolice", "loft_termos"]), ext: z.enum(["pdf", "jpg", "jpeg", "png", "webp"]) }).parse(input))
+  .validator((input: unknown) =>
+    z
+      .object({
+        locacaoId: z.string().uuid(),
+        tipo: z.enum(["apolice", "loft_termos"]),
+        ext: z.enum(["pdf", "jpg", "jpeg", "png", "webp"]),
+      })
+      .parse(input),
+  )
   .handler(async ({ data, context }) => {
     const user = context.supabase as unknown as SupabaseClient;
-    const { data: prep, error } = await user.rpc("locacao_anexo_preparar", { _id: data.locacaoId, _tipo: data.tipo, _ext: data.ext });
+    const { data: prep, error } = await user.rpc("locacao_anexo_preparar", {
+      _id: data.locacaoId,
+      _tipo: data.tipo,
+      _ext: data.ext,
+    });
     if (error) throw new Error(error.message);
     const path = (prep as { path?: unknown } | null)?.path;
     if (typeof path !== "string" || !path) throw new Error("Não foi possível preparar o anexo.");
-    const { data: signed, error: e2 } = await (await admin()).storage.from(BUCKET).createSignedUploadUrl(path);
+    const { data: signed, error: e2 } = await (
+      await admin()
+    ).storage
+      .from(BUCKET)
+      .createSignedUploadUrl(path);
     if (e2 || !signed?.token) throw new Error("Não foi possível preparar o anexo.");
     return { path, token: signed.token };
   });
@@ -120,7 +136,11 @@ export const linkAnexoLocacao = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     const path = (anexo as { path?: unknown } | null)?.path;
     if (typeof path !== "string" || !path) throw new Error("Anexo indisponível.");
-    const { data: signed, error: e2 } = await (await admin()).storage.from(BUCKET).createSignedUrl(path, 300);
+    const { data: signed, error: e2 } = await (
+      await admin()
+    ).storage
+      .from(BUCKET)
+      .createSignedUrl(path, 300);
     if (e2 || !signed?.signedUrl) throw new Error("Anexo indisponível.");
     return { url: signed.signedUrl };
   });

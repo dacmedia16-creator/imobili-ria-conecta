@@ -186,7 +186,9 @@ function LocacoesPage() {
           {veFinanceiro && <TabsTrigger value="financeiro">Financeiro</TabsTrigger>}
           {!soFinanceiro && <TabsTrigger value="visao">Visão geral</TabsTrigger>}
           {ctx.gerencia && <TabsTrigger value="regras">Regras e papéis</TabsTrigger>}
-          {(ctx.gerencia || vePapel("contratos")) && <TabsTrigger value="modelos">Modelos de contrato</TabsTrigger>}
+          {(ctx.gerencia || vePapel("contratos")) && (
+            <TabsTrigger value="modelos">Modelos de contrato</TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="minhas">

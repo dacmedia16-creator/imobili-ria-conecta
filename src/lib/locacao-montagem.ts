@@ -364,7 +364,10 @@ export function reaisExtenso(valor: number): string {
   return fra ? `${r} e ${trio(fra)} ${fra === 1 ? "centavo" : "centavos"}` : r;
 }
 
-export function chaveModeloLocacao(base: LocacaoBase, v: Record<string, string>): ChaveModelo | null {
+export function chaveModeloLocacao(
+  base: LocacaoBase,
+  v: Record<string, string>,
+): ChaveModelo | null {
   if (base.garantia === "fiador") return "fiador";
   if (base.garantia === "loft") return "loft";
   if (base.garantia === "outras") return v.cau_tipo === "imovel" ? "caucao_imovel" : null;
@@ -377,7 +380,11 @@ export function chaveModeloLocacao(base: LocacaoBase, v: Record<string, string>)
   return null;
 }
 
-export function modeloDaMontagem(base: LocacaoBase, m: Montagem, c: Record<string, string>): ModeloContrato | null {
+export function modeloDaMontagem(
+  base: LocacaoBase,
+  m: Montagem,
+  c: Record<string, string>,
+): ModeloContrato | null {
   const chave = chaveModeloLocacao(base, dadosContrato(m, c));
   if (!chave || !modelosDaGarantia(base.garantia).includes(chave)) return null;
   // Não confundir um padrão embarcado com a versão vigente da imobiliária: o banco decide qual vale.
@@ -403,24 +410,35 @@ export function faltasMontagem(
         v[`${p}_${key}`],
       ]),
     ),
-    ...(comFiador ? [
-      ["matrícula do fiador", v.fia_matricula],
-      ["cartório do fiador", v.fia_cartorio],
-      ["endereço do imóvel do fiador", c.fia_imovel_endereco],
-    ] : []),
+    ...(comFiador
+      ? [
+          ["matrícula do fiador", v.fia_matricula],
+          ["cartório do fiador", v.fia_cartorio],
+          ["endereço do imóvel do fiador", c.fia_imovel_endereco],
+        ]
+      : []),
     ...(base.garantia === "seguro_fianca" ? [["seguradora", v.seg_seguradora]] : []),
-    ...(base.garantia === "caucao" || base.garantia === "outras" ? [["tipo de caução", v.cau_tipo]] : []),
-    ...(chave === "caucao_dinheiro" ? [
-      ["valor da caução", v.cau_valor], ["número de aluguéis da caução", v.cau_meses],
-      ["forma de depósito", v.cau_forma], ["quem guarda a caução", v.cau_favorecido],
-    ] : []),
-    ...(chave === "caucao_imovel" ? [
-      ...["nome", "cpf", "rg", "nacionalidade", "estado_civil", "profissao", "endereco"]
-        .map((k) => [`${k} do caucionante`, v[`cauc_${k}`]]),
-      ["descrição do imóvel caucionado", v.cauc_imovel_descricao],
-      ["matrícula do imóvel caucionado", v.cauc_imovel_matricula],
-      ["cartório do imóvel caucionado", v.cauc_imovel_cartorio],
-    ] : []),
+    ...(base.garantia === "caucao" || base.garantia === "outras"
+      ? [["tipo de caução", v.cau_tipo]]
+      : []),
+    ...(chave === "caucao_dinheiro"
+      ? [
+          ["valor da caução", v.cau_valor],
+          ["número de aluguéis da caução", v.cau_meses],
+          ["forma de depósito", v.cau_forma],
+          ["quem guarda a caução", v.cau_favorecido],
+        ]
+      : []),
+    ...(chave === "caucao_imovel"
+      ? [
+          ...["nome", "cpf", "rg", "nacionalidade", "estado_civil", "profissao", "endereco"].map(
+            (k) => [`${k} do caucionante`, v[`cauc_${k}`]],
+          ),
+          ["descrição do imóvel caucionado", v.cauc_imovel_descricao],
+          ["matrícula do imóvel caucionado", v.cauc_imovel_matricula],
+          ["cartório do imóvel caucionado", v.cauc_imovel_cartorio],
+        ]
+      : []),
     ...(chave === "loft" ? [["número da garantia Loft", v.loft_numero]] : []),
     ["endereço do imóvel", c.imovel_endereco],
     ["vagas", v.imv_vagas],
@@ -438,7 +456,7 @@ export function faltasMontagem(
   ]
     .filter(([, val]) => !String(val ?? "").trim())
     .map(([label]) => label);
-  for (const p of (comFiador ? ["prop", "fia"] : ["prop"])) {
+  for (const p of comFiador ? ["prop", "fia"] : ["prop"]) {
     if (/casad/i.test(v[`${p}_estado_civil`] || "")) {
       if (!v[`${p}_conj_nome`]?.trim() || !v[`${p}_conj_cpf`]?.trim()) faltas.push(`cônjuge ${p}`);
     }
@@ -454,19 +472,22 @@ export function faltasMontagem(
     faltas.push("início inválido");
   if (c.fim && c.fim !== fimPrazo(v.inicio, Number(v.prazo_meses)))
     faltas.push("término divergente do prazo");
-  if (!m.modelos && (
-    c.juros !== "1% ao mês" ||
-    c.multa !== "10%" ||
-    c.reajuste !== "Anual — IPCA" ||
-    c.cobranca !== "mes_vencido" ||
-    c.isencao_multa_meses
-  ))
+  if (
+    !m.modelos &&
+    (c.juros !== "1% ao mês" ||
+      c.multa !== "10%" ||
+      c.reajuste !== "Anual — IPCA" ||
+      c.cobranca !== "mes_vencido" ||
+      c.isencao_multa_meses)
+  )
     faltas.push("condições diferentes do modelo residencial (revisão jurídica necessária)");
   if (m.modelos && !chave) faltas.push("escolha o modelo da garantia");
-  else if (m.modelos && !modeloDaMontagem(base, m, c)) faltas.push("modelo não disponível nesta imobiliária");
+  else if (m.modelos && !modeloDaMontagem(base, m, c))
+    faltas.push("modelo não disponível nesta imobiliária");
   if (chave === "caucao_dinheiro") {
     if (Number(v.cau_valor) > Number(c.aluguel) * 3) faltas.push("caução acima de três aluguéis");
-    if (Number(v.cau_meses) > 3 || Number(v.cau_meses) < 1) faltas.push("número de aluguéis da caução inválido");
+    if (Number(v.cau_meses) > 3 || Number(v.cau_meses) < 1)
+      faltas.push("número de aluguéis da caução inválido");
   }
   const pjProp = base.ficha.proprietarioPessoa === "pj";
   const pjLoc = base.ficha.locatarioPessoa === "pj";
@@ -582,7 +603,8 @@ export function montarTextoModelo(
     throw new Error("Modelo de garantia diferente da locação.");
   const v = dadosContrato(m, c);
   const aluguel = Number(c.aluguel);
-  const valor = (n: number) => n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const valor = (n: number) =>
+    n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const pfProp = base.ficha.proprietarioPessoa !== "pj";
   const pfLoc = base.ficha.locatarioPessoa !== "pj";
   const pfFia = base.ficha.fiadorPessoa !== "pj";
@@ -626,20 +648,36 @@ export function montarTextoModelo(
   };
   const assinaturas = [
     `${c.local}, ${dataLonga(c.data)}.`,
-    `${tLocador}:`, v.prop_nome, v.prop_cpf,
+    `${tLocador}:`,
+    v.prop_nome,
+    v.prop_cpf,
     ...(v.prop_conj_nome ? [v.prop_conj_nome, v.prop_conj_cpf] : []),
     ...(c.locadores_adicionais ? [c.locadores_adicionais] : []),
-    `${tLocatario}:`, v.loc_nome, v.loc_cpf,
+    `${tLocatario}:`,
+    v.loc_nome,
+    v.loc_cpf,
     ...(c.locatarios_adicionais ? [c.locatarios_adicionais] : []),
-    ...(modelo.chave === "fiador" ? [`${tFiador}:`, v.fia_nome, v.fia_cpf,
-      ...(v.fia_conj_nome ? [v.fia_conj_nome, v.fia_conj_cpf] : [])] : []),
+    ...(modelo.chave === "fiador"
+      ? [
+          `${tFiador}:`,
+          v.fia_nome,
+          v.fia_cpf,
+          ...(v.fia_conj_nome ? [v.fia_conj_nome, v.fia_conj_cpf] : []),
+        ]
+      : []),
     ...(modelo.chave === "caucao_imovel" ? ["CAUCIONANTE:", v.cauc_nome, v.cauc_cpf] : []),
-    "ADMINISTRADORA:", m.administradora.nome, docLabel("CNPJ", m.administradora.cnpj),
+    "ADMINISTRADORA:",
+    m.administradora.nome,
+    docLabel("CNPJ", m.administradora.cnpj),
     ...(c.assinaturas ? [c.assinaturas] : []),
   ];
   const blocos: Record<string, string[]> = {
-    LOCADOR: [`${tLocador}: ${nome(v, "prop", fProp)}${conj(v, "prop")}${c.locadores_adicionais ? `; ${c.locadores_adicionais}` : ""}.`],
-    LOCATARIO: [`${tLocatario}: ${nome(v, "loc", fLoc)}${c.locatarios_adicionais ? `; ${c.locatarios_adicionais}` : ""}.`],
+    LOCADOR: [
+      `${tLocador}: ${nome(v, "prop", fProp)}${conj(v, "prop")}${c.locadores_adicionais ? `; ${c.locadores_adicionais}` : ""}.`,
+    ],
+    LOCATARIO: [
+      `${tLocatario}: ${nome(v, "loc", fLoc)}${c.locatarios_adicionais ? `; ${c.locatarios_adicionais}` : ""}.`,
+    ],
     FIADOR: [`GARANTIA LOCATÍCIA - ${tFiador}: ${nome(v, "fia", fFia)}${conj(v, "fia")}.`],
     OBJETO: [
       `OBJETO DA LOCAÇÃO: ${c.imovel_endereco} — Vagas: ${v.imv_vagas}.`,
@@ -648,13 +686,17 @@ export function montarTextoModelo(
       `Código de Fornecimento de água: ${v.imv_agua}`,
       `Gás: ${v.imv_gas}`,
     ],
-    PRAZO: [`PRAZO DA LOCAÇÃO: ${v.prazo_meses} meses.`,
-      `Início: ${dataLonga(v.inicio)}            Término: ${campos.DATA_TERMINO}`],
+    PRAZO: [
+      `PRAZO DA LOCAÇÃO: ${v.prazo_meses} meses.`,
+      `Início: ${dataLonga(v.inicio)}            Término: ${campos.DATA_TERMINO}`,
+    ],
     ADICIONAIS: v.moradores ? [`CLÁUSULAS ADICIONAIS: MORADORES: ${v.moradores}`] : [],
     ASSINATURAS: assinaturas,
   };
-  const visiveis = modelo.paragrafos.filter((p) =>
-    (!p.dest || p.dest === base.tipo) && (!p.cond || (p.cond === "isencao_multa" && c.isencao_multa_meses === "12")),
+  const visiveis = modelo.paragrafos.filter(
+    (p) =>
+      (!p.dest || p.dest === base.tipo) &&
+      (!p.cond || (p.cond === "isencao_multa" && c.isencao_multa_meses === "12")),
   );
   // O número corrente é calculado sobre os textos visíveis; referências a cláusulas originais
   // seguem a primeira ocorrência correspondente. O texto exigido pela seguradora nunca é reescrito.
@@ -682,7 +724,8 @@ export function montarTextoModelo(
     });
     t = aplicarPapeis(t, tLocador, tLocatario, tFiador);
     t = t.replace(/CLÁUSULA\s+(\d+)º/gi, (original, n: string) =>
-      numeradas.has(n) ? original.replace(n, String(numeradas.get(n))) : original);
+      numeradas.has(n) ? original.replace(n, String(numeradas.get(n))) : original,
+    );
     const n = numeroPorId.get(p.id);
     if (n) t = t.replace(/^Cláusula\s+\d+º/i, `Cláusula ${n}º`);
     return [t];
@@ -692,7 +735,8 @@ export function montarTextoModelo(
     `Contrato de Garantia: ${modelo.subtitulo}`,
     `Nº ${c.numero}`,
     ...visiveis.flatMap(render),
-    ...(c.clausulas_adicionais ? [`CLÁUSULAS ADICIONAIS A CONFERIR: ${c.clausulas_adicionais}`] : []),
+    ...(c.clausulas_adicionais
+      ? [`CLÁUSULAS ADICIONAIS A CONFERIR: ${c.clausulas_adicionais}`]
+      : []),
   ];
 }
-

@@ -78,7 +78,13 @@ describe("minuta guardada no sistema", () => {
     expect(temModeloMinuta({ tipo: "residencial", garantia: "seguro_fianca" })).toBe(true);
     expect(temModeloMinuta({ tipo: "comercial", garantia: "fiador" })).toBe(true);
     expect(temModeloMinuta({ tipo: "residencial", garantia: "outras" })).toBe(false);
-    expect(temModeloMinuta({ tipo: "comercial", garantia: "outras", contrato: { valores: { cau_tipo: "imovel" } } })).toBe(true);
+    expect(
+      temModeloMinuta({
+        tipo: "comercial",
+        garantia: "outras",
+        contrato: { valores: { cau_tipo: "imovel" } },
+      }),
+    ).toBe(true);
   });
 });
 

@@ -145,13 +145,15 @@ export function validarModelo(chave: string, ps: ParagrafoModelo[]): string[] {
   ps.forEach((p, i) => {
     const t = p.t.trim();
     const onde = `Cláusula ${i + 1}`;
-    if (!/^[a-z0-9_-]{1,24}$/.test(p.id) || ids.has(p.id)) erros.push(`${onde}: identificação inválida.`);
+    if (!/^[a-z0-9_-]{1,24}$/.test(p.id) || ids.has(p.id))
+      erros.push(`${onde}: identificação inválida.`);
     ids.add(p.id);
     if (!t) erros.push(`${onde}: texto vazio.`);
     if (t.length > 8000) erros.push(`${onde}: texto longo demais (máx. 8.000 caracteres).`);
     const b = RE_BLOCO.exec(t);
     if (b) {
-      if (!NOMES_BLOCOS_MODELO.includes(b[1])) erros.push(`${onde}: bloco automático desconhecido [[${b[1]}]].`);
+      if (!NOMES_BLOCOS_MODELO.includes(b[1]))
+        erros.push(`${onde}: bloco automático desconhecido [[${b[1]}]].`);
       else if (blocos.has(b[1])) erros.push(`${onde}: bloco automático repetido [[${b[1]}]].`);
       blocos.add(b[1]);
     } else if (t.includes("[[")) {
@@ -161,7 +163,8 @@ export function validarModelo(chave: string, ps: ParagrafoModelo[]): string[] {
     }
   });
   for (const b of blocosObrigatorios(chave))
-    if (!blocos.has(b)) erros.push(`Falta o bloco automático [[${b}]] (dados que o sistema preenche).`);
+    if (!blocos.has(b))
+      erros.push(`Falta o bloco automático [[${b}]] (dados que o sistema preenche).`);
   return erros;
 }
 
@@ -203,7 +206,8 @@ export function lerParagrafos(raw: unknown): ParagrafoModelo[] {
   return (Array.isArray(raw) ? raw : [])
     .map((x) => {
       const o = obj(x);
-      const dest: ParagrafoModelo["dest"] = o.dest === "residencial" || o.dest === "comercial" ? o.dest : undefined;
+      const dest: ParagrafoModelo["dest"] =
+        o.dest === "residencial" || o.dest === "comercial" ? o.dest : undefined;
       return {
         id: typeof o.id === "string" ? o.id : "",
         t: typeof o.t === "string" ? o.t : "",

@@ -84,9 +84,17 @@ export const lerModeloLocacao = (chave: string, versao: number | null = null) =>
   rpc<unknown>("locacao_modelo_ler", { _chave: chave, _versao: versao });
 export const historicoModeloLocacao = (chave: string) =>
   rpc<unknown[]>("locacao_modelo_historico", { _chave: chave });
-export const salvarModeloLocacao = (chave: string, paragrafos: unknown[], nota: string, confirma: boolean) =>
+export const salvarModeloLocacao = (
+  chave: string,
+  paragrafos: unknown[],
+  nota: string,
+  confirma: boolean,
+) =>
   rpc<unknown>("locacao_modelo_salvar", {
-    _chave: chave, _paragrafos: paragrafos, _nota: nota, _confirma: confirma,
+    _chave: chave,
+    _paragrafos: paragrafos,
+    _nota: nota,
+    _confirma: confirma,
   });
 export const restaurarModeloLocacao = (chave: string, versao: number, confirma: boolean) =>
   rpc<unknown>("locacao_modelo_restaurar", { _chave: chave, _versao: versao, _confirma: confirma });
@@ -124,19 +132,36 @@ const MIME_MINUTA: Record<string, string> = {
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 };
 
-export async function anexarGarantiaLocacao(locacaoId: string, tipo: "apolice" | "loft_termos", arquivo: File, numero: string): Promise<void> {
+export async function anexarGarantiaLocacao(
+  locacaoId: string,
+  tipo: "apolice" | "loft_termos",
+  arquivo: File,
+  numero: string,
+): Promise<void> {
   const ext = extensaoDoc(arquivo.name);
   if (!ext) throw new Error("Envie PDF ou imagem (JPG, PNG, WEBP).");
   if (arquivo.size > TAMANHO_MAX_DOC) throw new Error("Arquivo maior que 16 MB.");
-  const mime: Record<string, string> = { pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp" };
+  const mime: Record<string, string> = {
+    pdf: "application/pdf",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    png: "image/png",
+    webp: "image/webp",
+  };
   if (arquivo.type !== mime[ext]) throw new Error("O tipo do arquivo não confere com a extensão.");
   const { prepararEnvioAnexoLocacao } = await import("@/lib/locacao.functions");
   const { path, token } = await prepararEnvioAnexoLocacao({ data: { locacaoId, tipo, ext } });
-  const { error } = await supabase.storage.from("locacao-documentos")
+  const { error } = await supabase.storage
+    .from("locacao-documentos")
     .uploadToSignedUrl(path, token, arquivo, { contentType: mime[ext] });
   if (error) throw new Error(error.message);
-  await rpc("locacao_anexo_registrar", { _id: locacaoId, _tipo: tipo, _path: path,
-    _nome: arquivo.name.slice(0, 200), _numero: numero.trim() || null });
+  await rpc("locacao_anexo_registrar", {
+    _id: locacaoId,
+    _tipo: tipo,
+    _path: path,
+    _nome: arquivo.name.slice(0, 200),
+    _numero: numero.trim() || null,
+  });
 }
 
 export async function abrirAnexoLocacao(anexoId: string): Promise<void> {
@@ -147,7 +172,10 @@ export async function abrirAnexoLocacao(anexoId: string): Promise<void> {
     const { url } = await linkAnexoLocacao({ data: { anexoId } });
     if (aba) aba.location.href = url;
     else window.location.href = url;
-  } catch (e) { aba?.close(); throw e; }
+  } catch (e) {
+    aba?.close();
+    throw e;
+  }
 }
 
 /**

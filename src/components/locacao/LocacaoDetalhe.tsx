@@ -278,7 +278,13 @@ export function LocacaoDetalhe({ id }: { id: string }) {
       </p>
       <Card>
         <CardContent className="space-y-4 pt-4">
-          {atual >= etapaIndex("minuta") && <LocacaoAnexosGarantia d={d} editavel={souCorretor || tenho("contratos") || tenho("vistoria")} recarregar={carregar} />}
+          {atual >= etapaIndex("minuta") && (
+            <LocacaoAnexosGarantia
+              d={d}
+              editavel={souCorretor || tenho("contratos") || tenho("vistoria")}
+              recarregar={carregar}
+            />
+          )}
           <LocacaoStepper
             etapa={d.etapa}
             devolvida={d.devolvida}
@@ -1094,6 +1100,15 @@ function PosAssinatura({
                 <p className="text-sm text-muted-foreground">
                   Data combinada com o corretor ({d.corretorNome}).
                 </p>
+                {d.apolicePendente && (
+                  <p
+                    role="alert"
+                    data-testid="chaves-apolice-pendente"
+                    className="text-sm font-semibold text-amber-700"
+                  >
+                    Apólice pendente — anexe para liberar a entrega de chaves.
+                  </p>
+                )}
                 {vistoria && (
                   <div className="flex flex-wrap items-center gap-2">
                     <Input
@@ -1103,7 +1118,7 @@ function PosAssinatura({
                       onChange={(e) => setChave(e.target.value)}
                     />
                     <Button
-                      disabled={busy || !chave}
+                      disabled={busy || !chave || d.apolicePendente}
                       onClick={() =>
                         void rodar(async () => {
                           const r = await posAcao(d.id, "entregar_chaves", { data: chave });
