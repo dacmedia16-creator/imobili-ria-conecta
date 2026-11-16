@@ -144,7 +144,14 @@ export function faltasContrato(
   garantia: string,
   v: Record<string, string | undefined>,
 ): string[] {
-  if (!exigeDadosContrato(tipo, garantia)) return [];
+  // t_8f09d406: nas demais garantias (e no comercial) só prazo, vencimento e moradores travam.
+  if (!exigeDadosContrato(tipo, garantia)) {
+    const f: string[] = [];
+    if (vazio(v.prazo_meses)) f.push("prazo (meses)");
+    if (vazio(v.dia_vencimento)) f.push("dia de vencimento");
+    if (vazio(v.moradores)) f.push("moradores");
+    return f;
+  }
   const f: string[] = [];
   const quem: [string, string][] = [
     ["loc", "do locatário"],
@@ -182,6 +189,8 @@ export function faltasContrato(
     ["dia_vencimento", "dia de vencimento"],
   ];
   for (const [k, nome] of soltos) if (vazio(v[k])) f.push(nome);
+  // t_8f09d406: moradores obrigatórios em todas as garantias.
+  if (vazio(v.moradores)) f.push("moradores");
   return f;
 }
 

@@ -2,7 +2,8 @@
  * Avisos de WhatsApp ao corretor da locação (t_8f09d406, item 7). Parte pura (testável): monta o texto e decide
  * se o aviso pode sair. O envio em si fica em locacao-avisos.functions.ts (servidor, mesmo ZionTalk das vendas).
  */
-export type EventoAvisoLocacao = "minuta_enviada" | "pendencia" | "ajuste" | "devolvida" | "andamento";
+export type EventoAvisoLocacao =
+  "minuta_enviada" | "pendencia" | "ajuste" | "devolvida" | "andamento";
 
 export const TITULO_AVISO_LOCACAO: Record<EventoAvisoLocacao, string> = {
   minuta_enviada: "Minuta para conferir",

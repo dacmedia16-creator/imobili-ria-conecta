@@ -29,6 +29,7 @@ import {
   type DocumentoLocacao,
 } from "@/lib/locacao";
 import type { LocacaoDetalhe as Detalhe } from "@/lib/locacao";
+import { prazoPadraoMeses } from "@/lib/locacao";
 import {
   CAMPOS_CONTRATO,
   CAMPOS_NAO_POSSUI,
@@ -244,7 +245,13 @@ export function DadosContrato({
 
 export function LocacaoDocumentacao({ d, ctx, busy, rodar, recarregar, editavel, aviso }: Props) {
   const base = useMemo(() => lerContrato(d.contrato.valores, d.contrato.origem), [d.contrato]);
-  const [form, setForm] = useState<Record<string, string>>(() => ({ ...base.valores }));
+  // t_8f09d406 item 4: prazo vazio vem sugerido (30 residencial / 36 comercial), editável. Só grava ao salvar.
+  const [form, setForm] = useState<Record<string, string>>(() => ({
+    ...base.valores,
+    prazo_meses: base.valores.prazo_meses?.trim()
+      ? base.valores.prazo_meses
+      : String(prazoPadraoMeses(d.tipo)),
+  }));
   const [lendo, setLendo] = useState<Record<string, boolean>>({});
   const [salvando, setSalvando] = useState(false);
   const [convites, setConvites] = useState<StatusLink | null>(null);
@@ -469,9 +476,10 @@ export function LocacaoDocumentacao({ d, ctx, busy, rodar, recarregar, editavel,
           aviso(
             "blue",
             <>
-              Nesta locação ({d.tipo === "comercial" ? "comercial" : GARANTIA_LABEL[d.garantia]}) os
-              dados abaixo ajudam o setor de contratos, mas <b>não travam</b> o envio (por enquanto
-              a trava vale só para residencial com fiador).
+              Nesta locação ({d.tipo === "comercial" ? "comercial" : GARANTIA_LABEL[d.garantia]}){" "}
+              <b>prazo, dia de vencimento e moradores</b> são obrigatórios para enviar; os demais
+              dados ajudam o setor de contratos e não travam. O prazo já vem sugerido (
+              {prazoPadraoMeses(d.tipo)} meses) e pode ser alterado.
             </>,
           )}
         <DadosContrato

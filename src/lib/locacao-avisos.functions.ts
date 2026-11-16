@@ -35,7 +35,8 @@ export const enviarAvisosLocacao = createServerFn({ method: "POST" })
     const { data: pode, error } = await user.rpc("locacao_avisos_pode", { _id: data.locacaoId });
     if (error || pode !== true) return { enviados: 0, falhas: 0, ignorados: 0 };
     // Visão da plataforma (super-admin dentro de outra imobiliária): igual às vendas, não manda WhatsApp.
-    if (await avisosSuprimidosNoContexto(context.supabase)) return { enviados: 0, falhas: 0, ignorados: 0 };
+    if (await avisosSuprimidosNoContexto(context.supabase))
+      return { enviados: 0, falhas: 0, ignorados: 0 };
     const apiKey = process.env.ZIONTALK_API_KEY;
     if (!apiKey) return { enviados: 0, falhas: 0, ignorados: 0 };
 
@@ -55,7 +56,11 @@ export const enviarAvisosLocacao = createServerFn({ method: "POST" })
       const motivo = motivoParaNaoEnviar(a, phone);
       if (motivo) {
         ignorados++;
-        await admin.rpc("locacao_avisos_concluir", { _aviso: a.aviso_id, _status: "ignorado", _erro: motivo });
+        await admin.rpc("locacao_avisos_concluir", {
+          _aviso: a.aviso_id,
+          _status: "ignorado",
+          _erro: motivo,
+        });
         continue;
       }
       const texto = textoAvisoLocacao(a, `${APP_URL}/locacoes/${a.locacao_id}`);
@@ -66,7 +71,10 @@ export const enviarAvisosLocacao = createServerFn({ method: "POST" })
             Authorization: `Basic ${btoa(`${apiKey}:`)}`,
             "Content-Type": "application/x-www-form-urlencoded",
           },
-          body: new URLSearchParams({ msg: paraWhatsapp(texto), mobile_phone: phone as string }).toString(),
+          body: new URLSearchParams({
+            msg: paraWhatsapp(texto),
+            mobile_phone: phone as string,
+          }).toString(),
           signal: AbortSignal.timeout(ZIONTALK_TIMEOUT_MS),
         });
         if (res.status === 201) {

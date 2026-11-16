@@ -30,6 +30,7 @@ const fichaOk = (): FichaLocacao => ({
   garantiaOutra: "",
   observacoes: "",
   cep: "18000-000",
+  complemento: "",
   fiador: { nome: "", cpf: "", renda: "", matricula: "" },
 });
 // t_b2ce1207 redefine locacao_ficha_ok com cep e fiador.
@@ -71,7 +72,12 @@ describe("ficha de abertura (corretor preenche)", () => {
     expect(f.proprietario).toEqual({ nome: "", telefone: "", email: "" });
   });
   it("chaves que o front manda = chaves que o banco aceita (locacao_ficha_ok)", () => {
-    const corpo = /FUNCTION public\.locacao_ficha_ok[\s\S]*?END \$\$;/.exec(PRE)?.[0] ?? "";
+    // t_8f09d406 redefine locacao_ficha_ok com "complemento": vale a versão mais nova.
+    const REU = readFileSync(
+      "supabase/migrations/20261201150000_locacao_reuniao_16_11.sql",
+      "utf8",
+    );
+    const corpo = /FUNCTION public\.locacao_ficha_ok[\s\S]*?END \$\$;/.exec(REU)?.[0] ?? "";
     const doBanco = new Set([...corpo.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]));
     for (const k of Object.keys(fichaParaBanco(fichaOk()))) expect(doBanco.has(k)).toBe(true);
     for (const k of ["nome", "telefone", "email", "cpf", "renda", "matricula"])

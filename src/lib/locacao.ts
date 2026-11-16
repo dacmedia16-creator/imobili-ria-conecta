@@ -158,6 +158,8 @@ export type Locacao = {
   iptu: number;
   taxaAdm: number;
   parceria: boolean;
+  /** Valores lançados pela Fernanda (só vem na lista; t_8f09d406 item 6). */
+  lancamento: LancamentoResumo | null;
   minuta: {
     estado: string;
     externa: boolean;
@@ -461,7 +463,63 @@ export function lerLocacao(raw: unknown): Locacao {
     ficha: lerFicha(o.ficha),
     captadorId: sn(o.captador_id),
     docsCompletosEm: sn(o.docs_completos_em),
+    lancamento: lerLancamentoResumo(o.lancamento),
   };
+}
+
+/** Resumo do lançamento da Fernanda que a lista traz (aluguel, taxa, parceria). */
+export type LancamentoResumo = {
+  aluguel: number;
+  taxaAdm: number;
+  parceria: "nenhuma" | "remax" | "externa";
+};
+
+export function lerLancamentoResumo(raw: unknown): LancamentoResumo | null {
+  if (!raw || typeof raw !== "object") return null;
+  const x = obj(raw);
+  const aluguel = n(x.aluguel);
+  const taxaAdm = n(x.taxa_adm);
+  if (!(aluguel > 0) || !(taxaAdm > 0)) return null;
+  const p = x.parceria === "remax" || x.parceria === "externa" ? x.parceria : "nenhuma";
+  return { aluguel, taxaAdm, parceria: p };
+}
+
+/**
+ * Regras do lançamento na comissão (dúvidas para a Cris; comportamento atual até ela responder — t_8f09d406):
+ * - LANCAMENTO_SUBSTITUI_VALORES: o aluguel/taxa lançados substituem os da pré-análise no cálculo.
+ * - Parceria RE/MAX ou externa conta como parceria (divisão 50/50 vem de config.parceriaDividePorDois).
+ * Para mudar depois, basta trocar a constante ou esta função.
+ */
+export const LANCAMENTO_SUBSTITUI_VALORES = true;
+
+export function valoresParaComissao(
+  l: Pick<Locacao, "aluguel" | "taxaAdm" | "parceria" | "lancamento">,
+): { aluguel: number; taxaAdm: number; parceria: boolean; lancado: boolean } {
+  const x = l.lancamento;
+  if (!x || !LANCAMENTO_SUBSTITUI_VALORES) {
+    return { aluguel: l.aluguel, taxaAdm: l.taxaAdm, parceria: l.parceria, lancado: false };
+  }
+  return {
+    aluguel: x.aluguel,
+    taxaAdm: x.taxaAdm,
+    parceria: x.parceria !== "nenhuma",
+    lancado: true,
+  };
+}
+
+/** Endereço com complemento (bloco/apto), para listas e contrato. */
+export function enderecoCompleto(endereco: string, complemento: string | null | undefined): string {
+  const e = (endereco ?? "").trim();
+  const c = (complemento ?? "").trim();
+  if (!c) return e;
+  return e ? `${e} — ${c}` : c;
+}
+
+/** Equipe gravada na abertura: texto curto para listas e ficha. */
+export function equipeTexto(e: EquipeGravada): string {
+  if (!e.gravadaEm) return "aberta antes do registro";
+  if (!e.nome) return "sem equipe";
+  return e.nome;
 }
 
 export function lerDetalhe(raw: unknown): LocacaoDetalhe {
@@ -833,8 +891,11 @@ export function faltasPreAprovacao(x: {
   candidato: LocatarioPre;
   fiador: FiadorPre;
   observacao: string;
+  /** t_8f09d406: tipo do imóvel; `undefined` = tela antiga que não informa (não cobra). */
+  imovelTipo?: ImovelTipo | null;
 }): string[] {
   const f: string[] = [];
+  if (x.imovelTipo === null) f.push("tipo do imóvel");
   if (!/^\d{5}-?\d{3}$/.test(x.cep.trim())) f.push("CEP");
   if (x.endereco.trim().length < 8) f.push("endereço do imóvel");
   if (!(x.aluguel > 0)) f.push("aluguel");
