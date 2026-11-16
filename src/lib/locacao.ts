@@ -107,12 +107,35 @@ export type Titularidade = Record<
   { aplica: boolean; protocolo: string | null }
 >;
 
+/** Tipo do imóvel escolhido ao abrir a locação (t_8f09d406, item 2). */
+export type ImovelTipo = "condominio" | "casa" | "comercial";
+export const IMOVEL_TIPO_LABEL: Record<ImovelTipo, string> = {
+  condominio: "Condomínio (apto ou condomínio fechado)",
+  casa: "Casa de rua",
+  comercial: "Comercial",
+};
+/** Prazo sugerido (editável): 30 meses residencial, 36 comercial (item 4). */
+export const prazoPadraoMeses = (tipo: "residencial" | "comercial"): number =>
+  tipo === "comercial" ? 36 : 30;
+/** Equipe gravada na abertura (item 5): não muda se o corretor trocar de equipe depois. */
+export type EquipeGravada = {
+  id: string | null;
+  nome: string | null;
+  gestorNome: string | null;
+  teamLeaderNome: string | null;
+  gravadaEm: string | null;
+};
+
 export type Locacao = {
   id: string;
   codigo: string;
   corretorId: string;
   corretorNome: string;
   coordenadorNome: string | null;
+  imovelTipo: ImovelTipo | null;
+  equipe: EquipeGravada;
+  /** Bloco/apto (ficha.complemento), também na lista. */
+  complemento: string | null;
   etapa: EtapaLocacao;
   situacao: "ativa" | "encerrada";
   devolvida: boolean;
@@ -135,6 +158,8 @@ export type Locacao = {
   iptu: number;
   taxaAdm: number;
   parceria: boolean;
+  /** Valores lançados pela Fernanda (só vem na lista; t_8f09d406 item 6). */
+  lancamento: LancamentoResumo | null;
   minuta: {
     estado: string;
     externa: boolean;
@@ -194,6 +219,8 @@ export type FichaLocacao = {
   observacoes: string;
   /** CEP do imóvel (pré-aprovação, t_b2ce1207). */
   cep: string;
+  /** Bloco/apto do imóvel locado (t_8f09d406, item 1). */
+  complemento: string;
   /** Fiador na pré-aprovação: renda em reais "1234.56" e nº da matrícula do imóvel. */
   fiador: FiadorPre;
 };
@@ -310,6 +337,7 @@ export function lerFicha(raw: unknown): FichaLocacao {
     garantiaOutra: s(f.garantia_outra),
     observacoes: s(f.observacoes),
     cep: s(f.cep),
+    complemento: s(f.complemento),
     fiador: { nome: s(fi.nome), cpf: s(fi.cpf), renda: s(fi.renda), matricula: s(fi.matricula) },
   };
 }
@@ -333,6 +361,7 @@ export function fichaParaBanco(f: FichaLocacao): Record<string, unknown> {
     garantia_outra: t(f.garantiaOutra),
     observacoes: t(f.observacoes),
     cep: t(f.cep),
+    complemento: t(f.complemento),
     fiador: {
       nome: t(f.fiador.nome),
       cpf: t(f.fiador.cpf),
@@ -376,6 +405,18 @@ export function lerLocacao(raw: unknown): Locacao {
     corretorId: s(o.corretor_id),
     corretorNome: s(o.corretor_nome) || "—",
     coordenadorNome: sn(o.coordenador_nome),
+    imovelTipo:
+      o.imovel_tipo === "condominio" || o.imovel_tipo === "casa" || o.imovel_tipo === "comercial"
+        ? o.imovel_tipo
+        : null,
+    equipe: {
+      id: sn(o.equipe_id),
+      nome: sn(o.equipe_nome),
+      gestorNome: sn(o.equipe_gestor_nome),
+      teamLeaderNome: sn(o.equipe_tl_nome),
+      gravadaEm: sn(o.equipe_gravada_em),
+    },
+    complemento: sn(o.complemento) ?? (sn(obj(o.ficha).complemento) || null),
     etapa: ETAPA_KEYS.has(etapa) ? etapa : "pre_analise",
     situacao: o.situacao === "encerrada" ? "encerrada" : "ativa",
     devolvida: b(o.devolvida),
@@ -430,7 +471,63 @@ export function lerLocacao(raw: unknown): Locacao {
     ficha: lerFicha(o.ficha),
     captadorId: sn(o.captador_id),
     docsCompletosEm: sn(o.docs_completos_em),
+    lancamento: lerLancamentoResumo(o.lancamento),
   };
+}
+
+/** Resumo do lançamento da Fernanda que a lista traz (aluguel, taxa, parceria). */
+export type LancamentoResumo = {
+  aluguel: number;
+  taxaAdm: number;
+  parceria: "nenhuma" | "remax" | "externa";
+};
+
+export function lerLancamentoResumo(raw: unknown): LancamentoResumo | null {
+  if (!raw || typeof raw !== "object") return null;
+  const x = obj(raw);
+  const aluguel = n(x.aluguel);
+  const taxaAdm = n(x.taxa_adm);
+  if (!(aluguel > 0) || !(taxaAdm > 0)) return null;
+  const p = x.parceria === "remax" || x.parceria === "externa" ? x.parceria : "nenhuma";
+  return { aluguel, taxaAdm, parceria: p };
+}
+
+/**
+ * Regras do lançamento na comissão (dúvidas para a Cris; comportamento atual até ela responder — t_8f09d406):
+ * - LANCAMENTO_SUBSTITUI_VALORES: o aluguel/taxa lançados substituem os da pré-análise no cálculo.
+ * - Parceria RE/MAX ou externa conta como parceria (divisão 50/50 vem de config.parceriaDividePorDois).
+ * Para mudar depois, basta trocar a constante ou esta função.
+ */
+export const LANCAMENTO_SUBSTITUI_VALORES = true;
+
+export function valoresParaComissao(
+  l: Pick<Locacao, "aluguel" | "taxaAdm" | "parceria" | "lancamento">,
+): { aluguel: number; taxaAdm: number; parceria: boolean; lancado: boolean } {
+  const x = l.lancamento;
+  if (!x || !LANCAMENTO_SUBSTITUI_VALORES) {
+    return { aluguel: l.aluguel, taxaAdm: l.taxaAdm, parceria: l.parceria, lancado: false };
+  }
+  return {
+    aluguel: x.aluguel,
+    taxaAdm: x.taxaAdm,
+    parceria: x.parceria !== "nenhuma",
+    lancado: true,
+  };
+}
+
+/** Endereço com complemento (bloco/apto), para listas e contrato. */
+export function enderecoCompleto(endereco: string, complemento: string | null | undefined): string {
+  const e = (endereco ?? "").trim();
+  const c = (complemento ?? "").trim();
+  if (!c) return e;
+  return e ? `${e} — ${c}` : c;
+}
+
+/** Equipe gravada na abertura: texto curto para listas e ficha. */
+export function equipeTexto(e: EquipeGravada): string {
+  if (!e.gravadaEm) return "aberta antes do registro";
+  if (!e.nome) return "sem equipe";
+  return e.nome;
 }
 
 export function lerDetalhe(raw: unknown): LocacaoDetalhe {
@@ -813,8 +910,11 @@ export function faltasPreAprovacao(x: {
   candidato: LocatarioPre;
   fiador: FiadorPre;
   observacao: string;
+  /** t_8f09d406: tipo do imóvel; `undefined` = tela antiga que não informa (não cobra). */
+  imovelTipo?: ImovelTipo | null;
 }): string[] {
   const f: string[] = [];
+  if (x.imovelTipo === null) f.push("tipo do imóvel");
   if (!/^\d{5}-?\d{3}$/.test(x.cep.trim())) f.push("CEP");
   if (x.endereco.trim().length < 8) f.push("endereço do imóvel");
   if (!(x.aluguel > 0)) f.push("aluguel");

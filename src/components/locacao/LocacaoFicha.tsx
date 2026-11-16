@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   GARANTIA_LABEL,
+  IMOVEL_TIPO_LABEL,
   MOBILIA_LABEL,
   faltasPreAprovacao,
   fichaParaBanco,
@@ -25,6 +26,7 @@ import {
   type ContextoLocacao,
   type FichaLocacao,
   type Garantia,
+  type ImovelTipo,
   type LocacaoDetalhe as Detalhe,
   type Pessoa,
 } from "@/lib/locacao";
@@ -32,6 +34,7 @@ import {
   abrirDocumento,
   anexarDocumento,
   corretoresLocacao,
+  definirImovelTipo,
   enviarPreAnalise,
   removerDocumento,
   salvarPreAnalise,
@@ -137,6 +140,8 @@ export function FichaAbertura({ d, ctx, busy, rodar, editavel, aConfirmar, aviso
   const [links, setLinks] = useState<StatusPreLink | null>(null);
   const [versaoLinks, setVersaoLinks] = useState(0);
   const [trocando, setTrocando] = useState(false);
+  // t_8f09d406 item 2: tipo do imóvel (escolhido ao abrir; pode trocar na pré-análise). Grava na hora.
+  const [imovelTipo, setImovelTipo] = useState<ImovelTipo | null>(d.imovelTipo);
 
   useEffect(() => {
     if (!editavel) return;
@@ -204,6 +209,7 @@ export function FichaAbertura({ d, ctx, busy, rodar, editavel, aConfirmar, aviso
     candidato,
     fiador: fiadorBanco,
     observacao: fi.garantiaOutra,
+    imovelTipo,
   });
   const linksOk = preLinksProntos(links, garantia);
   const taxas = Object.keys(ctx.config.tabelaTaxa)
@@ -228,6 +234,22 @@ export function FichaAbertura({ d, ctx, busy, rodar, editavel, aConfirmar, aviso
       .catch((e) => {
         set("garantia", antes);
         toast.error(errorMessage(e, "Não foi possível trocar a garantia."));
+      })
+      .finally(() => setTrocando(false));
+  };
+
+  const trocarImovelTipo = (t: ImovelTipo) => {
+    if (t === imovelTipo || !editavel) return;
+    const antes = imovelTipo;
+    setImovelTipo(t);
+    // A modalidade sai do tipo (o banco também força): comercial → comercial; os demais → residencial.
+    set("tipo", t === "comercial" ? "comercial" : "residencial");
+    setTrocando(true);
+    definirImovelTipo(d.id, t)
+      .then(() => toast.success(`Tipo do imóvel: ${IMOVEL_TIPO_LABEL[t]}.`))
+      .catch((err) => {
+        setImovelTipo(antes);
+        toast.error(errorMessage(err, "Não foi possível trocar o tipo do imóvel."));
       })
       .finally(() => setTrocando(false));
   };
@@ -345,6 +367,30 @@ export function FichaAbertura({ d, ctx, busy, rodar, editavel, aConfirmar, aviso
           <Etiqueta>Obrigatório em todas as garantias</Etiqueta>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-3">
+          <div className="space-y-1 sm:col-span-3">
+            <Label id="fi-imovel-tipo-label">Tipo do imóvel</Label>
+            <div
+              role="radiogroup"
+              aria-labelledby="fi-imovel-tipo-label"
+              className="grid grid-cols-1 gap-2 sm:grid-cols-3"
+              data-testid="locacao-pre-imovel-tipo"
+            >
+              {(Object.keys(IMOVEL_TIPO_LABEL) as ImovelTipo[]).map((t) => (
+                <Radio
+                  key={t}
+                  ativo={imovelTipo === t}
+                  label={IMOVEL_TIPO_LABEL[t]}
+                  disabled={!editavel || busy || trocando}
+                  onClick={() => trocarImovelTipo(t)}
+                />
+              ))}
+            </div>
+            {imovelTipo === "condominio" && (
+              <p className="text-xs text-muted-foreground">
+                Condomínio: a CND do condomínio aparece na Documentação como opcional (não trava).
+              </p>
+            )}
+          </div>
           <div className="space-y-1">
             <Label htmlFor="fi-cep">CEP</Label>
             <Input
@@ -358,6 +404,17 @@ export function FichaAbertura({ d, ctx, busy, rodar, editavel, aConfirmar, aviso
             />
           </div>
           {campo("endereco", "Endereço", { maxLength: 300 })}
+          <div className="space-y-1">
+            <Label htmlFor="fi-complemento">Complemento (bloco/apto)</Label>
+            <Input
+              id="fi-complemento"
+              disabled={!editavel}
+              maxLength={100}
+              placeholder="Ex.: Bloco B, apto 42"
+              value={fi.complemento}
+              onChange={(e) => setFicha("complemento", e.target.value)}
+            />
+          </div>
           {campo("aluguel", "Aluguel (R$)", dinheiro)}
           {campo("condominio", "Condomínio (R$)", dinheiro)}
           {campo("iptu", "IPTU (R$)", dinheiro)}
@@ -541,7 +598,8 @@ export function FichaAbertura({ d, ctx, busy, rodar, editavel, aConfirmar, aviso
                 <select
                   id="pre-tipo"
                   className={SELECT}
-                  disabled={!editavel}
+                  disabled={!editavel || imovelTipo !== null}
+                  title={imovelTipo ? "Definida pelo tipo do imóvel" : undefined}
                   value={f.tipo}
                   onChange={(e) => set("tipo", e.target.value)}
                 >

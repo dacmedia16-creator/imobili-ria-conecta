@@ -38,6 +38,8 @@ export type LocacaoBase = {
   garantia: string;
   ficha: {
     imovelId: string;
+    /** Bloco/apto (t_8f09d406): entra no endereço do imóvel do contrato. */
+    complemento?: string;
     locatarioEndereco?: string;
     proprietario?: { nome: string };
     locatarioPessoa?: "pf" | "pj";
@@ -238,7 +240,9 @@ export function camposIniciais(base: LocacaoBase, m: Montagem): Record<string, s
     ...c,
     ...d,
     numero: base.codigo,
-    imovel_endereco: base.endereco,
+    imovel_endereco: base.ficha.complemento?.trim()
+      ? `${base.endereco}, ${base.ficha.complemento.trim()}`
+      : base.endereco,
     aluguel: base.aluguel ? base.aluguel.toFixed(2) : "",
     d_prop_nome: m.contrato.prop_nome || base.ficha.proprietario?.nome || "",
     d_loc_endereco: m.contrato.loc_endereco || base.ficha.locatarioEndereco || "",

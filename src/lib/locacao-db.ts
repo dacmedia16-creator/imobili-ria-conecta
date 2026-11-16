@@ -3,7 +3,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { extensaoDoc, extensaoMinuta, TAMANHO_MAX_DOC } from "@/lib/locacao";
+import { extensaoDoc, extensaoMinuta, TAMANHO_MAX_DOC, type ImovelTipo } from "@/lib/locacao";
 
 const db = supabase as unknown as SupabaseClient;
 
@@ -40,7 +40,15 @@ export async function guardLocacaoRoute() {
 export const contextoLocacao = () => rpc<unknown>("locacao_contexto");
 export const listarLocacoes = () => rpc<unknown[]>("locacao_lista");
 export const detalheLocacao = (id: string) => rpc<unknown>("locacao_detalhe", { _id: id });
-export const criarLocacao = () => rpc<{ id: string }>("locacao_criar");
+/** Abre a locação já com o tipo do imóvel (t_8f09d406): condomínio, casa de rua ou comercial. */
+export const criarLocacao = (imovelTipo: ImovelTipo | null = null) =>
+  rpc<{ id: string }>("locacao_criar", { _imovel_tipo: imovelTipo });
+export const definirImovelTipo = (id: string, tipo: ImovelTipo) =>
+  rpc<{ ok: boolean; tipo: string }>("locacao_imovel_tipo_definir", { _id: id, _tipo: tipo });
+/** Lançamento para comissão (Fernanda, papel vistoria; t_8f09d406 item 6). */
+export const lerLancamento = (id: string) => rpc<unknown>("locacao_lancamento_ler", { _id: id });
+export const salvarLancamento = (id: string, dados: Record<string, string | null>) =>
+  rpc<{ ok: boolean; novo: boolean }>("locacao_lancamento_salvar", { _id: id, _dados: dados });
 /** Pessoas ativas da imobiliária para o campo "corretor captador" (t_28e583e2). */
 export const corretoresLocacao = () => rpc<unknown[]>("locacao_corretores");
 export const salvarPreAnalise = (id: string, dados: Record<string, unknown>) =>
