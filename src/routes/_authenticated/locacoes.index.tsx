@@ -17,6 +17,7 @@ import { EmptyState, KpiTile, ListSkeleton, PageHeader, Pill } from "@/component
 import { AConfirmar } from "@/components/locacao/LocacaoDetalhe";
 import { LocacaoFinanceiro } from "@/components/locacao/LocacaoFinanceiro";
 import { LocacaoRegras } from "@/components/locacao/LocacaoRegras";
+import { LocacaoModelosContrato } from "@/components/locacao/LocacaoModelosContrato";
 import { errorMessage } from "@/lib/errors";
 import {
   ETAPAS,
@@ -64,7 +65,8 @@ type Aba =
   | "comissao"
   | "financeiro"
   | "visao"
-  | "regras";
+  | "regras"
+  | "modelos";
 
 function LocacoesPage() {
   const navigate = useNavigate();
@@ -184,6 +186,7 @@ function LocacoesPage() {
           {veFinanceiro && <TabsTrigger value="financeiro">Financeiro</TabsTrigger>}
           {!soFinanceiro && <TabsTrigger value="visao">Visão geral</TabsTrigger>}
           {ctx.gerencia && <TabsTrigger value="regras">Regras e papéis</TabsTrigger>}
+          {(ctx.gerencia || vePapel("contratos")) && <TabsTrigger value="modelos">Modelos de contrato</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="minhas">
@@ -216,6 +219,9 @@ function LocacoesPage() {
         </TabsContent>
         <TabsContent value="regras">
           {ctx.gerencia && <LocacaoRegras config={ctx.config} onSalvo={() => void carregar()} />}
+        </TabsContent>
+        <TabsContent value="modelos">
+          {(ctx.gerencia || vePapel("contratos")) && <LocacaoModelosContrato />}
         </TabsContent>
       </Tabs>
     </div>

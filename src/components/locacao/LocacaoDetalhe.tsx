@@ -11,6 +11,7 @@ import { ListSkeleton, Pill } from "@/components/visual/base";
 import { LocacaoStepper } from "@/components/locacao/LocacaoStepper";
 import { ContratoConferencia, LocacaoDocumentacao } from "@/components/locacao/LocacaoDocumentacao";
 import { LocacaoMontarContrato } from "@/components/locacao/LocacaoMontarContrato";
+import { LocacaoAnexosGarantia } from "@/components/locacao/LocacaoAnexosGarantia";
 import { MinutaAndamentos, MinutaArquivos } from "@/components/locacao/LocacaoMinutaArquivos";
 import { ChecklistPartes } from "@/components/locacao/LocacaoChecklist";
 import { FichaAbertura } from "@/components/locacao/LocacaoFicha";
@@ -277,6 +278,7 @@ export function LocacaoDetalhe({ id }: { id: string }) {
       </p>
       <Card>
         <CardContent className="space-y-4 pt-4">
+          {atual >= etapaIndex("minuta") && <LocacaoAnexosGarantia d={d} editavel={souCorretor || tenho("contratos") || tenho("vistoria")} recarregar={carregar} />}
           <LocacaoStepper
             etapa={d.etapa}
             devolvida={d.devolvida}

@@ -73,10 +73,12 @@ describe("minuta guardada no sistema", () => {
     expect(extensaoMinuta("m.jpg")).toBeNull();
     expect(extensaoMinuta("sem-extensao")).toBeNull();
   });
-  it("modelo no sistema só para residencial com fiador (o resto anexa a minuta feita por fora)", () => {
+  it("há modelos para as garantias cobertas; outras só com caução de imóvel", () => {
     expect(temModeloMinuta({ tipo: "residencial", garantia: "fiador" })).toBe(true);
-    expect(temModeloMinuta({ tipo: "residencial", garantia: "seguro_fianca" })).toBe(false);
-    expect(temModeloMinuta({ tipo: "comercial", garantia: "fiador" })).toBe(false);
+    expect(temModeloMinuta({ tipo: "residencial", garantia: "seguro_fianca" })).toBe(true);
+    expect(temModeloMinuta({ tipo: "comercial", garantia: "fiador" })).toBe(true);
+    expect(temModeloMinuta({ tipo: "residencial", garantia: "outras" })).toBe(false);
+    expect(temModeloMinuta({ tipo: "comercial", garantia: "outras", contrato: { valores: { cau_tipo: "imovel" } } })).toBe(true);
   });
 });
 

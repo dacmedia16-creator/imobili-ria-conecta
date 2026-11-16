@@ -18,9 +18,14 @@ import {
   fimPrazo,
   gerarPdfContrato,
   textoContrato,
+  modeloDaMontagem,
+  chaveModeloLocacao,
+  CAMPOS_GARANTIA,
+  grupoGarantia,
   type LocacaoBase,
   type Montagem,
 } from "@/lib/locacao-montagem";
+import { modelosDaGarantia } from "@/lib/locacao-modelos";
 import { linhasPessoas, parseSexos } from "@/lib/locacao-concordancia";
 
 export function LocacaoMontarContrato({
@@ -38,7 +43,7 @@ export function LocacaoMontarContrato({
   const [dirty, setDirty] = useState(false);
   const [erro, setErro] = useState("");
   useEffect(() => {
-    if (!d.docsCompleta || d.tipo !== "residencial" || d.garantia !== "fiador") return;
+    if (!d.docsCompleta || modelosDaGarantia(d.garantia).length === 0) return;
     let ativo = true;
     void lerMontagem(d.id)
       .then((raw) => {
@@ -61,7 +66,7 @@ export function LocacaoMontarContrato({
       </p>
     );
   // Sem modelo para esta combinação: o aviso claro fica no quadro "Minuta" (anexar a minuta feita por fora).
-  if (d.tipo !== "residencial" || d.garantia !== "fiador") return null;
+  if (modelosDaGarantia(d.garantia).length === 0) return null;
   if (erro)
     return (
       <p role="alert" className="text-sm text-destructive">
@@ -72,6 +77,10 @@ export function LocacaoMontarContrato({
   const v = dadosContrato(m, valores);
   const fim = fimPrazo(v.inicio, Number(v.prazo_meses));
   const faltas = faltasMontagem(d, m, valores);
+  const chave = chaveModeloLocacao(d, v);
+  const modelo = modeloDaMontagem(d, m, valores);
+  const garantiaAtiva = chave ? grupoGarantia(chave) : d.garantia === "seguro_fianca" ? "seguro" : "";
+  const camposGarantiaAtivos = CAMPOS_GARANTIA[garantiaAtiva] ?? [];
   const mudar = (k: string, value: string) => {
     setValores((old) => ({ ...old, [k]: value }));
     setDirty(true);
@@ -93,9 +102,11 @@ export function LocacaoMontarContrato({
   };
   const nomePdf = `contrato-${d.codigo.replace(/[^a-zA-Z0-9-]/g, "-")}.pdf`;
   // Revalida a trava no servidor imediatamente antes de gerar e usa somente os dados salvos.
-  const montarPdf = async (): Promise<Blob> => {
+  const montarPdf = async (): Promise<{ blob: Blob; modelo?: { chave: string; versao: number } }> => {
     const fresh = (await lerMontagem(d.id)) as Montagem;
-    const paragrafos = textoContrato(d, fresh, camposIniciais(d, fresh));
+    const salvos = camposIniciais(d, fresh);
+    const paragrafos = textoContrato(d, fresh, salvos);
+    const usado = modeloDaMontagem(d, fresh, salvos);
     const [fonteResposta, negritoResposta, brand] = await Promise.all([
       fetch(fonteUrl),
       fetch(negritoUrl),
@@ -107,12 +118,15 @@ export function LocacaoMontarContrato({
       negrito: negritoResposta.ok ? await negritoResposta.arrayBuffer() : undefined,
       logo,
     });
-    return new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+    return {
+      blob: new Blob([new Uint8Array(bytes)], { type: "application/pdf" }),
+      ...(usado ? { modelo: { chave: usado.chave, versao: usado.versao } } : {}),
+    };
   };
   const pdf = async () => {
     setBusy(true);
     try {
-      const blob = await montarPdf();
+      const { blob } = await montarPdf();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -130,7 +144,8 @@ export function LocacaoMontarContrato({
   const guardar = async () => {
     setBusy(true);
     try {
-      const v = await guardarMinuta(d.id, await montarPdf(), nomePdf, "gerada");
+      const { blob, modelo: versaoModelo } = await montarPdf();
+      const v = await guardarMinuta(d.id, blob, nomePdf, "gerada", versaoModelo);
       toast.success(`Minuta v${v} guardada. Agora é só enviar ao corretor.`);
       await onGuardada?.();
     } catch (e) {
@@ -142,12 +157,17 @@ export function LocacaoMontarContrato({
   return (
     <section className="space-y-4 rounded-lg border p-4" data-testid="locacao-montar-contrato">
       <header>
-        <h3 className="font-semibold">Montar contrato — residencial com fiador</h3>
+        <h3 className="font-semibold">Montar contrato — {d.tipo === "comercial" ? "comercial" : "residencial"} · {modelo?.titulo || d.garantia.replaceAll("_", " ")}{modelo ? ` (modelo v${modelo.versao})` : ""}</h3>
         <p className="text-xs text-muted-foreground">
           Monte, confira e use “Gerar e guardar”: o PDF vira uma versão da minuta que o corretor
-          baixa. Não gera cobrança, repasse ou assinatura. Condições divergentes do modelo exigem
-          revisão jurídica.
+          baixa. Não gera cobrança, repasse ou assinatura. A minuta mantém a versão do modelo usada.
         </p>
+        {d.tipo === "comercial" && modelo?.tipo !== "comercial" && (
+          <p className="text-xs text-amber-700">Texto-base residencial com bloco de destinação comercial adaptado. Conferência jurídica necessária.</p>
+        )}
+        {modelo?.chave === "seguro_porto" && (
+          <p className="text-xs text-amber-700">Porto Seguro: o texto original usa IGP-M. Confirmar com Larissa antes de enviar.</p>
+        )}
       </header>
       <nav aria-label="Passos do contrato" className="flex flex-wrap gap-1">
         {PASSOS.map((item, i) => (
@@ -171,7 +191,7 @@ export function LocacaoMontarContrato({
             <b>Proprietário:</b> {v.prop_nome || "a conferir na documentação"}
           </p>
           <p>
-            <b>Tipo:</b> Residencial
+            <b>Tipo:</b> {d.tipo === "comercial" ? "Comercial" : "Residencial"}
           </p>
         </div>
       )}
@@ -197,13 +217,37 @@ export function LocacaoMontarContrato({
         </div>
       )}
       {passo === 5 && (
-        <div className="text-sm">
-          <p>
-            <b>Garantia:</b> FIADOR · {v.fia_nome || "—"}
-          </p>
-          <p>
-            Matrícula: {v.fia_matricula || "—"} · Cartório: {v.fia_cartorio || "—"}
-          </p>
+        <div className="space-y-3 text-sm">
+          <p><b>Garantia:</b> {d.garantia.replaceAll("_", " ")} · {modelo?.titulo || "escolha abaixo"}</p>
+          {d.garantia === "seguro_fianca" && (
+            <div className="space-y-1">
+              <Label htmlFor="mont-seguradora">Seguradora</Label>
+              <select id="mont-seguradora" value={v.seg_seguradora || ""} disabled={busy}
+                className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+                onChange={(e) => mudar("d_seg_seguradora", e.target.value)}>
+                <option value="">— Escolha a seguradora —</option>
+                <option value="porto">Porto Seguro</option>
+                <option value="pottencial">Pottencial</option>
+                <option value="tokio">Tokio Marine</option>
+                <option value="almada">Almada</option>
+              </select>
+              <p className="text-xs text-muted-foreground">O nº da apólice pode ficar vazio até a seguradora emiti-la. Sem anexo, as chaves não são entregues.</p>
+            </div>
+          )}
+          {(d.garantia === "caucao" || d.garantia === "outras") && (
+            <div className="space-y-1">
+              <Label htmlFor="mont-tipo-caucao">Tipo de caução</Label>
+              <select id="mont-tipo-caucao" value={v.cau_tipo || ""} disabled={busy}
+                className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+                onChange={(e) => mudar("d_cau_tipo", e.target.value)}>
+                <option value="">— Escolha a modalidade —</option>
+                {d.garantia === "caucao" && <option value="dinheiro">Dinheiro</option>}
+                <option value="imovel">Imóvel caucionado</option>
+              </select>
+            </div>
+          )}
+          {d.garantia === "fiador" && <p>Matrícula: {v.fia_matricula || "—"} · Cartório: {v.fia_cartorio || "—"}</p>}
+          {d.garantia === "seguro_fianca" && !m.apolice && <p className="text-amber-700">Apólice pendente — anexe para liberar a entrega de chaves.</p>}
         </div>
       )}
       {passo === 6 && (
@@ -213,7 +257,12 @@ export function LocacaoMontarContrato({
       )}
       <div className="grid gap-3 sm:grid-cols-2">
         {Object.entries(CAMPOS_DOCUMENTO)
-          .filter(([, index]) => index === passo)
+          .filter(([key, index]) =>
+            index === passo && key !== "seg_seguradora" && key !== "cau_tipo" &&
+            (!key.startsWith("fia_") || d.garantia === "fiador") &&
+            (!CAMPOS_GARANTIA.fiador.includes(key) || d.garantia === "fiador") &&
+            (!Object.values(CAMPOS_GARANTIA).some((grupo) => grupo.includes(key)) || camposGarantiaAtivos.includes(key)),
+          )
           .map(([key]) => (
             <div key={key} className="space-y-1">
               <Label htmlFor={`mont-d-${key}`}>{key.replaceAll("_", " ")} (ficha/documentos)</Label>
@@ -229,6 +278,7 @@ export function LocacaoMontarContrato({
         {Object.entries(CAMPOS)
           .filter(([key, cfg]) => {
             if (cfg.passo !== passo) return false;
+            if ((key === "fia_imovel_endereco" || key.startsWith("fia_")) && d.garantia !== "fiador") return false;
             if (key.endsWith("_adicionais_sexo")) return false;
             if (key === "prop_sexo" && d.ficha.proprietarioPessoa === "pj") return false;
             if (key === "loc_sexo" && d.ficha.locatarioPessoa === "pj") return false;

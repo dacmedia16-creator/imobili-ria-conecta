@@ -271,6 +271,8 @@ export type LocacaoDetalhe = Locacao & {
   /** Versões da minuta, da mais nova para a mais antiga (t_f8f83f9f). */
   minutas: MinutaVersao[];
   andamentos: Andamento[];
+  anexos: { id: string; tipo: string; nomeArquivo: string; numero: string | null; enviadoEm: string }[];
+  apolicePendente: boolean;
 };
 const LEITURAS = new Set(["pendente", "ok", "falhou", "sem_leitura"]);
 
@@ -466,6 +468,10 @@ export function lerDetalhe(raw: unknown): LocacaoDetalhe {
         resolucao: sn(x.resolucao),
       };
     }),
+    anexos: arr(o.anexos).map((a) => { const x = obj(a); return {
+      id: s(x.id), tipo: s(x.tipo), nomeArquivo: s(x.nome_arquivo), numero: sn(x.numero), enviadoEm: s(x.enviado_em),
+    }; }),
+    apolicePendente: b(o.apolice_pendente),
     documentos: arr(o.documentos).map((d) => {
       const x = obj(d);
       return {
@@ -869,9 +875,11 @@ export function extensaoMinuta(nome: string): (typeof EXTENSOES_MINUTA)[number] 
     ? (ext as (typeof EXTENSOES_MINUTA)[number])
     : null;
 }
-/** Há modelo pronto no sistema só para residencial com fiador; as outras combinações dependem do anexo. */
-export function temModeloMinuta(d: { tipo: string; garantia: string }): boolean {
-  return d.tipo === "residencial" && d.garantia === "fiador";
+/** Modelos por garantia: "outras" só se os dados indicarem caução de imóvel (não título de capitalização). */
+export function temModeloMinuta(d: { tipo: string; garantia: string; contrato?: { valores?: unknown } }): boolean {
+  if (d.tipo !== "residencial" && d.tipo !== "comercial") return false;
+  if (d.garantia === "outras") return obj(d.contrato?.valores).cau_tipo === "imovel";
+  return ["fiador", "caucao", "seguro_fianca", "loft"].includes(d.garantia);
 }
 export const TAMANHO_MAX_DOC = 16 * 1024 * 1024;
 
