@@ -18,7 +18,7 @@ import {
   primeiraComLinkProibido,
   type CanalIa,
 } from "./leads-ia-canal";
-import { aquecerUmaRodada, escolherCanalAquecer, type DepsAquecer } from "./leads-aquecer";
+import { aquecerUmaRodada, canalDoChip, type DepsAquecer } from "./leads-aquecer";
 import {
   argsBusca,
   argsNome,
@@ -930,11 +930,21 @@ export async function receberReengajar(request: Request, deps: DepsReengajar): P
  * retorno de atendimento; o banco (lead_aquecer_retorno_receber) põe a mensagem na MESMA conversa do lead e as
  * respostas saem pelo chip do aquecimento (nunca pelo de atendimento).
  */
-export async function depsRetornoAquecerReais(request: Request): Promise<DepsRetorno> {
+export async function depsRetornoAquecerReais(
+  request: Request,
+  token: string,
+): Promise<DepsRetorno> {
   const base = await depsReais(request);
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const db = supabaseAdmin as unknown as SupabaseClient;
-  const { canal, chip } = escolherCanalAquecer(base.env, base.fetchFn);
+  // t_879234c7: cada link de retorno é de UM chip; as respostas saem pela chave DESSE chip (sem chave = nada sai).
+  const dono = RETORNO_TOKEN_RE.test(token)
+    ? await db.rpc("lead_aquecer_token_chip", { _token: token }).then(
+        (r) => (r.error ? null : ((r.data as string | null) ?? null)),
+        () => null,
+      )
+    : null;
+  const { canal, chip } = canalDoChip(base.env, dono, base.fetchFn);
   return {
     ...base,
     ...depsEnvioAquecer(db, chip),
@@ -989,16 +999,12 @@ export async function depsReengajarReais(request: Request): Promise<DepsReengaja
     avisos: base.avisos,
     // Migration 20261125120000 (t_a2cae373): enquanto não for aplicada, as RPCs falham e nada sai (só registra "erro").
     aquecer: {
-      preparar: async (chip) => await db.rpc("lead_aquecer_preparar", { _chip: chip }),
+      preparar: async (chips) => await db.rpc("lead_aquecer_preparar_chips", { _chips: chips }),
       resultado: async (envioId, status, erro) =>
         await db.rpc("lead_aquecer_resultado", { _envio: envioId, _status: status, _erro: erro }),
       pendentes: async (chip) => await db.rpc("lead_aquecer_pendentes", { _chip: chip }),
-      enviarPendentesLead: (leadId, canal) =>
-        enviarPendentes(leadId, {
-          ...base,
-          ...depsEnvioAquecer(db, escolherCanalAquecer(base.env, base.fetchFn).chip),
-          canalAquecer: canal,
-        }),
+      enviarPendentesLead: (leadId, canal, chip) =>
+        enviarPendentes(leadId, { ...base, ...depsEnvioAquecer(db, chip), canalAquecer: canal }),
     },
   };
 }

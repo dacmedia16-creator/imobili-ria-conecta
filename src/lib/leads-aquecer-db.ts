@@ -6,6 +6,18 @@ import { mensagemErroLead } from "@/lib/leads";
 
 const db = supabase as unknown as SupabaseClient;
 
+/** t_879234c7: um chip do aquecimento (número mascarado pelo banco). */
+export type AquecerChip = {
+  id: string;
+  chip: string;
+  pausado_em: string | null;
+  pausa_motivo: string | null;
+  retorno_em: string | null;
+  enviados_hoje: number;
+  limite_hoje: number;
+  ultimo_envio: string | null;
+};
+
 export type AquecerConfig = {
   ativo: boolean;
   dias: number;
@@ -22,6 +34,7 @@ export type AquecerConfig = {
   ia_ativa: boolean;
   ia_nome: string;
   elegiveis: number;
+  chips?: AquecerChip[];
 };
 
 export type AquecerPainel = {
@@ -94,6 +107,25 @@ export async function salvarAquecer(c: AquecerSalvar) {
 
 export async function pausarAquecer(pausar: boolean) {
   const { error } = await db.rpc("lead_aquecer_pausar", { _pausar: pausar });
+  if (error) falha(error);
+}
+
+/** t_879234c7: link do retorno de UM chip. "gerar" devolve o token UMA vez (o banco guarda só o hash). */
+export async function tokenRetornoChip(
+  chipId: string,
+  acao: "gerar" | "desligar",
+): Promise<string | null> {
+  const { data, error } = await db.rpc("lead_aquecer_chip_retorno_token", {
+    _chip_id: chipId,
+    _acao: acao,
+  });
+  if (error) falha(error);
+  return (data as string | null) ?? null;
+}
+
+/** t_879234c7: retoma UM chip pausado (a rampa dele recomeça). */
+export async function retomarChip(chipId: string) {
+  const { error } = await db.rpc("lead_aquecer_chip_retomar", { _chip_id: chipId });
   if (error) falha(error);
 }
 

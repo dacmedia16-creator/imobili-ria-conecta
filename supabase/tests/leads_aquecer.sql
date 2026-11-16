@@ -244,6 +244,8 @@ BEGIN
   INSERT INTO _t (nome, ok, info) VALUES ('modo teste nunca mexe em conversa ATIVA da Nicole (leads 13-15 pulados)', _n = 0, _n::text);
   -- Envio real (chip da A configurado no servidor e na imobiliária): pausa a conversa ativa antiga.
   UPDATE public.lead_config SET aquecer_proximo_em = NULL, aquecer_chip_numero = '15999990001' WHERE organization_id = A;
+  -- t_879234c7: chip cadastrado na tabela de chips (o envio real exige o cadastro).
+  PERFORM public.lead_aquecer_chip_adicionar(A, '15999990001');
   SELECT * INTO r FROM public.lead_aquecer_preparar('15999990001', SEG);
   IF r.envio_id IS NULL THEN
     INSERT INTO _t (nome, ok, info) VALUES ('freio erro de canal: havia lead para enviar', false, 'nenhum envio preparado');
@@ -252,10 +254,12 @@ BEGIN
       cv.estado = 'parada' AND a.conversa_id = cv.id, cv.estado
       FROM public.lead_conversas cv JOIN public.lead_aquecer a ON a.lead_id = cv.lead_id WHERE cv.lead_id = r.lead_id;
     _j := public.lead_aquecer_resultado(r.envio_id, 'falhou', 'http_403');
-    INSERT INTO _t (nome, ok, info) SELECT 'freio automatico: erro de canal (403) pausa a A na hora',
-      c.aquecer_pausado_em IS NOT NULL AND c.aquecer_pausa_motivo LIKE '%http_403%' AND _j->>'freio' = 'erro_canal'
-      AND EXISTS (SELECT 1 FROM public.notifications n WHERE n.organization_id = A AND n.titulo = 'Aquecimento de leads pausado'),
-      coalesce(c.aquecer_pausa_motivo, '-') FROM public.lead_config c WHERE c.organization_id = A;
+    INSERT INTO _t (nome, ok, info) SELECT 'freio automatico: erro de canal (403) pausa O CHIP na hora (a imobiliaria nao)',
+      k.pausado_em IS NOT NULL AND k.pausa_motivo LIKE '%http_403%' AND _j->>'freio' = 'erro_canal'
+      AND c.aquecer_pausado_em IS NULL
+      AND EXISTS (SELECT 1 FROM public.notifications n WHERE n.organization_id = A AND n.titulo = 'Chip do aquecimento pausado'),
+      coalesce(k.pausa_motivo, '-') FROM public.lead_aquecer_chips k JOIN public.lead_config c ON c.organization_id = k.organization_id
+     WHERE k.numero = '15999990001';
   END IF;
 
   -- 10) Sem fallback de canal (parte do banco) -------------------------------------------------------------------------
@@ -267,6 +271,7 @@ BEGIN
   END;
   UPDATE public.lead_config SET aquecer_pausado_em = NULL, aquecer_pausa_motivo = NULL, aquecer_proximo_em = NULL,
          aquecer_chip_numero = '15999990001' WHERE organization_id = A;
+  UPDATE public.lead_aquecer_chips SET pausado_em = NULL, pausa_motivo = NULL, proximo_em = NULL WHERE organization_id = A;
   UPDATE public.lead_aquecer_envios SET created_at = now() - interval '2 days' WHERE organization_id = A; -- limpa a janela
   SELECT * INTO r FROM public.lead_aquecer_preparar('15999990009', SEG);
   INSERT INTO _t (nome, ok, info) VALUES ('servidor com OUTRO chip: A fica em modo teste', r.envio_id IS NULL OR NOT r.modo_real,
@@ -279,6 +284,7 @@ BEGIN
     coalesce(r.modo_real::text, 'nada'));
   IF r.envio_id IS NOT NULL THEN
     UPDATE public.lead_config SET aquecer_proximo_em = NULL WHERE organization_id = A;
+    UPDATE public.lead_aquecer_chips SET proximo_em = NULL WHERE organization_id = A;
     SELECT count(*) INTO _n FROM public.lead_aquecer_preparar('15999990001', SEG) p WHERE p.modo_real;
     INSERT INTO _t (nome, ok, info) VALUES ('intervalo do chip real: 2o envio real barrado', _n = 0, _n::text);
     PERFORM public.lead_aquecer_resultado(r.envio_id, 'teste');
@@ -324,14 +330,18 @@ BEGIN
   INSERT INTO _t (nome, ok, info) VALUES ('chip do aquecimento certo reserva a resposta pendente', _n = 1, _n::text);
   PERFORM public.lead_aquecer_falha_canal('15999990001', 'http_401');
   INSERT INTO _t (nome, ok, info) SELECT 'erro de canal numa RESPOSTA pausa o chip (freio)',
-    aquecer_pausado_em IS NOT NULL AND aquecer_pausa_motivo LIKE '%http_401%', coalesce(aquecer_pausa_motivo, '-')
-    FROM public.lead_config WHERE organization_id = A;
+    pausado_em IS NOT NULL AND pausa_motivo LIKE '%http_401%', coalesce(pausa_motivo, '-')
+    FROM public.lead_aquecer_chips WHERE numero = '15999990001';
+  SELECT count(*) INTO _n FROM public.lead_aquecer_envio_reservar(_ids[1], '15999990001');
+  INSERT INTO _t (nome, ok, info) VALUES ('chip pausado: nem as respostas saem por ele', _n = 0, _n::text);
   UPDATE public.lead_aquecer SET retomado_em = now() - interval '31 days'
    WHERE id = (SELECT id FROM public.lead_aquecer WHERE lead_id = _ids[1] ORDER BY created_at DESC LIMIT 1);
   INSERT INTO _t (nome, ok, info) VALUES ('retomado ha mais de 30 dias volta ao fluxo normal (atendimento)',
     public.lead_aquecer_chip_do_lead(_ids[1]) = 'atendimento', public.lead_aquecer_chip_do_lead(_ids[1]));
   UPDATE public.lead_config SET ia_canal = 'teste', ia_envio_allowlist = '{}', aquecer_pausado_em = NULL, aquecer_pausa_motivo = NULL
    WHERE organization_id = A;
+  -- Seções 11-12 testam o modo teste (imobiliária sem chip cadastrado).
+  DELETE FROM public.lead_aquecer_chips WHERE organization_id = A;
 
   -- 11) Permissões e tela ---------------------------------------------------------------------------------------------
   BEGIN
@@ -460,6 +470,148 @@ BEGIN
   SELECT * INTO r FROM public.lead_aquecer_preparar(NULL, TER) p WHERE p.lead_id IN (SELECT id FROM public.leads WHERE organization_id = A);
   INSERT INTO _t (nome, ok, info) VALUES ('modo todos: sem restricao de lista (lembrete do 17 sai)',
     r.lead_id = _ids[2], coalesce(r.lead_id::text, 'nada'));
+
+  -- 13) Vários chips (t_879234c7) -------------------------------------------------------------------------------------
+  -- Leads 18-21 parados 40 dias (conversa da Nicole antiga e parada). Limite 1/dia POR CHIP. Quarta 10h.
+  _ids := ARRAY[]::uuid[];
+  FOR i IN 18..21 LOOP
+    INSERT INTO public.leads (organization_id, nome, telefone, origem, etapa, created_at, aceito_em)
+    VALUES (A, 'Teste Aquecer ' || i, '+55159999' || lpad(i::text, 5, '0'), 'manual', 'em_atendimento',
+            now() - interval '40 days', now() - interval '40 days') RETURNING id INTO _lead;
+    UPDATE public.lead_mensagens SET created_at = now() - interval '40 days'
+     WHERE conversa_id IN (SELECT id FROM public.lead_conversas WHERE lead_id = _lead);
+    UPDATE public.lead_conversas SET estado = 'parada', passo = 'fim', encerrada_em = now() - interval '40 days'
+     WHERE lead_id = _lead;
+    _ids := _ids || _lead;
+  END LOOP;
+  UPDATE public.lead_aquecer SET estado = 'frio', finalizado_em = now() WHERE organization_id = A AND estado IN ('enviando', 'enviado', 'lembrete', 'retomado');
+  UPDATE public.lead_aquecer_envios SET created_at = now() - interval '3 days' WHERE organization_id = A;
+  UPDATE public.lead_config SET ia_envio_modo = 'lista', ia_envio_allowlist = ARRAY['15999900018', '15999900019', '15999900020', '15999900021'],
+         aquecer_limite_dia = 1, aquecer_rampa_inicio = 1, aquecer_rampa_passo = 0, aquecer_proximo_em = NULL,
+         aquecer_pausado_em = NULL, aquecer_pausa_motivo = NULL, aquecer_freio_taxa = 0.50, aquecer_chip_numero = '15999990001'
+   WHERE organization_id = A;
+  PERFORM public.lead_aquecer_chip_adicionar(A, '15999990001');
+  PERFORM public.lead_aquecer_chip_adicionar(A, '+55 (15) 99999-0002');
+  INSERT INTO _t (nome, ok, info) SELECT '2 chips cadastrados (numero normalizado)', count(*) = 2, string_agg(numero, ',' ORDER BY numero)
+    FROM public.lead_aquecer_chips WHERE organization_id = A;
+  BEGIN
+    PERFORM public.lead_aquecer_chip_adicionar(A, '15911110000');
+    INSERT INTO _t (nome, ok, info) VALUES ('chip de aquecimento nunca igual ao chip de atendimento (cadastro)', false, 'aceitou');
+  EXCEPTION WHEN check_violation THEN
+    INSERT INTO _t (nome, ok, info) VALUES ('chip de aquecimento nunca igual ao chip de atendimento (cadastro)', true, 'recusado');
+  END;
+  BEGIN
+    PERFORM public.lead_aquecer_chip_adicionar(B, '15999990002');
+    INSERT INTO _t (nome, ok, info) VALUES ('mesmo chip nao pode estar em 2 imobiliarias', false, 'aceitou');
+  EXCEPTION WHEN unique_violation THEN
+    INSERT INTO _t (nome, ok, info) VALUES ('mesmo chip nao pode estar em 2 imobiliarias', true, 'recusado');
+  END;
+  -- Servidor sem nenhuma chave (envio real desligado): imobiliária com chip não simula nem gasta contato.
+  SELECT count(*) INTO _n FROM public.lead_aquecer_preparar_chips(NULL, '2026-11-18 13:00:00+00') p
+   WHERE p.lead_id IN (SELECT id FROM public.leads WHERE organization_id = A);
+  INSERT INTO _t (nome, ok, info) VALUES ('com chip cadastrado e sem chave no servidor: nada sai (nem simulacao)', _n = 0, _n::text);
+  -- Só a chave do chip 1 no servidor: o chip 2 (sem chave) nunca é escolhido.
+  SELECT count(*) INTO _n FROM public.lead_aquecer_preparar_chips(ARRAY['15999990001'], '2026-11-18 13:00:00+00') p
+   WHERE p.chip_numero IS DISTINCT FROM '15999990001';
+  INSERT INTO _t (nome, ok, info) VALUES ('chip sem chave no servidor nao envia', _n = 0, _n::text);
+  UPDATE public.lead_aquecer SET estado = 'frio', finalizado_em = now() WHERE lead_id = ANY (_ids);
+  DELETE FROM public.lead_aquecer_envios e USING public.lead_aquecer a WHERE e.aquecer_id = a.id AND a.lead_id = ANY (_ids);
+  DELETE FROM public.lead_aquecer WHERE lead_id = ANY (_ids);
+  UPDATE public.lead_aquecer_chips SET proximo_em = NULL WHERE organization_id = A;
+  -- Os 2 chips com chave: 1 envio por chip (divide), cada um com o próprio limite.
+  _txts := ARRAY[]::text[];
+  FOR r IN SELECT * FROM public.lead_aquecer_preparar_chips(ARRAY['15999990001', '15999990002'], '2026-11-18 13:00:00+00') p
+            WHERE p.lead_id IN (SELECT id FROM public.leads WHERE organization_id = A) LOOP
+    _txts := _txts || (r.chip_numero || '=' || r.lead_id::text);
+    PERFORM public.lead_aquecer_resultado(r.envio_id, 'enviada');
+  END LOOP;
+  INSERT INTO _t (nome, ok, info) SELECT 'envios divididos: 1 por chip, leads diferentes',
+    cardinality(_txts) = 2 AND count(DISTINCT split_part(x, '=', 1)) = 2 AND count(DISTINCT split_part(x, '=', 2)) = 2,
+    array_to_string(array_agg(split_part(x, '=', 1)), ',') FROM unnest(_txts) x;
+  UPDATE public.lead_aquecer_chips SET proximo_em = NULL WHERE organization_id = A;
+  UPDATE public.lead_config SET aquecer_proximo_em = NULL WHERE organization_id = A;
+  SELECT count(*) INTO _n FROM public.lead_aquecer_preparar_chips(ARRAY['15999990001', '15999990002'], '2026-11-18 13:00:00+00');
+  INSERT INTO _t (nome, ok, info) VALUES ('limite do dia POR CHIP (1): nada mais hoje', _n = 0, _n::text);
+  -- Lead preso ao chip: o lembrete do lead do chip 2 sai pelo chip 2 (mesmo só o chip 2 tendo vaga).
+  SELECT a.lead_id INTO _lead FROM public.lead_aquecer a WHERE a.lead_id = ANY (_ids) AND a.chip_numero = '15999990002';
+  UPDATE public.lead_aquecer SET enviado_em = now() - interval '4 days' WHERE lead_id = ANY (_ids);
+  UPDATE public.lead_aquecer_envios e SET created_at = now() - interval '2 days' FROM public.lead_aquecer a
+   WHERE e.aquecer_id = a.id AND a.lead_id = ANY (_ids);
+  SELECT * INTO r FROM public.lead_aquecer_preparar_chips(ARRAY['15999990002'], '2026-11-18 13:00:00+00');
+  INSERT INTO _t (nome, ok, info) SELECT 'lembrete sai pelo MESMO chip da 1a mensagem',
+    r.lead_id = _lead AND r.chip_numero = '15999990002' AND e.tipo = 'lembrete', coalesce(e.tipo, 'nada')
+    FROM public.lead_aquecer_envios e WHERE e.id = r.envio_id;
+  PERFORM public.lead_aquecer_resultado(r.envio_id, 'enviada');
+  -- Retorno pelo link do chip 2: só vale para lead do chip 2.
+  UPDATE public.lead_aquecer_chips SET retorno_token_hash = encode(extensions.digest('tokChip2TesteFicticio_0123456789abcdefghijklmnop', 'sha256'), 'hex'),
+         retorno_token_em = now() WHERE numero = '15999990002';
+  INSERT INTO _t (nome, ok, info) VALUES ('link do chip 2 identifica o chip 2',
+    public.lead_aquecer_token_chip('tokChip2TesteFicticio_0123456789abcdefghijklmnop') = '15999990002', '');
+  SELECT telefone INTO _x FROM public.leads WHERE id = (SELECT lead_id FROM public.lead_aquecer WHERE lead_id = ANY (_ids) AND chip_numero = '15999990001');
+  _j := public.lead_aquecer_retorno_receber('tokChip2TesteFicticio_0123456789abcdefghijklmnop',
+          jsonb_build_object('id', 'mc-1', 'telefone', _x, 'texto', 'sim'));
+  INSERT INTO _t (nome, ok, info) VALUES ('link do chip 2 nao recebe resposta de lead do chip 1', _j->>'r' = 'desconhecido', _j::text);
+  SELECT telefone INTO _x FROM public.leads WHERE id = _lead;
+  _j := public.lead_aquecer_retorno_receber('tokChip2TesteFicticio_0123456789abcdefghijklmnop',
+          jsonb_build_object('id', 'mc-2', 'telefone', _x, 'texto', 'Sim, ainda procuro'));
+  INSERT INTO _t (nome, ok, info) VALUES ('lead do chip 2 responde pelo link do chip 2: Nicole retoma',
+    _j->>'r' = 'ok' AND (_j->>'responder')::boolean AND public.lead_aquecer_chip_do_lead(_lead) = 'aquecer', _j::text);
+  SELECT * INTO _cv FROM public.lead_conversas WHERE lead_id = _lead;
+  INSERT INTO public.lead_mensagens (organization_id, conversa_id, autor, texto, status)
+  VALUES (A, _cv.id, 'ia', 'Que bom! Vou te mandar opções.', public.lead_ia_status_saida(_cv.id));
+  SELECT count(*) INTO _n FROM public.lead_aquecer_envio_reservar(_lead, '15999990001');
+  INSERT INTO _t (nome, ok, info) VALUES ('resposta da Nicole NUNCA sai pelo outro chip', _n = 0, _n::text);
+  SELECT count(*) INTO _n FROM public.lead_aquecer_pendentes('15999990001') p WHERE p.lead_id = _lead;
+  INSERT INTO _t (nome, ok, info) VALUES ('pendentes do chip 1 nao trazem lead do chip 2', _n = 0, _n::text);
+  SELECT count(*) INTO _n FROM public.lead_aquecer_pendentes('15999990002') p WHERE p.lead_id = _lead;
+  INSERT INTO _t (nome, ok, info) VALUES ('pendentes do chip 2 trazem o lead dele', _n = 1, _n::text);
+  -- Um chip pausa (403): o outro segue; a imobiliária não pausa.
+  PERFORM public.lead_aquecer_falha_canal('15999990001', 'http_403');
+  INSERT INTO _t (nome, ok, info) SELECT 'chip 1 pausado (403), chip 2 e imobiliaria seguem',
+    (SELECT pausado_em IS NOT NULL FROM public.lead_aquecer_chips WHERE numero = '15999990001')
+    AND (SELECT pausado_em IS NULL FROM public.lead_aquecer_chips WHERE numero = '15999990002')
+    AND (SELECT aquecer_pausado_em IS NULL FROM public.lead_config WHERE organization_id = A), '';
+  SELECT count(*) INTO _n FROM public.lead_aquecer_envio_reservar(_lead, '15999990002');
+  INSERT INTO _t (nome, ok, info) VALUES ('chip 2 continua respondendo com o chip 1 pausado', _n = 1, _n::text);
+  UPDATE public.lead_aquecer_envios SET created_at = now() - interval '2 days' WHERE organization_id = A;
+  UPDATE public.lead_aquecer_chips SET proximo_em = NULL WHERE organization_id = A;
+  _n := 0;
+  FOR r IN SELECT * FROM public.lead_aquecer_preparar_chips(ARRAY['15999990001', '15999990002'], '2026-11-18 13:00:00+00') LOOP
+    IF r.chip_numero = '15999990001' THEN _n := _n + 100; ELSE _n := _n + 1; END IF;
+  END LOOP;
+  INSERT INTO _t (nome, ok, info) VALUES ('chip pausado nao envia; o outro envia', _n = 1, _n::text);
+  -- Tela: lista os 2 chips mascarados e o estado de cada um.
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', ADM_A, 'role', 'authenticated')::text, true);
+  SET LOCAL ROLE authenticated;
+  _j := public.lead_aquecer_config();
+  RESET ROLE;
+  INSERT INTO _t (nome, ok, info) VALUES ('tela mostra os 2 chips mascarados, estado e link',
+    jsonb_array_length(_j->'chips') = 2 AND _j->'chips'->0->>'chip' = '(15) ****-0001' AND _j->'chips'->1->>'chip' = '(15) ****-0002'
+    AND _j->'chips'->0->>'pausado_em' IS NOT NULL AND _j->'chips'->1->>'pausado_em' IS NULL
+    AND _j->'chips'->1->>'retorno_em' IS NOT NULL AND _j::text NOT LIKE '%15999990001%', _j->>'chips');
+  SET LOCAL ROLE authenticated;
+  _x := public.lead_aquecer_chip_retorno_token((_j->'chips'->0->>'id')::uuid, 'gerar');
+  PERFORM public.lead_aquecer_chip_retomar((_j->'chips'->0->>'id')::uuid);
+  RESET ROLE;
+  INSERT INTO _t (nome, ok, info) SELECT 'admin gera link do chip 1 e retoma o chip 1',
+    public.lead_aquecer_token_chip(_x) = '15999990001' AND k.pausado_em IS NULL, coalesce(k.pausa_motivo, 'ok')
+    FROM public.lead_aquecer_chips k WHERE k.numero = '15999990001';
+  BEGIN
+    SET LOCAL ROLE authenticated;
+    PERFORM count(*) FROM public.lead_aquecer_chips;
+    _err := 'leu';
+  EXCEPTION WHEN insufficient_privilege THEN _err := '42501';
+  END;
+  RESET ROLE;
+  INSERT INTO _t (nome, ok, info) VALUES ('tabela de chips fechada ao navegador', _err = '42501', _err);
+  BEGIN
+    SET LOCAL ROLE authenticated;
+    PERFORM public.lead_aquecer_chip_adicionar(A, '15999990003');
+    _err := 'executou';
+  EXCEPTION WHEN insufficient_privilege THEN _err := '42501';
+  END;
+  RESET ROLE;
+  INSERT INTO _t (nome, ok, info) VALUES ('navegador nao cadastra chip', _err = '42501', _err);
 END $$;
 
 SELECT CASE WHEN ok THEN 'OK   ' ELSE 'FAIL ' END || nome || CASE WHEN ok THEN '' ELSE '  [' || coalesce(info, '') || ']' END FROM _t ORDER BY n;

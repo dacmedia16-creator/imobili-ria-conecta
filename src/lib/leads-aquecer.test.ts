@@ -2,7 +2,10 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import {
   aquecerUmaRodada,
+  canalDoChip,
   chipNumero,
+  chipsAquecer,
+  envChip,
   codigoResultado,
   ENV_AQUECER_CHAVE,
   ENV_AQUECER_CHIP,
@@ -30,7 +33,7 @@ const ENV_REAL = {
 };
 
 function deps(lista: Array<Record<string, unknown>>, extra: Partial<DepsAquecer> = {}) {
-  const preparar = vi.fn(async (_chip: string | null) => ({ data: lista, error: null }));
+  const preparar = vi.fn(async (_chips: string[] | null) => ({ data: lista, error: null }));
   const resultado = vi.fn(async (_id: string, _s: string, _e: string | null) => ({
     data: { ok: true, freio: null },
     error: null,
@@ -47,13 +50,21 @@ function deps(lista: Array<Record<string, unknown>>, extra: Partial<DepsAquecer>
   };
   return { d, preparar, resultado, zion };
 }
-const item = (real: boolean, id = "e1") => ({
+const item = (real: boolean, id = "e1", chip: string | null = real ? "15999990001" : null) => ({
   envio_id: id,
   lead_id: "l1",
   telefone: "5515999990011",
   texto: "Oi! Ainda está procurando?",
   modo_real: real,
+  chip_numero: chip,
 });
+// t_879234c7: 2º chip com a própria chave.
+const CHAVE2 = "chave-ficticia-aquecer-2";
+const ENV_2CHIPS = {
+  ...ENV_REAL,
+  [envChip(2).chave]: CHAVE2,
+  [envChip(2).numero]: "5515999990002",
+};
 
 describe("canal do aquecimento: separado e sem fallback", () => {
   it("sem flag/chave/chip = modo teste (nada sai)", () => {
@@ -134,7 +145,7 @@ describe("rodada do aquecimento (pg_cron a cada 5 min)", () => {
   it("envio real: só quando o BANCO marcou o envio como real, pela chave do aquecimento", async () => {
     const m = deps([item(true, "e1"), item(false, "e2")], { env: ENV_REAL });
     const r = await aquecerUmaRodada(m.d);
-    expect(m.preparar).toHaveBeenCalledWith("15999990001");
+    expect(m.preparar).toHaveBeenCalledWith(["15999990001"]);
     expect(m.zion).toHaveBeenCalledTimes(1);
     const [url, init] = m.zion.mock.calls[0];
     expect(url).toBe(ZIONTALK_SEND_URL);
@@ -146,11 +157,11 @@ describe("rodada do aquecimento (pg_cron a cada 5 min)", () => {
     expect(r).toMatchObject({ enviados: 1, teste: 1 });
   });
 
-  it("modo teste nunca envia, mesmo se o banco marcar real (defesa dupla)", async () => {
+  it("sem chave do chip no servidor nunca envia, mesmo se o banco marcar real (defesa dupla)", async () => {
     const m = deps([item(true)]);
     await aquecerUmaRodada(m.d);
     expect(m.zion).not.toHaveBeenCalled();
-    expect(m.resultado).toHaveBeenCalledWith("e1", "teste", null);
+    expect(m.resultado).toHaveBeenCalledWith("e1", "falhou", "chip_sem_chave");
   });
 
   it("falha do canal: grava 'falhou' com o código, não repete e repassa o freio do banco", async () => {
@@ -183,6 +194,7 @@ describe("rodada do aquecimento (pg_cron a cada 5 min)", () => {
     const r = await aquecerUmaRodada(real.d);
     expect(pendentes).toHaveBeenCalledWith("15999990001");
     expect((enviarPendentesLead.mock.calls[0] as unknown[])[1]).toMatchObject({ nome: "ziontalk" });
+    expect((enviarPendentesLead.mock.calls[0] as unknown[])[2]).toBe("15999990001");
     expect(r.respostas).toBe(1);
   });
 
@@ -205,6 +217,96 @@ describe("rodada do aquecimento (pg_cron a cada 5 min)", () => {
     );
     expect(r.status).toBe(200);
     expect(preparar).toHaveBeenCalledWith(null);
+  });
+});
+
+describe("vários chips (t_879234c7)", () => {
+  it("cada chip só entra com o PRÓPRIO par chave+número; flag desligada = nenhum", () => {
+    expect([...chipsAquecer(ENV_2CHIPS).keys()]).toEqual(["15999990001", "15999990002"]);
+    expect(chipsAquecer({ ...ENV_2CHIPS, [ENV_AQUECER_FLAG]: "off" }).size).toBe(0);
+    // Chip 2 sem chave (ainda não coletada): fica fora, o chip 1 segue.
+    const sem = { ...ENV_2CHIPS, [envChip(2).chave]: "" };
+    expect([...chipsAquecer(sem).keys()]).toEqual(["15999990001"]);
+    expect(canalDoChip(sem, "15999990002").chip).toBeNull();
+    expect(canalDoChip(sem, "15999990002").canal.nome).toBe("teste");
+    expect(envChip(1)).toEqual({ chave: ENV_AQUECER_CHAVE, numero: ENV_AQUECER_CHIP });
+    expect(envChip(2)).toEqual({
+      chave: "ZIONTALK_LEADS_AQUECER_API_KEY_2",
+      numero: "LEADS_AQUECER_CHIP_NUMERO_2",
+    });
+  });
+
+  it("pede ao banco os 2 chips e envia cada mensagem pela chave do chip que o banco marcou", async () => {
+    const m = deps([item(true, "e1", "15999990001"), item(true, "e2", "15999990002")], {
+      env: ENV_2CHIPS,
+    });
+    const r = await aquecerUmaRodada(m.d);
+    expect(m.preparar).toHaveBeenCalledWith(["15999990001", "15999990002"]);
+    const auth = m.zion.mock.calls.map(
+      (c) => ((c[1] as RequestInit).headers as Record<string, string>).Authorization,
+    );
+    expect(auth).toEqual([`Basic ${btoa(`${CHAVE}:`)}`, `Basic ${btoa(`${CHAVE2}:`)}`]);
+    expect(r).toMatchObject({ enviados: 2 });
+  });
+
+  it("chip que caiu (403) não impede o outro na mesma rodada", async () => {
+    const zion = vi.fn(async (_u: RequestInfo | URL, i?: RequestInit) =>
+      ((i?.headers as Record<string, string>).Authorization ?? "").includes(btoa(`${CHAVE}:`))
+        ? new Response("", { status: 403 })
+        : new Response("", { status: 201 }),
+    );
+    const m = deps([item(true, "e1", "15999990001"), item(true, "e2", "15999990002")], {
+      env: ENV_2CHIPS,
+      fetchFn: zion as unknown as typeof fetch,
+    });
+    const r = await aquecerUmaRodada(m.d);
+    expect(m.resultado).toHaveBeenNthCalledWith(1, "e1", "falhou", "http_403");
+    expect(m.resultado).toHaveBeenNthCalledWith(2, "e2", "enviada", null);
+    expect(r).toMatchObject({ enviados: 1, falhas: 1 });
+  });
+
+  it("respostas pendentes: cada chip só busca e envia os leads DELE, com a chave dele", async () => {
+    const pendentes = vi.fn(async (chip: string) => ({
+      data: [{ lead_id: chip === "15999990002" ? "lead-do-2" : "lead-do-1" }],
+      error: null,
+    }));
+    const enviarPendentesLead = vi.fn(async (_l: string, _c: unknown, _k: string) => 1);
+    const m = deps([], { env: ENV_2CHIPS, pendentes, enviarPendentesLead });
+    await aquecerUmaRodada(m.d);
+    expect(enviarPendentesLead.mock.calls.map((c) => [c[0], c[2]])).toEqual([
+      ["lead-do-1", "15999990001"],
+      ["lead-do-2", "15999990002"],
+    ]);
+  });
+
+  it("rota do retorno descobre o chip pelo token (link de cada chip)", () => {
+    expect(ROTA).toContain("depsRetornoAquecerReais(request, params.token)");
+    const SV = readFileSync("src/lib/leads-ia-retorno.server.ts", "utf8");
+    expect(SV).toContain('db.rpc("lead_aquecer_token_chip"');
+    expect(SV).toContain("canalDoChip(base.env, dono");
+    expect(SV).toContain('db.rpc("lead_aquecer_preparar_chips"');
+  });
+
+  it("migration: tabela de chips fechada ao navegador, chip 1 migrado com o mesmo link e rollback completo", () => {
+    const M = readFileSync("supabase/migrations/20261127120000_leads_aquecer_multichip.sql", "utf8");
+    const R = readFileSync(
+      "docs/sql/rollback/20261127120000_leads_aquecer_multichip.rollback.sql",
+      "utf8",
+    );
+    expect(M).toMatch(/REVOKE ALL ON public\.lead_aquecer_chips FROM PUBLIC, anon, authenticated/);
+    expect(M).toMatch(/SELECT c\.organization_id, c\.aquecer_chip_numero, c\.aquecer_retorno_token_hash/);
+    expect(M).not.toMatch(/DROP COLUMN/);
+    expect(R).toMatch(/DROP TABLE IF EXISTS public\.lead_aquecer_chips/);
+    const novas = [
+      "lead_aquecer_chip_trava",
+      "lead_aquecer_pausar_chip",
+      "lead_aquecer_preparar_chips",
+      "lead_aquecer_token_chip",
+      "lead_aquecer_chip_adicionar",
+      "lead_aquecer_chip_retorno_token",
+      "lead_aquecer_chip_retomar",
+    ];
+    for (const f of novas) expect(R).toContain(`DROP FUNCTION IF EXISTS public.${f}(`);
   });
 });
 
