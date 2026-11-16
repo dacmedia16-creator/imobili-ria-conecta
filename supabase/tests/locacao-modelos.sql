@@ -20,6 +20,8 @@ CREATE FUNCTION pg_temp.i_trava(_p jsonb) RETURNS int LANGUAGE sql AS $$
 CREATE FUNCTION pg_temp.i_comum(_p jsonb) RETURNS int LANGUAGE sql AS $$
   SELECT (n - 1)::int FROM jsonb_array_elements(_p) WITH ORDINALITY x(e, n)
    WHERE e->>'trava' IS NULL AND e->>'t' LIKE 'Cláusula%' ORDER BY n LIMIT 1 $$;
+CREATE FUNCTION pg_temp.anexo_id(_path text) RETURNS uuid LANGUAGE sql SECURITY DEFINER AS $$
+  SELECT id FROM public.locacao_anexos WHERE storage_path = _path $$;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA pg_temp TO authenticated, service_role;
 -- Locação F (fiador, mesma imobiliária) e T (título de capitalização) só para comparar.
 INSERT INTO ids SELECT k, gen_random_uuid() FROM unnest(ARRAY['F', 'T']) k;
@@ -160,9 +162,12 @@ SELECT pg_temp.ok(public.locacao_montagem_salvar(pg_temp.id('L'), '{"d_seg_segur
   'montagem grava seguradora e apólice nos dados do contrato');
 SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_montagem_salvar(%L, ''{"d_seg_seguradora":"seguradora-x"}'')', pg_temp.id('L')))
   LIKE '22023%', 'seguradora fora da lista é recusada');
+RESET ROLE; -- função interna (fechada ao navegador): confere como dono do banco
 SELECT pg_temp.ok(NOT public.locacao_contrato_valor_ok('cau_meses', '13') AND public.locacao_contrato_valor_ok('cau_meses', '3')
   AND NOT public.locacao_contrato_valor_ok('cau_valor', '-1') AND public.locacao_contrato_valor_ok('cau_tipo', 'imovel'),
   'validação dos campos de caução');
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.as_user(pg_temp.id('con')::text);
 
 -- 7) Minuta gerada guarda modelo e versão; recusa modelo errado ou desatualizado -----------------------------------
 SELECT pg_temp.arquivo('g1', public.locacao_minuta_preparar(pg_temp.id('L'), 'pdf')->>'path');
@@ -220,8 +225,8 @@ SELECT pg_temp.ok(NOT (public.locacao_detalhe(pg_temp.id('L'))->>'apolice_penden
 SELECT pg_temp.ok(public.locacao_anexo_ver((public.locacao_detalhe(pg_temp.id('L'))->'anexos'->0->>'id')::uuid)->>'path' = pg_temp.p('ap1'),
   'quem vê a locação baixa a apólice');
 SELECT pg_temp.as_user(pg_temp.id('b1')::text);
-SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_anexo_ver(%L)',
-    (SELECT id FROM public.locacao_anexos WHERE storage_path = pg_temp.p('ap1')))) LIKE '42501%', 'outra imobiliária não baixa');
+SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_anexo_ver(%L)', pg_temp.anexo_id(pg_temp.p('ap1')))) LIKE '42501%',
+  'outra imobiliária não baixa');
 SELECT pg_temp.as_user(pg_temp.id('adm')::text);
 SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_pos_acao(%L, ''entregar_chaves'')', pg_temp.id('L'))) IS NULL
   AND public.locacao_detalhe(pg_temp.id('L'))->>'chave_em' IS NOT NULL, 'com a apólice anexada, a chave é entregue');
