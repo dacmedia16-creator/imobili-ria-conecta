@@ -83,19 +83,21 @@ export const enviarAvisosLocacao = createServerFn({ method: "POST" })
         } else {
           falhas++;
           const corpo = await res.text().catch(() => "");
+          // Resposta 5xx pode ter sido enviada apesar da falha; não reenvia automaticamente.
+          const status = res.status >= 500 ? "incerto" : "falhou";
           await admin.rpc("locacao_avisos_concluir", {
             _aviso: a.aviso_id,
-            _status: "falhou",
+            _status: status,
             _erro: `${res.status} ${erroSemDadosPessoais(corpo)}`,
           });
         }
       } catch (e) {
-        // Timeout: o ZionTalk pode ter entregue. Marca "incerto" e NÃO tenta de novo (evita mensagem duplicada).
+        // A rede pode falhar após a entrega. Todo erro sem resposta confirmada fica "incerto" (sem reenvio).
         const timeout = e instanceof Error && e.name === "TimeoutError";
         falhas++;
         await admin.rpc("locacao_avisos_concluir", {
           _aviso: a.aviso_id,
-          _status: timeout ? "incerto" : "falhou",
+          _status: "incerto",
           _erro: timeout
             ? `timeout ${ZIONTALK_TIMEOUT_MS / 1000}s`
             : erroSemDadosPessoais(e instanceof Error ? e.message : String(e)),

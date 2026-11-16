@@ -532,12 +532,12 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
 #variable_conflict use_column
 BEGIN
   UPDATE public.locacao_avisos x SET status = 'expirado'
-   WHERE x.locacao_id = _id AND x.status IN ('pendente', 'falhou') AND x.criado_em < now() - interval '24 hours';
+   WHERE x.locacao_id = _id AND x.status = 'pendente' AND x.criado_em < now() - interval '24 hours';
   RETURN QUERY
   WITH alvo AS (
     SELECT a.id FROM public.locacao_avisos a
      WHERE a.locacao_id = _id AND a.criado_em >= now() - interval '24 hours'
-       AND (a.status = 'pendente' OR (a.status = 'falhou' AND a.tentativas < 3))
+       AND a.status = 'pendente'
      ORDER BY a.criado_em LIMIT least(greatest(coalesce(_limite, 5), 1), 5)
      FOR UPDATE SKIP LOCKED),
   upd AS (

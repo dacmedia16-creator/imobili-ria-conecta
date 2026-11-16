@@ -255,6 +255,11 @@ SELECT pg_temp.ok((SELECT count(*) FROM public.locacao_avisos_reservar(pg_temp.i
 SELECT pg_temp.ok((SELECT status FROM public.locacao_avisos WHERE chave = 'velho-teste') = 'expirado', 'aviso com mais de 24 h expira (não envia)');
 SELECT pg_temp.ok(public.locacao_avisos_concluir((pg_temp.j('res')->0->>'aviso_id')::uuid, 'enviado')
   AND NOT public.locacao_avisos_concluir((pg_temp.j('res')->0->>'aviso_id')::uuid, 'enviado'), 'concluir só uma vez');
+SELECT pg_temp.ok(public.locacao_avisos_concluir((pg_temp.j('res')->1->>'aviso_id')::uuid, 'falhou')
+  AND public.locacao_avisos_concluir((pg_temp.j('res')->2->>'aviso_id')::uuid, 'incerto'),
+  'falha HTTP e rede incerta ficam registradas');
+SELECT pg_temp.ok((SELECT count(*) FROM public.locacao_avisos_reservar(pg_temp.id('M'))) = 0,
+  'falha ou envio incerto não provocam reenvio duplicado');
 RESET ROLE;
 
 -- 7) Lançamento da Fernanda (item 6) -------------------------------------------------------------------------------
