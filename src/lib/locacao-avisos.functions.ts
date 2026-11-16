@@ -13,6 +13,7 @@ import {
 } from "@/lib/sale-notifications.functions";
 import {
   MAX_AVISOS_POR_CHAMADA,
+  avisosLocacaoLigados,
   motivoParaNaoEnviar,
   textoAvisoLocacao,
   type AvisoReservado,
@@ -31,6 +32,9 @@ export const enviarAvisosLocacao = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ locacaoId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
+    // Trava geral (t_3194d2d4): desligada por padrão. Sai antes de reservar, então a fila fica "pendente".
+    if (!avisosLocacaoLigados(process.env.LOCACAO_AVISOS_WHATSAPP))
+      return { enviados: 0, falhas: 0, ignorados: 0, desligado: true };
     const user = context.supabase as unknown as SupabaseClient;
     const { data: pode, error } = await user.rpc("locacao_avisos_pode", { _id: data.locacaoId });
     if (error || pode !== true) return { enviados: 0, falhas: 0, ignorados: 0 };

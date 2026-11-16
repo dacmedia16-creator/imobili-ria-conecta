@@ -13,6 +13,16 @@ export const TITULO_AVISO_LOCACAO: Record<EventoAvisoLocacao, string> = {
   andamento: "Andamento aguardando voce",
 };
 
+/**
+ * Trava do envio (t_3194d2d4): os avisos de locação só saem com a variável do Worker
+ * `LOCACAO_AVISOS_WHATSAPP` igual a "on". Ausente ou qualquer outro valor = DESLIGADO:
+ * os avisos ficam "pendente" na fila e nada é enviado. Não mexe nos avisos de vendas.
+ * Religar só com autorização do Denis (ver docs/locacao-avisos-whatsapp-religar.md).
+ */
+export function avisosLocacaoLigados(valor: string | undefined | null): boolean {
+  return valor === "on";
+}
+
 /** Máximo de avisos enviados por chamada (sem envio em massa). Igual ao limite do banco. */
 export const MAX_AVISOS_POR_CHAMADA = 5;
 

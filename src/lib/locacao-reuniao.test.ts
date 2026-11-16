@@ -17,7 +17,12 @@ import {
   type ConfigLocacao,
 } from "./locacao";
 import { faltasContrato } from "./locacao-contrato";
-import { MAX_AVISOS_POR_CHAMADA, motivoParaNaoEnviar, textoAvisoLocacao } from "./locacao-avisos";
+import {
+  MAX_AVISOS_POR_CHAMADA,
+  avisosLocacaoLigados,
+  motivoParaNaoEnviar,
+  textoAvisoLocacao,
+} from "./locacao-avisos";
 import { camposIniciais } from "./locacao-montagem";
 import {
   faltasLancamento,
@@ -239,6 +244,21 @@ describe("item 7 — aviso de WhatsApp", () => {
   });
   it("idempotência no banco: chave única por evento", () => {
     expect(MIG).toMatch(/CREATE TABLE public\.locacao_avisos[\s\S]*?UNIQUE/);
+  });
+  it("trava geral (t_3194d2d4): só envia com LOCACAO_AVISOS_WHATSAPP=on; padrão desligado", () => {
+    expect(avisosLocacaoLigados(undefined)).toBe(false);
+    expect(avisosLocacaoLigados(null)).toBe(false);
+    expect(avisosLocacaoLigados("")).toBe(false);
+    expect(avisosLocacaoLigados("off")).toBe(false);
+    expect(avisosLocacaoLigados("true")).toBe(false);
+    expect(avisosLocacaoLigados("ON")).toBe(false);
+    expect(avisosLocacaoLigados("on")).toBe(true);
+    const FN = readFileSync("src/lib/locacao-avisos.functions.ts", "utf8");
+    const iTrava = FN.indexOf("avisosLocacaoLigados(process.env.LOCACAO_AVISOS_WHATSAPP)");
+    expect(iTrava).toBeGreaterThan(0);
+    // A trava vem antes de reservar a fila e antes de ler a chave do ZionTalk: nada muda de "pendente".
+    expect(iTrava).toBeLessThan(FN.indexOf("locacao_avisos_reservar"));
+    expect(iTrava).toBeLessThan(FN.indexOf("process.env.ZIONTALK_API_KEY"));
   });
 });
 
