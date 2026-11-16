@@ -11,6 +11,7 @@ import { ListSkeleton, Pill } from "@/components/visual/base";
 import { LocacaoStepper } from "@/components/locacao/LocacaoStepper";
 import { ContratoConferencia, LocacaoDocumentacao } from "@/components/locacao/LocacaoDocumentacao";
 import { LocacaoMontarContrato } from "@/components/locacao/LocacaoMontarContrato";
+import { MinutaAndamentos, MinutaArquivos } from "@/components/locacao/LocacaoMinutaArquivos";
 import { ChecklistPartes } from "@/components/locacao/LocacaoChecklist";
 import { FichaAbertura } from "@/components/locacao/LocacaoFicha";
 import { errorMessage } from "@/lib/errors";
@@ -189,12 +190,51 @@ export function LocacaoDetalhe({ id }: { id: string }) {
   } else if (e === "minuta") {
     corpo =
       ver === atual ? (
-        <Minuta {...props} souCorretor={souCorretor} contratos={tenho("contratos")} />
+        <Minuta
+          {...props}
+          souCorretor={souCorretor}
+          contratos={tenho("contratos")}
+          recarregar={carregar}
+        />
       ) : (
-        <Aviso tom="green">Minuta aprovada{d.minuta.modelo ? ` (${d.minuta.modelo})` : ""}.</Aviso>
+        <div className="space-y-3">
+          <Aviso tom="green">
+            Minuta aprovada{d.minuta.modelo ? ` (${d.minuta.modelo})` : ""}.
+          </Aviso>
+          {d.minutas.length > 0 && (
+            <MinutaArquivos
+              d={d}
+              contratos={false}
+              busy={busy}
+              recarregar={carregar}
+              aviso={(tom, c) => <Aviso tom={tom}>{c}</Aviso>}
+            />
+          )}
+          <MinutaAndamentos d={d} contratos={false} souCorretor={false} busy={busy} rodar={rodar} />
+        </div>
       );
   } else if (e === "assinatura") {
-    corpo = <Assinatura {...props} contratos={ver === atual && tenho("contratos")} />;
+    corpo = (
+      <div className="space-y-3">
+        <Assinatura {...props} contratos={ver === atual && tenho("contratos")} />
+        {d.minutas.length > 0 && (
+          <MinutaArquivos
+            d={d}
+            contratos={false}
+            busy={busy}
+            recarregar={carregar}
+            aviso={(tom, c) => <Aviso tom={tom}>{c}</Aviso>}
+          />
+        )}
+        <MinutaAndamentos
+          d={d}
+          contratos={ver === atual && tenho("contratos")}
+          souCorretor={souCorretor && ver === atual}
+          busy={busy}
+          rodar={rodar}
+        />
+      </div>
+    );
   } else if (e === "pos_assinatura" || e === "chaves") {
     corpo = (
       <PosAssinatura
@@ -434,9 +474,17 @@ function Minuta({
   rodar,
   souCorretor,
   contratos,
-}: P & { souCorretor: boolean; contratos: boolean }) {
+  recarregar,
+}: P & { souCorretor: boolean; contratos: boolean; recarregar: () => Promise<void> }) {
   const [texto, setTexto] = useState("");
   const m = d.minuta;
+  const atual = d.minutas[0];
+  const semArquivo = !atual;
+  const travaEnvio = !d.docsCompleta
+    ? "Travado: falta documento obrigatório"
+    : semArquivo
+      ? "Travado: anexe a minuta (ou use “Gerar e guardar”) antes de enviar"
+      : undefined;
   const modelo = `${d.tipo === "comercial" ? "Comercial" : "Residencial"} — ${GARANTIA_LABEL[d.garantia]}`;
   return (
     <div className="space-y-3">
@@ -454,7 +502,11 @@ function Minuta({
         </Aviso>
       )}
       {m.estado === "com_corretor" && (
-        <Aviso tom="blue">📄 Minuta enviada ao corretor para conferir com o proprietário.</Aviso>
+        <Aviso tom="blue">
+          📄 Minuta{m.versaoEnviada ? ` v${m.versaoEnviada}` : ""} enviada ao corretor para conferir
+          com o proprietário.
+          {souCorretor && atual ? " Baixe a versão atual no quadro abaixo." : ""}
+        </Aviso>
       )}
       {m.estado === "ajuste" && (
         <Aviso tom="amber">
@@ -467,8 +519,26 @@ function Minuta({
         </Aviso>
       )}
       {m.estado === "elaborando" && (
-        <Aviso tom="blue">Setor de contratos elaborando a minuta.</Aviso>
+        <Aviso tom="blue">
+          Setor de contratos elaborando a minuta
+          {atual ? ` (v${atual.versao} guardada, ainda não enviada ao corretor)` : ""}.
+        </Aviso>
       )}
+
+      <MinutaArquivos
+        d={d}
+        contratos={contratos}
+        busy={busy}
+        recarregar={recarregar}
+        aviso={(tom, c) => <Aviso tom={tom}>{c}</Aviso>}
+      />
+      <MinutaAndamentos
+        d={d}
+        contratos={contratos}
+        souCorretor={souCorretor}
+        busy={busy}
+        rodar={rodar}
+      />
 
       {souCorretor && (m.estado === "pendencia" || m.estado === "com_corretor") && (
         <div className="space-y-2 rounded-md border p-3">
@@ -519,7 +589,7 @@ function Minuta({
         </div>
       )}
 
-      {contratos && <LocacaoMontarContrato d={d} />}
+      {contratos && <LocacaoMontarContrato d={d} onGuardada={recarregar} />}
       {contratos && (
         <div className="space-y-2 rounded-md border p-3">
           <p className="text-sm font-medium">Setor de contratos</p>
@@ -535,7 +605,8 @@ function Minuta({
                 )
               }
             />
-            ⚡ <b>Atalho:</b> minuta já veio pronta de outra RE/MAX (pular elaboração)
+            ⚡ <b>Atalho:</b> minuta já veio pronta de outra RE/MAX (pula a conferência do corretor;
+            o arquivo continua obrigatório)
           </label>
           <div className="flex flex-wrap items-end gap-2">
             <div className="min-w-[220px] flex-1 space-y-1">
@@ -581,22 +652,38 @@ function Minuta({
               corretor.
             </div>
           )}
+          {d.docsCompleta && semArquivo && (
+            <div
+              className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100"
+              data-testid="locacao-trava-sem-arquivo"
+            >
+              🔒 <b>Envio travado: ainda não há arquivo de minuta.</b> Anexe a minuta (PDF ou Word)
+              {d.tipo === "residencial" && d.garantia === "fiador"
+                ? " ou use “Gerar e guardar como minuta” no Montar contrato"
+                : ""}
+              . O corretor só recebe o que estiver guardado aqui.
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
-              disabled={busy || !d.docsCompleta}
-              title={!d.docsCompleta ? "Travado: falta documento obrigatório" : undefined}
+              disabled={busy || !!travaEnvio}
+              title={travaEnvio}
+              data-testid="locacao-enviar-minuta"
               onClick={() =>
-                void rodar(() => contratosAcao(d.id, "enviar_minuta"), "Minuta enviada ao corretor")
+                void rodar(
+                  () => contratosAcao(d.id, "enviar_minuta"),
+                  `Minuta v${atual?.versao ?? ""} liberada ao corretor`,
+                )
               }
             >
-              {m.externa
-                ? "Enviar minuta externa ao corretor"
-                : "Montar e enviar minuta ao corretor"}
+              {atual ? `Enviar minuta v${atual.versao} ao corretor` : "Enviar minuta ao corretor"}
             </Button>
             <span className="flex-1" />
             <Button
-              disabled={busy || !d.docsCompleta || !(m.estado === "aprovada" || m.externa)}
+              disabled={
+                busy || !d.docsCompleta || semArquivo || !(m.estado === "aprovada" || m.externa)
+              }
               onClick={() =>
                 void rodar(
                   () => contratosAcao(d.id, "preparar_assinatura"),
@@ -608,8 +695,9 @@ function Minuta({
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            “Preparar assinatura” libera quando a minuta está aprovada (ou quando veio pronta de
-            outra RE/MAX).
+            “Enviar” deixa a versão atual disponível para o corretor baixar nesta tela (não manda
+            e-mail nem WhatsApp). “Preparar assinatura” libera quando a minuta está aprovada (ou
+            quando veio pronta de outra RE/MAX), sempre com o arquivo guardado.
           </p>
         </div>
       )}
@@ -1042,8 +1130,7 @@ function ComissaoResumo({ d, ctx, souCorretor, busy, rodar }: P & { souCorretor:
     <div className="space-y-2">
       <Aviso tom="green">
         Chaves entregues em <b>{dataBr(d.chaveEm)}</b>. Comissão prevista para o corretor:{" "}
-        <b>{brl(r.corretor)}</b> · pagamento {dataBr(dataPagamento(d.chaveEm, ctx.config))}{" "}
-        <AConfirmar />
+        <b>{brl(r.corretor)}</b> · pagamento {dataBr(dataPagamento(d.chaveEm, ctx.config))}
       </Aviso>
       {pend.length > 0 && (
         <Aviso tom="amber">

@@ -105,11 +105,12 @@ describe("comissão (taxa → % do 1º aluguel)", () => {
       parceiro: 0,
     });
   });
-  it("data de pagamento: 1–15 → dia 8 do mês seguinte; 16–31 → dia 6; virada do ano", () => {
+  it("data de pagamento: 1–15 → dia 8 do mês seguinte; 16–31 → dia 23; virada do ano", () => {
     expect(dataPagamento("2026-10-10", CONFIG_PADRAO)).toBe("2026-11-08");
     expect(dataPagamento("2026-10-15", CONFIG_PADRAO)).toBe("2026-11-08");
-    expect(dataPagamento("2026-10-16", CONFIG_PADRAO)).toBe("2026-11-06");
-    expect(dataPagamento("2026-12-22", CONFIG_PADRAO)).toBe("2027-01-06");
+    expect(dataPagamento("2026-10-16", CONFIG_PADRAO)).toBe("2026-11-23");
+    expect(dataPagamento("2026-10-31", CONFIG_PADRAO)).toBe("2026-11-23");
+    expect(dataPagamento("2026-12-22", CONFIG_PADRAO)).toBe("2027-01-23");
     expect(
       dataPagamento("2026-10-10", {
         ...CONFIG_PADRAO,
@@ -201,7 +202,7 @@ describe("leitura fechada do banco", () => {
     expect(lerConfig({})).toMatchObject({
       pctCoordenador: 10,
       diaPagamento1a15: 8,
-      diaPagamento16a31: 6,
+      diaPagamento16a31: 23,
       chaveAntesDoLaudo: true,
     });
     const c = lerContexto({ papeis: ["gestora", "hacker"], ve_comissao: true });
@@ -397,8 +398,10 @@ describe("menu", () => {
     const tela = readFileSync("src/components/locacao/LocacaoDetalhe.tsx", "utf8");
     const regras = readFileSync("src/components/locacao/LocacaoRegras.tsx", "utf8");
     expect(tela).toContain("a confirmar");
-    // 4 campos com a marca direta + 6 caixas pelo helper chk() (que sempre põe a marca).
-    expect((regras.match(/<AConfirmar \/>/g) ?? []).length).toBeGreaterThanOrEqual(6);
+    // 2 campos com a marca direta + 6 caixas pelo helper chk() (que sempre põe a marca). Os dias de pagamento
+    // (8 e 23) foram confirmados por Denis em 16/11 (t_f8f83f9f) e não levam mais a marca.
+    expect((regras.match(/<AConfirmar \/>/g) ?? []).length).toBeGreaterThanOrEqual(4);
+    expect(regras).not.toMatch(/paga no dia\s*<AConfirmar/);
     expect((regras.match(/\{chk\(/g) ?? []).length).toBe(6);
     expect(regras).toMatch(/\{label\} <AConfirmar \/>/);
   });

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { loadCurrentAgencyBrand, logoForPdf } from "@/lib/agency-brand";
-import { lerMontagem, salvarMontagem } from "@/lib/locacao-db";
+import { guardarMinuta, lerMontagem, salvarMontagem } from "@/lib/locacao-db";
 import {
   CAMPOS,
   CAMPOS_DOCUMENTO,
@@ -25,8 +25,11 @@ import { linhasPessoas, parseSexos } from "@/lib/locacao-concordancia";
 
 export function LocacaoMontarContrato({
   d,
+  onGuardada,
 }: {
   d: LocacaoBase & { id: string; docsCompleta: boolean };
+  /** Chamado depois de "Gerar e guardar" (a tela recarrega as versões da minuta). */
+  onGuardada?: () => void | Promise<void>;
 }) {
   const [m, setM] = useState<Montagem | null>(null);
   const [valores, setValores] = useState<Record<string, string>>({});
@@ -57,13 +60,8 @@ export function LocacaoMontarContrato({
         🔒 Montar contrato travado: documentos obrigatórios pendentes.
       </p>
     );
-  if (d.tipo !== "residencial" || d.garantia !== "fiador")
-    return (
-      <p className="text-sm">
-        Modelo disponível apenas para locação residencial com fiador. Outros modelos dependem de
-        definição.
-      </p>
-    );
+  // Sem modelo para esta combinação: o aviso claro fica no quadro "Minuta" (anexar a minuta feita por fora).
+  if (d.tipo !== "residencial" || d.garantia !== "fiador") return null;
   if (erro)
     return (
       <p role="alert" className="text-sm text-destructive">
@@ -93,28 +91,32 @@ export function LocacaoMontarContrato({
       setBusy(false);
     }
   };
+  const nomePdf = `contrato-${d.codigo.replace(/[^a-zA-Z0-9-]/g, "-")}.pdf`;
+  // Revalida a trava no servidor imediatamente antes de gerar e usa somente os dados salvos.
+  const montarPdf = async (): Promise<Blob> => {
+    const fresh = (await lerMontagem(d.id)) as Montagem;
+    const paragrafos = textoContrato(d, fresh, camposIniciais(d, fresh));
+    const [fonteResposta, negritoResposta, brand] = await Promise.all([
+      fetch(fonteUrl),
+      fetch(negritoUrl),
+      loadCurrentAgencyBrand().catch(() => null),
+    ]);
+    if (!fonteResposta.ok) throw new Error("Fonte do PDF indisponível");
+    const logo = await logoForPdf(brand?.pdfLogoUrl ?? "/remax-logo-transparent.png");
+    const bytes = await gerarPdfContrato(paragrafos, await fonteResposta.arrayBuffer(), {
+      negrito: negritoResposta.ok ? await negritoResposta.arrayBuffer() : undefined,
+      logo,
+    });
+    return new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+  };
   const pdf = async () => {
     setBusy(true);
     try {
-      // Revalida a trava no servidor imediatamente antes de gerar e usa somente os dados salvos.
-      const fresh = (await lerMontagem(d.id)) as Montagem;
-      const paragrafos = textoContrato(d, fresh, camposIniciais(d, fresh));
-      const [fonteResposta, negritoResposta, brand] = await Promise.all([
-        fetch(fonteUrl),
-        fetch(negritoUrl),
-        loadCurrentAgencyBrand().catch(() => null),
-      ]);
-      if (!fonteResposta.ok) throw new Error("Fonte do PDF indisponível");
-      const logo = await logoForPdf(brand?.pdfLogoUrl ?? "/remax-logo-transparent.png");
-      const bytes = await gerarPdfContrato(paragrafos, await fonteResposta.arrayBuffer(), {
-        negrito: negritoResposta.ok ? await negritoResposta.arrayBuffer() : undefined,
-        logo,
-      });
-      const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+      const blob = await montarPdf();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `contrato-${d.codigo.replace(/[^a-zA-Z0-9-]/g, "-")}-conferencia.pdf`;
+      a.download = nomePdf.replace(/\.pdf$/, "-conferencia.pdf");
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -125,13 +127,26 @@ export function LocacaoMontarContrato({
       setBusy(false);
     }
   };
+  const guardar = async () => {
+    setBusy(true);
+    try {
+      const v = await guardarMinuta(d.id, await montarPdf(), nomePdf, "gerada");
+      toast.success(`Minuta v${v} guardada. Agora é só enviar ao corretor.`);
+      await onGuardada?.();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao guardar a minuta");
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <section className="space-y-4 rounded-lg border p-4" data-testid="locacao-montar-contrato">
       <header>
         <h3 className="font-semibold">Montar contrato — residencial com fiador</h3>
         <p className="text-xs text-muted-foreground">
-          Rascunho para conferência. Não gera cobrança, repasse ou assinatura. Condições divergentes
-          do modelo exigem revisão jurídica.
+          Monte, confira e use “Gerar e guardar”: o PDF vira uma versão da minuta que o corretor
+          baixa. Não gera cobrança, repasse ou assinatura. Condições divergentes do modelo exigem
+          revisão jurídica.
         </p>
       </header>
       <nav aria-label="Passos do contrato" className="flex flex-wrap gap-1">
@@ -348,8 +363,19 @@ export function LocacaoMontarContrato({
         <Button disabled={busy || !dirty} onClick={() => void salvar()}>
           Salvar correções
         </Button>
-        <Button disabled={busy || dirty || faltas.length > 0} onClick={() => void pdf()}>
-          Gerar PDF para conferência
+        <Button
+          variant="outline"
+          disabled={busy || dirty || faltas.length > 0}
+          onClick={() => void pdf()}
+        >
+          Baixar PDF para conferência
+        </Button>
+        <Button
+          disabled={busy || dirty || faltas.length > 0}
+          onClick={() => void guardar()}
+          data-testid="montagem-gerar-guardar"
+        >
+          Gerar e guardar como minuta
         </Button>
       </footer>
     </section>

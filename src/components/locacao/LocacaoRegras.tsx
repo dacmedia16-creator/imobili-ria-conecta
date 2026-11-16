@@ -171,9 +171,7 @@ export function LocacaoRegras({ config, onSalvo }: { config: ConfigLocacao; onSa
             {chk("parceriaDividePorDois", "Parceria: aluguel ÷ 2 × %")}
           </div>
           <div className="space-y-1">
-            <Label htmlFor="cfg-d1">
-              Chave entregue de 1 a 15 → paga no dia <AConfirmar />
-            </Label>
+            <Label htmlFor="cfg-d1">Chave entregue de 1 a 15 → paga no dia</Label>
             <Input
               id="cfg-d1"
               inputMode="numeric"
@@ -184,9 +182,7 @@ export function LocacaoRegras({ config, onSalvo }: { config: ConfigLocacao; onSa
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="cfg-d2">
-              Chave entregue de 16 a 31 → paga no dia <AConfirmar />
-            </Label>
+            <Label htmlFor="cfg-d2">Chave entregue de 16 a 31 → paga no dia</Label>
             <Input
               id="cfg-d2"
               inputMode="numeric"
@@ -196,7 +192,7 @@ export function LocacaoRegras({ config, onSalvo }: { config: ConfigLocacao; onSa
               }
             />
             <p className="text-xs text-muted-foreground">
-              Houve menção a “dia 23”: basta pôr 23 nos dois campos.
+              Padrão: dia 8 (chaves de 1 a 15) e dia 23 (de 16 a 31), no mês seguinte.
             </p>
           </div>
           <div className="space-y-2">

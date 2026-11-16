@@ -142,6 +142,8 @@ export type Locacao = {
     modelo: string | null;
     ajusteData: string | null;
     ajusteMotivo: string | null;
+    /** Versão (v1, v2…) do arquivo enviado ao corretor (t_f8f83f9f). */
+    versaoEnviada: number | null;
   };
   assinatura: {
     enviadoEm: string | null;
@@ -221,6 +223,34 @@ export type ContratoDados = {
   origem: unknown;
   faltando: string[];
 };
+/** Arquivo da minuta guardado no sistema (t_f8f83f9f): cada envio vira uma versão. */
+export type MinutaVersao = {
+  id: string;
+  versao: number;
+  origem: "anexo" | "gerada" | "externa";
+  nomeArquivo: string;
+  enviadoEm: string;
+  enviadoPorNome: string | null;
+};
+export type Aguardando = "proprietario" | "locatario" | "corretor" | "seguradora";
+export const AGUARDANDO_LABEL: Record<Aguardando, string> = {
+  proprietario: "proprietário",
+  locatario: "locatário",
+  corretor: "corretor",
+  seguradora: "seguradora",
+};
+/** Registro de andamento do setor de contratos (t_f8f83f9f): não muda a situação da minuta. */
+export type Andamento = {
+  id: string;
+  etapa: string;
+  texto: string;
+  aguardando: Aguardando | null;
+  criadoEm: string;
+  criadoPorNome: string | null;
+  resolvidoEm: string | null;
+  resolvidoPorNome: string | null;
+  resolucao: string | null;
+};
 /** Checklist de uma parte (Locatário PF/PJ, garantia, Proprietário PF/PJ) — t_28e583e2. */
 export type ParteChecklist = {
   parte: string;
@@ -238,6 +268,9 @@ export type LocacaoDetalhe = Locacao & {
   /** Todos os documentos obrigatórios entregues (a trava do "Montar contrato" libera). */
   docsCompleta: boolean;
   captadorNome: string | null;
+  /** Versões da minuta, da mais nova para a mais antiga (t_f8f83f9f). */
+  minutas: MinutaVersao[];
+  andamentos: Andamento[];
 };
 const LEITURAS = new Set(["pendente", "ok", "falhou", "sem_leitura"]);
 
@@ -363,6 +396,7 @@ export function lerLocacao(raw: unknown): Locacao {
       modelo: sn(m.modelo),
       ajusteData: sn(m.ajuste_data),
       ajusteMotivo: sn(m.ajuste_motivo),
+      versaoEnviada: n(m.versao_enviada) || null,
     },
     assinatura: {
       enviadoEm: sn(a.enviado_em),
@@ -400,6 +434,38 @@ export function lerDetalhe(raw: unknown): LocacaoDetalhe {
     partes: lerPartes(o.partes),
     docsCompleta: o.docs_completa === undefined ? arr(o.faltando).length === 0 : b(o.docs_completa),
     captadorNome: sn(o.captador_nome),
+    minutas: arr(o.minutas)
+      .map((v) => {
+        const x = obj(v);
+        const origem = s(x.origem);
+        return {
+          id: s(x.id),
+          versao: n(x.versao),
+          origem: (origem === "gerada" || origem === "externa"
+            ? origem
+            : "anexo") as MinutaVersao["origem"],
+          nomeArquivo: s(x.nome_arquivo) || "minuta",
+          enviadoEm: s(x.enviado_em),
+          enviadoPorNome: sn(x.enviado_por_nome),
+        };
+      })
+      .filter((v) => v.id && v.versao > 0)
+      .sort((a, b) => b.versao - a.versao),
+    andamentos: arr(o.andamentos).map((a) => {
+      const x = obj(a);
+      const ag = s(x.aguardando);
+      return {
+        id: s(x.id),
+        etapa: s(x.etapa),
+        texto: s(x.texto),
+        aguardando: ag in AGUARDANDO_LABEL ? (ag as Aguardando) : null,
+        criadoEm: s(x.criado_em),
+        criadoPorNome: sn(x.criado_por_nome),
+        resolvidoEm: sn(x.resolvido_em),
+        resolvidoPorNome: sn(x.resolvido_por_nome),
+        resolucao: sn(x.resolucao),
+      };
+    }),
     documentos: arr(o.documentos).map((d) => {
       const x = obj(d);
       return {
@@ -460,7 +526,7 @@ export const CONFIG_PADRAO: ConfigLocacao = {
   parceriaDividePorDois: true,
   coordenadorNaParceria: true,
   diaPagamento1a15: 8,
-  diaPagamento16a31: 6,
+  diaPagamento16a31: 23,
   reprovadaVoltaAoCorretor: true,
   chaveAntesDoLaudo: true,
   seguroIncendioObrigatorio: false,
@@ -481,8 +547,8 @@ export function lerConfig(raw: unknown): ConfigLocacao {
     coordenadorSaiDoCorretor: bool("coordenador_sai_do_corretor", true),
     parceriaDividePorDois: bool("parceria_divide_por_dois", true),
     coordenadorNaParceria: bool("coordenador_na_parceria", true),
-    diaPagamento1a15: num("dia_pagamento_1a15", 8),
-    diaPagamento16a31: num("dia_pagamento_16a31", 6),
+    diaPagamento1a15: num("dia_pagamento_1a15", CONFIG_PADRAO.diaPagamento1a15),
+    diaPagamento16a31: num("dia_pagamento_16a31", CONFIG_PADRAO.diaPagamento16a31),
     reprovadaVoltaAoCorretor: bool("reprovada_volta_ao_corretor", true),
     chaveAntesDoLaudo: bool("chave_antes_do_laudo", true),
     seguroIncendioObrigatorio: bool("seguro_incendio_obrigatorio", false),
@@ -795,6 +861,18 @@ export function textoParaDocs(texto: string): Record<string, string[]> {
 }
 
 export const EXTENSOES_DOC = ["pdf", "jpg", "jpeg", "png", "webp"] as const;
+/** Minuta: PDF ou Word (t_f8f83f9f). O banco e o bucket repetem a regra. */
+export const EXTENSOES_MINUTA = ["pdf", "doc", "docx"] as const;
+export function extensaoMinuta(nome: string): (typeof EXTENSOES_MINUTA)[number] | null {
+  const ext = nome.split(".").pop()?.toLowerCase() ?? "";
+  return (EXTENSOES_MINUTA as readonly string[]).includes(ext)
+    ? (ext as (typeof EXTENSOES_MINUTA)[number])
+    : null;
+}
+/** Há modelo pronto no sistema só para residencial com fiador; as outras combinações dependem do anexo. */
+export function temModeloMinuta(d: { tipo: string; garantia: string }): boolean {
+  return d.tipo === "residencial" && d.garantia === "fiador";
+}
 export const TAMANHO_MAX_DOC = 16 * 1024 * 1024;
 
 /** Extensão aceita do arquivo escolhido (ou null). O bucket repete o limite de tipo e tamanho. */
