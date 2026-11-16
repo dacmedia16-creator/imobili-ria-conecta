@@ -106,7 +106,12 @@ describe("migration × rollback", () => {
     expect(c).toContain("IF _acao IN ('enviar_minuta', 'preparar_assinatura') THEN");
   });
   it("rollback devolve as funções redefinidas e apaga as novas", () => {
-    for (const fn of ["locacao_contratos_acao", "locacao_detalhe", "locacao_cfg"]) {
+    for (const fn of [
+      "locacao_contratos_acao",
+      "locacao_detalhe",
+      "locacao_cfg",
+      "locacao_corretor_minuta",
+    ]) {
       expect(corpo(RB, fn)).not.toBe("");
       expect(corpo(RB, fn)).not.toBe(corpo(MIG, fn));
     }

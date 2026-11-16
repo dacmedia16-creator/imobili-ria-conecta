@@ -8,7 +8,14 @@ CREATE TEMP TABLE mp(k text PRIMARY KEY, path text);
 GRANT ALL ON mp TO authenticated, service_role;
 CREATE FUNCTION pg_temp.arquivo(_k text, _path text) RETURNS text LANGUAGE sql SECURITY DEFINER AS $$
   INSERT INTO mp VALUES (_k, _path) ON CONFLICT (k) DO UPDATE SET path = EXCLUDED.path;
-  INSERT INTO storage.objects (bucket_id, name, owner) VALUES ('locacao-documentos', _path, NULL);
+  INSERT INTO storage.objects (bucket_id, name, owner, metadata) VALUES ('locacao-documentos', _path, NULL,
+    jsonb_build_object('mimetype', CASE WHEN _path LIKE '%.pdf' THEN 'application/pdf'
+      WHEN _path LIKE '%.doc' THEN 'application/msword' ELSE 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' END));
+  SELECT _path $$;
+CREATE FUNCTION pg_temp.arquivo_falso(_k text, _path text) RETURNS text LANGUAGE sql SECURITY DEFINER AS $$
+  INSERT INTO mp VALUES (_k, _path) ON CONFLICT (k) DO UPDATE SET path = EXCLUDED.path;
+  INSERT INTO storage.objects (bucket_id, name, owner, metadata) VALUES ('locacao-documentos', _path, NULL,
+    '{"mimetype":"text/html"}'::jsonb);
   SELECT _path $$;
 CREATE FUNCTION pg_temp.p(_k text) RETURNS text LANGUAGE sql AS $$ SELECT path FROM mp WHERE k = _k $$;
 CREATE FUNCTION pg_temp.ev(_l uuid, _like text) RETURNS boolean LANGUAGE sql SECURITY DEFINER AS $$
@@ -80,7 +87,10 @@ SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_minuta_registrar(%L,
 -- 4) v1 (Word anexado por fora) → envio ao corretor -----------------------------------------------------------------
 SELECT pg_temp.arquivo('v1', public.locacao_minuta_preparar(pg_temp.id('L'), 'docx')->>'path');
 SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_minuta_registrar(%L, %L, ''m.docx'', ''gerada'')', pg_temp.id('L'),
-  pg_temp.p('v1'))) LIKE '22023%gerada%PDF%', '"Gerar e guardar" só aceita PDF');
+  pg_temp.p('v1'))) LIKE '22023%residencial com fiador%', '"Gerar e guardar" recusado fora do modelo (seguro-fiança, Word)');
+SELECT pg_temp.arquivo_falso('falso', public.locacao_minuta_preparar(pg_temp.id('L'), 'pdf')->>'path');
+SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_minuta_registrar(%L, %L, ''m.pdf'', ''anexo'')', pg_temp.id('L'),
+  pg_temp.p('falso'))) LIKE '22023%tipo do arquivo%', 'arquivo com tipo real diferente da extensão é recusado');
 SELECT pg_temp.ok((public.locacao_minuta_registrar(pg_temp.id('L'), pg_temp.p('v1'), 'Minuta seguro-fiança (fictícia).docx', 'anexo')->>'versao')::int = 1,
   'anexo vira a versão v1');
 SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_minuta_registrar(%L, %L, ''x.docx'', ''anexo'')', pg_temp.id('L'),
@@ -150,10 +160,10 @@ SELECT pg_temp.ok((SELECT count(*) FROM jsonb_array_elements(pg_temp.j('det')->'
 SELECT public.locacao_contratos_acao(pg_temp.id('L'), 'marcar_ajuste', '{"texto":"Proprietário pediu cláusula de pintura"}');
 SELECT pg_temp.ok(public.locacao_detalhe(pg_temp.id('L'))->'minuta'->>'estado' = 'ajuste', 'Marcar em ajuste: igual');
 SELECT pg_temp.arquivo('v2', public.locacao_minuta_preparar(pg_temp.id('L'), 'pdf')->>'path');
-SELECT pg_temp.ok((public.locacao_minuta_registrar(pg_temp.id('L'), pg_temp.p('v2'), 'contrato-LOC-gerado.pdf', 'gerada')->>'versao')::int = 2,
-  '"Gerar e guardar" vira a versão v2');
+SELECT pg_temp.ok((public.locacao_minuta_registrar(pg_temp.id('L'), pg_temp.p('v2'), 'minuta-ajustada.pdf', 'anexo')->>'versao')::int = 2,
+  'versão ajustada vira a v2');
 SELECT pg_temp.ok(public.locacao_detalhe(pg_temp.id('L'))->'minuta'->>'estado' = 'ajuste'
-  AND pg_temp.ev(pg_temp.id('L'), 'Minuta v2 gerada pelo modelo e guardada%'), 'v2 guardada; o "em ajuste" só sai quando reenviar');
+  AND pg_temp.ev(pg_temp.id('L'), 'Minuta v2 anexada%'), 'v2 guardada; o "em ajuste" só sai quando reenviar');
 SELECT public.locacao_contratos_acao(pg_temp.id('L'), 'cobrar_pendencia', '{"texto":"Falta o e-mail do proprietário"}');
 SELECT pg_temp.ok(public.locacao_detalhe(pg_temp.id('L'))->'minuta'->>'estado' = 'pendencia', 'Cobrar pendência: igual');
 SELECT pg_temp.as_user(pg_temp.id('c2')::text);
@@ -164,7 +174,11 @@ SELECT pg_temp.ok((public.locacao_detalhe(pg_temp.id('L'))->'minuta'->>'versao_e
 SELECT pg_temp.as_user(pg_temp.id('c2')::text);
 SELECT pg_temp.ok((SELECT array_agg((m->>'versao')::int) FROM jsonb_array_elements(public.locacao_detalhe(pg_temp.id('L'))->'minutas') m)
   = ARRAY[2, 1], 'corretor vê a versão atual (v2) e o histórico (v1)');
-SELECT public.locacao_corretor_minuta(pg_temp.id('L'), 'de_acordo');
+SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_corretor_minuta(%L, ''de_acordo'', ''1'')', pg_temp.id('L')))
+  LIKE '22023%mudou (agora é a v2)%', '"de acordo" com a tela velha (v1) é recusado: a v2 foi enviada depois');
+SELECT public.locacao_corretor_minuta(pg_temp.id('L'), 'de_acordo', '2');
+SELECT pg_temp.ok((public.locacao_detalhe(pg_temp.id('L'))->'minuta'->>'versao_aprovada')::int = 2
+  AND pg_temp.ev(pg_temp.id('L'), 'Corretor/proprietário de acordo com a minuta v2'), '"de acordo" registra a versão aprovada (v2)');
 SELECT pg_temp.as_user(pg_temp.id('con')::text);
 SELECT pg_temp.arquivo('v3', public.locacao_minuta_preparar(pg_temp.id('L'), 'pdf')->>'path');
 SELECT public.locacao_minuta_registrar(pg_temp.id('L'), pg_temp.p('v3'), 'v3.pdf', 'anexo');
@@ -183,6 +197,35 @@ SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_minuta_preparar(%L, 
   'fora da etapa Minuta não anexa');
 SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_andamento_registrar(%L, ''Aguardando DocuSign do locador'', ''proprietario'')',
   pg_temp.id('L'))) IS NULL, 'andamento também na etapa Assinatura');
+RESET ROLE;
+UPDATE public.locacoes SET etapa = 'pos_assinatura' WHERE id = pg_temp.id('L');
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.as_user(pg_temp.id('con')::text);
+SELECT pg_temp.ok(public.locacao_andamento_resolver((SELECT (a->>'id')::uuid FROM jsonb_array_elements(public.locacao_detalhe(pg_temp.id('L'))->'andamentos') a
+  WHERE a->>'texto' LIKE 'Aguardando DocuSign%')), 'pendência aberta ainda pode ser resolvida depois da assinatura');
+
+-- 7a) "Gerar e guardar" na locação com fiador (tem modelo)
+RESET ROLE;
+INSERT INTO public.locacoes (organization_id, corretor_id, etapa, endereco, aluguel, garantia, tipo, minuta)
+VALUES (pg_temp.id('orgA'), pg_temp.id('c2'), 'minuta', 'Rua Fiador, 3 (fictícia)', 1900, 'fiador', 'residencial',
+        '{"estado":"elaborando","externa":false}') RETURNING pg_temp.setid('G', id);
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.as_user(pg_temp.id('con')::text);
+SELECT pg_temp.arquivo('g1', public.locacao_minuta_preparar(pg_temp.id('G'), 'pdf')->>'path');
+SELECT pg_temp.ok((public.locacao_minuta_registrar(pg_temp.id('G'), pg_temp.p('g1'), 'contrato-LOC-gerado.pdf', 'gerada')->>'versao')::int = 1
+  AND pg_temp.ev(pg_temp.id('G'), 'Minuta v1 gerada pelo modelo e guardada%'), '"Gerar e guardar" no fiador vira a v1 (gerada pelo modelo)');
+
+-- 7b) Locação que já estava "com o corretor" sem arquivo (caso da nº 12 em produção, que NÃO é alterada)
+RESET ROLE;
+INSERT INTO public.locacoes (organization_id, corretor_id, etapa, endereco, aluguel, garantia, tipo, minuta)
+VALUES (pg_temp.id('orgA'), pg_temp.id('c2'), 'minuta', 'Rua Antiga, 12 (fictícia)', 2000, 'seguro_fianca', 'residencial',
+        '{"estado":"com_corretor","externa":false,"modelo":"Residencial — Seguro-fiança"}') RETURNING pg_temp.setid('V', id);
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.as_user(pg_temp.id('c2')::text);
+SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_corretor_minuta(%L, ''de_acordo'')', pg_temp.id('V')))
+  LIKE '22023%Ainda não há arquivo de minuta%', 'locação antiga "com o corretor" sem arquivo: o corretor não aprova o nada');
+SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_corretor_minuta(%L, ''pedir_ajuste'', ''Proprietário quer revisar'')', pg_temp.id('V'))) IS NULL,
+  'mas ainda pode pedir ajuste (volta para o setor de contratos)');
 
 -- 8) Atalho "minuta pronta de outra RE/MAX" com o arquivo anexado -------------------------------------------------
 RESET ROLE;

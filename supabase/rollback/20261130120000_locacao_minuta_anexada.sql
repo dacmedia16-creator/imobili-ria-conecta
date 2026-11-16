@@ -1,5 +1,5 @@
 -- Desfaz 20261130120000_locacao_minuta_anexada (t_f8f83f9f). Rodar em transação, DEPOIS de voltar o código do site.
--- 1) locacao_contratos_acao, locacao_detalhe e locacao_cfg voltam com o texto exato de antes.
+-- 1) locacao_contratos_acao, locacao_detalhe, locacao_cfg e locacao_corretor_minuta voltam com o texto exato de antes.
 -- 2) As funções novas da minuta e do andamento saem.
 -- 3) As tabelas locacao_minutas e locacao_andamentos só são apagadas se estiverem VAZIAS. Se já houver minuta ou
 --    andamento registrado, elas ficam (RLS ligada, sem acesso pelo navegador) e os arquivos continuam no bucket:
@@ -141,6 +141,31 @@ BEGIN
                         FROM jsonb_each(public.locacao_docs_padrao()) e WHERE right(e.key, 3) = '_pj') || _c.documentos;
   END IF;
   RETURN _c;
+END $$;
+
+-- locacao_corretor_minuta: texto de 20261110120000_locacao_fase1.sql
+CREATE OR REPLACE FUNCTION public.locacao_corretor_minuta(_id uuid, _acao text, _texto text DEFAULT NULL) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
+DECLARE _l public.locacoes := public.locacao_pega(_id); _m jsonb; _t text := nullif(btrim(coalesce(_texto, '')), '');
+BEGIN
+  PERFORM public.locacao_exige(_l, ARRAY['minuta'], 'corretor');
+  _m := _l.minuta;
+  IF _acao = 'resolver_pendencia' AND _m->>'estado' = 'pendencia' THEN
+    _m := _m || jsonb_build_object('estado', 'elaborando', 'pendencia', NULL);
+    PERFORM public.locacao_evento(_l, 'corretor', 'Pendência resolvida' || coalesce(': ' || _t, ''));
+  ELSIF _acao = 'de_acordo' AND _m->>'estado' = 'com_corretor' THEN
+    _m := _m || jsonb_build_object('estado', 'aprovada');
+    PERFORM public.locacao_evento(_l, 'corretor', 'Corretor/proprietário de acordo com a minuta');
+  ELSIF _acao = 'pedir_ajuste' AND _m->>'estado' = 'com_corretor' THEN
+    IF _t IS NULL OR length(_t) < 5 THEN RAISE EXCEPTION 'Descreva o ajuste pedido.' USING ERRCODE = '22023'; END IF;
+    _m := _m || jsonb_build_object('estado', 'ajuste', 'ajuste_data', (now() AT TIME ZONE 'America/Sao_Paulo')::date,
+      'ajuste_motivo', left(_t, 500));
+    PERFORM public.locacao_evento(_l, 'corretor', 'Minuta EM AJUSTE (pedido do proprietário): ' || _t);
+  ELSE
+    RAISE EXCEPTION 'Ação não disponível agora.' USING ERRCODE = '22023';
+  END IF;
+  UPDATE public.locacoes SET minuta = _m, etapa_desde = now(), atualizado_em = now() WHERE id = _id;
+  RETURN jsonb_build_object('ok', true);
 END $$;
 
 DROP FUNCTION IF EXISTS public.locacao_minuta_preparar(uuid, text);

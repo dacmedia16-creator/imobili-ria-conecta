@@ -12,6 +12,8 @@
 --  * Trava: "Enviar minuta ao corretor" (locacao_contratos_acao/enviar_minuta) e "Preparar assinatura" (inclusive com o
 --    atalho "minuta pronta de outra RE/MAX") recusam sem arquivo de minuta. Anexar uma versão nova depois do envio
 --    volta a minuta para "elaborando" (o corretor confere a versão nova).
+--  * O corretor só dá "de acordo" quando há arquivo enviado, e o "de acordo" vale para a versão que ele viu na tela
+--    (se o setor de contratos mandou outra versão nesse meio-tempo, o banco recusa e pede para recarregar).
 --  * Tabela nova locacao_andamentos: nota livre do setor de contratos com "aguardando quem" (proprietário, locatário,
 --    corretor ou seguradora), sem mudar a situação da minuta. Fica aberta até alguém resolver; o corretor vê a lista e
 --    resolve as que aguardam o corretor. "Cobrar pendência" e "Marcar em ajuste" continuam iguais.
@@ -23,7 +25,7 @@ BEGIN;
 SELECT set_config('lock_timeout', '5s', true);
 
 -- 1) Tabelas --------------------------------------------------------------------------------------------------------
-CREATE TABLE public.locacao_minutas (
+CREATE TABLE IF NOT EXISTS public.locacao_minutas (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   locacao_id uuid NOT NULL REFERENCES public.locacoes(id) ON DELETE CASCADE,
@@ -36,7 +38,7 @@ CREATE TABLE public.locacao_minutas (
   CONSTRAINT locacao_minutas_versao_unica UNIQUE (locacao_id, versao)
 );
 
-CREATE TABLE public.locacao_andamentos (
+CREATE TABLE IF NOT EXISTS public.locacao_andamentos (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   locacao_id uuid NOT NULL REFERENCES public.locacoes(id) ON DELETE CASCADE,
@@ -51,7 +53,7 @@ CREATE TABLE public.locacao_andamentos (
   resolucao text CONSTRAINT locacao_andamentos_resolucao_check CHECK (resolucao IS NULL OR length(resolucao) <= 500),
   CONSTRAINT locacao_andamentos_resolvido_check CHECK (resolvido_em IS NULL OR aguardando IS NOT NULL)
 );
-CREATE INDEX locacao_andamentos_loc_idx ON public.locacao_andamentos (locacao_id, criado_em);
+CREATE INDEX IF NOT EXISTS locacao_andamentos_loc_idx ON public.locacao_andamentos (locacao_id, criado_em);
 
 ALTER TABLE public.locacao_minutas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.locacao_andamentos ENABLE ROW LEVEL SECURITY;
@@ -124,8 +126,15 @@ BEGIN
      OR NOT EXISTS (SELECT 1 FROM storage.objects o WHERE o.bucket_id = 'locacao-documentos' AND o.name = _path) THEN
     RAISE EXCEPTION 'Arquivo da minuta não encontrado.' USING ERRCODE = '22023';
   END IF;
-  IF _origem = 'gerada' AND _path !~ '[.]pdf$' THEN
-    RAISE EXCEPTION 'A minuta gerada pelo modelo é PDF.' USING ERRCODE = '22023';
+  IF _origem = 'gerada' AND (_path !~ '[.]pdf$' OR _l.tipo <> 'residencial' OR _l.garantia <> 'fiador') THEN
+    RAISE EXCEPTION 'Só a locação residencial com fiador tem modelo para gerar a minuta (PDF).' USING ERRCODE = '22023';
+  END IF;
+  -- Tipo real gravado no storage tem de bater com a extensão (o navegador declara o tipo no upload).
+  IF (SELECT o.metadata->>'mimetype' FROM storage.objects o WHERE o.bucket_id = 'locacao-documentos' AND o.name = _path)
+     IS DISTINCT FROM (CASE WHEN _path LIKE '%.pdf' THEN 'application/pdf'
+       WHEN _path LIKE '%.doc' THEN 'application/msword'
+       ELSE 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' END) THEN
+    RAISE EXCEPTION 'O tipo do arquivo não confere com a extensão (envie PDF ou Word).' USING ERRCODE = '22023';
   END IF;
   IF EXISTS (SELECT 1 FROM public.locacao_minutas WHERE storage_path = _path) THEN
     RAISE EXCEPTION 'Arquivo já registrado.' USING ERRCODE = '22023';
@@ -203,9 +212,6 @@ BEGIN
   IF _n.aguardando IS NULL OR _n.resolvido_em IS NOT NULL THEN
     RAISE EXCEPTION 'Este andamento não está aberto.' USING ERRCODE = '22023';
   END IF;
-  IF _l.etapa NOT IN ('minuta', 'assinatura') THEN
-    RAISE EXCEPTION 'Ação não disponível nesta etapa.' USING ERRCODE = '22023';
-  END IF;
   IF public.locacao_tem_papel(auth.uid(), 'contratos') THEN
     _papel := 'contratos';
   ELSIF _n.aguardando = 'corretor' AND _l.corretor_id = auth.uid() THEN
@@ -220,6 +226,41 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.locacao_andamento_resolver(uuid, text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.locacao_andamento_resolver(uuid, text) TO authenticated;
+
+-- 4b) Corretor: igual a 20261110120000 + "de acordo" exige arquivo enviado e confere a versão vista na tela.
+--     _texto do "de acordo" = número da versão que o corretor tinha na tela (o site manda; vazio = não confere).
+CREATE OR REPLACE FUNCTION public.locacao_corretor_minuta(_id uuid, _acao text, _texto text DEFAULT NULL) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
+DECLARE _l public.locacoes := public.locacao_pega(_id); _m jsonb; _t text := nullif(btrim(coalesce(_texto, '')), '');
+  _v integer;
+BEGIN
+  PERFORM public.locacao_exige(_l, ARRAY['minuta'], 'corretor');
+  _m := _l.minuta;
+  IF _acao = 'resolver_pendencia' AND _m->>'estado' = 'pendencia' THEN
+    _m := _m || jsonb_build_object('estado', 'elaborando', 'pendencia', NULL);
+    PERFORM public.locacao_evento(_l, 'corretor', 'Pendência resolvida' || coalesce(': ' || _t, ''));
+  ELSIF _acao = 'de_acordo' AND _m->>'estado' = 'com_corretor' THEN
+    _v := (public.locacao_minuta_atual(_l.id)).versao;
+    IF _v IS NULL OR (_m->>'versao_enviada') IS NULL THEN
+      RAISE EXCEPTION 'Ainda não há arquivo de minuta para conferir. Peça ao setor de contratos para anexar.' USING ERRCODE = '22023';
+    END IF;
+    IF _t ~ '^[0-9]{1,6}$' AND _t::integer <> (_m->>'versao_enviada')::integer THEN
+      RAISE EXCEPTION 'A minuta mudou (agora é a v%). Recarregue a tela e confira a versão nova.', _m->>'versao_enviada'
+        USING ERRCODE = '22023';
+    END IF;
+    _m := _m || jsonb_build_object('estado', 'aprovada', 'versao_aprovada', (_m->>'versao_enviada')::integer);
+    PERFORM public.locacao_evento(_l, 'corretor', 'Corretor/proprietário de acordo com a minuta v' || (_m->>'versao_enviada'));
+  ELSIF _acao = 'pedir_ajuste' AND _m->>'estado' = 'com_corretor' THEN
+    IF _t IS NULL OR length(_t) < 5 THEN RAISE EXCEPTION 'Descreva o ajuste pedido.' USING ERRCODE = '22023'; END IF;
+    _m := _m || jsonb_build_object('estado', 'ajuste', 'ajuste_data', (now() AT TIME ZONE 'America/Sao_Paulo')::date,
+      'ajuste_motivo', left(_t, 500));
+    PERFORM public.locacao_evento(_l, 'corretor', 'Minuta EM AJUSTE (pedido do proprietário): ' || _t);
+  ELSE
+    RAISE EXCEPTION 'Ação não disponível agora.' USING ERRCODE = '22023';
+  END IF;
+  UPDATE public.locacoes SET minuta = _m, etapa_desde = now(), atualizado_em = now() WHERE id = _id;
+  RETURN jsonb_build_object('ok', true);
+END $$;
 
 -- 5) Ações do setor de contratos: igual a 20261124130000 + trava "sem arquivo não envia / não prepara assinatura" ---
 CREATE OR REPLACE FUNCTION public.locacao_contratos_acao(_id uuid, _acao text, _dados jsonb DEFAULT '{}'::jsonb) RETURNS jsonb

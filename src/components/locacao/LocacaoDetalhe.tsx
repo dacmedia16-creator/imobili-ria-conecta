@@ -480,11 +480,17 @@ function Minuta({
   const m = d.minuta;
   const atual = d.minutas[0];
   const semArquivo = !atual;
+  const jaEnviada =
+    !!atual &&
+    m.versaoEnviada === atual.versao &&
+    (m.estado === "com_corretor" || m.estado === "aprovada");
   const travaEnvio = !d.docsCompleta
     ? "Travado: falta documento obrigatório"
     : semArquivo
       ? "Travado: anexe a minuta (ou use “Gerar e guardar”) antes de enviar"
-      : undefined;
+      : jaEnviada
+        ? "Esta versão já está com o corretor. Anexe uma versão nova para reenviar."
+        : undefined;
   const modelo = `${d.tipo === "comercial" ? "Comercial" : "Residencial"} — ${GARANTIA_LABEL[d.garantia]}`;
   return (
     <div className="space-y-3">
@@ -564,12 +570,18 @@ function Minuta({
             ) : (
               <>
                 <Button
-                  disabled={busy}
+                  disabled={busy || !m.versaoEnviada}
+                  title={
+                    !m.versaoEnviada ? "Ainda não há arquivo de minuta para conferir" : undefined
+                  }
                   onClick={() =>
-                    void rodar(() => corretorMinuta(d.id, "de_acordo"), "Minuta aprovada")
+                    void rodar(
+                      () => corretorMinuta(d.id, "de_acordo", String(m.versaoEnviada ?? "")),
+                      `Minuta v${m.versaoEnviada ?? ""} aprovada`,
+                    )
                   }
                 >
-                  Proprietário de acordo
+                  Proprietário de acordo{m.versaoEnviada ? ` com a v${m.versaoEnviada}` : ""}
                 </Button>
                 <Button
                   variant="outline"
