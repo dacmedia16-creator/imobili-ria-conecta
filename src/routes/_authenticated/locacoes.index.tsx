@@ -11,12 +11,20 @@ import {
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState, KpiTile, ListSkeleton, PageHeader, Pill } from "@/components/visual/base";
 import { AConfirmar } from "@/components/locacao/LocacaoDetalhe";
 import { LocacaoFinanceiro } from "@/components/locacao/LocacaoFinanceiro";
 import { LocacaoRegras } from "@/components/locacao/LocacaoRegras";
+import { LocacaoModelosContrato } from "@/components/locacao/LocacaoModelosContrato";
 import { errorMessage } from "@/lib/errors";
 import {
   ETAPAS,
@@ -24,8 +32,12 @@ import {
   MINUTA_LABEL,
   PAPEL_LABEL,
   brl,
+  IMOVEL_TIPO_LABEL,
   calcularComissao,
   dataBr,
+  enderecoCompleto,
+  equipeTexto,
+  valoresParaComissao,
   dataPagamento,
   diasParado,
   etapaLabel,
@@ -38,6 +50,7 @@ import {
   tomParado,
   type ContextoLocacao,
   type EtapaLocacao,
+  type ImovelTipo,
   type Locacao,
 } from "@/lib/locacao";
 import {
@@ -64,7 +77,8 @@ type Aba =
   | "comissao"
   | "financeiro"
   | "visao"
-  | "regras";
+  | "regras"
+  | "modelos";
 
 function LocacoesPage() {
   const navigate = useNavigate();
@@ -73,6 +87,9 @@ function LocacoesPage() {
   const [erro, setErro] = useState<string | null>(null);
   const [aba, setAba] = useState<Aba | null>(null);
   const [criando, setCriando] = useState(false);
+  const [escolhendoTipo, setEscolhendoTipo] = useState(false);
+  // t_8f09d406 item 5: filtro por equipe gravada na abertura ("" = todas).
+  const [equipeFiltro, setEquipeFiltro] = useState("");
 
   const carregar = useCallback(async () => {
     try {
@@ -112,10 +129,12 @@ function LocacoesPage() {
   }
   if (!lista || !ctx) return <ListSkeleton />;
 
-  const nova = async () => {
+  // t_8f09d406 item 2: o corretor escolhe o tipo do imóvel ao abrir a locação.
+  const nova = async (tipo: ImovelTipo) => {
     setCriando(true);
     try {
-      const { id } = await criarLocacao();
+      const { id } = await criarLocacao(tipo);
+      setEscolhendoTipo(false);
       await navigate({ to: "/locacoes/$id", params: { id } });
     } catch (e) {
       toast.error(errorMessage(e, "Não foi possível criar a locação."));
@@ -124,7 +143,12 @@ function LocacoesPage() {
     }
   };
 
-  const ativas = lista.filter((l) => l.situacao === "ativa");
+  const equipes = [
+    ...new Set(lista.map((l) => l.equipe.nome).filter((x): x is string => !!x)),
+  ].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const ativas = lista
+    .filter((l) => l.situacao === "ativa")
+    .filter((l) => !equipeFiltro || l.equipe.nome === equipeFiltro);
   const minhas = ativas.filter((l) => l.corretorId === ctx.usuarioId);
   const naEtapa = (...e: EtapaLocacao[]) => ativas.filter((l) => e.includes(l.etapa));
   const vePapel = (p: "gestora" | "contratos" | "vistoria") =>
@@ -152,7 +176,7 @@ function LocacoesPage() {
                 </Button>
               )}
               {!soFinanceiro && (
-                <Button onClick={() => void nova()} disabled={criando}>
+                <Button onClick={() => setEscolhendoTipo(true)} disabled={criando}>
                   <Plus className="mr-1 h-4 w-4" /> Nova locação
                 </Button>
               )}
@@ -160,6 +184,49 @@ function LocacoesPage() {
           )
         }
       />
+      <Dialog open={escolhendoTipo} onOpenChange={(o) => !criando && setEscolhendoTipo(o)}>
+        <DialogContent data-testid="locacao-nova-tipo">
+          <DialogHeader>
+            <DialogTitle>Nova locação — qual o tipo do imóvel?</DialogTitle>
+            <DialogDescription>
+              Condomínio pede a CND do condomínio (opcional). Comercial já vem com prazo de 36
+              meses. Dá para trocar depois, ainda na pré-análise.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            {(Object.keys(IMOVEL_TIPO_LABEL) as ImovelTipo[]).map((t) => (
+              <Button
+                key={t}
+                variant="outline"
+                className="justify-start"
+                disabled={criando}
+                onClick={() => void nova(t)}
+              >
+                {IMOVEL_TIPO_LABEL[t]}
+              </Button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+      {equipes.length > 0 && !soFinanceiro && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <label htmlFor="filtro-equipe">Equipe:</label>
+          <select
+            id="filtro-equipe"
+            data-testid="locacao-filtro-equipe"
+            className="h-9 rounded-md border bg-background px-2"
+            value={equipeFiltro}
+            onChange={(e) => setEquipeFiltro(e.target.value)}
+          >
+            <option value="">Todas</option>
+            {equipes.map((x) => (
+              <option key={x} value={x}>
+                {x}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <Tabs value={atual} onValueChange={(v) => setAba(v as Aba)}>
         <TabsList className="flex h-auto flex-wrap">
           {!soFinanceiro && (
@@ -184,6 +251,9 @@ function LocacoesPage() {
           {veFinanceiro && <TabsTrigger value="financeiro">Financeiro</TabsTrigger>}
           {!soFinanceiro && <TabsTrigger value="visao">Visão geral</TabsTrigger>}
           {ctx.gerencia && <TabsTrigger value="regras">Regras e papéis</TabsTrigger>}
+          {(ctx.gerencia || vePapel("contratos")) && (
+            <TabsTrigger value="modelos">Modelos de contrato</TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="minhas">
@@ -216,6 +286,9 @@ function LocacoesPage() {
         </TabsContent>
         <TabsContent value="regras">
           {ctx.gerencia && <LocacaoRegras config={ctx.config} onSalvo={() => void carregar()} />}
+        </TabsContent>
+        <TabsContent value="modelos">
+          {(ctx.gerencia || vePapel("contratos")) && <LocacaoModelosContrato />}
         </TabsContent>
       </Tabs>
     </div>
@@ -270,7 +343,9 @@ function Tabela({ itens, ctx, vazio }: { itens: Locacao[]; ctx: ContextoLocacao;
                   </Link>
                 </td>
                 <td>{l.candidato.nome || <i className="text-muted-foreground">(nova)</i>}</td>
-                <td className="max-w-[240px] text-xs">{l.endereco || "—"}</td>
+                <td className="max-w-[240px] text-xs">
+                  {enderecoCompleto(l.endereco, l.complemento) || "—"}
+                </td>
                 <td>
                   <EtapaPill l={l} />
                 </td>
@@ -284,6 +359,21 @@ function Tabela({ itens, ctx, vazio }: { itens: Locacao[]; ctx: ContextoLocacao;
         </table>
       </CardContent>
     </Card>
+  );
+}
+
+/** Equipe gravada na abertura + Gestor e Team Leader (t_8f09d406 item 5). */
+function EquipeLinha({ l }: { l: Locacao }) {
+  const e = l.equipe;
+  return (
+    <div className="text-muted-foreground" data-testid="locacao-equipe-linha">
+      {equipeTexto(e)}
+      {e.gravadaEm && (e.gestorNome || e.teamLeaderNome) && (
+        <span className="block">
+          Gestor: {e.gestorNome ?? "—"} · TL: {e.teamLeaderNome ?? "—"}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -304,7 +394,7 @@ function Fila({ titulo, itens, pos }: { titulo: string; itens: Locacao[]; pos?: 
               <tr className="text-left text-xs text-muted-foreground">
                 <th className="py-1">Locação</th>
                 <th>Candidato</th>
-                <th>Corretor</th>
+                <th>Corretor · equipe</th>
                 <th>{pos ? "Vistoria · Seguro · Titularidade" : "Valores"}</th>
                 <th>Etapa</th>
                 <th />
@@ -323,7 +413,10 @@ function Fila({ titulo, itens, pos }: { titulo: string; itens: Locacao[]; pos?: 
                     </Link>
                   </td>
                   <td>{l.candidato.nome}</td>
-                  <td className="text-xs">{l.corretorNome}</td>
+                  <td className="text-xs">
+                    {l.corretorNome}
+                    <EquipeLinha l={l} />
+                  </td>
                   <td className="text-xs">
                     {pos ? (
                       <>
@@ -370,7 +463,11 @@ function Comissao({ itens, ctx }: { itens: Locacao[]; ctx: ContextoLocacao }) {
   const [sel, setSel] = useState<string | null>(null);
   const m = mes && meses.includes(mes) ? mes : meses[meses.length - 1];
   const doMes = itens.filter((l) => (l.chaveEm ?? "").startsWith(m ?? "--"));
-  const linhas = doMes.map((l) => ({ l, r: calcularComissao(l, ctx.config) }));
+  // t_8f09d406 item 6: com lançamento da Fernanda, valem os valores lançados (ver valoresParaComissao).
+  const linhas = doMes.map((l) => {
+    const v = valoresParaComissao(l);
+    return { l, v, r: calcularComissao(v, ctx.config) };
+  });
   const tot = linhas.reduce(
     (a, x) => ({ c: a.c + x.r.corretor, co: a.co + x.r.coordenador, pa: a.pa + x.r.parceiro }),
     { c: 0, co: 0, pa: 0 },
@@ -405,7 +502,7 @@ function Comissao({ itens, ctx }: { itens: Locacao[]; ctx: ContextoLocacao }) {
               <thead>
                 <tr className="text-left text-xs text-muted-foreground">
                   <th className="py-1">Locação</th>
-                  <th>Corretor / coord.</th>
+                  <th>Corretor / equipe</th>
                   <th>Chave</th>
                   <th>1º aluguel</th>
                   <th>Taxa → %</th>
@@ -423,7 +520,7 @@ function Comissao({ itens, ctx }: { itens: Locacao[]; ctx: ContextoLocacao }) {
                 </tr>
               </thead>
               <tbody>
-                {linhas.map(({ l, r }) => {
+                {linhas.map(({ l, v, r }) => {
                   const pend = titularidadePendente(l.pos.tit);
                   return (
                     <tr
@@ -437,18 +534,21 @@ function Comissao({ itens, ctx }: { itens: Locacao[]; ctx: ContextoLocacao }) {
                       </td>
                       <td className="text-xs">
                         {l.corretorNome}
-                        <div className="text-muted-foreground">{l.coordenadorNome ?? "—"}</div>
+                        <EquipeLinha l={l} />
                       </td>
                       <td>{dataBr(l.chaveEm)}</td>
-                      <td>{brl(l.aluguel)}</td>
                       <td>
-                        {l.taxaAdm}% → {r.pct}%
+                        {brl(v.aluguel)}
+                        {v.lancado && <div className="text-xs text-muted-foreground">lançado</div>}
+                      </td>
+                      <td>
+                        {v.taxaAdm}% → {r.pct}%
                       </td>
                       <td>
                         <b>{brl(r.corretor)}</b>
                       </td>
                       <td>{brl(r.coordenador)}</td>
-                      <td>{l.parceria ? brl(r.parceiro) : "—"}</td>
+                      <td>{v.parceria ? brl(r.parceiro) : "—"}</td>
                       <td>{dataBr(dataPagamento(l.chaveEm, ctx.config))}</td>
                       <td>
                         {pend.length ? (
@@ -474,18 +574,21 @@ function Comissao({ itens, ctx }: { itens: Locacao[]; ctx: ContextoLocacao }) {
             <table className="w-full max-w-2xl text-sm">
               <tbody className="[&_td]:py-1 [&_td:last-child]:text-right">
                 <tr>
-                  <td>1º aluguel</td>
-                  <td>{brl(s.l.aluguel)}</td>
+                  <td>
+                    1º aluguel{" "}
+                    {s.v.lancado ? "(lançamento da vistoria)" : "(pré-análise; sem lançamento)"}
+                  </td>
+                  <td>{brl(s.v.aluguel)}</td>
                 </tr>
                 <tr>
                   <td>Taxa de administração negociada</td>
-                  <td>{s.l.taxaAdm}%</td>
+                  <td>{s.v.taxaAdm}%</td>
                 </tr>
                 <tr>
                   <td>% do 1º aluguel (tabela da imobiliária)</td>
                   <td>{s.r.pct}%</td>
                 </tr>
-                {s.l.parceria && ctx.config.parceriaDividePorDois && (
+                {s.v.parceria && ctx.config.parceriaDividePorDois && (
                   <tr>
                     <td>
                       Parceria: base = aluguel ÷ 2 <AConfirmar />
@@ -516,7 +619,7 @@ function Comissao({ itens, ctx }: { itens: Locacao[]; ctx: ContextoLocacao }) {
                     <b>{brl(s.r.corretor)}</b>
                   </td>
                 </tr>
-                {s.l.parceria && (
+                {s.v.parceria && (
                   <tr>
                     <td>
                       Parceiro (outra metade) <AConfirmar />

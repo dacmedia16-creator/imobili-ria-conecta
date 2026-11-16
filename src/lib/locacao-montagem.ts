@@ -1,5 +1,13 @@
 import clausulas from "./locacao-clausulas.json";
 import {
+  SEGURADORAS,
+  lerModelo,
+  modelosDaGarantia,
+  type ChaveModelo,
+  type ModeloContrato,
+  type ParagrafoModelo,
+} from "./locacao-modelos";
+import {
   aplicarPapeis,
   flexionarQualificacao,
   linhasPessoas,
@@ -16,6 +24,10 @@ export type Montagem = {
   campos: Record<string, string>;
   contrato: Record<string, string>;
   administradora: { nome: string; cnpj: string; creci: string; cidade: string; uf: string };
+  /** Modelos vigentes da imobiliária que servem para a garantia da locação (chave → modelo). */
+  modelos?: Record<string, unknown>;
+  /** Nº da apólice anexada na locação (seguro-fiança), se houver. */
+  apolice?: string | null;
 };
 export type LocacaoBase = {
   codigo: string;
@@ -26,6 +38,8 @@ export type LocacaoBase = {
   garantia: string;
   ficha: {
     imovelId: string;
+    /** Bloco/apto (t_8f09d406): entra no endereço do imóvel do contrato. */
+    complemento?: string;
     locatarioEndereco?: string;
     proprietario?: { nome: string };
     locatarioPessoa?: "pf" | "pj";
@@ -71,7 +85,60 @@ export const CAMPOS_DOCUMENTO = {
   fia_conj_cpf: 5,
   fia_matricula: 5,
   fia_cartorio: 5,
+  cau_tipo: 5,
+  // Campos por garantia (t_d08cfeee): o corretor preenche nos dados do contrato; a Larissa confere aqui.
+  seg_seguradora: 5,
+  seg_apolice: 5,
+  cau_valor: 5,
+  cau_meses: 5,
+  cau_forma: 5,
+  cau_favorecido: 5,
+  cauc_nome: 5,
+  cauc_cpf: 5,
+  cauc_rg: 5,
+  cauc_nacionalidade: 5,
+  cauc_estado_civil: 5,
+  cauc_profissao: 5,
+  cauc_endereco: 5,
+  cauc_imovel_descricao: 5,
+  cauc_imovel_matricula: 5,
+  cauc_imovel_cartorio: 5,
+  loft_numero: 5,
 } as const;
+
+/** Campos de garantia exibidos na montagem só para o modelo correspondente. */
+export const CAMPOS_GARANTIA: Record<string, string[]> = {
+  fiador: [
+    "fia_nome",
+    "fia_cpf",
+    "fia_rg",
+    "fia_nacionalidade",
+    "fia_estado_civil",
+    "fia_profissao",
+    "fia_endereco",
+    "fia_conj_nome",
+    "fia_conj_cpf",
+    "fia_matricula",
+    "fia_cartorio",
+  ],
+  caucao_dinheiro: ["cau_tipo", "cau_valor", "cau_meses", "cau_forma", "cau_favorecido"],
+  caucao_imovel: [
+    "cau_tipo",
+    "cauc_nome",
+    "cauc_cpf",
+    "cauc_rg",
+    "cauc_nacionalidade",
+    "cauc_estado_civil",
+    "cauc_profissao",
+    "cauc_endereco",
+    "cauc_imovel_descricao",
+    "cauc_imovel_matricula",
+    "cauc_imovel_cartorio",
+  ],
+  seguro: ["seg_seguradora", "seg_apolice"],
+  loft: ["loft_numero"],
+};
+export const grupoGarantia = (chave: string) => (chave.startsWith("seguro_") ? "seguro" : chave);
 
 export const PASSOS = [
   "Imóvel",
@@ -173,7 +240,9 @@ export function camposIniciais(base: LocacaoBase, m: Montagem): Record<string, s
     ...c,
     ...d,
     numero: base.codigo,
-    imovel_endereco: base.endereco,
+    imovel_endereco: base.ficha.complemento?.trim()
+      ? `${base.endereco}, ${base.ficha.complemento.trim()}`
+      : base.endereco,
     aluguel: base.aluguel ? base.aluguel.toFixed(2) : "",
     d_prop_nome: m.contrato.prop_nome || base.ficha.proprietario?.nome || "",
     d_loc_endereco: m.contrato.loc_endereco || base.ficha.locatarioEndereco || "",
@@ -299,26 +368,82 @@ export function reaisExtenso(valor: number): string {
   return fra ? `${r} e ${trio(fra)} ${fra === 1 ? "centavo" : "centavos"}` : r;
 }
 
+export function chaveModeloLocacao(
+  base: LocacaoBase,
+  v: Record<string, string>,
+): ChaveModelo | null {
+  if (base.garantia === "fiador") return "fiador";
+  if (base.garantia === "loft") return "loft";
+  if (base.garantia === "outras") return v.cau_tipo === "imovel" ? "caucao_imovel" : null;
+  if (base.garantia === "caucao") {
+    if (v.cau_tipo === "dinheiro") return "caucao_dinheiro";
+    if (v.cau_tipo === "imovel") return "caucao_imovel";
+  }
+  if (base.garantia === "seguro_fianca" && SEGURADORAS[v.seg_seguradora])
+    return `seguro_${v.seg_seguradora}` as ChaveModelo;
+  return null;
+}
+
+export function modeloDaMontagem(
+  base: LocacaoBase,
+  m: Montagem,
+  c: Record<string, string>,
+): ModeloContrato | null {
+  const chave = chaveModeloLocacao(base, dadosContrato(m, c));
+  if (!chave || !modelosDaGarantia(base.garantia).includes(chave)) return null;
+  // Não confundir um padrão embarcado com a versão vigente da imobiliária: o banco decide qual vale.
+  return lerModelo(m.modelos?.[chave]);
+}
+
 export function faltasMontagem(
   base: LocacaoBase,
   m: Montagem,
   c: Record<string, string>,
 ): string[] {
   const v = dadosContrato(m, c);
+  const chave = chaveModeloLocacao(base, v);
+  const comFiador = base.garantia === "fiador";
   const faltas = [
     ["número", c.numero],
     ["locador", v.prop_nome],
     ["locatário", v.loc_nome],
-    ["fiador", v.fia_nome],
-    ...(["prop", "loc", "fia"] as const).flatMap((p) =>
+    ...(comFiador ? [["fiador", v.fia_nome]] : []),
+    ...(["prop", "loc", ...(comFiador ? ["fia"] : [])] as const).flatMap((p) =>
       ["cpf", "rg", "nacionalidade", "estado_civil", "profissao", "endereco"].map((key) => [
         `${key} ${p}`,
         v[`${p}_${key}`],
       ]),
     ),
-    ["matrícula do fiador", v.fia_matricula],
-    ["cartório do fiador", v.fia_cartorio],
-    ["endereço do imóvel do fiador", c.fia_imovel_endereco],
+    ...(comFiador
+      ? [
+          ["matrícula do fiador", v.fia_matricula],
+          ["cartório do fiador", v.fia_cartorio],
+          ["endereço do imóvel do fiador", c.fia_imovel_endereco],
+        ]
+      : []),
+    ...(base.garantia === "seguro_fianca" ? [["seguradora", v.seg_seguradora]] : []),
+    ...(base.garantia === "caucao" || base.garantia === "outras"
+      ? [["tipo de caução", v.cau_tipo]]
+      : []),
+    ...(chave === "caucao_dinheiro"
+      ? [
+          ["valor da caução", v.cau_valor],
+          ["número de aluguéis da caução", v.cau_meses],
+          ["forma de depósito", v.cau_forma],
+          ["quem guarda a caução", v.cau_favorecido],
+        ]
+      : []),
+    ...(chave === "caucao_imovel"
+      ? [
+          ...["nome", "cpf", "rg", "nacionalidade", "estado_civil", "profissao", "endereco"].map(
+            (k) => [`${k} do caucionante`, v[`cauc_${k}`]],
+          ),
+          ["descrição do imóvel caucionado", v.cauc_imovel_descricao],
+          ["matrícula do imóvel caucionado", v.cauc_imovel_matricula],
+          ["cartório do imóvel caucionado", v.cauc_imovel_cartorio],
+        ]
+      : []),
+    ...(chave === "loft" ? [["número da garantia Loft", v.loft_numero]] : []),
     ["endereço do imóvel", c.imovel_endereco],
     ["vagas", v.imv_vagas],
     ["inscrição municipal", v.imv_inscricao],
@@ -335,7 +460,7 @@ export function faltasMontagem(
   ]
     .filter(([, val]) => !String(val ?? "").trim())
     .map(([label]) => label);
-  for (const p of ["prop", "fia"]) {
+  for (const p of comFiador ? ["prop", "fia"] : ["prop"]) {
     if (/casad/i.test(v[`${p}_estado_civil`] || "")) {
       if (!v[`${p}_conj_nome`]?.trim() || !v[`${p}_conj_cpf`]?.trim()) faltas.push(`cônjuge ${p}`);
     }
@@ -352,22 +477,31 @@ export function faltasMontagem(
   if (c.fim && c.fim !== fimPrazo(v.inicio, Number(v.prazo_meses)))
     faltas.push("término divergente do prazo");
   if (
-    c.juros !== "1% ao mês" ||
-    c.multa !== "10%" ||
-    c.reajuste !== "Anual — IPCA" ||
-    c.cobranca !== "mes_vencido" ||
-    c.isencao_multa_meses
+    !m.modelos &&
+    (c.juros !== "1% ao mês" ||
+      c.multa !== "10%" ||
+      c.reajuste !== "Anual — IPCA" ||
+      c.cobranca !== "mes_vencido" ||
+      c.isencao_multa_meses)
   )
     faltas.push("condições diferentes do modelo residencial (revisão jurídica necessária)");
+  if (m.modelos && !chave) faltas.push("escolha o modelo da garantia");
+  else if (m.modelos && !modeloDaMontagem(base, m, c))
+    faltas.push("modelo não disponível nesta imobiliária");
+  if (chave === "caucao_dinheiro") {
+    if (Number(v.cau_valor) > Number(c.aluguel) * 3) faltas.push("caução acima de três aluguéis");
+    if (Number(v.cau_meses) > 3 || Number(v.cau_meses) < 1)
+      faltas.push("número de aluguéis da caução inválido");
+  }
   const pjProp = base.ficha.proprietarioPessoa === "pj";
   const pjLoc = base.ficha.locatarioPessoa === "pj";
   const pjFia = base.ficha.fiadorPessoa === "pj";
   if (!pjProp && !sexoOk(c.prop_sexo)) faltas.push("sexo do locador");
   if (!pjLoc && !sexoOk(c.loc_sexo)) faltas.push("sexo do locatário");
-  if (!pjFia && !sexoOk(c.fia_sexo)) faltas.push("sexo do fiador");
+  if (comFiador && !pjFia && !sexoOk(c.fia_sexo)) faltas.push("sexo do fiador");
   if (!pjProp && v.prop_conj_nome?.trim() && !sexoOk(c.prop_conj_sexo))
     faltas.push("sexo do cônjuge do locador");
-  if (!pjFia && v.fia_conj_nome?.trim() && !sexoOk(c.fia_conj_sexo))
+  if (comFiador && !pjFia && v.fia_conj_nome?.trim() && !sexoOk(c.fia_conj_sexo))
     faltas.push("sexo do cônjuge do fiador");
   const extraLoc = linhasPessoas(c.locadores_adicionais);
   const sexoLoc = parseSexos(c.locadores_adicionais_sexo);
@@ -381,6 +515,12 @@ export function faltasMontagem(
 
 export function textoContrato(base: LocacaoBase, m: Montagem, c: Record<string, string>): string[] {
   const faltas = faltasMontagem(base, m, c);
+  if (m.modelos) {
+    if (faltas.length) throw new Error(`Contrato incompleto: ${faltas.join(", ")}`);
+    const modelo = modeloDaMontagem(base, m, c);
+    if (!modelo) throw new Error("Modelo de contrato não disponível para esta garantia.");
+    return montarTextoModelo(base, m, c, modelo);
+  }
   if (base.tipo !== "residencial" || base.garantia !== "fiador" || faltas.length)
     throw new Error(`Contrato incompleto: ${faltas.join(", ")}`);
   const v = dadosContrato(m, c);
@@ -453,5 +593,154 @@ export function textoContrato(base: LocacaoBase, m: Montagem, c: Record<string, 
     m.administradora.nome,
     docLabel("CNPJ", m.administradora.cnpj),
     ...(c.assinaturas ? [c.assinaturas] : []),
+  ];
+}
+
+/** Renderiza o texto vigente retornado pelo banco; não altera cláusulas marcadas como exigidas. */
+export function montarTextoModelo(
+  base: LocacaoBase,
+  m: Montagem,
+  c: Record<string, string>,
+  modelo: ModeloContrato,
+): string[] {
+  if (!modelosDaGarantia(base.garantia).includes(modelo.chave))
+    throw new Error("Modelo de garantia diferente da locação.");
+  const v = dadosContrato(m, c);
+  const aluguel = Number(c.aluguel);
+  const valor = (n: number) =>
+    n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const pfProp = base.ficha.proprietarioPessoa !== "pj";
+  const pfLoc = base.ficha.locatarioPessoa !== "pj";
+  const pfFia = base.ficha.fiadorPessoa !== "pj";
+  const tLocador = termoPapel("locador", pessoasLocador(!pfProp, c, v));
+  const tLocatario = termoPapel("locatario", pessoasLocatario(!pfLoc, c));
+  const tFiador = termoPapel("fiador", pessoasFiador(!pfFia, c, v));
+  const fProp = pfProp ? c.prop_sexo === "feminino" : null;
+  const fLoc = pfLoc ? c.loc_sexo === "feminino" : null;
+  const fFia = pfFia ? c.fia_sexo === "feminino" : null;
+  const apolice = v.seg_apolice || m.apolice || "";
+  const campos: Record<string, string> = {
+    NUMERO_CONTRATO: c.numero,
+    NOME_LOCADOR: v.prop_nome,
+    NOME_LOCATARIO: v.loc_nome,
+    NOME_FIADOR: v.fia_nome,
+    IMOVEL_ENDERECO: c.imovel_endereco,
+    VALOR_ALUGUEL: valor(aluguel),
+    VALOR_ALUGUEL_EXTENSO: reaisExtenso(aluguel),
+    DIA_VENCIMENTO: v.dia_vencimento,
+    PRAZO_MESES: v.prazo_meses,
+    DATA_INICIO: dataLonga(v.inicio),
+    DATA_TERMINO: dataLonga(c.fim || fimPrazo(v.inicio, Number(v.prazo_meses))),
+    CIDADE: c.local,
+    ADMINISTRADORA_QUALIFICACAO: `${m.administradora.nome} - ${docLabel("CNPJ", m.administradora.cnpj)}${m.administradora.creci ? ` - ${docLabel("CRECI", m.administradora.creci)}` : ""}`,
+    FIADOR_IMOVEL_ENDERECO: c.fia_imovel_endereco,
+    FIADOR_MATRICULA: v.fia_matricula,
+    FIADOR_CARTORIO: v.fia_cartorio,
+    CAUCAO_VALOR: valor(Number(v.cau_valor)),
+    CAUCAO_VALOR_EXTENSO: reaisExtenso(Number(v.cau_valor || 0)),
+    CAUCAO_MESES: v.cau_meses,
+    CAUCAO_FORMA: v.cau_forma,
+    CAUCAO_FAVORECIDO: v.cau_favorecido,
+    CAUCIONANTE_QUALIFICACAO: nome(v, "cauc", null),
+    CAUCAO_IMOVEL_DESCRICAO: v.cauc_imovel_descricao,
+    CAUCAO_IMOVEL_CARTORIO: v.cauc_imovel_cartorio,
+    CAUCAO_IMOVEL_MATRICULA: v.cauc_imovel_matricula,
+    SEGURADORA: SEGURADORAS[v.seg_seguradora] || "",
+    APOLICE_NUMERO: apolice || "a ser anexada",
+    APOLICE_REFERENCIA: apolice ? `nº ${apolice}, conforme anexo` : "a ser anexada",
+    LOFT_REFERENCIA: v.loft_numero ? `nº ${v.loft_numero}, conforme anexo` : "a ser anexado",
+  };
+  const assinaturas = [
+    `${c.local}, ${dataLonga(c.data)}.`,
+    `${tLocador}:`,
+    v.prop_nome,
+    v.prop_cpf,
+    ...(v.prop_conj_nome ? [v.prop_conj_nome, v.prop_conj_cpf] : []),
+    ...(c.locadores_adicionais ? [c.locadores_adicionais] : []),
+    `${tLocatario}:`,
+    v.loc_nome,
+    v.loc_cpf,
+    ...(c.locatarios_adicionais ? [c.locatarios_adicionais] : []),
+    ...(modelo.chave === "fiador"
+      ? [
+          `${tFiador}:`,
+          v.fia_nome,
+          v.fia_cpf,
+          ...(v.fia_conj_nome ? [v.fia_conj_nome, v.fia_conj_cpf] : []),
+        ]
+      : []),
+    ...(modelo.chave === "caucao_imovel" ? ["CAUCIONANTE:", v.cauc_nome, v.cauc_cpf] : []),
+    "ADMINISTRADORA:",
+    m.administradora.nome,
+    docLabel("CNPJ", m.administradora.cnpj),
+    ...(c.assinaturas ? [c.assinaturas] : []),
+  ];
+  const blocos: Record<string, string[]> = {
+    LOCADOR: [
+      `${tLocador}: ${nome(v, "prop", fProp)}${conj(v, "prop")}${c.locadores_adicionais ? `; ${c.locadores_adicionais}` : ""}.`,
+    ],
+    LOCATARIO: [
+      `${tLocatario}: ${nome(v, "loc", fLoc)}${c.locatarios_adicionais ? `; ${c.locatarios_adicionais}` : ""}.`,
+    ],
+    FIADOR: [`GARANTIA LOCATÍCIA - ${tFiador}: ${nome(v, "fia", fFia)}${conj(v, "fia")}.`],
+    OBJETO: [
+      `OBJETO DA LOCAÇÃO: ${c.imovel_endereco} — Vagas: ${v.imv_vagas}.`,
+      `Inscrição Cadastral Municipal: ${v.imv_inscricao}`,
+      `Código de fornecimento de energia: ${v.imv_energia}`,
+      `Código de Fornecimento de água: ${v.imv_agua}`,
+      `Gás: ${v.imv_gas}`,
+    ],
+    PRAZO: [
+      `PRAZO DA LOCAÇÃO: ${v.prazo_meses} meses.`,
+      `Início: ${dataLonga(v.inicio)}            Término: ${campos.DATA_TERMINO}`,
+    ],
+    ADICIONAIS: v.moradores ? [`CLÁUSULAS ADICIONAIS: MORADORES: ${v.moradores}`] : [],
+    ASSINATURAS: assinaturas,
+  };
+  const visiveis = modelo.paragrafos.filter(
+    (p) =>
+      (!p.dest || p.dest === base.tipo) &&
+      (!p.cond || (p.cond === "isencao_multa" && c.isencao_multa_meses === "12")),
+  );
+  // O número corrente é calculado sobre os textos visíveis; referências a cláusulas originais
+  // seguem a primeira ocorrência correspondente. O texto exigido pela seguradora nunca é reescrito.
+  let seq = 0;
+  const numeradas = new Map<string, number>();
+  const numeroPorId = new Map<string, number>();
+  for (const p of visiveis) {
+    const achado = /^Cláusula\s+(\d+)º\s*[-–]/i.exec(p.t);
+    if (achado && !p.trava) {
+      seq++;
+      numeroPorId.set(p.id, seq);
+      if (!numeradas.has(achado[1])) numeradas.set(achado[1], seq);
+    }
+  }
+  const render = (p: ParagrafoModelo): string[] => {
+    const bloco = /^\[\[([A-Z_]+)\]\]$/.exec(p.t.trim());
+    if (bloco) {
+      if (!blocos[bloco[1]]) throw new Error(`Bloco desconhecido: ${bloco[1]}`);
+      return blocos[bloco[1]];
+    }
+    if (p.trava) return [p.t];
+    let t = p.t.replace(/\[([A-Z_]+)\]/g, (_, k: string) => {
+      if (!(k in campos)) throw new Error(`Campo desconhecido no modelo: [${k}]`);
+      return campos[k];
+    });
+    t = aplicarPapeis(t, tLocador, tLocatario, tFiador);
+    t = t.replace(/CLÁUSULA\s+(\d+)º/gi, (original, n: string) =>
+      numeradas.has(n) ? original.replace(n, String(numeradas.get(n))) : original,
+    );
+    const n = numeroPorId.get(p.id);
+    if (n) t = t.replace(/^Cláusula\s+\d+º/i, `Cláusula ${n}º`);
+    return [t];
+  };
+  return [
+    `CONTRATO DE LOCAÇÃO - ${base.tipo === "comercial" ? "COMERCIAL" : "RESIDENCIAL"}`,
+    `Contrato de Garantia: ${modelo.subtitulo}`,
+    `Nº ${c.numero}`,
+    ...visiveis.flatMap(render),
+    ...(c.clausulas_adicionais
+      ? [`CLÁUSULAS ADICIONAIS A CONFERIR: ${c.clausulas_adicionais}`]
+      : []),
   ];
 }

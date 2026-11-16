@@ -112,6 +112,7 @@ const completo = (): Record<string, string> => {
     prazo_meses: "30",
     inicio: "2026-12-01",
     dia_vencimento: "10",
+    moradores: "Pessoa loc Fictícia — CPF 529.982.247-25",
   });
   return v;
 };
@@ -148,12 +149,22 @@ describe("campos do contrato (marcadores do modelo residencial com fiador)", () 
       expect(CHAVES_CONTRATO).toContain(k);
     expect(CAMPOS_CONTRATO.every((c) => c.label.length >= 2)).toBe(true);
   });
-  it("trava só residencial com fiador (caução e seguro-fiança seguem como estão)", () => {
+  it("dados completos só no residencial com fiador; prazo, vencimento e moradores em todas (t_8f09d406)", () => {
     expect(exigeDadosContrato("residencial", "fiador")).toBe(true);
     expect(exigeDadosContrato("residencial", "caucao")).toBe(false);
     expect(exigeDadosContrato("residencial", "seguro_fianca")).toBe(false);
     expect(exigeDadosContrato("comercial", "fiador")).toBe(false);
-    expect(faltasContrato("residencial", "caucao", {})).toEqual([]);
+    const tres = ["prazo (meses)", "dia de vencimento", "moradores"];
+    expect(faltasContrato("residencial", "caucao", {})).toEqual(tres);
+    expect(faltasContrato("residencial", "seguro_fianca", {})).toEqual(tres);
+    expect(faltasContrato("comercial", "fiador", {})).toEqual(tres);
+    expect(
+      faltasContrato("residencial", "caucao", {
+        prazo_meses: "30",
+        dia_vencimento: "5",
+        moradores: "X",
+      }),
+    ).toEqual([]);
   });
   it("completo = nada falta; vazio lista locatário, proprietário, fiador e imóvel", () => {
     expect(faltasContrato("residencial", "fiador", completo())).toEqual([]);
@@ -161,8 +172,9 @@ describe("campos do contrato (marcadores do modelo residencial com fiador)", () 
     expect(f[0]).toBe("nome do locatário");
     expect(f).toContain("CPF do fiador");
     expect(f).toContain("matrícula do imóvel do fiador");
-    expect(f.at(-1)).toBe("dia de vencimento");
-    expect(f).toHaveLength(7 * 3 + 9);
+    expect(f.at(-2)).toBe("dia de vencimento");
+    expect(f.at(-1)).toBe("moradores");
+    expect(f).toHaveLength(7 * 3 + 9 + 1);
   });
   it('vagas é obrigatório e aceita "não possui"; gás é opcional e também aceita "não possui"', () => {
     const semVagas = { ...completo(), imv_vagas: "" };
@@ -178,8 +190,12 @@ describe("campos do contrato (marcadores do modelo residencial com fiador)", () 
     expect(naoPossui(" Não possui ")).toBe(true);
     expect(naoPossui("2 vagas")).toBe(false);
     expect([...CAMPOS_NAO_POSSUI]).toEqual(["imv_gas", "imv_vagas"]);
-    // caução continua sem trava
-    expect(faltasContrato("residencial", "caucao", {})).toEqual([]);
+    // caução: só prazo, vencimento e moradores (t_8f09d406); vagas não trava
+    expect(faltasContrato("residencial", "caucao", { imv_vagas: "" })).toEqual([
+      "prazo (meses)",
+      "dia de vencimento",
+      "moradores",
+    ]);
   });
   it("banco tem a mesma trava de vagas (texto igual ao da tela)", () => {
     expect(MIG).toContain(`(6, 'imv_vagas', 'vagas de garagem (ou "não possui")')`);

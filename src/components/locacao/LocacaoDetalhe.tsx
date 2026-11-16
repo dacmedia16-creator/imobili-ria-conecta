@@ -11,9 +11,12 @@ import { ListSkeleton, Pill } from "@/components/visual/base";
 import { LocacaoStepper } from "@/components/locacao/LocacaoStepper";
 import { ContratoConferencia, LocacaoDocumentacao } from "@/components/locacao/LocacaoDocumentacao";
 import { LocacaoMontarContrato } from "@/components/locacao/LocacaoMontarContrato";
+import { LocacaoAnexosGarantia } from "@/components/locacao/LocacaoAnexosGarantia";
 import { MinutaAndamentos, MinutaArquivos } from "@/components/locacao/LocacaoMinutaArquivos";
 import { ChecklistPartes } from "@/components/locacao/LocacaoChecklist";
 import { FichaAbertura } from "@/components/locacao/LocacaoFicha";
+import { LocacaoLancamento, useLancamento } from "@/components/locacao/LocacaoLancamento";
+import { enviarAvisosLocacao } from "@/lib/locacao-avisos.functions";
 import { errorMessage } from "@/lib/errors";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 import {
@@ -21,6 +24,7 @@ import {
   ordemAssinatura,
   ETAPAS,
   GARANTIA_LABEL,
+  IMOVEL_TIPO_LABEL,
   MINUTA_LABEL,
   MOBILIA_LABEL,
   PAPEL_LABEL,
@@ -30,7 +34,11 @@ import {
   dataBr,
   dataPagamento,
   diasParado,
+  enderecoCompleto,
+  equipeTexto,
   etapaIndex,
+  reaisNumero,
+  valoresParaComissao,
   lerContexto,
   lerDetalhe,
   textoParado,
@@ -116,11 +124,22 @@ export function LocacaoDetalhe({ id }: { id: string }) {
   }
   if (!d || !ctx) return <ListSkeleton />;
 
+  // t_8f09d406 item 7: depois de cada ação, o servidor envia os avisos de WhatsApp pendentes DESTA locação
+  // (o banco já criou a fila com chave única; sem chave do ZionTalk nada sai). Falha aqui não atrapalha a tela.
+  const avisar = () => {
+    void enviarAvisosLocacao({ data: { locacaoId: id } }).catch(() => {});
+  };
+  const recarregarEAvisar = async () => {
+    await carregar();
+    avisar();
+  };
+
   const rodar = async (fn: () => Promise<unknown>, ok: string) => {
     setBusy(true);
     try {
       await fn();
       toast.success(ok);
+      avisar();
       setVendo(null);
       await carregar();
     } catch (e) {
@@ -167,7 +186,7 @@ export function LocacaoDetalhe({ id }: { id: string }) {
     corpo = (
       <LocacaoDocumentacao
         {...props}
-        recarregar={carregar}
+        recarregar={recarregarEAvisar}
         editavel={ver === atual && souCorretor && d.etapa === "documentacao"}
         aviso={(tom, c) => <Aviso tom={tom}>{c}</Aviso>}
       />
@@ -194,7 +213,7 @@ export function LocacaoDetalhe({ id }: { id: string }) {
           {...props}
           souCorretor={souCorretor}
           contratos={tenho("contratos")}
-          recarregar={carregar}
+          recarregar={recarregarEAvisar}
         />
       ) : (
         <div className="space-y-3">
@@ -237,14 +256,26 @@ export function LocacaoDetalhe({ id }: { id: string }) {
     );
   } else if (e === "pos_assinatura" || e === "chaves") {
     corpo = (
-      <PosAssinatura
-        {...props}
-        vistoria={ver === atual && tenho("vistoria")}
-        souCorretor={souCorretor && ver === atual}
-      />
+      <div className="space-y-3">
+        <PosAssinatura
+          {...props}
+          vistoria={ver === atual && tenho("vistoria")}
+          souCorretor={souCorretor && ver === atual}
+        />
+        {(tenho("vistoria") || ctx.gerencia || ctx.veComissao) && (
+          <LocacaoLancamento id={d.id} onSalvo={() => void carregar()} />
+        )}
+      </div>
     );
   } else {
-    corpo = <ComissaoResumo d={d} ctx={ctx} souCorretor={souCorretor} busy={busy} rodar={rodar} />;
+    corpo = (
+      <div className="space-y-3">
+        <ComissaoResumo d={d} ctx={ctx} souCorretor={souCorretor} busy={busy} rodar={rodar} />
+        {(tenho("vistoria") || ctx.gerencia || ctx.veComissao) && (
+          <LocacaoLancamento id={d.id} onSalvo={() => void carregar()} />
+        )}
+      </div>
+    );
   }
 
   return (
@@ -271,12 +302,28 @@ export function LocacaoDetalhe({ id }: { id: string }) {
       <p className="text-sm text-muted-foreground">
         Corretor responsável: {d.corretorNome}
         {d.captadorNome ? ` · Captador: ${d.captadorNome}` : ""}
-        {d.coordenadorNome ? ` · Coordenador: ${d.coordenadorNome}` : ""} ·{" "}
-        {d.ficha.imovelId ? `${d.ficha.imovelId} · ` : ""}
-        {d.endereco || "imóvel não informado"}
+        {d.ficha.imovelId ? ` · ${d.ficha.imovelId}` : ""} ·{" "}
+        {enderecoCompleto(d.endereco, d.ficha.complemento) || "imóvel não informado"}
+        {d.imovelTipo ? ` · ${IMOVEL_TIPO_LABEL[d.imovelTipo]}` : ""}
+      </p>
+      <p className="text-sm text-muted-foreground" data-testid="locacao-equipe">
+        Equipe (gravada na abertura): <b>{equipeTexto(d.equipe)}</b>
+        {d.equipe.gravadaEm && (
+          <>
+            {" "}
+            · Gestor: {d.equipe.gestorNome ?? "—"} · Team Leader: {d.equipe.teamLeaderNome ?? "—"}
+          </>
+        )}
       </p>
       <Card>
         <CardContent className="space-y-4 pt-4">
+          {atual >= etapaIndex("minuta") && (
+            <LocacaoAnexosGarantia
+              d={d}
+              editavel={souCorretor || tenho("contratos") || tenho("vistoria")}
+              recarregar={carregar}
+            />
+          )}
           <LocacaoStepper
             etapa={d.etapa}
             devolvida={d.devolvida}
@@ -1092,6 +1139,15 @@ function PosAssinatura({
                 <p className="text-sm text-muted-foreground">
                   Data combinada com o corretor ({d.corretorNome}).
                 </p>
+                {d.apolicePendente && (
+                  <p
+                    role="alert"
+                    data-testid="chaves-apolice-pendente"
+                    className="text-sm font-semibold text-amber-700"
+                  >
+                    Apólice pendente — anexe para liberar a entrega de chaves.
+                  </p>
+                )}
                 {vistoria && (
                   <div className="flex flex-wrap items-center gap-2">
                     <Input
@@ -1101,7 +1157,7 @@ function PosAssinatura({
                       onChange={(e) => setChave(e.target.value)}
                     />
                     <Button
-                      disabled={busy || !chave}
+                      disabled={busy || !chave || d.apolicePendente}
                       onClick={() =>
                         void rodar(async () => {
                           const r = await posAcao(d.id, "entregar_chaves", { data: chave });
@@ -1136,7 +1192,16 @@ function PosAssinatura({
 
 // Etapa 9 -----------------------------------------------------------------------------------------------------
 function ComissaoResumo({ d, ctx, souCorretor, busy, rodar }: P & { souCorretor: boolean }) {
-  const r = calcularComissao(d, ctx.config);
+  const { dados: lan } = useLancamento(d.id);
+  const lancamento =
+    lan?.lancado && reaisNumero(lan.valores.aluguel)
+      ? {
+          aluguel: reaisNumero(lan.valores.aluguel) ?? 0,
+          taxaAdm: Number(lan.valores.taxaAdm.replace(",", ".")) || 0,
+          parceria: lan.valores.parceria,
+        }
+      : null;
+  const r = calcularComissao(valoresParaComissao({ ...d, lancamento }), ctx.config);
   const pend = titularidadePendente(d.pos.tit);
   return (
     <div className="space-y-2">
