@@ -54,7 +54,7 @@ export const MANUAL_LOCACAO = `
 - Se a locação voltou para o corretor, aparece no topo o aviso amarelo **Devolvida pela gestora:** com o motivo.
 
 ### Etapa 3 — Documentação (corretor)
-1. Abra a locação. Aparece o checklist de documentos da garantia escolhida, separado por Locatário, Fiador/Caução/Seguro-fiança e Proprietário.
+1. Abra a locação. Aparece o checklist de documentos da garantia escolhida, separado por Locatário, Fiador/Caução (quando houver) e Proprietário. No seguro-fiança o checklist tem só Locatário e Proprietário: a apólice é registrada depois, no quadro Seguro e condomínio.
 2. Em cada item, escolha o arquivo (PDF, JPG, PNG ou WEBP). Item que termina em "(opcional)" não trava.
 3. A IA pode ler o documento e preencher os **Dados do contrato** (só campos vazios). Use **Ler com IA** se houver documentos esperando leitura; o selo mostra "Aguardando IA", "IA falhou" (aí digite à mão) ou "Lido pela IA". Confira sempre o que foi preenchido.
 4. Complete o quadro **Dados do contrato**. Se a pessoa não tem um dado, marque **Não possui**.

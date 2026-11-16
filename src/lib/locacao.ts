@@ -756,7 +756,7 @@ const GRUPOS_DOC: { key: string; label: string }[] = [
   { key: "locatario", label: "Locatário" },
   { key: "fiador", label: GARANTIA_LABEL.fiador },
   { key: "caucao", label: GARANTIA_LABEL.caucao },
-  { key: "seguro_fianca", label: GARANTIA_LABEL.seguro_fianca },
+  // t_d3e1c29f: seguro-fiança não pede documento ao corretor (apólice vai em "Seguro e condomínio").
   // t_b2ce1207: garantias novas começam sem lista; a gestão inclui em Regras.
   { key: "loft", label: GARANTIA_LABEL.loft },
   { key: "titulo_capitalizacao", label: GARANTIA_LABEL.titulo_capitalizacao },

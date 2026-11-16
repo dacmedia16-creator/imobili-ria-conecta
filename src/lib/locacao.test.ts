@@ -290,7 +290,6 @@ describe("leitura fechada do banco", () => {
       locatario: ["RG", "CPF"],
       fiador: ["Renda"],
       caucao: [],
-      seguro_fianca: ["Apólice"],
       proprietario: ["Matrícula"],
     };
     expect(textoParaDocs(docsParaTexto(docs))).toEqual(docs);

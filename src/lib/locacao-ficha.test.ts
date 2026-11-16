@@ -153,7 +153,6 @@ describe("checklist por parte e itens opcionais", () => {
       locatario: ["RG"],
       fiador: ["Renda"],
       caucao: [],
-      seguro_fianca: ["Apólice"],
       proprietario: ["Matrícula"],
       locatario_pj: ["Cartão CNPJ"],
       fiador_pj: ["Contrato social do fiador"],
