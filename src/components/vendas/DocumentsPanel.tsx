@@ -45,8 +45,6 @@ import {
   Eye,
   Printer,
   Download,
-  ZoomIn,
-  ZoomOut,
   ChevronRight,
   ChevronLeft,
   Sparkles,
@@ -54,8 +52,9 @@ import {
 } from "lucide-react";
 import { extractDocument, applySaleExtractions } from "@/lib/documents.functions";
 import { AI_UNAVAILABLE_MESSAGE } from "@/lib/ai-indisponivel";
-import { baixarDocumentosComoPdf, isImageFile, printDocumentUrls } from "@/lib/document-actions";
+import { baixarDocumentosComoPdf, printDocumentUrls } from "@/lib/document-actions";
 import { DocStatusBadge } from "./shared";
+import { VisualizadorDocumento } from "@/components/documentos/VisualizadorDocumento";
 import type { DocumentRow, PartyRow } from "@/lib/database.types";
 import { errorMessage } from "@/lib/errors";
 import { storageOrganizationPath } from "@/lib/storage-org";
@@ -156,7 +155,6 @@ export function DocumentsPanel({
   const [parteParaRemover, setParteParaRemover] = useState<DocParte | null>(null);
   const [removendoParte, setRemovendoParte] = useState(false);
   const [preview, setPreview] = useState<{ doc: DisplayDocument; url: string } | null>(null);
-  const [zoom, setZoom] = useState(1);
   const [printingAll, setPrintingAll] = useState(false);
   const [downloadingAll, setDownloadingAll] = useState(false);
   const [pendingReject, setPendingReject] = useState<DisplayDocument | null>(null);
@@ -224,9 +222,6 @@ export function DocumentsPanel({
     }
   };
 
-  const zoomIn = () => setZoom((z) => Math.min(3, +(z + 0.25).toFixed(2)));
-  const zoomOut = () => setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)));
-
   const viewDoc = async (doc: DisplayDocument) => {
     const { data, error } = await supabase.storage
       .from("sale-documents")
@@ -235,7 +230,6 @@ export function DocumentsPanel({
       toast.error("Falha ao gerar link");
       return;
     }
-    setZoom(1);
     setPreview({ doc, url: data.signedUrl });
   };
 
@@ -1295,53 +1289,11 @@ export function DocumentsPanel({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle className="truncate">{preview?.doc.file_name}</DialogTitle>
-          </DialogHeader>
-          {preview && isImageFile(preview.doc.file_name) && (
-            <div className="flex items-center justify-end gap-1">
-              <Button size="sm" variant="outline" onClick={zoomOut} disabled={zoom <= 0.5}>
-                <ZoomOut className="h-4 w-4" />
-              </Button>
-              <span className="w-12 text-center text-xs text-muted-foreground">
-                {Math.round(zoom * 100)}%
-              </span>
-              <Button size="sm" variant="outline" onClick={zoomIn} disabled={zoom >= 3}>
-                <ZoomIn className="h-4 w-4" />
-              </Button>
-              {zoom !== 1 && (
-                <Button size="sm" variant="outline" onClick={() => setZoom(1)}>
-                  Redefinir
-                </Button>
-              )}
-            </div>
-          )}
-          {preview && (
-            <div className="max-h-[70vh] overflow-auto rounded-md border bg-muted/30">
-              {isImageFile(preview.doc.file_name) ? (
-                <img
-                  src={preview.url}
-                  alt={preview.doc.file_name}
-                  className="mx-auto cursor-zoom-in select-none"
-                  style={
-                    zoom === 1
-                      ? { maxHeight: "70vh", maxWidth: "100%", width: "auto" }
-                      : { width: `${zoom * 100}%`, maxWidth: "none", maxHeight: "none" }
-                  }
-                  onDoubleClick={() => setZoom((z) => (z === 1 ? 2 : 1))}
-                />
-              ) : (
-                <iframe
-                  src={preview.url}
-                  title={preview.doc.file_name}
-                  className="h-[70vh] w-full"
-                />
-              )}
-            </div>
-          )}
-          <DialogFooter>
+      <VisualizadorDocumento
+        doc={preview && { nome: preview.doc.file_name, url: preview.url }}
+        onClose={() => setPreview(null)}
+        acoes={
+          <>
             {canModerate && preview?.doc.status !== "aprovado" && (
               <Button
                 variant="outline"
@@ -1366,24 +1318,9 @@ export function DocumentsPanel({
                 Recusar
               </Button>
             )}
-            <Button
-              variant="outline"
-              onClick={() =>
-                preview &&
-                printDocumentUrls([{ file_name: preview.doc.file_name, url: preview.url }])
-              }
-            >
-              <Printer className="mr-2 h-4 w-4" />
-              Imprimir
-            </Button>
-            <Button variant="outline" onClick={() => preview && window.open(preview.url, "_blank")}>
-              <Download className="mr-2 h-4 w-4" />
-              Baixar
-            </Button>
-            <Button onClick={() => setPreview(null)}>Fechar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      />
     </div>
   );
 }

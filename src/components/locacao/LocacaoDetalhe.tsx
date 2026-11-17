@@ -47,8 +47,8 @@ import {
   type ContextoLocacao,
   type LocacaoDetalhe as Detalhe,
 } from "@/lib/locacao";
+import { LocacaoArquivoAcoes } from "@/components/locacao/LocacaoArquivoAcoes";
 import {
-  abrirDocumento,
   contextoLocacao,
   contratosAcao,
   corretorMinuta,
@@ -446,18 +446,16 @@ function DecisaoGestora({ d, ctx, busy, rodar }: P) {
               <div key={item} className="flex flex-wrap items-center gap-2">
                 <span aria-hidden>{a.length ? "📄" : "❌"}</span> {item}
                 {a.map((x) => (
-                  <button
+                  <span
                     key={x.id}
-                    type="button"
-                    className="text-xs text-primary underline"
-                    onClick={() =>
-                      void abrirDocumento(x.id).catch((e) =>
-                        toast.error(errorMessage(e, "Documento indisponível.")),
-                      )
-                    }
+                    className="inline-flex max-w-full items-center gap-1 rounded-md border bg-muted/30 pl-2 text-xs"
+                    data-testid="locacao-gestora-anexo"
                   >
-                    abrir
-                  </button>
+                    <span className="max-w-[14rem] truncate" title={x.nomeArquivo}>
+                      {x.nomeArquivo}
+                    </span>
+                    <LocacaoArquivoAcoes tipo="documento" id={x.id} nome={x.nomeArquivo} />
+                  </span>
                 ))}
               </div>
             );
