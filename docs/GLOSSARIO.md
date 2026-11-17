@@ -13,9 +13,9 @@ Quando o código e este glossário divergirem, vale o código; corrija o glossá
 
 **Imobiliária** — Cada empresa cliente do sistema (multiempresa). Tudo que se vê e grava fica preso à imobiliária atual.
 - Código: tabela `organizations`; `organization_id`, `current_org_id()`.
-- Evite: "agência", "empresa", "tenant", "unidade" (unidade é outra coisa).
+- Evite: "agência", "empresa", "tenant", "unidade" (unidade é sempre a loja/CNPJ, nunca a imobiliária inteira).
 
-**Unidade (da captação)** — Loja/CNPJ de uma imobiliária, usada no contrato de captação exclusiva. Uma imobiliária pode ter várias.
+**Unidade** — Sempre a **loja**, ou seja, o **CNPJ**, de uma imobiliária. É usada no contrato de captação exclusiva, e uma imobiliária pode ter várias unidades. (Denis, 17/11)
 - Código: tabela `exclusive_units`; tela `/admin/unidades-captacao`.
 - Evite: usar "unidade" como sinônimo de imobiliária.
 
@@ -50,13 +50,17 @@ Quando o código e este glossário divergirem, vale o código; corrija o glossá
 - Código: papel `corretor`.
 - Evite: "agente", "vendedor" (vendedor é a parte que vende o imóvel ou a ponta de venda).
 
-**Gestor** — Aprova vendas e captações e acompanha equipes da imobiliária.
+**Gestor** — Aprova vendas e captações e acompanha equipes da imobiliária. **Equivale a Team Leader** e é **diferente de Administrador**. (Denis, 17/11)
 - Código: papel `gestor`.
-- Evite: "gerente", "coordenador".
+- Evite: "gerente", "coordenador" (nome antigo); tratar gestor como administrador.
 
 **Team Leader (TL)** — Líder de uma equipe de corretores; vê e aprova o que é da equipe.
 - Código: papel `team_leader`; `teams.lider_id`; nas vendas `lider_captador_id`/`lider_vendedor_id`.
-- Evite: "coordenador" (papel antigo, ver "A confirmar").
+- Evite: "coordenador" (nome antigo de Team Leader e de Gestor).
+
+**Coordenador** — **Nome antigo** de Team Leader e de Gestor. Não use em telas nem textos. (Denis, 17/11)
+- Código: ainda aparece no enum `app_role` e em `sales.coordenador_id` (legado).
+- Use: "Team Leader" ou "Gestor".
 
 **Líder auxiliar** — Pessoa que co-lidera uma equipe junto com o TL.
 - Código: tabela `team_co_leaders`.
@@ -68,12 +72,13 @@ Quando o código e este glossário divergirem, vale o código; corrija o glossá
 
 **Administrador** — Administra a imobiliária (usuários, dados, módulos da casa).
 - Código: papel `admin`.
+- Evite: chamar o administrador de "gestor" (gestor é outro papel, equivalente a TL).
 
 **Administrador principal** — Dono/administrador principal **da imobiliária**. Pode fazer sozinho as etapas de gestor e jurídico da venda (imobiliárias sem gestor/jurídico).
 - Código: papel `super_admin` (rótulo "Administrador principal").
 - Evite: "Super Admin" — esse nome é só para o administrador da **plataforma**.
 
-**Staff** — Equipe interna/administrativa da imobiliária (ex.: gerência); vê dados sensíveis como a Ficha de colaboradores e cria regiões.
+**Staff** — **Equipe interna** da imobiliária; vê dados sensíveis como a Ficha de colaboradores e cria regiões. (Denis, 17/11)
 - Código: papel `staff`.
 - Evite: "funcionário", "backoffice".
 
@@ -110,7 +115,7 @@ Quando o código e este glossário divergirem, vale o código; corrija o glossá
 
 ## 3. Captação
 
-**Captação exclusiva** — Contrato em que o proprietário dá exclusividade de venda à imobiliária por um prazo. É o centro do módulo de captação.
+**Captação exclusiva** — Contrato em que o proprietário dá exclusividade de venda à imobiliária por um prazo. É o centro do módulo de captação. **Não existe captação sem exclusividade** (Denis, 17/11).
 - Código: tabela `exclusive_captures`; telas `/exclusividades`; status `rascunho`, `devolvida`, `enviada`, `em_assinatura`, `aprovada`.
 - Evite: "exclusividade" e "captação" como coisas diferentes — no ADM são a mesma; "angariação".
 
@@ -164,8 +169,9 @@ Quando o código e este glossário divergirem, vale o código; corrija o glossá
 **Esteira** — Vendas abertas que ainda não têm contrato assinado, ordenadas por tempo parado.
 - Evite: "pipeline", "funil" (funil é o relatório de ocorrências).
 
-**Vendido / efetivada** — Venda com contrato assinado; conta no mês da **data de assinatura**.
-- Código: `data_assinatura_oficial`.
+**Vendido** — Termo oficial para a venda com contrato assinado; conta no mês da **data de assinatura**. Use "Vendido" em todos os textos. (Denis, 17/11)
+- Código: `data_assinatura_oficial`; filtro `VENDIDOS_FILTER` (`src/lib/status.ts`). "efetivada"/"concluída" e os status `ocorrencia_concluida`/`concluida` são só nomes **internos** do código.
+- Evite: "efetivada", "concluída" nos textos para dizer que a venda foi feita.
 
 **Partes** — Vendedor(es) e comprador(es) do imóvel na venda.
 - Código: `sale_parties`.
@@ -182,7 +188,7 @@ Quando o código e este glossário divergirem, vale o código; corrija o glossá
 - Código: tabelas `occurrences`, `occurrence_commissions`; status `ocorrencia_*`.
 - Evite: usar "ocorrência" como sinônimo de venda ou de problema/incidente.
 
-**Ocorrência concluída** — Ocorrência finalizada pelo financeiro; base do relatório e da impressão.
+**Ocorrência concluída** — Ocorrência finalizada pelo financeiro; base do relatório e da impressão. É etapa **interna** do financeiro: para dizer que a venda aconteceu, use "Vendido".
 - Código: `ocorrencia_concluida`, rota `/ocorrencias-concluidas`.
 
 ## 5. Dinheiro e números
@@ -203,7 +209,7 @@ Quando o código e este glossário divergirem, vale o código; corrija o glossá
 **Comparativo 6%** — Relatório que compara a comissão praticada com o padrão de 6% do valor do imóvel.
 - Código: `comparativo_comissao_6pct`, `vgvEquivalente6`.
 
-**Lado REMAX** — Parte da comissão que fica com a imobiliária (ex.: com parceria, total 6% e lado REMAX 3%).
+**Lado REMAX** — **Nome oficial** da parte da comissão que fica com a imobiliária (ex.: com parceria, total 6% e lado REMAX 3%). (Denis, 17/11)
 
 **Baixa de recebimentos** — Marcar a comissão como recebida.
 - Código: rota `/comissoes-a-receber`.
@@ -216,15 +222,15 @@ Quando o código e este glossário divergirem, vale o código; corrija o glossá
 **Minha carreira** — Painel pessoal: hoje, meu mês, meu dinheiro, conquistas, diário e meta.
 - Código: rota `/minha-carreira`.
 
-**Meu Plano (2027)** — Plano anual do corretor (KRIs/KPIs, metas, orçamento pessoal), na ordem da cartilha; metas valem a partir de 01/01/2027.
-- Código: módulo `meu_plano_2027`, `src/lib/meu-plano-2027/`, rota `/minha-carreira/plano`.
-- Evite: "planejamento anual", "plano de metas".
+**Meu Plano** — Plano anual do corretor (KRIs/KPIs, metas, orçamento pessoal), na ordem da cartilha; as metas atuais valem a partir de 01/01/2027. O nome é **"Meu Plano", sem o ano**. (Denis, 17/11)
+- Código: módulo `meu_plano_2027`, `src/lib/meu-plano-2027/`, rota `/minha-carreira/plano` (o "2027" no código é só nome interno).
+- Evite: "Meu Plano 2027", "planejamento anual", "plano de metas".
 
 **Inteligência de gestão** — Farol, previsão, conversa 1:1 e termômetro para o gestor.
 - Código: módulo `inteligencia_gestao`, `src/lib/inteligencia-gestao.ts`.
 
-**Clube RE/MAX** — Faixas de reconhecimento por produção.
-- Código: `clube_remax_faixas`, `carreira_clube`.
+**Clube RE/MAX** — Faixas de reconhecimento por produção. O nome **não muda por imobiliária**; as faixas oficiais são as que estão cadastradas no código/banco. (Denis, 17/11)
+- Código: `clube_remax_faixas`, `carreira_clube`; faixas iniciais em `20261104120000_ranking_clubes.sql`.
 
 **Mural de Conquistas** — Feed de vendas e captações da equipe com aplausos, ranking e aniversariantes.
 - Código: rota `/mural-conquistas`, `achievement_*`.
@@ -234,9 +240,9 @@ Quando o código e este glossário divergirem, vale o código; corrija o glossá
 
 ## 7. Especialistas e regiões
 
-**Ache um especialista** — Página pública com corretores por região, separada por imobiliária.
+**Encontre um especialista** — **Nome oficial** da página pública com corretores por região, separada por imobiliária. (Denis, 17/11)
 - Código: módulo `especialistas_publico`, rota `/especialistas/<slug>`.
-- Evite: "Encontre um especialista" é só o título da tela; use "Ache um especialista" ao falar da função. (Ver "A confirmar".)
+- Evite: "Ache um especialista".
 
 **Região (de atuação)** — Bairro/área em que o corretor atua. Pertence à **cidade** (cidade + UF), compartilhada entre imobiliárias da mesma cidade; cada imobiliária aprova, recusa ou junta para si.
 - Código: `positioning_regions`, `positioning_region_orgs` (`ativa`, `pendente`, `recusada`, `juntada`), `corretor_positioning_regions`.
@@ -270,18 +276,3 @@ Quando o código e este glossário divergirem, vale o código; corrija o glossá
 
 **Ajuda e sugestões** — Chamados abertos pelos usuários, tratados na Central de chamados.
 - Código: rota `/ajuda`, `/plataforma/chamados`.
-
----
-
-## A confirmar com Denis
-
-1. **Coordenador** — existe no enum `app_role` e em `sales.coordenador_id`, mas a tela usa Team Leader. É sinônimo antigo de TL ou um papel diferente?
-2. **Gestor × Administrador** — em imobiliárias com os dois, quem aprova o quê além da venda?
-3. **Staff** — a definição "equipe interna/gerência" está certa? Qual o nome que vocês usam no dia a dia?
-4. **"Ache um especialista" × "Encontre um especialista"** — qual nome oficial usar na tela?
-5. **Captação × exclusividade** — existe captação **sem** exclusividade que o sistema deva tratar?
-6. **Lado REMAX** — é o nome oficial para a parte da imobiliária na comissão?
-7. **Vendido / efetivada / concluída** — qual termo usar para "contrato assinado" e qual para "ocorrência concluída" em relatórios?
-8. **Meu Plano** — o nome fica "Meu Plano 2027" ou só "Meu Plano" nos próximos anos?
-9. **Unidade** — "unidade" é sempre a loja/CNPJ, ou às vezes vocês chamam a imobiliária inteira de unidade?
-10. **Clube RE/MAX** — quais as faixas oficiais e se o nome muda por imobiliária.
