@@ -70,10 +70,15 @@ export const prepararEnvioMinutaLocacao = createServerFn({ method: "POST" })
     return { path, token: signed.token };
   });
 
-/** Baixar uma versão da minuta: o banco confere quem vê a locação; URL assinada de 5 min com o nome do arquivo. */
+/**
+ * Link de uma versão da minuta: o banco confere quem vê a locação; URL assinada de 5 min.
+ * Padrão: responde como anexo, com o nome do arquivo (baixar). `baixar: false` é para o olho e o imprimir.
+ */
 export const linkMinutaLocacao = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: unknown) => z.object({ minutaId: z.string().uuid() }).parse(input))
+  .validator((input: unknown) =>
+    z.object({ minutaId: z.string().uuid(), baixar: z.boolean().optional() }).parse(input),
+  )
   .handler(async ({ data, context }) => {
     const user = context.supabase as unknown as SupabaseClient;
     const { data: m, error } = await user.rpc("locacao_minuta_ver", { _minuta: data.minutaId });
@@ -92,7 +97,7 @@ export const linkMinutaLocacao = createServerFn({ method: "POST" })
       await admin()
     ).storage
       .from(BUCKET)
-      .createSignedUrl(path, 300, { download: limpo || true });
+      .createSignedUrl(path, 300, data.baixar === false ? undefined : { download: limpo || true });
     if (e2 || !signed?.signedUrl) throw new Error("Minuta indisponível.");
     return { url: signed.signedUrl };
   });

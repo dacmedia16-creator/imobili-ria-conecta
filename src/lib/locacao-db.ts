@@ -216,21 +216,6 @@ export async function guardarMinuta(
   return typeof reg?.versao === "number" ? reg.versao : 0;
 }
 
-export async function baixarMinuta(minutaId: string): Promise<void> {
-  // Abre a aba ainda no clique (senão o navegador bloqueia como pop-up) e só depois põe a URL assinada.
-  const aba = window.open("", "_blank");
-  if (aba) aba.opener = null;
-  try {
-    const { linkMinutaLocacao } = await import("@/lib/locacao.functions");
-    const { url } = await linkMinutaLocacao({ data: { minutaId } });
-    if (aba) aba.location.href = url;
-    else window.location.href = url;
-  } catch (e) {
-    aba?.close();
-    throw e;
-  }
-}
-
 export const registrarAndamento = (id: string, texto: string, aguardando: string | null) =>
   rpc<{ id: string }>("locacao_andamento_registrar", {
     _id: id,
@@ -246,13 +231,23 @@ export async function lerDocumentoIa(documentoId: string) {
   return lerDocumentoLocacao({ data: { documentoId } });
 }
 
-/** URL assinada curta (5 min) de um documento ou anexo da locação; o banco confere quem pode ver. */
-export async function linkArquivoLocacao(tipo: "documento" | "anexo", id: string): Promise<string> {
-  const { linkDocumentoLocacao, linkAnexoLocacao } = await import("@/lib/locacao.functions");
+/**
+ * URL assinada curta (5 min) de um documento, anexo ou versão da minuta; o banco confere quem pode ver.
+ * Na minuta, `paraBaixar` devolve o link já como anexo, com o nome do arquivo limpo pelo servidor.
+ */
+export async function linkArquivoLocacao(
+  tipo: "documento" | "anexo" | "minuta",
+  id: string,
+  paraBaixar = false,
+): Promise<string> {
+  const { linkDocumentoLocacao, linkAnexoLocacao, linkMinutaLocacao } =
+    await import("@/lib/locacao.functions");
   const { url } =
     tipo === "documento"
       ? await linkDocumentoLocacao({ data: { documentoId: id } })
-      : await linkAnexoLocacao({ data: { anexoId: id } });
+      : tipo === "anexo"
+        ? await linkAnexoLocacao({ data: { anexoId: id } })
+        : await linkMinutaLocacao({ data: { minutaId: id, baixar: paraBaixar } });
   return url;
 }
 
