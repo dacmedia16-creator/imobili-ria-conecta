@@ -4,6 +4,11 @@ import { createPortal } from "react-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { storageOrganizationPath } from "@/lib/storage-org";
+import {
+  erroValorNegociado,
+  erroValorNegociadoNoPatch,
+  mensagemErroTetoBanco,
+} from "@/lib/valor-negociado-trava";
 import { useAgencyLetterhead } from "@/lib/agency-letterhead";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1196,6 +1201,14 @@ function SaleDetail() {
         toast.error(CODIGO_INTERNO_ERRO, { id: "codigo-interno-invalido" });
         return false;
       }
+      // Trava de valor negociado absurdo (vale também no rascunho). Só confere quando o negociado
+      // ou o anunciado muda, para não travar venda antiga em outros campos.
+      const erroValor = erroValorNegociadoNoPatch(patch, sale);
+      if (erroValor) {
+        setResumoSaveFailed(true);
+        toast.error(erroValor, { id: "valor-negociado-fora" });
+        return false;
+      }
       const syncAllowed = await resumoSyncAllowed(patch);
       if (normalized) setFormSale(normalizedSale);
       // `corretor_id` identifica quem criou e continua responsável pelo rascunho. Captador e
@@ -1211,7 +1224,7 @@ function SaleDetail() {
           if (error.code === "23505" && error.message?.includes("sales_imovel_id_ativa_key")) {
             toast.error("Já existe outra venda em andamento para esse código de imóvel.");
           } else {
-            toast.error(resumoSaveErrorMessage(error));
+            toast.error(mensagemErroTetoBanco(error) ?? resumoSaveErrorMessage(error));
           }
           return false;
         }
@@ -1775,6 +1788,13 @@ function SaleDetail() {
   // convenção já usada em applyRemax*/applyParceria* (percentual sobre o negociado, não sobre o total
   // da comissão). Capitador/vendedor/indicador/líder nunca são tocados aqui: são valores em reais
   // digitados direto, sem percentual vinculado ao negociado (regras 2/3/6).
+  // Aviso embaixo do campo enquanto o valor digitado está fora da faixa (mesma regra do salvar).
+  // Só aparece quando o negociado/anunciado foi mexido nesta edição.
+  const avisoValorNegociado =
+    (formSale.valor_negociado ?? null) !== (sale?.valor_negociado ?? null) ||
+    (formSale.valor_anunciado ?? null) !== (sale?.valor_anunciado ?? null)
+      ? erroValorNegociado(formSale.valor_negociado, formSale.valor_anunciado)
+      : null;
   const applyValorNegociado = (v: number | null) => {
     if (locked) {
       toast.error(
@@ -3394,7 +3414,12 @@ function SaleDetail() {
                             onChange={(v) => updResumo({ valor_anunciado: v })}
                           />
                         </Field>
-                        <Field id="campo-venda-valor_negociado" label="Valor negociado (R$)">
+                        <Field
+                          id="campo-venda-valor_negociado"
+                          label="Valor negociado (R$)"
+                          invalid={avisoValorNegociado !== null}
+                          errorText={avisoValorNegociado ?? undefined}
+                        >
                           <CurrencyInput
                             value={formSale.valor_negociado}
                             disabled={!editable}
@@ -6918,6 +6943,12 @@ function OccurrencePanel({
   // reais calculado sobre o negociado ANTERIOR. Percentual continua o mesmo (regra 1), só o valor em
   // reais recalcula. Ocorrência concluída já trava o campo (disabled={!canWrite} abaixo), mas o guard
   // aqui também cobre qualquer outro caminho que chame isso sem passar pela UI.
+  const avisoValorOcc =
+    formOcc &&
+    ((formOcc.valor_negociado ?? null) !== (occ?.valor_negociado ?? null) ||
+      (formOcc.valor_anunciado ?? null) !== (occ?.valor_anunciado ?? null))
+      ? erroValorNegociado(formOcc.valor_negociado, formOcc.valor_anunciado)
+      : null;
   const applyOccValorNegociado = (v: number | null) => {
     if (!canWrite) {
       toast.error("Ocorrência concluída ou travada — reabra antes de alterar o valor negociado.");
@@ -7139,6 +7170,11 @@ function OccurrencePanel({
           occ?.data_assinatura,
         );
         if (dataAlinhada) patch.data_assinatura = dataAlinhada;
+        const erroValorOcc = erroValorNegociadoNoPatch(patch, occ ?? {});
+        if (erroValorOcc) {
+          toast.error(erroValorOcc, { id: "valor-negociado-fora" });
+          return false;
+        }
         if (Object.keys(patch).length) {
           const { error } = await supabase
             .from("occurrences")
@@ -7579,7 +7615,11 @@ function OccurrencePanel({
                 onChange={(v) => updOcc({ valor_anunciado: v })}
               />
             </Field>
-            <Field label="Valor negociado">
+            <Field
+              label="Valor negociado"
+              invalid={avisoValorOcc !== null}
+              errorText={avisoValorOcc ?? undefined}
+            >
               <CurrencyInput
                 value={formOcc.valor_negociado}
                 disabled={!canWrite}

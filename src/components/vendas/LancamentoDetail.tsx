@@ -72,6 +72,7 @@ import {
 import { calcularDistribuicaoLancamento } from "@/lib/lancamento-distribuicao";
 import { responsaveisDaVenda } from "@/lib/sale-permissions";
 import { sanitizeLancamentoResumoPayload } from "@/lib/lancamento-resumo";
+import { erroValorNegociado } from "@/lib/valor-negociado-trava";
 import type {
   ActivityLogRow,
   CommissionExtraRow,
@@ -345,6 +346,15 @@ export function LancamentoDetail({
     }
     if (!editPreviewDist.calculo_valido) {
       toast.error(editPreviewDist.inconsistencias[0]);
+      return;
+    }
+    const erroValorEdicao =
+      (editResumo.valor_negociado ?? null) !== (sale.valor_negociado ?? null) ||
+      (editResumo.valor_anunciado ?? null) !== (sale.valor_anunciado ?? null)
+        ? erroValorNegociado(editResumo.valor_negociado, editResumo.valor_anunciado)
+        : null;
+    if (erroValorEdicao) {
+      toast.error(erroValorEdicao, { id: "valor-negociado-fora" });
       return;
     }
     setSalvandoEdicao(true);
@@ -666,6 +676,17 @@ export function LancamentoDetail({
       const mensagem = mensagemDataVendaLancamento;
       setFormError(mensagem);
       toast.error(mensagem);
+      return false;
+    }
+    const mudouValor =
+      (form.valor_negociado ?? null) !== (formBeforeRef.current.valor_negociado ?? null) ||
+      (form.valor_anunciado ?? null) !== (formBeforeRef.current.valor_anunciado ?? null);
+    const erroValor = mudouValor
+      ? erroValorNegociado(form.valor_negociado, form.valor_anunciado)
+      : null;
+    if (erroValor) {
+      setFormError(erroValor);
+      toast.error(erroValor, { id: "valor-negociado-fora" });
       return false;
     }
     // Normaliza de novo aqui (defesa em profundidade) -- mesmo que algum campo volte a virar "" por

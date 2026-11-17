@@ -15,6 +15,7 @@ import {
 } from "./sale-permissions";
 import { saleManagementCapabilities } from "./sale-management-capabilities";
 import { extraSemPessoaCadastrada } from "./sale-financial-calc";
+import { erroValorNegociadoNoPatch, mensagemErroTetoBanco } from "./valor-negociado-trava";
 import { COMISSAO_PAPEIS } from "./status";
 
 // OFFLINE: executa os handlers extraídos do TSX real. Somente as fronteiras React/Supabase
@@ -107,6 +108,8 @@ function harness(initial = fixture()) {
     podeSincronizarResumo,
     saleManagementCapabilities,
     extraSemPessoaCadastrada,
+    erroValorNegociadoNoPatch,
+    mensagemErroTetoBanco,
     COMISSAO_PAPEIS,
     temEdicaoFinanceiraResumo,
     resumoTemPendencia,
@@ -409,6 +412,20 @@ describe("remoção de indicadores e retomada — handlers reais, backend MOCK o
     expect(await h.context.saveResumo()).toBe(true);
     expect(h.db().matricula).toBe("revisada");
     expect(syncCalls(h)).toHaveLength(0);
+  });
+  it("trava de valor (t_9f5f3ae2): saveResumo real barra 281.600.000 contra 397.000 e aceita 380.000", async () => {
+    const initial = fixture();
+    initial.status = "rascunho";
+    initial.valor_anunciado = 397000;
+    const h = harness(initial);
+    h.context.updResumo({ valor_negociado: 281600000 });
+    h.calls.length = 0;
+    expect(await h.context.saveResumo()).toBe(false);
+    expect(h.calls.some((c) => c.table === "sales" && c.operation === "update")).toBe(false);
+    expect(h.db().valor_negociado).toBe(395000);
+    h.context.updResumo({ valor_negociado: 380000 });
+    expect(await h.context.saveResumo()).toBe(true);
+    expect(h.db().valor_negociado).toBe(380000);
   });
   it("remove comissão de líder órfã antes de sincronizar após devolução", async () => {
     const initial = fixture();

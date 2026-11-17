@@ -71,6 +71,7 @@ import { fetchFinanceiroBundle } from "@/lib/financeiro-dashboard-query";
 import { resolverResumoOpcional } from "@/lib/vendas-resumo";
 import { criarCacheConsultas, ehErroDePermissao, type CacheConsultas } from "@/lib/cache-consultas";
 import { fetchVendasComerciaisPaginadas } from "@/lib/vendas-comerciais-query";
+import { linhaNoChipDaEsteira, resumoEsteira } from "@/lib/esteira-resumo";
 import { registrarVendaAction } from "@/lib/registrar-venda";
 import type { SaleRow } from "@/lib/database.types";
 import { errorMessage } from "@/lib/errors";
@@ -626,8 +627,10 @@ function SalesList() {
           setEsteiraRows(todas);
           setSales(esteira ? [] : todas);
           if (esteira) {
-            setTotalCount(todas.length);
-            setTotalValor(todas.reduce((acc, s) => acc + (Number(s.valor_negociado) || 0), 0));
+            // Rascunho fica fora do total (ainda não foi enviado); aparece só no chip próprio.
+            const { enviadas } = resumoEsteira(todas);
+            setTotalCount(enviadas.quantidade);
+            setTotalValor(enviadas.valor);
           } else {
             // Mesmos totais da carga paginada (vêm da RPC, não da soma local).
             setTotalCount(primeiroLote?.total_count ?? todas.length);
@@ -771,14 +774,7 @@ function SalesList() {
   // novamente no navegador: isso faria a fila voltar a depender apenas das 10 linhas carregadas.
   const diasNaEtapa = (s: SalesListRow) =>
     Date.now() - new Date(stageSince[s.id] ?? s.created_at).getTime();
-  const esteiraPorEtapa = ESTEIRA_STATUSES.map((st) => {
-    const linhas = esteiraRows.filter((s) => s.status === st);
-    return {
-      status: st,
-      quantidade: linhas.length,
-      valor: linhas.reduce((acc, s) => acc + (Number(s.valor_negociado) || 0), 0),
-    };
-  }).filter((e) => e.quantidade > 0);
+  const { porEtapa: esteiraPorEtapa, rascunho: esteiraRascunho } = resumoEsteira(esteiraRows);
   const comparar = (a: SalesListRow, b: SalesListRow) => {
     if (!ordem) return diasNaEtapa(b) - diasNaEtapa(a);
     const sinal = ordem.dir === "asc" ? 1 : -1;
@@ -791,7 +787,7 @@ function SalesList() {
   };
   const esteiraFiltrada = carregarTudo
     ? esteiraRows
-        .filter((s) => !esteira || esteiraEtapa === "todas" || s.status === esteiraEtapa)
+        .filter((s) => !esteira || linhaNoChipDaEsteira(s.status, esteiraEtapa))
         .sort(comparar)
     : [];
   const esteiraParadas = esteiraRows.filter(
@@ -1142,6 +1138,11 @@ function SalesList() {
                   {totalCount} {totalCount === 1 ? "venda na esteira" : "vendas na esteira"}
                 </b>
                 {` · ${totalValor.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })} sem contrato assinado`}
+                {esteiraRascunho.quantidade > 0 && (
+                  <span className="text-muted-foreground">
+                    {` · ${esteiraRascunho.quantidade} ${esteiraRascunho.quantidade === 1 ? "rascunho fora do total" : "rascunhos fora do total"}`}
+                  </span>
+                )}
                 {esteiraParadas > 0 && (
                   <span className="font-semibold text-destructive">
                     {` · ${esteiraParadas} parada${esteiraParadas === 1 ? "" : "s"} há mais de 20 dias`}
@@ -1165,7 +1166,7 @@ function SalesList() {
                     }}
                   >
                     {e.status === "todas"
-                      ? "Todas as etapas"
+                      ? "Todas enviadas"
                       : `${STATUS_LABEL[e.status as SaleStatus]} · ${e.quantidade}`}
                     <span className="ml-1 opacity-70">
                       {e.valor.toLocaleString("pt-BR", {
@@ -1179,7 +1180,8 @@ function SalesList() {
               </div>
               <p className="text-xs text-muted-foreground">
                 Parada na etapa: até 7 dias em dia · 8 a 20 dias atenção · mais de 20 dias cobrar.
-                Lista começa pelas paradas há mais tempo.
+                Lista começa pelas paradas há mais tempo. O total soma só as vendas já enviadas;
+                rascunhos ficam no chip Rascunho.
               </p>
             </div>
           )}
