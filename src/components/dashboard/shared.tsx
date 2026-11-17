@@ -238,7 +238,7 @@ export function ResumoGrupoVendaCards({
         label={rotulo("VGV REMAX em andamento")}
         quantidade={resumo.futura.quantidade}
         vgv={resumo.futura.vgv}
-        info="Ainda não confirmado. VGV atribuído à REMAX, já sem parceria externa, das vendas em preparação ou futura."
+        info="Ainda não confirmado. VGV atribuído à REMAX, já sem parceria externa, das vendas já enviadas e ainda sem contrato assinado. Rascunhos ficam de fora."
       />
       <MovimentacaoCard
         icon={CheckCircle2}
