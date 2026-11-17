@@ -92,14 +92,14 @@ Quando o código e este glossário divergirem, vale o código; corrija o glossá
 **Locação (papel)** — Papel que só dá acesso à área de locação. Dentro dela há papéis próprios: Gestora de locação, Setor de contratos, Vistoria/Seguro, Financeiro da locação.
 - Código: papel `locacao`; tabela `locacao_papeis` (`gestora`, `contratos`, `vistoria`, `financeiro`).
 
-**ID RE/MAX** — Identificador do corretor na rede RE/MAX. Usado para ligar anúncios do XML às captações. Opcional no cadastro.
-- Código: `profiles.remax_id`; no contrato, "ID RE/MAX do captador (travado)".
+**ID RE/MAX** — Identificador do corretor na rede RE/MAX. Usado para ligar anúncios do XML às captações. **Obrigatório** para corretor, gestor e team leader: 9 dígitos começando com 630, sem repetir entre usuários ativos. Staff e administrativo sem esses papéis não informam.
+- Código: `profiles.remax_id`; no contrato, "ID RE/MAX do captador (travado)"; regra em `cadastro_exige_registro` e índice `profiles_remax_id_uniq` (migration `20261029160000_cadastro_completo_ficha.sql`).
 - Evite: "código RE/MAX", "matrícula".
 
 **CRECI** — Registro profissional do corretor. **Opcional**: vazio ou só zeros = sem CRECI. Sem CRECI, o corretor vira testemunha e um gestor/TL assina o contrato.
 - Código: `profiles.creci`; `creciSoZeros`, `validCreci`.
 
-**Completar cadastro** — Tela do 1º acesso: foto, nome, e-mail, telefone, CPF e data de nascimento obrigatórios; CRECI e ID RE/MAX opcionais.
+**Completar cadastro** — Tela do 1º acesso: foto, nome, e-mail, telefone e data de nascimento obrigatórios para todos. Para corretor, gestor e team leader, também são **obrigatórios** o CPF válido e o ID RE/MAX (9 dígitos, começa com 630, único entre usuários ativos). Staff e administrativo sem esses papéis não informam CPF nem ID. O CRECI é opcional e nunca bloqueia a ficha.
 - Código: `src/components/CompletarPerfil.tsx`, `src/lib/completar-perfil.ts`.
 
 **Ficha de colaboradores** — Ficha pessoal e de emergência de cada pessoa; visível só para staff e administração.
