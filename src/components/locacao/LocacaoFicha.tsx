@@ -40,6 +40,7 @@ import {
   salvarPreAnalise,
 } from "@/lib/locacao-db";
 import { errorMessage } from "@/lib/errors";
+import { LocacaoArquivoAcoes } from "./LocacaoArquivoAcoes";
 import {
   LocacaoPreLinks,
   preLinksProntos,
@@ -505,6 +506,7 @@ export function FichaAbertura({ d, ctx, busy, rodar, editavel, aConfirmar, aviso
                   >
                     {a.nomeArquivo}
                   </button>
+                  <LocacaoArquivoAcoes tipo="documento" id={a.id} nome={a.nomeArquivo} />
                   {editavel && (
                     <Button
                       size="icon"

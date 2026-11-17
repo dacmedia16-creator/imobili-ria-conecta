@@ -3,6 +3,7 @@
 // O banco repete toda checagem (corretor, etapa, campos válidos, trava de envio).
 import { useMemo, useState, type ReactNode } from "react";
 import { LocacaoLinks, type StatusLink } from "./LocacaoLinks";
+import { LocacaoArquivoAcoes } from "./LocacaoArquivoAcoes";
 import { podeEnviarLinks } from "@/lib/locacao-links";
 import { toast } from "sonner";
 import {
@@ -421,6 +422,7 @@ export function LocacaoDocumentacao({ d, ctx, busy, rodar, recarregar, editavel,
                         >
                           <Paperclip className="h-3 w-3 shrink-0" /> {a.nomeArquivo}
                         </button>
+                        <LocacaoArquivoAcoes tipo="documento" id={a.id} nome={a.nomeArquivo} />
                         {itemLidoPorIa(a.item) ? (
                           <SeloIa doc={a} lendo={!!lendo[a.id]} />
                         ) : (

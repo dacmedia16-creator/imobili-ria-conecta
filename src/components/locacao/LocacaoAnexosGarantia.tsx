@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { anexarGarantiaLocacao, abrirAnexoLocacao } from "@/lib/locacao-db";
+import { LocacaoArquivoAcoes } from "./LocacaoArquivoAcoes";
 import { errorMessage } from "@/lib/errors";
 import type { LocacaoDetalhe } from "@/lib/locacao";
 
@@ -69,6 +70,7 @@ export function LocacaoAnexosGarantia({
             >
               {a.nomeArquivo}
             </Button>
+            <LocacaoArquivoAcoes tipo="anexo" id={a.id} nome={a.nomeArquivo} />
             <span>{a.numero ? `Nº ${a.numero}` : "Número não informado"}</span>
           </div>
         ))}

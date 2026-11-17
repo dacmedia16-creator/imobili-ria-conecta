@@ -246,13 +246,22 @@ export async function lerDocumentoIa(documentoId: string) {
   return lerDocumentoLocacao({ data: { documentoId } });
 }
 
+/** URL assinada curta (5 min) de um documento ou anexo da locação; o banco confere quem pode ver. */
+export async function linkArquivoLocacao(tipo: "documento" | "anexo", id: string): Promise<string> {
+  const { linkDocumentoLocacao, linkAnexoLocacao } = await import("@/lib/locacao.functions");
+  const { url } =
+    tipo === "documento"
+      ? await linkDocumentoLocacao({ data: { documentoId: id } })
+      : await linkAnexoLocacao({ data: { anexoId: id } });
+  return url;
+}
+
 export async function abrirDocumento(documentoId: string): Promise<void> {
   // Abre a aba ainda no clique (senão o navegador bloqueia como pop-up) e só depois põe a URL assinada.
   const aba = window.open("", "_blank");
   if (aba) aba.opener = null;
   try {
-    const { linkDocumentoLocacao } = await import("@/lib/locacao.functions");
-    const { url } = await linkDocumentoLocacao({ data: { documentoId } });
+    const url = await linkArquivoLocacao("documento", documentoId);
     if (aba) aba.location.href = url;
     else window.location.href = url;
   } catch (e) {
