@@ -15,31 +15,48 @@ function urlParaBaixar(url: string, nome: string) {
   return `${url}${url.includes("?") ? "&" : "?"}download=${encodeURIComponent(nome)}`;
 }
 
-function baixar(url: string, nome: string) {
+function clicarLink(href: string) {
   const a = document.createElement("a");
-  a.href = urlParaBaixar(url, nome);
+  a.href = href;
   a.rel = "noopener";
   document.body.appendChild(a);
   a.click();
   a.remove();
 }
 
+function baixar(url: string, nome: string) {
+  clicarLink(urlParaBaixar(url, nome));
+}
+
+/** Word (.doc/.docx) o navegador não mostra nem imprime: para esse tipo fica só o "baixar". */
+const ehWord = (nome: string) => /\.docx?$/i.test(nome);
+
 /**
  * Olho, imprimir e baixar de um arquivo da locação, iguais aos documentos de Vendas (t_7ed2403d).
- * Cada clique pede ao servidor um link assinado curto: o banco confere de novo quem pode ver.
+ * Também nas versões da minuta (t_66b2e4cc). Cada clique pede ao servidor um link assinado curto:
+ * o banco confere de novo quem pode ver.
  */
 export function LocacaoArquivoAcoes({
   tipo,
   id,
   nome,
 }: {
-  tipo: "documento" | "anexo";
+  tipo: "documento" | "anexo" | "minuta";
   id: string;
   nome: string;
 }) {
   const [aberto, setAberto] = useState<DocumentoAberto | null>(null);
   const [ocupado, setOcupado] = useState(false);
-  const falha = (e: unknown) => toast.error(errorMessage(e, "Documento indisponível."));
+  const falha = (e: unknown) =>
+    toast.error(
+      errorMessage(e, tipo === "minuta" ? "Minuta indisponível." : "Documento indisponível."),
+    );
+  const word = ehWord(nome);
+  // A minuta já vem do servidor como anexo, com o nome limpo; os outros ganham `download=` aqui.
+  const baixarArquivo = async () => {
+    if (tipo === "minuta") return clicarLink(await linkArquivoLocacao(tipo, id, true));
+    baixar(await linkArquivoLocacao(tipo, id), nome);
+  };
 
   const ver = async () => {
     setOcupado(true);
@@ -65,7 +82,7 @@ export function LocacaoArquivoAcoes({
   const baixarAgora = async () => {
     setOcupado(true);
     try {
-      baixar(await linkArquivoLocacao(tipo, id), nome);
+      await baixarArquivo();
     } catch (e) {
       falha(e);
     } finally {
@@ -76,27 +93,35 @@ export function LocacaoArquivoAcoes({
   return (
     <>
       <span className="inline-flex items-center" data-testid="locacao-arquivo-acoes">
-        <Button
-          size="icon"
-          variant="ghost"
-          className="h-7 w-7"
-          title="Visualizar"
-          aria-label={`Visualizar ${nome}`}
-          disabled={ocupado}
-          onClick={() => void ver()}
-        >
-          <Eye className="h-4 w-4" />
-        </Button>
-        <Button
-          size="icon"
-          variant="ghost"
-          className="h-7 w-7"
-          title="Imprimir"
-          aria-label={`Imprimir ${nome}`}
-          onClick={imprimir}
-        >
-          <Printer className="h-4 w-4" />
-        </Button>
+        {word ? (
+          <span className="mr-1 text-xs text-muted-foreground" data-testid="locacao-arquivo-word">
+            Word: só baixar
+          </span>
+        ) : (
+          <>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7"
+              title="Visualizar"
+              aria-label={`Visualizar ${nome}`}
+              disabled={ocupado}
+              onClick={() => void ver()}
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7"
+              title="Imprimir"
+              aria-label={`Imprimir ${nome}`}
+              onClick={imprimir}
+            >
+              <Printer className="h-4 w-4" />
+            </Button>
+          </>
+        )}
         <Button
           size="icon"
           variant="ghost"
@@ -112,7 +137,9 @@ export function LocacaoArquivoAcoes({
       <VisualizadorDocumento
         doc={aberto}
         onClose={() => setAberto(null)}
-        onBaixar={(d) => baixar(d.url, d.nome)}
+        onBaixar={(d) =>
+          tipo === "minuta" ? void baixarArquivo().catch(falha) : baixar(d.url, d.nome)
+        }
       />
     </>
   );

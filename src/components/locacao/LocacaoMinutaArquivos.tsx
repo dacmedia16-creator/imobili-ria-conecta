@@ -3,7 +3,7 @@
 // locação baixa; "enviar ao corretor" e "preparar assinatura" recusam sem arquivo.
 import { useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { Download, FileUp } from "lucide-react";
+import { FileUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,12 +18,8 @@ import {
   type LocacaoDetalhe,
   type MinutaVersao,
 } from "@/lib/locacao";
-import {
-  baixarMinuta,
-  guardarMinuta,
-  registrarAndamento,
-  resolverAndamento,
-} from "@/lib/locacao-db";
+import { guardarMinuta, registrarAndamento, resolverAndamento } from "@/lib/locacao-db";
+import { LocacaoArquivoAcoes } from "./LocacaoArquivoAcoes";
 
 const SELECT =
   "h-9 w-full rounded-md border border-input bg-background px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60";
@@ -45,10 +41,6 @@ const quando = (iso: string) =>
         minute: "2-digit",
       })
     : "—";
-
-function baixar(id: string) {
-  void baixarMinuta(id).catch((e) => toast.error(errorMessage(e, "Minuta indisponível.")));
-}
 
 /** Quadro "Minuta": versão atual + histórico; o setor de contratos anexa (PDF/Word). */
 export function MinutaArquivos({
@@ -123,15 +115,7 @@ export function MinutaArquivos({
                 {v.nomeArquivo} · {ORIGEM_LABEL[v.origem]} · {quando(v.enviadoEm)}
                 {v.enviadoPorNome ? ` · ${v.enviadoPorNome}` : ""}
               </span>
-              <Button
-                size="sm"
-                variant={i ? "ghost" : "outline"}
-                className="h-7"
-                onClick={() => baixar(v.id)}
-              >
-                <Download className="mr-1 h-3.5 w-3.5" />
-                {i ? "baixar" : "Baixar versão atual"}
-              </Button>
+              <LocacaoArquivoAcoes tipo="minuta" id={v.id} nome={v.nomeArquivo} />
             </li>
           ))}
         </ul>
