@@ -64,7 +64,7 @@ const ANA: Respostas = {
 };
 const META_ANA = {
   meta_comissao: 588000,
-  meta_vgv: 19600000,
+  meta_vgv: 9800000,
   meta_vendas: 28,
   meta_captacoes: 127,
 };
@@ -116,7 +116,7 @@ describe("assinar grava a meta anual oficial de 2027", () => {
     expect(c).toEqual({
       _ano: 2027,
       _comissao: 588000,
-      _vgv: 19600000,
+      _vgv: 9800000,
       _vendas: 28,
       _captacoes: 127,
       _substituir: true,
@@ -173,13 +173,36 @@ describe("assinar grava a meta anual oficial de 2027", () => {
     expect(chamadasMeta()).toHaveLength(0);
   });
 
+  it("meta assinada com o VGV antigo (transações × ticket): regrava uma vez só o VGV novo", async () => {
+    banco();
+    linhaPlano = {
+      respostas: ANA,
+      assinado_corretor_em: "2026-11-18T13:00:00Z",
+      meta_oficial: { ...META_ANA, meta_vgv: 19600000 },
+    };
+    const { result } = renderHook(() => usePlano("u1"));
+    await waitFor(() => expect(chamadasMeta()).toHaveLength(1));
+    expect(chamadasMeta()[0][1]).toEqual({
+      _ano: 2027,
+      _comissao: 588000,
+      _vgv: 9800000,
+      _vendas: 28,
+      _captacoes: 127,
+      _substituir: true,
+    });
+    await waitFor(() => expect(result.current.plano?.meta_oficial).toEqual(META_ANA));
+    expect(result.current.plano?.assinado_corretor_em).toBe("2026-11-18T13:00:00Z");
+    await new Promise((x) => setTimeout(x, 30));
+    expect(chamadasMeta()).toHaveLength(1);
+  });
+
   it("metaIgual compara com arredondamento de centavos", () => {
     expect(
-      metaIgual(META_ANA, { comissao: 588000, vgv: 19600000, vendas: 28, captacoes: 127 }),
+      metaIgual(META_ANA, { comissao: 588000, vgv: 9800000, vendas: 28, captacoes: 127 }),
     ).toBe(true);
     expect(metaIgual(null, { comissao: 1, vgv: null, vendas: 1, captacoes: null })).toBe(false);
     expect(
-      metaIgual(META_ANA, { comissao: 588001, vgv: 19600000, vendas: 28, captacoes: 127 }),
+      metaIgual(META_ANA, { comissao: 588001, vgv: 9800000, vendas: 28, captacoes: 127 }),
     ).toBe(false);
   });
 });

@@ -65,9 +65,9 @@ describe("meta do mês em 2027 vem do plano assinado", () => {
   const mes = metaMensalDoPlano(calc(ANA))!;
 
   it("não duplica a conta: mês = anual ÷ 12; captações = captMes da calc()", () => {
-    expect(anual).toEqual({ comissao: 588000, vgv: 19600000, vendas: 28, captacoes: 127 });
+    expect(anual).toEqual({ comissao: 588000, vgv: 9800000, vendas: 28, captacoes: 127 });
     expect(mes.comissao).toBe(49000);
-    expect(mes.vgv).toBe(1633333.33);
+    expect(mes.vgv).toBe(816666.67);
     expect(mes.vendas).toBe(2);
     expect(mes.captacoes).toBe(11);
     expect(mes.captacoes).toBe(calc(ANA).captMes);

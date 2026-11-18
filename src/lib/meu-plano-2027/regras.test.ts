@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { calc, clubePorValor, metaOficialDoPlano, num, regua, type Respostas } from "./regras";
+import {
+  calc,
+  clubePorValor,
+  metaMensalDoPlano,
+  metaOficialDoPlano,
+  num,
+  regua,
+  type Respostas,
+} from "./regras";
 
 // Números de exemplo impressos no próprio book Agent Summit 2027 (a "Ana Exemplo" da maquete v3).
 // As 12 contas abaixo foram conferidas com o papel na maquete (t_20caacaf / t_6c76e001).
@@ -135,9 +143,18 @@ describe("demais regras do plano", () => {
     expect(C.armadilhas).toHaveLength(2);
     expect(calc({ "av.0": "5" }).notaFaixa).toBe("");
   });
-  it("meta oficial: VGC, transações, captações e VGV = transações × ticket", () => {
+  it("meta oficial: VGC, transações, captações e VGV = transações ÷ 2 × ticket", () => {
     const m = metaOficialDoPlano(calc(ANA));
-    expect(m).toEqual({ comissao: 588000, vgv: 19600000, vendas: 28, captacoes: 127 });
+    expect(m).toEqual({ comissao: 588000, vgv: 9800000, vendas: 28, captacoes: 127 });
     expect(metaOficialDoPlano(calc({}))).toBeNull();
+  });
+  it("VGV: 42 transações × ticket R$ 450.000 = 21 vendas cheias = R$ 9.450.000 (mês 787.500)", () => {
+    const C = { ...calc(ANA), transMeta: 42, ticket: 450000 };
+    const m = metaOficialDoPlano(C)!;
+    expect(m.vgv).toBe(9450000);
+    expect(m.vendas).toBe(42);
+    expect(m.comissao).toBe(Math.round(C.vgc * 100) / 100);
+    expect(metaMensalDoPlano(C)!.vgv).toBe(787500);
+    expect(metaOficialDoPlano({ ...C, ticket: NaN })!.vgv).toBeNull();
   });
 });

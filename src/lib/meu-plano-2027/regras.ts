@@ -340,7 +340,8 @@ export function metaOficialDoPlano(C: Calc) {
   if (!ok(C.vgc) || !ok(C.transMeta)) return null;
   return {
     comissao: Math.round(C.vgc * 100) / 100,
-    vgv: ok(C.ticket) && C.ticket > 0 ? Math.round(C.transMeta * C.ticket * 100) / 100 : null,
+    // Cada venda tem dois lados (captação + venda): VGV = (transações ÷ 2) × ticket médio (Denis, 18/11).
+    vgv: ok(C.ticket) && C.ticket > 0 ? Math.round((C.transMeta / 2) * C.ticket * 100) / 100 : null,
     vendas: Math.round(C.transMeta),
     captacoes: ok(C.novas) ? Math.round(C.novas) : null,
   };
