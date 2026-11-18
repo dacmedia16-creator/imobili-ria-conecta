@@ -288,7 +288,7 @@ function CompletarPerfilTela({
     const rid = remaxId.replace(/\D/g, "");
     if (rid && rid.length !== 9) {
       toast.error(
-        "O ID RE/MAX tem 9 números e começa com 630 (ex.: 630601272). Deixe em branco se não tiver.",
+        "O ID RE/MAX tem 9 números e começa com 63 (ex.: 630601272). Deixe em branco se não tiver.",
       );
       return;
     }
@@ -331,9 +331,9 @@ function CompletarPerfilTela({
           throw new Error(
             "Esse ID RE/MAX já está em outro cadastro. Deixe em branco e fale com o administrador.",
           );
-        // Gatilho do padrão 630 (t_b98f3e4b): só recusa quando o ID muda.
+        // Gatilho do padrão 63 (t_b98f3e4b, t_e60b5acc): só recusa quando o ID muda.
         if (/ID RE\/MAX invalido/i.test(error.message))
-          throw new Error("O ID RE/MAX tem 9 números e começa com 630 (ex.: 630601272).");
+          throw new Error("O ID RE/MAX tem 9 números e começa com 63 (ex.: 630601272).");
         if (/cpf/i.test(error.message)) throw new Error("CPF inválido. Confira os números.");
         if (/creci/i.test(error.message))
           throw new Error("CRECI inválido. Use só letras, números e - . /");
@@ -492,7 +492,7 @@ function CompletarPerfilTela({
         <Campo
           id="cp-remax"
           label="ID RE/MAX (opcional)"
-          dica="9 números começando com 630 (ex.: 630601272). Deixe em branco se ainda não tiver."
+          dica="9 números começando com 63 (ex.: 630601272). Deixe em branco se ainda não tiver."
         >
           <Input
             id="cp-remax"

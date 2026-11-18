@@ -72,12 +72,15 @@ describe("aviso/trava cobra o cadastro, não só a ficha", () => {
   });
 });
 
-describe("ID RE/MAX: 9 dígitos começando com 630", () => {
+describe("ID RE/MAX: 9 dígitos começando com 63", () => {
   it("aceita o padrão e recusa o resto", () => {
     expect(remaxIdValido("630601272")).toBe(true);
     expect(remaxIdValido("630-601-272")).toBe(true);
     expect(remaxIdValido("63060127")).toBe(false); // 8 dígitos
-    expect(remaxIdValido("123456789")).toBe(false); // sem 630
+    expect(remaxIdValido("123456789")).toBe(false); // sem 63
+    expect(remaxIdValido("631831004")).toBe(true); // outra RE/MAX (631), t_e60b5acc
+    expect(remaxIdValido("640601272")).toBe(false); // 64 não é RE/MAX
+    expect(remaxIdValido("603601272")).toBe(false);
     expect(remaxIdValido("6306012720")).toBe(false); // 10 dígitos
     expect(remaxIdValido("")).toBe(false);
   });
@@ -85,7 +88,7 @@ describe("ID RE/MAX: 9 dígitos começando com 630", () => {
     expect(mensagemErroCadastro({ code: "23505", message: "ID RE/MAX ja esta em outro cadastro" })).toMatch(
       /outra pessoa/,
     );
-    expect(mensagemErroCadastro({ code: "22023", message: "ID RE/MAX invalido" })).toMatch(/630/);
+    expect(mensagemErroCadastro({ code: "22023", message: "ID RE/MAX invalido" })).toMatch(/começando com 63\./);
     expect(mensagemErroCadastro({ code: "22023", message: "CPF invalido" })).toMatch(/CPF/);
     expect(mensagemErroCadastro({ code: "42501", message: "x" })).toMatch(/permissão/);
   });
