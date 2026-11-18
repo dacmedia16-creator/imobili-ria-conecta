@@ -197,7 +197,11 @@ describe("conteúdo do PDF", () => {
     expect(tabs[0].cab).toEqual(["Meta", "Anual", ...MESES]);
     expect(tabs.map((t) => t.linhas.length)).toEqual([4, 5]);
     expect(tabs.every((t) => t.linhas.every((l) => l.length === 14))).toBe(true);
-    expect(valor(c, "n-kri", "Transações de venda")).toBe("0");
+    // Venda vazia = sugestão 40% das transações (Denis, 18/11); captação + venda = transações.
+    const C = calc(PLANEJAMENTO);
+    expect(C.tVenda).toBe(C.trans - Math.round(C.trans * 0.6));
+    expect(valor(c, "n-kri", "Transações de venda")).toBe(fmt.int(C.tVenda));
+    expect(C.tCapt + C.tVenda).toBe(C.trans);
   });
 
   it("número sem base sai — (não inventa)", () => {
