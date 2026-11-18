@@ -59,9 +59,9 @@ describe("FASE 2 D5 — item 23 (Meu acesso e telas de entrada)", () => {
     expect(perfil).toContain("Alterações não salvas");
   });
 
-  it("CRECI segue opcional e o ID RE/MAX mantém a mesma regra (630 + 6 números)", () => {
+  it("CRECI segue opcional e o ID RE/MAX mantém a mesma regra (63 + 7 números, t_e60b5acc)", () => {
     expect(perfil).toContain("CRECI (opcional)");
-    expect(perfil).toContain("/^630\\d{6}$/");
+    expect(perfil).toContain("/^63\\d{7}$/");
     expect(completar).toContain('label="CRECI (opcional)"');
     expect(completar).toContain('sufixoErro=""');
   });
