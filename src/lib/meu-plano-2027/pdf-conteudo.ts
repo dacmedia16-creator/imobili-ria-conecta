@@ -470,7 +470,7 @@ function numerosCalculados(C: Calc, d: PlanoPdfDados): SecaoPdf[] {
   const mo = d.meta_oficial;
   const meta: ItemPdf[] = [
     conta("VGC (comissão) do ano", m ? cBrl(m.comissao) : VAZIO),
-    conta("VGV do ano (transações × ticket médio)", m && m.vgv != null ? cBrl0(m.vgv) : VAZIO),
+    conta("VGV do ano (transações ÷ 2 × ticket médio)", m && m.vgv != null ? cBrl0(m.vgv) : VAZIO),
     conta("Transações (captação + venda)", m ? cInt(m.vendas) : VAZIO),
     conta("Captações (novas CREs)", m && m.captacoes != null ? cInt(m.captacoes) : VAZIO),
     conta(
