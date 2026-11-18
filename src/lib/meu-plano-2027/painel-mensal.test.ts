@@ -70,7 +70,7 @@ describe("painel mensal (p43): meses editáveis, TOTAL e % da meta", () => {
     expect(P.pct.map(fmtPctMeta)).toEqual(["50%", "50%", "25%", "25%", "25%"]);
   });
 
-  it("meta 0 ou vazia → \"–\"; coluna sem realizado → \"–\"", () => {
+  it('meta 0 ou vazia → "–"; coluna sem realizado → "–"', () => {
     const S = mes(1, { novas: "5", ativas: "3", revisadas: "2", trans: "1", comissao: "1000" });
     const P = painelMensal(S, calcFake([0, NaN, 0, NaN, 0]));
     expect(P.pct.map(fmtPctMeta)).toEqual(["–", "–", "–", "–", "–"]);
@@ -88,7 +88,20 @@ describe("painel mensal (p43): meses editáveis, TOTAL e % da meta", () => {
       ...mes(5, { trans: "0", comissao: "0" }), // zerado → rosa
     };
     const r = painelMensal(S, calcFake()).meses.map((m) => m.semComissao);
-    expect(r).toEqual([true, true, false, false, true, false, false, false, false, false, false, false]);
+    expect(r).toEqual([
+      true,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
   });
 
   it("preencher os meses NÃO muda a meta oficial nem a deixa diferente da gravada", () => {

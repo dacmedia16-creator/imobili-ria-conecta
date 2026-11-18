@@ -24,7 +24,6 @@ import {
   num,
   ok,
   soma,
-  type Calc,
 } from "@/lib/meu-plano-2027/regras";
 import { KRIS, ORDEM, P15_CAMPOS, rotuloPagina, tela } from "@/lib/meu-plano-2027/telas";
 import {
@@ -1248,7 +1247,13 @@ function TelaKris({ irPara }: { irPara?: (id: string) => void }) {
   );
 }
 
-const ROTULO_PAINEL = ["Novas CREs", "CREs ativas", "CREs revisadas", "Transações", "Comissão (R$)"];
+const ROTULO_PAINEL = [
+  "Novas CREs",
+  "CREs ativas",
+  "CREs revisadas",
+  "Transações",
+  "Comissão (R$)",
+];
 
 function PainelMensal() {
   const { S, C } = usePlanoCtx();
