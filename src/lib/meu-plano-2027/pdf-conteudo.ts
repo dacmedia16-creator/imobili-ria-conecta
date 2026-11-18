@@ -222,7 +222,7 @@ function itensDaTela(id: string, S: Respostas, C: Calc, d: PlanoPdfDados): ItemP
         campo("Meta de transações de captação", inteiro(s("mt.tCapt"))),
         campo("Meta de transações de venda", inteiro(s("mt.tVenda"))),
         campo("Comissão média por transação", dinheiro(s("mt.comMedia"))),
-        conta("Meta de transações (captação + venda)", cInt(C.transMeta)),
+        conta("Meta de transações", cInt(C.transMeta)),
         conta("Meta de VGC (transações × comissão média)", cBrl0(C.vgc)),
         campo("Clube que quero conquistar em 2027", txt(s("mt.clube"))),
       ];
