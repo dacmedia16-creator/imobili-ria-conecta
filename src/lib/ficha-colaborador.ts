@@ -100,9 +100,9 @@ export function modoFicha(
 // ------------------------------------------------------------------------------------------------
 // Cadastro (nome, telefone, CPF, ID RE/MAX) no mesmo aviso
 
-/** ID RE/MAX: 9 dígitos começando com 630 (630 + código do corretor de 6 dígitos). */
+/** ID RE/MAX: 9 dígitos começando com 63 (ex.: 630xxxxxx, 631xxxxxx). */
 export function remaxIdValido(v: string | null | undefined): boolean {
-  return /^630\d{6}$/.test((v ?? "").replace(/\D/g, ""));
+  return /^63\d{7}$/.test((v ?? "").replace(/\D/g, ""));
 }
 
 export type CadastroForm = { nome: string; telefone: string; cpf: string; remax_id: string };
@@ -123,7 +123,7 @@ export function mensagemErroCadastro(err: { code?: string; message?: string } | 
   if (err?.code === "23505" || /ja esta em outro|remax_id_uniq|remax_id_org_uniq/i.test(msg))
     return "Esse ID RE/MAX já está no cadastro de outra pessoa. Confira o número ou fale com o administrador.";
   if (err?.code === "22023") {
-    if (/re\/?max/i.test(msg)) return "ID RE/MAX inválido: são 9 números começando com 630.";
+    if (/re\/?max/i.test(msg)) return "ID RE/MAX inválido: são 9 números começando com 63.";
     if (/cpf/i.test(msg)) return "CPF inválido. Confira os números.";
     if (/nome/i.test(msg)) return "Informe o nome completo (nome e sobrenome).";
     if (/telefone/i.test(msg)) return "Telefone inválido (use DDD).";

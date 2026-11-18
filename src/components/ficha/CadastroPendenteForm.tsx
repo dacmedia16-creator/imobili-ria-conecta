@@ -48,8 +48,8 @@ export function CadastroPendenteForm({
   const avisoId = pend.includes("remax_id_duplicado")
     ? "O ID RE/MAX do seu cadastro está repetido em outra pessoa. Confira e corrija."
     : pend.includes("remax_id_invalido")
-      ? "O ID RE/MAX do seu cadastro está fora do padrão. Corrija para 9 números começando com 630."
-      : "Seu código de corretor na RE/MAX: 9 números começando com 630 (ex.: 630601272).";
+      ? "O ID RE/MAX do seu cadastro está fora do padrão. Corrija para 9 números começando com 63."
+      : "Seu código de corretor na RE/MAX: 9 números começando com 63 (ex.: 630601272).";
 
   const salvar = async () => {
     setTentou(true);

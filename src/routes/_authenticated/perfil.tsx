@@ -326,8 +326,8 @@ function MeuAcesso() {
   const salvarCadastro = async () => {
     if (!user || !cadastroAlterado) return;
     const valorRemax = remaxId.replace(/\D/g, "");
-    if (mudouRemaxId && valorRemax && !/^630\d{6}$/.test(valorRemax)) {
-      toast.error("O ID RE/MAX tem 9 números e começa com 630 (ex.: 630601272).");
+    if (mudouRemaxId && valorRemax && !/^63\d{7}$/.test(valorRemax)) {
+      toast.error("O ID RE/MAX tem 9 números e começa com 63 (ex.: 630601272).");
       return;
     }
     setSavingCadastro(true);
@@ -356,7 +356,7 @@ function MeuAcesso() {
             /profiles_remax_id_(org_)?uniq|duplicate/i.test(error.message)
               ? "Esse ID RE/MAX já está em outro cadastro. Fale com o administrador."
               : /ID RE\/MAX invalido/i.test(error.message)
-                ? "O ID RE/MAX tem 9 números e começa com 630 (ex.: 630601272)."
+                ? "O ID RE/MAX tem 9 números e começa com 63 (ex.: 630601272)."
                 : error.message,
           );
           return;
