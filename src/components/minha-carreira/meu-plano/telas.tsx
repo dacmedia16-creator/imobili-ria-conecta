@@ -977,7 +977,7 @@ function TelaMetas({ extra, irPara }: { extra?: ReactNode; irPara?: (id: string)
           tipo="money"
           ph={sug(C.comTrans, true)}
         />
-        <Conta rot="Meta de transações (captação + venda)" v={C.transMeta} f="int" />
+        <Conta rot="Meta de transações" v={C.transMeta} f="int" />
         <Conta rot="META DE VGC (transações × comissão média)" v={C.vgc} f="brl0" main />
         <Selecao
           k="mt.clube"
