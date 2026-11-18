@@ -24,7 +24,6 @@ import {
   num,
   ok,
   soma,
-  type Calc,
 } from "@/lib/meu-plano-2027/regras";
 import { KRIS, ORDEM, P15_CAMPOS, rotuloPagina, tela } from "@/lib/meu-plano-2027/telas";
 import {
@@ -35,6 +34,12 @@ import {
   type IdTabelaMes,
   type LinhaMes,
 } from "@/lib/meu-plano-2027/meses";
+import {
+  COLUNAS_PAINEL,
+  chavePainel,
+  fmtPctMeta,
+  painelMensal,
+} from "@/lib/meu-plano-2027/painel-mensal";
 import {
   BLOCOS_SEMANA,
   MARCOS_CAPT,
@@ -732,7 +737,7 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
         </>
       );
     case "p43":
-      return <PainelMensal C={C} />;
+      return <PainelMensal />;
     case "p44":
       return <Semanal />;
     case "p45":
@@ -1242,49 +1247,96 @@ function TelaKris({ irPara }: { irPara?: (id: string) => void }) {
   );
 }
 
-function PainelMensal({ C }: { C: Calc }) {
-  const meta = [C.novas, C.creFim, ok(C.revisarMes) ? C.revisarMes * 12 : NaN, C.transMeta, C.vgc];
+const ROTULO_PAINEL = [
+  "Novas CREs",
+  "CREs ativas",
+  "CREs revisadas",
+  "Transações",
+  "Comissão (R$)",
+];
+
+function PainelMensal() {
+  const { S, C } = usePlanoCtx();
+  const P = painelMensal(S, C);
+  const valor = (v: number, j: number) => (j === 4 ? fmt.brl0(v) : fmt.int(v));
   return (
     <>
       <Aviso>
-        Tela recorrente: a linha META DO ANO já vem do seu plano. O preenchimento automático dos
-        meses fica para a fase 2.
+        A linha META DO ANO vem do seu plano. Preencha os seus números no fim de cada mês.
       </Aviso>
       <Bloco ajuda="p43.painel">
         <div className="overflow-x-auto">
-          <table className="min-w-[520px] text-xs">
+          <table className="min-w-[640px] text-xs">
             <thead>
               <tr className="text-muted-foreground">
                 <th className="py-1 text-left">Mês</th>
-                <th>Novas CREs</th>
-                <th>CREs ativas</th>
-                <th>CREs revisadas</th>
-                <th>Transações</th>
-                <th>Comissão</th>
+                {ROTULO_PAINEL.map((r) => (
+                  <th key={r}>{r}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
               <tr className="bg-primary/10 font-semibold">
-                <td className="py-1">META DO ANO</td>
-                {meta.map((v, i) => (
-                  <td key={i} className="text-center">
-                    {i === 4 ? fmt.brl0(v) : fmt.int(v)}
+                <td className="py-1 pr-2">META DO ANO</td>
+                {P.meta.map((v, j) => (
+                  <td key={j} className="text-center">
+                    {valor(v, j)}
                   </td>
                 ))}
               </tr>
-              {MESES.map((m) => (
-                <tr key={m} className="border-t">
-                  <td className="py-1">{m}</td>
-                  {[0, 1, 2, 3, 4].map((i) => (
-                    <td key={i} className="text-center text-muted-foreground">
-                      ·
+              {MESES.map((m, i) => {
+                const rosa = P.meses[i].semComissao;
+                return (
+                  <tr
+                    key={m}
+                    data-sem-comissao={rosa || undefined}
+                    className={cn("border-t", rosa && "bg-rose-100 dark:bg-rose-950/40")}
+                  >
+                    <td className="py-1 pr-2">
+                      {m}
+                      {rosa && (
+                        <span className="block text-[10px] font-semibold text-rose-700 dark:text-rose-300">
+                          sem comissão
+                        </span>
+                      )}
                     </td>
-                  ))}
-                </tr>
-              ))}
+                    {COLUNAS_PAINEL.map((c, j) => (
+                      <td key={c} className="px-0.5">
+                        <Inp
+                          k={chavePainel(i + 1, c)}
+                          tipo={j === 4 ? "money" : "int"}
+                          ph=""
+                          label={`${m}: ${ROTULO_PAINEL[j]}`}
+                          className={cn("h-9 px-1 text-center", j === 4 ? "w-24" : "w-16")}
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
+              <tr className="border-t-2 font-semibold">
+                <td className="py-1 pr-2">TOTAL</td>
+                {P.total.map((v, j) => (
+                  <td key={j} className="text-center">
+                    {valor(v, j)}
+                  </td>
+                ))}
+              </tr>
+              <tr className="text-muted-foreground">
+                <td className="py-1 pr-2">% da meta</td>
+                {P.pct.map((v, j) => (
+                  <td key={j} className="text-center">
+                    {fmtPctMeta(v)}
+                  </td>
+                ))}
+              </tr>
             </tbody>
           </table>
         </div>
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          TOTAL soma os meses preenchidos; CREs ativas mostra o último mês preenchido. Mês em rosa:
+          teve transação ou comissão anotada, mas a comissão ficou em zero.
+        </p>
       </Bloco>
       <Citacao>
         A regra do primeiro mês: fechou um mês sem comissão? Na mesma semana, sente com o seu broker
