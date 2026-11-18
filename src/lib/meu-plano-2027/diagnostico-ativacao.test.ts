@@ -39,7 +39,7 @@ describe("caminho único com o Diagnóstico (pág. 14 a 16 do book)", () => {
       "Comissão recebida",
       "Transações fechadas*",
       "Captações com representação exclusiva (CREs)",
-      "Conversão das CREs (vendidas ÷ total)",
+      "Conversão das CREs (CREs vendidas ÷ total CREs)",
       "Ticket médio dos imóveis vendidos",
     ])
       expect(screen.getAllByText(l).length).toBeGreaterThan(0);
