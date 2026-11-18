@@ -1,5 +1,14 @@
-import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, List, PencilLine, ZoomIn, ZoomOut } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  List,
+  Maximize2,
+  Minimize2,
+  PencilLine,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/visual/base";
@@ -18,6 +27,12 @@ import {
   telaDaPagina,
 } from "@/lib/meu-plano-2027/telas";
 import type { Respostas } from "@/lib/meu-plano-2027/regras";
+import {
+  elementoTelaCheia,
+  entrarTelaCheia,
+  sairTelaCheia,
+  suportaTelaCheia,
+} from "@/lib/meu-plano-2027/tela-cheia";
 
 /** Selo do exercício da página (preenchida / em parte / exercício). */
 export function SeloPagina({ id, S }: { id: string; S: Respostas }) {
@@ -54,6 +69,10 @@ export function Leitor({
   const n = Math.min(TOTAL_PAGINAS, Math.max(1, pagina));
   const [zoom, setZoom] = useState(false);
   const [indice, setIndice] = useState(false);
+  // Tela cheia (projeção no telão): o leitor inteiro vira a tela; Esc ou o botão saem.
+  const raiz = useRef<HTMLDivElement>(null);
+  const [podeTelaCheia, setPodeTelaCheia] = useState(false);
+  const [cheia, setCheia] = useState(false);
   const sec = secaoDaPagina(n);
   // Página com exercício próprio ou atalho para o exercício que está em outra tela (PDF 11 → Metas).
   const ex = telaDaPagina(n) ?? exercicioDaPagina(n);
@@ -69,6 +88,30 @@ export function Leitor({
   }, [n]);
 
   useEffect(() => {
+    setPodeTelaCheia(suportaTelaCheia(document, raiz.current));
+    const mudou = () => {
+      const agora = !!raiz.current && elementoTelaCheia(document) === raiz.current;
+      setCheia(agora);
+      if (agora) setIndice(false);
+    };
+    document.addEventListener("fullscreenchange", mudou);
+    document.addEventListener("webkitfullscreenchange", mudou);
+    return () => {
+      document.removeEventListener("fullscreenchange", mudou);
+      document.removeEventListener("webkitfullscreenchange", mudou);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (cheia) raiz.current?.scrollTo?.(0, 0);
+  }, [n, cheia]);
+
+  const alternarTelaCheia = () => {
+    if (cheia) void sairTelaCheia(document);
+    else if (raiz.current) void entrarTelaCheia(raiz.current);
+  };
+
+  useEffect(() => {
     const tecla = (e: KeyboardEvent) => {
       if (/INPUT|TEXTAREA|SELECT/.test((document.activeElement?.tagName ?? "").toUpperCase()))
         return;
@@ -80,7 +123,15 @@ export function Leitor({
   }, [n, irPagina]);
 
   return (
-    <div className="-mx-4 space-y-0 sm:mx-0" data-testid="leitor-book">
+    <div
+      ref={raiz}
+      className={cn(
+        "-mx-4 space-y-0 sm:mx-0",
+        cheia && "mx-0 flex h-full w-full flex-col overflow-hidden bg-background sm:mx-0",
+      )}
+      data-testid="leitor-book"
+      data-tela-cheia={cheia ? "sim" : undefined}
+    >
       <div className="flex items-center gap-2 border-b bg-card px-3 py-2">
         <div className="min-w-0 flex-1 leading-tight">
           <b className="text-sm">{rotuloPagina(n)}</b>
@@ -89,16 +140,35 @@ export function Leitor({
             {sec.n} — {tituloPagina(n)}
           </span>
         </div>
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={() => setIndice((x) => !x)}
-          aria-expanded={indice}
-        >
-          <List className="mr-1 h-4 w-4" aria-hidden /> Índice
-        </Button>
+        {podeTelaCheia ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={alternarTelaCheia}
+            aria-pressed={cheia}
+            title={cheia ? "Sair da tela cheia (Esc)" : "Mostrar a página na tela inteira"}
+            data-testid="tela-cheia-book"
+          >
+            {cheia ? (
+              <Minimize2 className="mr-1 h-4 w-4" aria-hidden />
+            ) : (
+              <Maximize2 className="mr-1 h-4 w-4" aria-hidden />
+            )}
+            {cheia ? "Sair da tela cheia" : "Tela cheia"}
+          </Button>
+        ) : null}
+        {cheia ? null : (
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => setIndice((x) => !x)}
+            aria-expanded={indice}
+          >
+            <List className="mr-1 h-4 w-4" aria-hidden /> Índice
+          </Button>
+        )}
       </div>
-      <div className="flex gap-1.5 overflow-x-auto bg-muted/60 px-3 py-2">
+      <div className={cn("flex gap-1.5 overflow-x-auto bg-muted/60 px-3 py-2", cheia && "hidden")}>
         {SECOES.map((s) => (
           <button
             key={s.de}
@@ -151,7 +221,7 @@ export function Leitor({
           ))}
         </div>
       ) : null}
-      {ex ? (
+      {ex && !cheia ? (
         <div className="flex flex-wrap items-center gap-2 bg-primary/10 px-3 py-2">
           <SeloPagina id={ex.id} S={S} />
           <Button
@@ -170,7 +240,13 @@ export function Leitor({
           ) : null}
         </div>
       ) : null}
-      <div className={cn("bg-zinc-800", zoom && "max-h-[75vh] overflow-auto")}>
+      <div
+        className={cn(
+          "bg-zinc-800",
+          zoom && "max-h-[75vh] overflow-auto",
+          cheia && "min-h-0 max-h-none flex-1 overflow-auto",
+        )}
+      >
         <img
           src={imagemPagina(n)}
           alt={`Página ${n} do book Agent Summit 2027`}
@@ -178,11 +254,21 @@ export function Leitor({
           height={1232}
           decoding="async"
           onDoubleClick={() => setZoom((z) => !z)}
-          className={cn("block h-auto bg-white", zoom ? "w-[230%] max-w-none" : "w-full")}
+          className={cn(
+            "block h-auto bg-white",
+            zoom ? "w-[230%] max-w-none" : "w-full",
+            // Em tela cheia a página inteira cabe na altura do telão (sem rolar), centralizada.
+            cheia && !zoom && "mx-auto h-full w-auto max-w-full object-contain",
+          )}
           data-testid="pagina-book"
         />
       </div>
-      <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
+      <div
+        className={cn(
+          "flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground",
+          cheia && "hidden",
+        )}
+      >
         Aproxime com dois dedos ou toque duas vezes na página.
         <Button size="sm" variant="outline" className="ml-auto" onClick={() => setZoom((z) => !z)}>
           {zoom ? (
