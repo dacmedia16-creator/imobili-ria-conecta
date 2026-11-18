@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   calc,
   clubePorValor,
+  divisaoTransacoes,
   metaMensalDoPlano,
   metaOficialDoPlano,
   num,
@@ -79,6 +80,52 @@ describe("as 12 contas do book (exemplo impresso)", () => {
     expect(C.transMeta).toBe(28);
     expect(C.vgc).toBe(588000);
     expect(C.clubeSug?.n).toBe("100% Club");
+  });
+});
+
+describe("sugestão das transações: 60% captação / 40% venda (Denis, 18/11)", () => {
+  it.each([
+    [37, 22, 15],
+    [28, 17, 11],
+    [15, 9, 6],
+    [1, 1, 0],
+    [2, 1, 1],
+    [0, 0, 0],
+  ])("%i → %i captação + %i venda (soma = transações)", (t, capt, venda) => {
+    expect(divisaoTransacoes(t)).toEqual({ capt, venda });
+    expect(capt + venda).toBe(t);
+  });
+  it("sem transações calculadas → sem sugestão", () => {
+    const r = divisaoTransacoes(NaN);
+    expect(Number.isNaN(r.capt) && Number.isNaN(r.venda)).toBe(true);
+  });
+  it("campos vazios: calc() usa 60/40 e o total (transMeta, VGC, meta oficial) continua = transações", () => {
+    const C = calc(ANA); // 28 transações, comissão R$ 21.000
+    expect(C.tCapt).toBe(17);
+    expect(C.tVenda).toBe(11);
+    expect(C.transMeta).toBe(C.trans);
+    expect(C.vgc).toBe(28 * 21000);
+    // Mesma meta oficial da regra antiga (28 captação + 0 venda): metas salvas não ficam "diferentes".
+    const antes = { ...C, tCapt: 28, tVenda: 0, transMeta: 28, vgc: 28 * 21000 };
+    expect(metaOficialDoPlano(C)).toEqual(metaOficialDoPlano(antes));
+    expect(metaMensalDoPlano(C)).toEqual(metaMensalDoPlano(antes));
+  });
+  it("caso de Denis: 37 transações vazias → 22 + 15 = 37", () => {
+    // ticket 450.000 × 3% = 13.500 por transação; bruta 499.500 → 37 transações.
+    const S: Respostas = { "m.ticket": "450000", "m.pct": "3" };
+    const C = calc({ ...S, "es.aliq": "0", "m.faixa": "100", "so.0.v": "499500" });
+    expect(C.trans).toBe(37);
+    expect([C.tCapt, C.tVenda, C.transMeta]).toEqual([22, 15, 37]);
+  });
+  it("valor digitado pelo corretor vale como hoje", () => {
+    const C = calc({ ...ANA, "mt.tCapt": "20", "mt.tVenda": "5" });
+    expect([C.tCapt, C.tVenda, C.transMeta]).toEqual([20, 5, 25]);
+    expect(C.vgc).toBe(25 * 21000);
+    // Só um digitado: o outro continua com a sugestão.
+    const S2 = calc({ ...ANA, "mt.tCapt": "30" });
+    expect([S2.tCapt, S2.tVenda]).toEqual([30, 11]);
+    const S3 = calc({ ...ANA, "mt.tVenda": "0" });
+    expect([S3.tCapt, S3.tVenda, S3.transMeta]).toEqual([17, 0, 17]);
   });
 });
 

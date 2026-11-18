@@ -24,6 +24,13 @@ export function num(v: Valor): number {
 export const ok = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
 export const soma = (a: number[]) => a.reduce((t, x) => t + (ok(x) ? x : 0), 0);
 const ou = (a: number, b: number) => (ok(a) ? a : b);
+
+/** Sugestão das transações do ano: 60% captação (arredondado) e o resto venda, somando `trans` (Denis, 18/11). */
+export function divisaoTransacoes(trans: number) {
+  if (!ok(trans)) return { capt: NaN, venda: NaN };
+  const capt = Math.round(trans * 0.6);
+  return { capt, venda: trans - capt };
+}
 export const cheio = (v: Valor) =>
   v !== undefined && v !== null && v !== false && String(v).trim() !== "";
 
@@ -247,8 +254,9 @@ export function calc(S: Respostas, padrao?: Partial<TaxasFunil> | null) {
   const estoqueFim = [creIni, novas, canc, vendidas].every(ok)
     ? creIni + novas - canc - vendidas
     : NaN;
-  const tCapt = ou(g("mt.tCapt"), trans);
-  const tVenda = ou(g("mt.tVenda"), 0);
+  const sugTrans = divisaoTransacoes(trans); // campo vazio = sugestão 60/40; digitado = vale o digitado
+  const tCapt = ou(g("mt.tCapt"), sugTrans.capt);
+  const tVenda = ou(g("mt.tVenda"), sugTrans.venda);
   const transMeta = ok(tCapt) ? tCapt + (ok(tVenda) ? tVenda : 0) : NaN; // captação + venda
   const comMedia = ou(g("mt.comMedia"), comTrans);
   const vgc = ok(transMeta) && ok(comMedia) ? transMeta * comMedia : NaN; // transações × comissão média

@@ -18,6 +18,7 @@ import {
   addDias,
   cheio,
   dataBR,
+  divisaoTransacoes,
   fmt,
   nomeDia,
   num,
@@ -963,13 +964,18 @@ function TelaMetas({ extra, irPara }: { extra?: ReactNode; irPara?: (id: string)
       </Bloco>
       <TabelaMesBloco id="cres" />
       <Bloco titulo="Valor geral de comissão (VGC)" ajuda="p32.vgc">
-        <Linha k="mt.tCapt" rot="Meta de transações de captação" tipo="int" ph={sug(C.trans)} />
+        <Linha
+          k="mt.tCapt"
+          rot="Meta de transações de captação"
+          tipo="int"
+          ph={sug(divisaoTransacoes(C.trans).capt)}
+        />
         <Linha
           k="mt.tVenda"
           rot="Meta de transações de venda"
           sub="lado comprador (se também atende compradores)"
           tipo="int"
-          ph="0"
+          ph={sug(divisaoTransacoes(C.trans).venda)}
         />
         <Linha
           k="mt.comMedia"
