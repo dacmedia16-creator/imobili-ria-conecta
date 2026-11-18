@@ -40,7 +40,7 @@ describe("caminho único com o Diagnóstico (pág. 14 a 16 do book)", () => {
       "Transações fechadas*",
       "Captações com representação exclusiva (CREs)",
       "Conversão das CREs (vendidas ÷ total)",
-      "Ticket médio das transações vendidas",
+      "Ticket médio dos imóveis vendidos",
     ])
       expect(screen.getAllByText(l).length).toBeGreaterThan(0);
     expect(screen.getByTestId("p15-sem-historico")).toBeTruthy();
@@ -66,7 +66,7 @@ describe("ticket médio da pág. 26 (p27) puxando a pág. 14 (p15)", () => {
   it("vazio: pede o ticket e leva à pág. 14", () => {
     const ir: string[] = [];
     corpo("p27", base, (id) => ir.push(id));
-    expect(screen.getByText(/preencha o “Ticket médio das transações vendidas” em/)).toBeTruthy();
+    expect(screen.getByText(/preencha o “Ticket médio dos imóveis vendidos” em/)).toBeTruthy();
     fireEvent.click(
       screen.getByRole("button", { name: /Meu ano em números \(pág\. 14 · PDF 15\)/ }),
     );
@@ -88,6 +88,6 @@ describe("ticket médio da pág. 26 (p27) puxando a pág. 14 (p15)", () => {
     expect(calc(S).conv).toBeNaN();
     corpo("p27", S);
     expect(screen.queryByText(/a conta está usando/)).toBeNull();
-    expect(screen.getByText(/preencha o “Ticket médio das transações vendidas” em/)).toBeTruthy();
+    expect(screen.getByText(/preencha o “Ticket médio dos imóveis vendidos” em/)).toBeTruthy();
   });
 });

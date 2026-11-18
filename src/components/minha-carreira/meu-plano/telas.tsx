@@ -335,7 +335,7 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
                   </>
                 ) : (
                   <>
-                    ⚠ Falta o ticket: preencha o “Ticket médio das transações vendidas” em{" "}
+                    ⚠ Falta o ticket: preencha o “Ticket médio dos imóveis vendidos” em{" "}
                     <Origem id="p15" irPara={extras?.irPara} /> ou digite aqui. Ainda sem histórico?
                     Use o preço médio dos imóveis da sua região.
                   </>

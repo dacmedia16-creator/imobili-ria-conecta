@@ -33,7 +33,7 @@ export const P15_CAMPOS: [string, string, "money" | "int" | "pct", "tem" | "parc
   ["d.trans", "Transações fechadas*", "int", "tem"],
   ["d.cres", "Captações com representação exclusiva (CREs)", "int", "tem"],
   ["d.conv", "Conversão das CREs (vendidas ÷ total)", "pct", "parc"],
-  ["d.ticket", "Ticket médio das transações vendidas", "money", "tem"],
+  ["d.ticket", "Ticket médio dos imóveis vendidos", "money", "tem"],
   ["d.dias", "Dias medianos entre captar e vender", "int", "parc"],
   ["d.ativos", "Imóveis ativos na carteira hoje", "int", "tem"],
   ["d.revisados", "% da carteira que teve o preço revisado", "pct", "nao"],
