@@ -85,19 +85,6 @@ export function Inp({
   // Campo vazio com sugestão (t_7af25f25): a sugestão aparece escura, como valor, com o selo "sugerido".
   // Não é gravada (acompanha as telas anteriores); digitar troca, apagar volta para ela.
   const sg = valor === "" ? sugestoes(S, C)[k] : undefined;
-  if (sg !== undefined && tipo !== "area")
-    return (
-      <CampoSugerido
-        k={k}
-        v={sg}
-        tipo={tipo}
-        id={id}
-        label={label}
-        className={className}
-        ro={ro}
-        set={set}
-      />
-    );
   const comum = {
     id,
     "data-k": k,
@@ -115,84 +102,45 @@ export function Inp({
         onChange={(e) => set(k, e.target.value)}
       />
     );
+  const num = tipo === "money" || tipo === "pct" || tipo === "int";
+  const txt = sg !== undefined ? mostraSugestao(sg, tipo) : undefined;
+  // Mesma árvore com e sem sugestão (t_f99e4127): antes eram dois elementos diferentes e a 1ª tecla
+  // num campo vazio com sugestão trocava o <input>, perdendo o foco. Agora só mudam classes/atributos.
+  // Sem sugestão o invólucro é "contents" (não gera caixa), então o layout segue o de um <input> solto.
   return (
-    <Input
-      {...comum}
-      type={tipo === "date" || tipo === "time" ? tipo : "text"}
-      inputMode={tipo === "money" || tipo === "pct" || tipo === "int" ? "decimal" : undefined}
-      maxLength={tipo === "text" ? 300 : 40}
-      className={cn(
-        "h-10 text-base",
-        (tipo === "money" || tipo === "pct" || tipo === "int") && "text-right",
-        className,
-      )}
-      onChange={(e) => set(k, e.target.value)}
-    />
+    <div className={txt ? "min-w-0" : "contents"} data-sugerido={txt ? k : undefined}>
+      <Input
+        {...comum}
+        placeholder={txt ?? comum.placeholder}
+        aria-description={txt ? `sugerido: ${txt}` : undefined}
+        type={tipo === "date" || tipo === "time" ? tipo : "text"}
+        inputMode={num ? "decimal" : undefined}
+        maxLength={tipo === "text" ? 300 : 40}
+        className={cn(
+          "h-10 text-base",
+          num && "text-right",
+          txt && "placeholder:text-foreground placeholder:opacity-100",
+          className,
+        )}
+        onChange={(e) => set(k, e.target.value)}
+      />
+      {txt ? (
+        <div className="mt-0.5 flex flex-wrap items-center justify-end gap-x-1.5 gap-y-0.5">
+          <span
+            className="rounded bg-sky-100 px-1 py-px text-[10px] font-semibold uppercase leading-tight text-sky-800 dark:bg-sky-950/60 dark:text-sky-200"
+            data-testid={`selo-sugerido-${k}`}
+          >
+            sugerido
+          </span>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
 /** Como a sugestão aparece no campo: no formato do tipo ("R$ 700.000", "42%", "4,5"). */
 const mostraSugestao = (v: number, tipo: TipoCampo) =>
   tipo === "money" ? fmt.brl0(v) : tipo === "pct" ? `${textoSugestao(v)}%` : textoSugestao(v);
-
-/**
- * Campo vazio com sugestão (Denis, 19/11, t_7af25f25 + t_f219bc57). A sugestão aparece em PRETO,
- * na mesma cor de um valor digitado, com o selo "sugerido"; ela já conta como preenchida no % e não
- * é gravada. Digitar substitui (o selo some); apagar volta para a sugestão. Sem botão "Usar
- * sugestão" (Denis: "sem botão, com etiqueta" — confundia quem já preenche o plano).
- */
-function CampoSugerido({
-  k,
-  v,
-  tipo,
-  id,
-  label,
-  className,
-  ro,
-  set,
-}: {
-  k: string;
-  v: number;
-  tipo: TipoCampo;
-  id?: string;
-  label?: string;
-  className?: string;
-  ro: boolean;
-  set: (k: string, v: Valor) => void;
-}) {
-  const txt = mostraSugestao(v, tipo);
-  const num = tipo === "money" || tipo === "pct" || tipo === "int";
-  return (
-    <div className="min-w-0" data-sugerido={k}>
-      <Input
-        id={id}
-        data-k={k}
-        value=""
-        disabled={ro}
-        placeholder={txt}
-        aria-label={label}
-        aria-description={`sugerido: ${txt}`}
-        type={tipo === "date" || tipo === "time" ? tipo : "text"}
-        inputMode={num ? "decimal" : undefined}
-        maxLength={tipo === "text" ? 300 : 40}
-        className={cn(
-          "h-10 text-base placeholder:text-foreground placeholder:opacity-100",
-          num && "text-right",
-          className,
-        )}
-        onChange={(e) => set(k, e.target.value)}
-      />
-      <div className="mt-0.5 flex flex-wrap items-center justify-end gap-x-1.5 gap-y-0.5">
-        <span
-          className="rounded bg-sky-100 px-1 py-px text-[10px] font-semibold uppercase leading-tight text-sky-800 dark:bg-sky-950/60 dark:text-sky-200"
-          data-testid={`selo-sugerido-${k}`}
-        >
-          sugerido
-        </span>
-      </div>
-    </div>
-  );
-}
 
 /** Rótulo do campo; com `ajuda`, a bolinha fica fora do <label> (tocar nela não foca o campo). */
 function Rotulo({

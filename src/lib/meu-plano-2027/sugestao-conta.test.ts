@@ -6,7 +6,7 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { createElement } from "react";
+import { createElement, useState } from "react";
 import { calc, type Respostas } from "./regras";
 import { PlanoCtx } from "@/components/minha-carreira/meu-plano/campos";
 import { CorpoTela } from "@/components/minha-carreira/meu-plano/telas";
@@ -140,6 +140,49 @@ describe("tela: sugestão em preto com selo 'sugerido', sem botão (t_f219bc57)"
     for (const k of ["mt.creIni", "mt.novas", "mt.canc", "mt.vendidas", "mt.creFim", "mt.comMedia"])
       expect(screen.getByTestId(`selo-sugerido-${k}`)).toBeTruthy();
   });
+});
+
+describe("foco: digitar num campo vazio com sugestão não perde o cursor (t_f99e4127)", () => {
+  // Tela com estado de verdade: cada tecla grava em S e a tela redesenha, como no app.
+  function TelaViva({ id, inicial }: { id: string; inicial: Respostas }) {
+    const [R, setR] = useState<Respostas>(inicial);
+    const ctx = {
+      S: R,
+      C: calc(R),
+      set: (k: string, v: Respostas[string]) => setR((o) => ({ ...o, [k]: v })),
+      ro: false,
+      inicio: null,
+    };
+    return createElement(PlanoCtx.Provider, { value: ctx }, createElement(CorpoTela, { id }));
+  }
+
+  const casos: [string, string][] = [
+    ["p27", "m.ticket"],
+    ["p32", "mt.comMedia"],
+    ["p32", "mt.creFim"],
+  ];
+  for (const [id, k] of casos)
+    it(`${k}: vários caracteres seguidos ficam no mesmo campo, com foco`, () => {
+      const { container } = render(createElement(TelaViva, { id, inicial: S }));
+      const sel = `input[data-k="${k}"]`;
+      const inp = container.querySelector(sel) as HTMLInputElement;
+      expect(screen.getByTestId(`selo-sugerido-${k}`)).toBeTruthy();
+      inp.focus();
+      let txt = "";
+      for (const c of "12000") {
+        txt += c;
+        fireEvent.change(document.activeElement as HTMLInputElement, { target: { value: txt } });
+        expect(container.querySelector(sel)).toBe(inp); // mesmo elemento: não foi recriado
+        expect(document.activeElement).toBe(inp); // foco continua no campo
+      }
+      expect(inp.value).toBe("12000");
+      expect(screen.queryByTestId(`selo-sugerido-${k}`)).toBeNull();
+      // Apagar volta a mostrar a sugestão no MESMO campo, ainda com foco.
+      fireEvent.change(inp, { target: { value: "" } });
+      expect(container.querySelector(sel)).toBe(inp);
+      expect(document.activeElement).toBe(inp);
+      expect(screen.getByTestId(`selo-sugerido-${k}`)).toBeTruthy();
+    });
 });
 
 describe("PDF", () => {
