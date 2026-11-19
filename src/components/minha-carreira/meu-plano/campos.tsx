@@ -11,6 +11,7 @@ import {
   type Valor,
 } from "@/lib/meu-plano-2027/regras";
 import { AJUDA, type IdAjuda } from "@/lib/meu-plano-2027/ajuda";
+import { sugestoes, textoSugestao } from "@/lib/meu-plano-2027/telas";
 import { InfoDot } from "@/components/dashboard/shared";
 
 /** Contexto de uma tela do plano: respostas, contas e se é somente leitura (visão do broker). */
@@ -65,9 +66,25 @@ export function Inp({
   label?: string;
   id?: string;
 }) {
-  const { S, set, ro } = usePlanoCtx();
+  const { S, C, set, ro } = usePlanoCtx();
   const v = S[k];
   const valor = v === undefined || v === null || typeof v === "boolean" ? "" : String(v);
+  // Campo vazio com sugestão (t_7af25f25): a sugestão aparece escura, como valor, com o selo "sugerido".
+  // Não é gravada (acompanha as telas anteriores); digitar troca, apagar volta para ela.
+  const sg = valor === "" ? sugestoes(S, C)[k] : undefined;
+  if (sg !== undefined && tipo !== "area")
+    return (
+      <CampoSugerido
+        k={k}
+        v={sg}
+        tipo={tipo}
+        id={id}
+        label={label}
+        className={className}
+        ro={ro}
+        set={set}
+      />
+    );
   const comum = {
     id,
     "data-k": k,
@@ -98,6 +115,79 @@ export function Inp({
       )}
       onChange={(e) => set(k, e.target.value)}
     />
+  );
+}
+
+/** Como a sugestão aparece no campo: no formato do tipo ("R$ 700.000", "42%", "4,5"). */
+const mostraSugestao = (v: number, tipo: TipoCampo) =>
+  tipo === "money" ? fmt.brl0(v) : tipo === "pct" ? `${textoSugestao(v)}%` : textoSugestao(v);
+
+/**
+ * Campo vazio com sugestão (Denis, 19/11, t_7af25f25). A sugestão aparece ESCURA, como valor normal
+ * (placeholder em cor de texto), com o selo "sugerido"; ela já conta como preenchida no % e não é
+ * gravada. Digitar substitui (o selo some); apagar volta para a sugestão. "Usar sugestão" GRAVA o
+ * valor no campo: vira valor digitado e deixa de acompanhar as telas anteriores.
+ */
+function CampoSugerido({
+  k,
+  v,
+  tipo,
+  id,
+  label,
+  className,
+  ro,
+  set,
+}: {
+  k: string;
+  v: number;
+  tipo: TipoCampo;
+  id?: string;
+  label?: string;
+  className?: string;
+  ro: boolean;
+  set: (k: string, v: Valor) => void;
+}) {
+  const txt = mostraSugestao(v, tipo);
+  const num = tipo === "money" || tipo === "pct" || tipo === "int";
+  return (
+    <div className="min-w-0" data-sugerido={k}>
+      <Input
+        id={id}
+        data-k={k}
+        value=""
+        disabled={ro}
+        placeholder={txt}
+        aria-label={label}
+        aria-description={`sugerido: ${txt}`}
+        type={tipo === "date" || tipo === "time" ? tipo : "text"}
+        inputMode={num ? "decimal" : undefined}
+        maxLength={tipo === "text" ? 300 : 40}
+        className={cn(
+          "h-10 text-base placeholder:text-foreground placeholder:opacity-100",
+          num && "text-right",
+          className,
+        )}
+        onChange={(e) => set(k, e.target.value)}
+      />
+      <div className="mt-0.5 flex flex-wrap items-center justify-end gap-x-1.5 gap-y-0.5">
+        <span
+          className="rounded bg-sky-100 px-1 py-px text-[10px] font-semibold uppercase leading-tight text-sky-800 dark:bg-sky-950/60 dark:text-sky-200"
+          data-testid={`selo-sugerido-${k}`}
+        >
+          sugerido
+        </span>
+        {!ro ? (
+          <button
+            type="button"
+            className="text-[11px] font-medium leading-tight text-primary underline underline-offset-2"
+            data-testid={`usar-sugestao-${k}`}
+            onClick={() => set(k, textoSugestao(v))}
+          >
+            Usar sugestão
+          </button>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
