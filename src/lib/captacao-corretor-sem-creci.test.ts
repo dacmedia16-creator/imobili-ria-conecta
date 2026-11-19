@@ -1,5 +1,6 @@
 // Captador SEM CRECI (t_e75b58c5): contrato com gestor/TL com CRECI no bloco corretor, captador como
-// testemunha 1, testemunha 2 digitada. Com CRECI: igual a antes. Só mock: sem rede, dados fictícios.
+// testemunha 1, testemunha 2 digitada; desde t_c0453ded o gestor/TL do contrato ASSINA como Corretor.
+// Com CRECI: igual a antes. Só mock: sem rede, dados fictícios.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { sha256Hex } from "../../supabase/functions/_shared/clicksign.ts";
@@ -11,6 +12,7 @@ import {
 import {
   blocoCorretorContrato,
   bloqueioContratoSemCreci,
+  corretorContratoAssina,
   fixarTestemunhasPdf,
   parseTestemunhas,
   sendDialogErrors,
@@ -248,6 +250,19 @@ describe("tela: modo do contrato", () => {
     ).toEqual([]);
   });
 
+  it("t_c0453ded: tela — sem CRECI, gestor/TL do contrato como único 'pela imobiliária' trava; junto com outro, libera", () => {
+    const t = parseTestemunhas(telaSemCreci())!;
+    expect(corretorContratoAssina(t)).toBe(true);
+    const form = { proprietario_1: { nome_completo: "Ana Teste Silva", email: "ana@example.com" } };
+    expect(sendDialogErrors({ form, imobiliariaIds: ["g1"], testemunhas: t })).toEqual([
+      "Gina Gestora já assina como Corretor (o captador não tem CRECI). Escolha outra pessoa para assinar pela imobiliária.",
+    ]);
+    expect(sendDialogErrors({ form, imobiliariaIds: ["g1", IMOB], testemunhas: t })).toEqual([]);
+    // Com CRECI: regra nova não se aplica.
+    expect(corretorContratoAssina(parseTestemunhas(telaComCreci))).toBe(false);
+    expect(corretorContratoAssina(null)).toBe(false);
+  });
+
   it("botão de envio trava com o problema do banco (ex.: testemunha igual ao corretor do contrato)", () => {
     const t = parseTestemunhas(
       telaSemCreci({
@@ -267,7 +282,13 @@ describe("tela: modo do contrato", () => {
 });
 
 // ---------- envio Clicksign (mock) ----------
-function deps(raw: unknown) {
+type ImobSigner = { id: string; nome: string; email: string };
+const VERA: ImobSigner = { id: IMOB, nome: "Vera Imobiliária", email: "vera@example.com" };
+/** Gestora do contrato também cadastrada para assinar pela imobiliária (caso do duplicado). */
+const GINA_ID = "44444444-4444-4444-8444-444444444444";
+const GINA: ImobSigner = { id: GINA_ID, nome: "Gina Gestora", email: "gina@example.com" };
+
+function deps(raw: unknown, imobiliaria: ImobSigner[] = [VERA]) {
   const posted: Array<{ key: string; body: unknown }> = [];
   let n = 0;
   const fetch = vi.fn(async (url: string, init: RequestInit) => {
@@ -289,7 +310,7 @@ function deps(raw: unknown) {
       organizationId: ORG,
       form: { proprietario_1: { nome_completo: "Ana Teste Silva", email: "ana@example.com" } },
       testemunhas: testemunhasDoBanco(raw),
-      imobiliaria: [{ id: IMOB, nome: "Vera Imobiliária", email: "vera@example.com" }],
+      imobiliaria,
       testMode: false,
       allowlistSha256: [],
       deadlineDays: 30,
@@ -310,36 +331,112 @@ const resolverSemCreci = (over: Record<string, unknown> = {}) => ({
   ok: true,
   corretor: { id: "c1", nome: "Carla Semcreci", email: "carla@example.com" },
   gestor: { id: null, nome: "Paula Exemplo", email: "paula@example.com", origem: "manual" },
-  contrato: { id: "g1", nome: "Gina Gestora", email: "gina@example.com", creci: "12345-F" },
+  contrato: { id: GINA_ID, nome: "Gina Gestora", email: "gina@example.com", creci: "12345-F" },
   problemas: [],
   pdf_ok: true,
   ...over,
 });
 
 describe("envio Clicksign sem CRECI (mock)", () => {
-  it("signatários: proprietário, imobiliária, captador (testemunha 1) e digitada (testemunha 2); gestor/TL do contrato não assina", async () => {
-    const { d, posted } = deps(resolverSemCreci());
-    const r = await handleSend(d, { capture_id: CAP, imobiliaria_ids: [IMOB] });
-    expect(r.status).toBe(200);
-    const row = (d.insertEnvelope as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
-      signers: Array<{ papel: string; nome: string; email_sha256: string }>;
-    };
-    expect(row.signers.map((s) => [s.papel, s.nome])).toEqual([
-      ["proprietario_1", "Ana Teste Silva"],
-      ["imobiliaria", "Vera Imobiliária"],
-      ["testemunha", "Carla Semcreci"],
-      ["testemunha", "Paula Exemplo"],
-    ]);
-    expect(row.signers[3].email_sha256).toBe(await sha256Hex("paula@example.com"));
+  /** Signatários postados na Clicksign: [e-mail, qualificação] na ordem. */
+  const enviados = (posted: Array<{ key: string; body: unknown }>) => {
     const emails = posted
       .filter((p) => p.key === "POST /envelopes/:id/signers")
       .map((p) => (p.body as { data: { attributes: { email: string } } }).data.attributes.email);
-    expect(emails).not.toContain("gina@example.com");
     const roles = posted
       .filter((p) => p.key === "POST /envelopes/:id/requirements")
       .map((p) => (p.body as { data: { attributes: { role?: string } } }).data.attributes.role)
       .filter(Boolean);
+    return { emails, roles };
+  };
+  const linhaGravada = (d: SendDeps) =>
+    (d.insertEnvelope as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
+      signers: Array<{ papel: string; nome: string; email_sha256: string }>;
+    };
+
+  it("t_c0453ded: sem CRECI, o gestor/TL do contrato assina automaticamente como CORRETOR (real_estate_broker)", async () => {
+    const { d, posted } = deps(resolverSemCreci());
+    const r = await handleSend(d, { capture_id: CAP, imobiliaria_ids: [IMOB] });
+    expect(r.status).toBe(200);
+    expect(r.body.signers).toBe(5);
+    const row = linhaGravada(d);
+    expect(row.signers.map((s) => [s.papel, s.nome])).toEqual([
+      ["proprietario_1", "Ana Teste Silva"],
+      ["corretor", "Gina Gestora"],
+      ["imobiliaria", "Vera Imobiliária"],
+      ["testemunha", "Carla Semcreci"],
+      ["testemunha", "Paula Exemplo"],
+    ]);
+    expect(row.signers[1].email_sha256).toBe(await sha256Hex("gina@example.com"));
+    expect(row.signers[4].email_sha256).toBe(await sha256Hex("paula@example.com"));
+    const { emails, roles } = enviados(posted);
+    expect(emails).toEqual([
+      "ana@example.com",
+      "gina@example.com",
+      "vera@example.com",
+      "carla@example.com",
+      "paula@example.com",
+    ]);
+    // Gestora como Corretor (parte), NÃO como testemunha; captador e digitada seguem testemunhas.
+    expect(roles).toEqual(["contractor", "real_estate_broker", "contractee", "witness", "witness"]);
+  });
+
+  it("t_c0453ded: gestor/TL do contrato marcado também 'pela imobiliária' aparece uma vez só (como Corretor)", async () => {
+    const { d, posted } = deps(resolverSemCreci(), [VERA, GINA]);
+    const r = await handleSend(d, { capture_id: CAP, imobiliaria_ids: [IMOB, GINA_ID] });
+    expect(r.status).toBe(200);
+    const { emails, roles } = enviados(posted);
+    expect(emails.filter((e) => e === "gina@example.com")).toHaveLength(1);
+    expect(linhaGravada(d).signers.map((s) => s.papel)).toEqual([
+      "proprietario_1",
+      "corretor",
+      "imobiliaria",
+      "testemunha",
+      "testemunha",
+    ]);
+    expect(roles).toEqual(["contractor", "real_estate_broker", "contractee", "witness", "witness"]);
+  });
+
+  it("t_c0453ded: gestor/TL do contrato como ÚNICO 'pela imobiliária': 422 pedindo outra pessoa, nada enviado", async () => {
+    const { d, fetch } = deps(resolverSemCreci(), [VERA, GINA]);
+    const r = await handleSend(d, { capture_id: CAP, imobiliaria_ids: [GINA_ID] });
+    expect(r.status).toBe(422);
+    expect(String((r.body.details as string[])[0])).toMatch(/Gina Gestora já assina como Corretor/);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(d.insertEnvelope).not.toHaveBeenCalled();
+  });
+
+  it("t_c0453ded: modo sem CRECI sem corretor do contrato na resposta do banco: fail-closed (422)", async () => {
+    const { d, fetch } = deps(resolverSemCreci({ contrato: null }));
+    const r = await handleSend(d, { capture_id: CAP, imobiliaria_ids: [IMOB] });
+    expect(r.status).toBe(422);
+    expect(r.body.details).toEqual(["Corretor do contrato: não definido"]);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("t_c0453ded: COM CRECI nada muda — sem Corretor, captador e gestor da equipe como testemunhas", async () => {
+    const { d, posted } = deps(
+      {
+        modo: "padrao",
+        ok: true,
+        corretor: { id: "c2", nome: "Caio Comcreci", email: "caio@example.com" },
+        gestor: { id: GINA_ID, nome: "Gina Gestora", email: "gina@example.com", origem: "equipe" },
+        problemas: [],
+        pdf_ok: true,
+      },
+      [VERA, GINA],
+    );
+    const r = await handleSend(d, { capture_id: CAP, imobiliaria_ids: [IMOB] });
+    expect(r.status).toBe(200);
+    expect(linhaGravada(d).signers.map((s) => [s.papel, s.nome])).toEqual([
+      ["proprietario_1", "Ana Teste Silva"],
+      ["imobiliaria", "Vera Imobiliária"],
+      ["testemunha", "Caio Comcreci"],
+      ["testemunha", "Gina Gestora"],
+    ]);
+    const { roles } = enviados(posted);
     expect(roles).toEqual(["contractor", "contractee", "witness", "witness"]);
+    expect(roles).not.toContain("real_estate_broker");
   });
 
   it("sem testemunha digitada ou sem gestor/TL com CRECI: 422 e nada vai à Clicksign", async () => {

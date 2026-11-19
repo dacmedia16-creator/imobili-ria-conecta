@@ -24,6 +24,7 @@ import {
   clicksignCaptureConfig,
   envelopeStatusLabel,
   reconcileClicksign,
+  corretorContratoAssina,
   cpfsProprietarios,
   sendDialogErrors,
   sendToClicksign,
@@ -261,7 +262,11 @@ export function ClicksignEnvio({
         {podeEnviar && !escolha && !trocarParaClicksign && (
           <>
             <p className="text-sm text-muted-foreground">
-              Assinam ao mesmo tempo, com código por e-mail: proprietário(s), imobiliária e 2{" "}
+              Assinam ao mesmo tempo, com código por e-mail: proprietário(s),{" "}
+              {corretorContratoAssina(testemunhas)
+                ? `${testemunhas!.contrato!.nome || "o gestor/TL do contrato"} como Corretor (o captador não tem CRECI), `
+                : ""}
+              imobiliária e 2{" "}
               {testemunhas?.captadorProprietario
                 ? "testemunhas digitadas (o captador também é proprietário e assina como proprietário)"
                 : testemunhas?.modo === "sem_creci"

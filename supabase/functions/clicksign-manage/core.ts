@@ -27,7 +27,7 @@ import { SALE_EDITABLE_PAPEIS } from "../_shared/clicksign-venda.ts";
 /** Espera mínima entre dois "Reenviar aviso" do mesmo envelope (o banco aplica; aqui é o texto). */
 export const NOTIFY_COOLDOWN_MIN = 10;
 /**
- * Papéis editáveis na captação. Corretor vem do cadastro do captador e a Imobiliária da lista
+ * Papéis editáveis na captação. Corretor vem do cadastro do usuário (gestor/TL sem CRECI) e a Imobiliária da lista
  * autorizada da org: trocar o e-mail deles por aqui furaria essas regras (corrige-se no cadastro).
  */
 /** Todos os proprietários (1..60, t_58effd65) e as testemunhas. */
@@ -167,7 +167,7 @@ function captureEmailOf(ctx: ManageContext, idx: number): string | null {
 function notEditableMsg(kind: ManageKind, papel: string): string {
   if (papel === "corretor") {
     return kind === "captacao"
-      ? "O e-mail do corretor vem do cadastro do captador: corrija no cadastro do usuário."
+      ? "O e-mail do corretor vem do cadastro do usuário (captador ou gestor/TL do contrato): corrija lá."
       : "O e-mail do corretor vem do cadastro do usuário: corrija lá.";
   }
   if (papel === "extra_sistema")
