@@ -16,6 +16,7 @@ const SELO: Record<string, { txt: string; cls: string }> = {
   auto: { txt: "✔ automática", cls: "text-emerald-700 dark:text-emerald-400" },
   parc: { txt: "em parte", cls: "text-amber-700 dark:text-amber-400" },
   vazio: { txt: "vazia", cls: "text-muted-foreground" },
+  opc: { txt: "opcional", cls: "text-muted-foreground" },
 };
 
 /**

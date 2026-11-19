@@ -40,6 +40,7 @@ export function SeloPagina({ id, S }: { id: string; S: Respostas }) {
   if (s === "ok") return <Pill tom="green">preenchida ✔</Pill>;
   if (s === "parc") return <Pill tom="amber">em parte</Pill>;
   if (s === "auto") return <Pill tom="blue">automática</Pill>;
+  if (s === "opc") return <Pill tom="slate">✏️ exercício opcional</Pill>;
   return <Pill tom="blue">✏️ exercício</Pill>;
 }
 

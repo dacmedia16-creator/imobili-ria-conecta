@@ -11,7 +11,7 @@ import { calc, type Respostas } from "./regras";
 import { PlanoCtx } from "@/components/minha-carreira/meu-plano/campos";
 import { CorpoTela } from "@/components/minha-carreira/meu-plano/telas";
 import { destinoExercicios } from "@/components/minha-carreira/meu-plano/Leitor";
-import { ORDEM, progresso, rotuloPagina, tela, vizinhos } from "./telas";
+import { ORDEM, ORDEM_CONTA, progresso, rotuloPagina, tela, vizinhos } from "./telas";
 
 window.scrollTo = () => undefined;
 afterEach(cleanup);
@@ -53,7 +53,7 @@ describe("caminho único com o Diagnóstico (pág. 14 a 16 do book)", () => {
     expect(vizinhos("p17").proxima).toBe("p20");
     expect(vizinhos("p20").anterior).toBe("p17");
     const p = progresso(S);
-    expect(p.total).toBe(ORDEM.length);
+    expect(p.total).toBe(ORDEM_CONTA.length);
     expect(p.pct).toBeGreaterThan(0);
     // ui.ult vazio: começa pela primeira página da cartilha com exercício (PDF 11)
     expect(destinoExercicios({})).toEqual({ v: "tela", id: "p11" });

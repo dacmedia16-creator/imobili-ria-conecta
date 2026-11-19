@@ -16,6 +16,7 @@ import { erroPlano, planoDb } from "@/lib/meu-plano-2027/modulo";
 import { PlanoCtx, Bloco, Stat } from "./campos";
 import { Cockpit, CorpoTela } from "./telas";
 import { BotaoBaixarPlano } from "./BaixarPdf";
+import { OQueFalta } from "./OQueFalta";
 
 type Membro = {
   user_id: string;
@@ -127,6 +128,7 @@ export function EquipePlano({
               preenchido
             </p>
           </Bloco>
+          <OQueFalta S={S} />
           <BotaoBaixarPlano userId={m.user_id} nome={m.nome} S={S} rotulo="Baixar o plano em PDF" />
           <h3 className="text-base font-semibold">Cockpit (plano em uma página)</h3>
           <Cockpit />
@@ -163,7 +165,14 @@ export function EquipePlano({
             return (
               <details key={id} className="rounded-xl border bg-card">
                 <summary className="flex cursor-pointer items-center justify-between gap-2 px-3 py-2.5 text-sm font-semibold">
-                  <span>{t.t}</span>
+                  <span>
+                    {t.t}
+                    {t.opcional ? (
+                      <span className="ml-1 text-xs font-normal text-muted-foreground">
+                        (opcional)
+                      </span>
+                    ) : null}
+                  </span>
                   <Pill tom={t.req.length && f === t.req.length ? "green" : "slate"}>
                     {t.req.length ? `${f}/${t.req.length}` : "—"}
                   </Pill>

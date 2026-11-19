@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Respostas } from "./regras";
 import {
   ORDEM,
+  ORDEM_CONTA,
   exercicioDaPagina,
   progresso,
   rotuloPagina,
@@ -31,7 +32,7 @@ describe("progresso no caminho único (Lote 1, item 4)", () => {
   it("conta pela ordem única, não devolve 0%", () => {
     const p = progresso(S);
     expect(p.pct).toBeGreaterThan(0);
-    expect(p.total).toBe(ORDEM.length);
+    expect(p.total).toBe(ORDEM_CONTA.length);
   });
 
   it("plano vazio continua 0%", () => {
