@@ -94,11 +94,18 @@ function ownerFilled(o: Record<string, unknown> | null | undefined): boolean {
   return Object.values(o).some((v) => typeof v === "string" && v.trim() !== "");
 }
 
+/** Gestor/TL do contrato marcado como ÚNICO signatário da imobiliária (ele já assina como Corretor). */
+export function corretorContratoSozinhoMsg(nome?: string | null): string {
+  const n = (nome ?? "").trim();
+  return `${n || "O corretor do contrato"} já assina como Corretor (o captador não tem CRECI). Escolha outra pessoa para assinar pela imobiliária.`;
+}
+
 export type BuildInput = {
   form: Record<string, unknown>;
   /**
-   * Corretor como PARTE (real_estate_broker). Na captação, desde t_e8078685 o corretor assina só
-   * como testemunha: o envio passa null e ele vem em `testemunhas`. Mantido para compatibilidade.
+   * Corretor como PARTE (real_estate_broker). Na captação, desde t_e8078685 o captador assina só
+   * como testemunha (vem em `testemunhas`). Captador SEM CRECI (t_c0453ded): aqui vai o gestor/TL
+   * do bloco corretor do contrato. Com CRECI: null.
    */
   corretor?: PersonInput | null;
   /** Signatários da Imobiliária JÁ filtrados pelo servidor (usuários da org, com e-mail do cadastro). */
@@ -132,7 +139,7 @@ export function buildCaptureSigners(input: BuildInput): {
       `Proprietário ${i + 1}`,
     );
   });
-  if (input.corretor) push("corretor", input.corretor, `${LABEL.corretor} (cadastro do captador)`);
+  if (input.corretor) push("corretor", input.corretor, `${LABEL.corretor} (cadastro do usuário)`);
   if (input.imobiliaria.length < 1)
     errors.push("Escolha ao menos 1 pessoa para assinar pela imobiliária");
   if (input.imobiliaria.length > MAX_IMOBILIARIA_SIGNERS)

@@ -4,6 +4,7 @@
 // pela edge function clicksign-send, que valida papel, organização e status de novo no servidor.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  corretorContratoSozinhoMsg,
   fileTooBigMessage,
   MAX_CLICKSIGN_FILE_BYTES,
   normEmail,
@@ -523,6 +524,14 @@ function ownerFilled(o: unknown): boolean {
 }
 
 /**
+ * Captador sem CRECI (t_c0453ded): o gestor/TL do bloco corretor do contrato assina na Clicksign
+ * como Corretor (real_estate_broker), automaticamente. Com CRECI: false (nada muda).
+ */
+export function corretorContratoAssina(t: TestemunhasCaptacao | null): boolean {
+  return !!t && t.modo === "sem_creci" && !!t.contrato?.id;
+}
+
+/**
  * Mesmas regras do servidor (buildCaptureSigners), para travar o botão com mensagem clara antes de
  * enviar. O servidor confere de novo; isto é só a experiência da tela.
  */
@@ -555,6 +564,13 @@ export function sendDialogErrors(input: SendDialogInput): string[] {
     errors.push(
       "Quem já é testemunha (corretor ou gestor) não pode assinar também pela imobiliária. Desmarque essa pessoa ou troque a testemunha 2.",
     );
+  else if (
+    corretorContratoAssina(t) &&
+    input.imobiliariaIds.length > 0 &&
+    input.imobiliariaIds.every((id) => id === t.contrato!.id)
+  )
+    // t_c0453ded: ele já assina como Corretor; marcado também "pela imobiliária" sai uma vez só.
+    errors.push(corretorContratoSozinhoMsg(t.contrato!.nome));
   else if (!t.pdfOk)
     errors.push(
       "As testemunhas impressas no PDF não são as atuais. Gere o PDF para assinatura de novo.",

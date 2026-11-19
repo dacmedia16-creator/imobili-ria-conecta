@@ -5,6 +5,7 @@ import {
   buildCaptureSigners,
   buildEnvelope,
   captureOwnerList,
+  corretorContratoSozinhoMsg,
   nomeDocumentoClicksign,
   ClicksignActivationUnknownError,
   ClicksignClient,
@@ -40,6 +41,11 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export type TestemunhasAuto = {
   corretor: PersonInput;
   gestor: PersonInput | null;
+  /**
+   * Captador SEM CRECI (t_e75b58c5): gestor/TL que vai no bloco corretor do contrato. Desde
+   * t_c0453ded ele ASSINA na Clicksign como Corretor (real_estate_broker). Ausente/null = modo padrão.
+   */
+  contrato?: (PersonInput & { id: string | null }) | null;
   problemas: string[];
   pdfOk: boolean;
 };
@@ -65,9 +71,18 @@ export function testemunhasDoBanco(raw: unknown): TestemunhasAuto {
   if (!corretor || r.ok !== true) {
     if (!problemas.length) problemas.push("Não foi possível conferir as testemunhas da captação");
   }
+  // Captador sem CRECI: o corretor do contrato é obrigatório (fail-closed se o banco não o devolver).
+  let contrato: TestemunhasAuto["contrato"] = null;
+  if (r.modo === "sem_creci") {
+    const c = pessoa(r.contrato);
+    const raw = (r.contrato ?? {}) as Record<string, unknown>;
+    if (c) contrato = { ...c, id: typeof raw.id === "string" ? raw.id : null };
+    else if (!problemas.length) problemas.push("Corretor do contrato: não definido");
+  }
   return {
     corretor: corretor ?? { nome: "", email: "" },
     gestor: pessoa(r.gestor),
+    contrato,
     problemas,
     pdfOk: r.pdf_ok === true,
   };
@@ -79,7 +94,10 @@ export const TESTEMUNHAS_PDF_MSG =
 export type SendContext = {
   organizationId: string;
   form: Record<string, unknown>;
-  /** Testemunhas do banco. O corretor assina só como testemunha 1 (não como parte). */
+  /**
+   * Testemunhas do banco. O captador assina só como testemunha 1 (não como parte). Sem CRECI, o
+   * gestor/TL do contrato (`contrato`) assina como Corretor (t_c0453ded).
+   */
   testemunhas: TestemunhasAuto;
   /** Signatários válidos da imobiliária (usuários ativos da org com e-mail do cadastro). */
   imobiliaria: Array<{ id: string; nome: string; email: string }>;
@@ -151,10 +169,26 @@ export async function handleSend(deps: SendDeps, body: unknown): Promise<CoreRes
   if (!tw.pdfOk) {
     return fail(422, TESTEMUNHAS_PDF_MSG, { code: "testemunhas:pdf" });
   }
+  // t_c0453ded: captador sem CRECI = o gestor/TL do bloco corretor do contrato assina como Corretor.
+  // Se ele também foi marcado "pela imobiliária", assina uma vez só (como Corretor).
+  const ctr = tw.contrato ?? null;
+  const ctrEmail = (ctr?.email ?? "").trim().toLowerCase();
+  const imobiliaria = imobIds
+    .map((id) => byId.get(id)!)
+    .filter(
+      (p) =>
+        !ctr ||
+        (p.id !== ctr.id && (!ctrEmail || (p.email ?? "").trim().toLowerCase() !== ctrEmail)),
+    );
+  if (ctr && imobIds.length > 0 && imobiliaria.length === 0) {
+    return fail(422, "Signatário da imobiliária inválido", {
+      details: [corretorContratoSozinhoMsg(ctr.nome)],
+    });
+  }
   const { signers, errors } = buildCaptureSigners({
     form: ctx.form,
-    corretor: null,
-    imobiliaria: imobIds.map((id) => byId.get(id)!),
+    corretor: ctr ? { nome: ctr.nome, email: ctr.email } : null,
+    imobiliaria,
     testemunhas: [tw.corretor, tw.gestor],
   });
   if (errors.length) return fail(422, "Dados incompletos para assinatura", { details: errors });
