@@ -14,6 +14,8 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { useLogoTom } from "@/hooks/use-logo-tom";
+import { plaquinhaDoLogo } from "@/lib/logo-tom";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -109,8 +111,13 @@ function AgencyLogo({ nome, url }: { nome: string; url: string | null }) {
     const img = imgRef.current;
     if (img && img.complete && img.naturalWidth === 0) setFailed(true);
   }, [url]);
-  const box =
-    "flex h-16 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-slate-200";
+  // Logo branco some no card branco: a caixa vira uma plaquinha escura quando o logo é claro (t_331aa14e).
+  const tom = useLogoTom(url);
+  const fundoCaixa =
+    plaquinhaDoLogo("claro", tom ?? null) === "escura"
+      ? "bg-slate-800 ring-slate-700"
+      : "bg-white ring-slate-200";
+  const box = `flex h-16 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl ring-1 ${fundoCaixa}`;
   if (!url || failed) {
     return (
       <div className={`${box} bg-blue-50 text-lg font-semibold text-[#1a58a8] ring-0`} aria-hidden="true">

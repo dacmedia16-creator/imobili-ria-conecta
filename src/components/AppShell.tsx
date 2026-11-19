@@ -25,6 +25,7 @@ import { idDaArea, podeGravarTour } from "@/lib/tour-primeiro-acesso";
 import { AjudaSugestoesBotao } from "@/components/AjudaSugestoes";
 import { MuralCelebrationListener } from "@/components/mural/MuralCelebrationListener";
 import { BrandHeroBackground } from "@/components/BrandHeroBackground";
+import { LogoComPlaquinha } from "@/components/LogoComPlaquinha";
 import type { ReactNode } from "react";
 import { endOperationalImpersonation } from "@/lib/user-impersonation.functions";
 import { toast } from "sonner";
@@ -133,10 +134,13 @@ function SidebarNav({
           className={`flex items-center gap-2 border-b border-white/10 py-4 ${collapsed ? "flex-col px-2" : "px-5"}`}
           style={IS_HOMOLOG && agencyBrand?.color ? { borderColor: agencyBrand.color } : undefined}
         >
-          <img
+          {/* Logo escuro some no azul-marinho: plaquinha clara automática (t_331aa14e). */}
+          <LogoComPlaquinha
             src={agencyBrand?.logoUrl ?? "/remax-icon.png"}
             alt={agencyBrand?.logoUrl ? `Logo ${agencyBrand.nome}` : "RE/MAX"}
+            fundo="escuro"
             className="h-8 w-8 shrink-0 object-contain"
+            plaquinhaClassName="p-1"
           />
           {!collapsed && (
             <div className="min-w-0 flex-1 leading-tight">
