@@ -59,6 +59,7 @@ import {
   Dica,
   Inp,
   Linha,
+  LinhaComissao,
   Nota,
   Radio,
   Selecao,
@@ -984,10 +985,9 @@ function TelaMetas({ extra, irPara }: { extra?: ReactNode; irPara?: (id: string)
           tipo="int"
           ph={sug(divisaoTransacoes(C.trans).venda)}
         />
-        <Linha
+        <LinhaComissao
           k="mt.comMedia"
           rot="Comissão média por transação"
-          tipo="money"
           ph={sug(C.comTrans, true)}
         />
         <Conta rot="Meta de transações" v={C.transMeta} f="int" />

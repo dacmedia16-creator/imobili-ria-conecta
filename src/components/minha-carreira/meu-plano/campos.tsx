@@ -1,4 +1,4 @@
-import { createContext, useContext, useId, type ReactNode } from "react";
+import { createContext, useContext, useId, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,6 +12,12 @@ import {
 } from "@/lib/meu-plano-2027/regras";
 import { AJUDA, type IdAjuda } from "@/lib/meu-plano-2027/ajuda";
 import { sugestoes, textoSugestao } from "@/lib/meu-plano-2027/telas";
+import {
+  comissaoBaixa,
+  MSG_COMISSAO_BAIXA,
+  MSG_COMISSAO_PCT,
+  temPorcento,
+} from "@/lib/meu-plano-2027/comissao";
 import { InfoDot } from "@/components/dashboard/shared";
 
 /** Contexto de uma tela do plano: respostas, contas e se é somente leitura (visão do broker). */
@@ -57,6 +63,7 @@ export function Inp({
   className,
   label,
   id,
+  aceita,
 }: {
   k: string;
   tipo?: TipoCampo;
@@ -65,8 +72,14 @@ export function Inp({
   /** Rótulo acessível quando não há <label> visível. */
   label?: string;
   id?: string;
+  /** Filtro da digitação: devolve false para recusar o texto (nada é gravado). */
+  aceita?: (txt: string) => boolean;
 }) {
-  const { S, C, set, ro } = usePlanoCtx();
+  const { S, C, set: setCtx, ro } = usePlanoCtx();
+  const set = (kk: string, val: Valor) => {
+    if (aceita && typeof val === "string" && !aceita(val)) return;
+    setCtx(kk, val);
+  };
   const v = S[k];
   const valor = v === undefined || v === null || typeof v === "boolean" ? "" : String(v);
   // Campo vazio com sugestão (t_7af25f25): a sugestão aparece escura, como valor, com o selo "sugerido".
@@ -278,12 +291,17 @@ export function Linha({
   sub,
   tipo = "money",
   ph,
+  aceita,
+  abaixo,
 }: {
   k: string;
   rot: ReactNode;
   sub?: ReactNode;
   tipo?: TipoCampo;
   ph?: string;
+  aceita?: (txt: string) => boolean;
+  /** Mensagem embaixo da linha, na largura toda (ex.: aviso da comissão). */
+  abaixo?: ReactNode;
 }) {
   return (
     <div className="grid grid-cols-[1fr_7.5rem] items-center gap-2 border-b border-dashed py-2 last:border-0">
@@ -291,9 +309,49 @@ export function Linha({
         {rot}
         {sub ? <small className="block text-xs text-muted-foreground">{sub}</small> : null}
       </div>
-      <Inp k={k} tipo={tipo} ph={ph} label={typeof rot === "string" ? rot : undefined} />
+      <Inp
+        k={k}
+        tipo={tipo}
+        ph={ph}
+        aceita={aceita}
+        label={typeof rot === "string" ? rot : undefined}
+      />
+      {abaixo ? <div className="col-span-2">{abaixo}</div> : null}
     </div>
   );
+}
+
+/**
+ * "Comissão média por transação" (p32), em REAIS — trava de Denis, 19/11 (t_c14dccfe).
+ * "%" é recusado na digitação (mensagem em vermelho); valor abaixo de R$ 1.000 só avisa, não bloqueia.
+ * Valor antigo já gravado não muda: só mostra o aviso ao abrir a tela.
+ */
+export function LinhaComissao({ k, rot, ph }: { k: string; rot: string; ph?: string }) {
+  const { S } = usePlanoCtx();
+  const [recusou, setRecusou] = useState(false);
+  const aceita = (txt: string) => {
+    const pct = temPorcento(txt);
+    setRecusou(pct);
+    return !pct;
+  };
+  const msg = recusou ? (
+    <p
+      role="alert"
+      data-testid={`aviso-pct-${k}`}
+      className="text-xs font-medium text-red-700 dark:text-red-300"
+    >
+      {MSG_COMISSAO_PCT}
+    </p>
+  ) : comissaoBaixa(S[k]) ? (
+    <p
+      role="status"
+      data-testid={`aviso-baixo-${k}`}
+      className="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+    >
+      {MSG_COMISSAO_BAIXA}
+    </p>
+  ) : null;
+  return <Linha k={k} rot={rot} tipo="money" ph={ph} aceita={aceita} abaixo={msg} />;
 }
 
 /** Conta automática (somente leitura). */
