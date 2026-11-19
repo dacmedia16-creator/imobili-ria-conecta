@@ -1160,6 +1160,22 @@ export function pediuFotos(texto: string): boolean {
   const n = norm(texto);
   return /\b(fotos?|videos?|imagens?|fotinhas?)\b/.test(n) && !/\b(nao (quero|precisa)|ja vi)\b/.test(n);
 }
+/** t_79f3ebdc: "Qual imóvel foi?", "que imóvel é esse?", "qual é a casa?": o lead não lembra de qual anúncio se trata. */
+export function perguntouQualImovel(texto: string): boolean {
+  const n = norm(texto);
+  return ehPergunta(texto) && /\b(qual|que|ql|q)( (e|era|seria|foi))? (o |a |esse |essa |este |esta )?(imovel|casa|apartamento|apto|anuncio|terreno)\b/.test(n);
+}
+/** Regra de Denis (19/11): tipo, bairro, cidade e principais características do cadastro. Sem preço, sem
+ * condição que não esteja no cadastro e sem link (o link só se o cliente pedir). null = sem ficha. */
+export function descreverImovel(f: FichaIa | null | undefined): string | null {
+  if (!f?.tipo) return null;
+  const onde = `${f.bairro ? ` ${noBairro(f.bairro)}` : ""}${f.cidade ? `, em ${f.cidade}` : ""}`;
+  const carac = (["quartos", "banheiros", "vagas", "area"] as Tema[])
+    .map((t) => respostaTema(t, f, oImovel(f.tipo)))
+    .filter((r): r is { fisico: string } => !!r && "fisico" in r)
+    .map((r) => r.fisico);
+  return junta(`É ${fem(f.tipo) ? "uma" : "um"} ${f.tipo}${onde}.`, carac.length ? `${maiuscula(oImovel(f.tipo))} tem ${juntar(carac)}.` : "");
+}
 /** "Gostaria" ou "quero" sozinho em resposta a "quer saber mais detalhes ou já prefere agendar?": não é elogio. */
 export const SO_GOSTARIA = /^(eu )?(gostaria|gostaria sim|gostaria muito|quero|quero sim)[\s.!]*$/;
 /** O cliente disse que gostou (só então cabe "Que bom que gostou!"). */
@@ -2239,6 +2255,16 @@ export async function proximaResposta(
     return perguntarOuBuscar(b2, "Combinado!");
   }
   if (tipoPendente && NAO_GOSTOU.test(n) && !tipoDito) return continuar("Entendi! Que tipo de imóvel você prefere, então?");
+
+  // t_79f3ebdc: "Qual imóvel foi?" = diz o imóvel do cadastro (tipo, bairro, cidade e características), sem
+  // preço e sem link; texto fixo (o modelo não reescreve nem acrescenta valor). Sem ficha: segue o fluxo de antes.
+  if (perguntouQualImovel(texto) && !dados.parecido_atual && !imovelEmFoco(dados)) {
+    const desc = descreverImovel(ficha);
+    if (desc) {
+      dados.ficha_enviada = true;
+      return { ...fecho(desc), fixo: true };
+    }
+  }
 
   // t_37cf21e3 item 6: fotos ou vídeo = o link do anúncio do imóvel de que estão falando (nunca promete fotos).
   if (pediuFotos(texto) && !detectarTemas(texto).length) {
