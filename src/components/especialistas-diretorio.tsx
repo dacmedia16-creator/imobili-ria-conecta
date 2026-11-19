@@ -32,7 +32,11 @@ import {
   listPublicOrgSpecialists,
   type PublicAgency,
 } from "@/lib/positioning-db";
-import { agencyLocationLabel, specialistsCountLabel } from "@/lib/especialistas-publico";
+import {
+  agencyInitials,
+  agencyLocationLabel,
+  specialistsCountLabel,
+} from "@/lib/especialistas-publico";
 
 /** Moldura comum das páginas públicas de especialistas (lista de imobiliárias e página de uma). */
 export function EspecialistasShell({
@@ -93,7 +97,45 @@ export function EspecialistasShell({
   );
 }
 
-/** Cartões das imobiliárias publicadas: só nome, cidade e número de especialistas (sem logo). */
+/**
+ * Logo da imobiliária no card (t_332f1790): caixa fixa 80×64 (logos costumam ser horizontais), imagem inteira (object-contain),
+ * carregamento preguiçoso. Sem logo, ou se a imagem falhar, mostra as iniciais no mesmo espaço.
+ */
+function AgencyLogo({ nome, url }: { nome: string; url: string | null }) {
+  const [failed, setFailed] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+  // No SSR a imagem pode falhar antes da hidratação (onError não dispara): confere ao montar.
+  useEffect(() => {
+    const img = imgRef.current;
+    if (img && img.complete && img.naturalWidth === 0) setFailed(true);
+  }, [url]);
+  const box =
+    "flex h-16 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-slate-200";
+  if (!url || failed) {
+    return (
+      <div className={`${box} bg-blue-50 text-lg font-semibold text-[#1a58a8] ring-0`} aria-hidden="true">
+        {agencyInitials(nome) || <Building2 className="h-6 w-6" />}
+      </div>
+    );
+  }
+  return (
+    <div className={box}>
+      <img
+        ref={imgRef}
+        src={url}
+        alt={`Logo ${nome}`}
+        width={80}
+        height={64}
+        loading="lazy"
+        decoding="async"
+        className="h-full w-full object-contain"
+        onError={() => setFailed(true)}
+      />
+    </div>
+  );
+}
+
+/** Cartões das imobiliárias publicadas: logo (ou iniciais), nome, cidade e número de especialistas. */
 export function ImobiliariasLista({ agencies }: { agencies: PublicAgency[] }) {
   return (
     <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -108,9 +150,7 @@ export function ImobiliariasLista({ agencies }: { agencies: PublicAgency[] }) {
           >
             <Card className="h-full border-0 shadow-md transition-shadow group-hover:shadow-lg">
               <CardContent className="flex items-start gap-4 p-6">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[#1a58a8]">
-                  <Building2 className="h-6 w-6" />
-                </div>
+                <AgencyLogo nome={agency.nome} url={agency.logo_url} />
                 <div className="min-w-0">
                   <h3 className="break-words text-lg font-semibold text-slate-900 group-hover:text-[#1a58a8]">
                     {agency.nome}

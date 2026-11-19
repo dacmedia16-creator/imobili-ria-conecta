@@ -15,7 +15,17 @@ export type PublicAgency = {
   cidade: string | null;
   uf: string | null;
   especialistas: number;
+  /** URL pública do logo (bucket público organization-logos) ou null: o card mostra as iniciais. */
+  logo_url: string | null;
 };
+
+const LOGO_BUCKET = "organization-logos";
+
+/** Só a URL pública do arquivo; o caminho bruto não vai para a página. */
+function publicLogoUrl(path: unknown): string | null {
+  if (typeof path !== "string" || !path.trim()) return null;
+  return db.storage.from(LOGO_BUCKET).getPublicUrl(path.trim()).data.publicUrl || null;
+}
 
 /** Situação de uma região para a imobiliária atual (aprovação é por imobiliária). */
 export type OrgRegionStatus = "ativa" | "pendente" | "recusada" | "juntada";
@@ -57,7 +67,12 @@ function fail(error: { message: string } | null, fallback: string): never | void
 export async function listPublicAgencies(): Promise<PublicAgency[]> {
   const { data, error } = await db.rpc("list_public_specialist_agencies");
   fail(error, "Não foi possível carregar as imobiliárias.");
-  return ((data ?? []) as PublicAgency[]).map((a) => ({ ...a, especialistas: Number(a.especialistas) }));
+  type Row = Omit<PublicAgency, "logo_url"> & { logo_path?: string | null };
+  return ((data ?? []) as Row[]).map(({ logo_path, ...a }) => ({
+    ...a,
+    especialistas: Number(a.especialistas),
+    logo_url: publicLogoUrl(logo_path),
+  }));
 }
 
 export async function listPublicOrgRegions(slug: string): Promise<PositioningRegion[]> {
