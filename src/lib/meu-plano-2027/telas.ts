@@ -457,7 +457,7 @@ export function sugestoes(S: Respostas, C: ReturnType<typeof calc>): Record<stri
   return r;
 }
 
-/** Texto gravado pelo botão "Usar sugestão": no formato que o corretor digitaria ("700.000", "4,5"). */
+/** Sugestão no formato que o corretor digitaria ("700.000", "4,5"); usado para mostrar no campo. */
 export const textoSugestao = (v: number) => v.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
 
 type Preguicoso = () => Record<string, number>;

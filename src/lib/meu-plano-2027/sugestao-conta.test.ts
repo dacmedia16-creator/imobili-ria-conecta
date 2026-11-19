@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 /**
- * Meu Plano 2027 (t_7af25f25, Denis 19/11): campo vazio com sugestão aparece escuro com o selo
- * "sugerido", conta como preenchido no % / selo da tela / PDF e NÃO é gravado. O botão "Usar
- * sugestão" grava o valor no campo (vira digitado).
+ * Meu Plano 2027 (t_7af25f25 + t_f219bc57, Denis 19/11): campo vazio com sugestão aparece em preto
+ * com o selo "sugerido", conta como preenchido no % / selo da tela / PDF e NÃO é gravado. Sem botão
+ * "Usar sugestão".
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
@@ -53,7 +53,7 @@ describe("sugestões: mesma fonte da conta, só nos campos vazios", () => {
     expect(sg["mt.tVenda"]).toBe(C.tVenda);
     expect(sg["mt.comMedia"]).toBe(C.comMedia);
     expect(sg["fu.v2cre"]).toBe(C.txV2Cre);
-    // Gravar exatamente a sugestão (botão "Usar sugestão") não muda nenhuma conta.
+    // Digitar exatamente a sugestão não muda nenhuma conta.
     const gravado: Respostas = { ...S };
     for (const [k, v] of Object.entries(sg)) gravado[k] = textoSugestao(v);
     const C2 = calc(gravado);
@@ -97,36 +97,48 @@ describe("% e selo da tela contam a sugestão", () => {
   });
 });
 
-describe("tela: sugestão escura com selo e botão 'Usar sugestão'", () => {
-  it("campo vazio mostra o valor sugerido em cor de texto, com o selo 'sugerido'", () => {
+describe("tela: sugestão em preto com selo 'sugerido', sem botão (t_f219bc57)", () => {
+  it("campo vazio mostra o valor sugerido na cor de texto (preto), com o selo 'sugerido'", () => {
     const { container } = tela("p27");
     const inp = container.querySelector('input[data-k="m.ticket"]') as HTMLInputElement;
     expect(inp.value).toBe("");
     expect(inp.placeholder).toContain("700.000");
     expect(inp.className).toContain("placeholder:text-foreground");
+    expect(inp.className).toContain("placeholder:opacity-100");
     expect(screen.getByTestId("selo-sugerido-m.ticket").textContent).toBe("sugerido");
   });
 
-  it("'Usar sugestão' grava o valor no campo; digitar grava o digitado", () => {
+  it("não existe botão 'Usar sugestão' em nenhum campo (Denis: sem botão, com etiqueta)", () => {
+    for (const id of ["p27", "p30", "p31", "p32", "p37"]) {
+      const { container, unmount } = tela(id);
+      expect(container.querySelector('[data-testid^="usar-sugestao-"]')).toBeNull();
+      expect(container.textContent ?? "").not.toMatch(/usar sugest/i);
+      unmount();
+    }
+  });
+
+  it("digitar grava o digitado; a sugestão nunca é gravada sozinha", () => {
     const { container, set } = tela("p27");
-    fireEvent.click(screen.getByTestId("usar-sugestao-m.ticket"));
-    expect(set).toHaveBeenCalledWith("m.ticket", "700.000");
+    expect(set).not.toHaveBeenCalled();
     const inp = container.querySelector('input[data-k="m.ticket"]') as HTMLInputElement;
     fireEvent.change(inp, { target: { value: "650.000" } });
     expect(set).toHaveBeenCalledWith("m.ticket", "650.000");
   });
 
-  it("campo digitado não mostra selo nem botão", () => {
+  it("campo digitado não mostra selo; apagar volta a mostrar a sugestão com selo", () => {
     tela("p27", { ...S, "m.ticket": "800.000" });
     expect(screen.queryByTestId("selo-sugerido-m.ticket")).toBeNull();
-    expect(screen.queryByTestId("usar-sugestao-m.ticket")).toBeNull();
+    cleanup();
+    const { container } = tela("p27", { ...S, "m.ticket": "" });
+    expect(screen.getByTestId("selo-sugerido-m.ticket")).toBeTruthy();
+    const inp = container.querySelector('input[data-k="m.ticket"]') as HTMLInputElement;
+    expect(inp.placeholder).toContain("700.000");
   });
 
-  it("Metas (p32): todos os campos com sugestão ganham selo; somente leitura não tem botão", () => {
+  it("Metas (p32): todos os campos com sugestão ganham selo, também na visão somente leitura", () => {
     tela("p32", S, true);
     for (const k of ["mt.creIni", "mt.novas", "mt.canc", "mt.vendidas", "mt.creFim", "mt.comMedia"])
       expect(screen.getByTestId(`selo-sugerido-${k}`)).toBeTruthy();
-    expect(screen.queryByTestId("usar-sugestao-mt.novas")).toBeNull();
   });
 });
 
