@@ -134,7 +134,7 @@ describe.each([
 
   it("gera o conteúdo com todas as telas na ordem única", () => {
     expect(c.secoes.map((s) => s.id)).toEqual(ORDEM);
-    expect(c.total).toBe(26);
+    expect(c.total).toBe(24); // 26 telas menos as opcionais p45 e p49 (t_5b05b9cd)
     expect(c.telas).toBe(p.telas);
     expect(c.pct).toBe(p.pct);
   });
@@ -151,10 +151,10 @@ describe.each([
 
   it("aviso de preenchimento só quando incompleto", () => {
     if (nome === "completo") {
-      expect(p.telas).toBe(26);
+      expect(p.telas).toBe(24);
       expect(c.aviso).toBeNull();
     } else {
-      expect(c.aviso).toBe(`Plano ${p.pct}% preenchido (${p.telas} de 26 telas)`);
+      expect(c.aviso).toBe(`Plano ${p.pct}% preenchido (${p.telas} de 24 telas)`);
     }
   });
 

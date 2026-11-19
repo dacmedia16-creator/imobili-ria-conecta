@@ -9,7 +9,7 @@ import {
   type ItemPdf,
 } from "./pdf-conteudo";
 import { buildPlanoPdf, limpa } from "./pdf";
-import { ORDEM, progresso, rotuloPagina, statusTela, tela } from "./telas";
+import { ORDEM, ORDEM_CONTA, progresso, rotuloPagina, statusTela, tela } from "./telas";
 import { calc, fmt, type Respostas } from "./regras";
 import { chavesTabela, sugestoesMes } from "./meses";
 import { MESES } from "./listas";
@@ -104,18 +104,18 @@ describe("plano finalizado (não trava mais o PDF, t_b8aae132)", () => {
   it("o plano de exemplo está 100% completo (mesmo critério do X/Y telas completas)", () => {
     const p = progresso(PLANEJAMENTO);
     expect(p.telas).toBe(p.total);
-    expect(p.total).toBe(ORDEM.length);
+    expect(p.total).toBe(ORDEM_CONTA.length);
     expect(planoFinalizado(PLANEJAMENTO)).toBe(true);
   });
 
   it("falta 1 tela = não finalizado, mas o PDF sai com o aviso de preenchimento", () => {
     const S = { ...PLANEJAMENTO };
-    delete S["pa.cad"];
+    delete S["pq.frase"]; // p20 conta; p45 virou opcional (t_5b05b9cd)
     expect(progresso(S).telas).toBe(progresso(S).total - 1);
     expect(planoFinalizado(S)).toBe(false);
     expect(planoFinalizado({})).toBe(false);
     const c = conteudoPlanoPdf({ respostas: S });
-    expect(c.aviso).toBe(`Plano ${c.pct}% preenchido (25 de 26 telas)`);
+    expect(c.aviso).toBe(`Plano ${c.pct}% preenchido (23 de 24 telas)`);
   });
 
   it("plano antigo completo só na Ativação: faltam agora as telas p34–p44 (nada é apagado)", () => {
@@ -139,7 +139,7 @@ describe("conteúdo do PDF", () => {
       expect(s.itens.length).toBeGreaterThan(0);
     }
     expect(c.secoes.find((s) => s.id === "p20")!.rotulo).toBe("pág. 19 · PDF 20");
-    expect(`${c.telas}/${c.total}`).toBe(`${ORDEM.length}/${ORDEM.length}`);
+    expect(`${c.telas}/${c.total}`).toBe(`${ORDEM_CONTA.length}/${ORDEM_CONTA.length}`);
   });
 
   it("traz as respostas como foram digitadas", () => {

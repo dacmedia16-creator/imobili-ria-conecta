@@ -105,7 +105,7 @@ describe("planos antigos abrem sem perder nada", () => {
       const copia = structuredClone(S);
       expect(destinoExercicios(S)).toEqual({ v: "tela", id: S["ui.ult"] });
       const pr = progresso(S);
-      expect(pr.total).toBe(26);
+      expect(pr.total).toBe(24); // p45 e p49 opcionais (t_5b05b9cd)
       expect(pr.pct).toBeGreaterThan(0);
       // Nada é reescrito pela leitura.
       expect(S).toEqual(copia);
@@ -121,7 +121,7 @@ describe("planos antigos abrem sem perder nada", () => {
   it("Planejamento: p34–p38 com resposta seguem preenchidas; p49–p51 aparecem como novas", () => {
     const S = ANTIGO_PLANEJAMENTO.respostas;
     expect(statusTela("p34", S)).toBe("parc");
-    expect(statusTela("p49", S)).toBe("vazio");
+    expect(statusTela("p49", S)).toBe("opc"); // opcional desde t_5b05b9cd
   });
 });
 

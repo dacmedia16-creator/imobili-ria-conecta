@@ -30,6 +30,7 @@ import { Leitor, PaginaOriginal, destinoExercicios } from "./Leitor";
 import { usePlano, type StatusSalvar } from "./usePlano";
 import { BotaoBaixarPlano } from "./BaixarPdf";
 import { IndiceTelas } from "./IndiceTelas";
+import { OQueFalta } from "./OQueFalta";
 
 /** "inicio" = continuar de onde parou (ui.ult) ou a 1ª tela. Também recebe o link antigo ?v=trilha. */
 export type Vista =
@@ -308,6 +309,7 @@ export function MeuPlano({
             preenchido · {p.telas}/{p.total} telas completas
           </p>
         </Bloco>
+        <OQueFalta S={S} irTela={irTela} aberto />
         <Bloco>
           <p className="text-sm">
             Lembre-se: planejamento só se torna realidade com ação. Volte nele todo mês, todo
@@ -476,7 +478,17 @@ export function MeuPlano({
           </p>
           <h2 className="text-lg font-semibold">
             {t.t} {t.recorrente ? <Pill tom="amber">recorrente</Pill> : null}
+            {t.opcional ? (
+              <span data-testid="selo-opcional" className="ml-1 align-middle">
+                <Pill tom="slate">opcional</Pill>
+              </span>
+            ) : null}
           </h2>
+          {t.opcional ? (
+            <p className="text-xs text-muted-foreground">
+              Tela opcional: preencha se quiser. Ela não conta no % do plano.
+            </p>
+          ) : null}
           <p className="text-sm">{t.intro}</p>
           <div className="mt-2 flex flex-wrap gap-2">
             <Button
@@ -493,6 +505,7 @@ export function MeuPlano({
           </div>
         </Bloco>
         {barraSalvar}
+        <OQueFalta S={S} irTela={irTela} />
         <LeiaAntes ids={t.leia} verPagina={setOriginal} abrirBook={abrirBook} />
         <CorpoTela id={t.id} extras={extras} />
         <NavInferior>

@@ -595,7 +595,8 @@ export function conteudoPlanoPdf(
     return {
       id,
       rotulo: rotuloPagina(t.pdf),
-      ev: t.ev,
+      // Tela opcional (p45, p49; t_5b05b9cd): sai no PDF com a marca, mas não conta no %.
+      ev: t.opcional ? `${t.ev} · opcional` : t.ev,
       titulo: t.t,
       itens: itensDaTela(id, S, C, d),
     };

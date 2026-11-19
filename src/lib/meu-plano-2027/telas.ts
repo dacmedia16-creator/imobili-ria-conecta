@@ -35,6 +35,11 @@ export type Tela = {
   recorrente?: boolean;
   /** Prefixo dos campos livres (telas sem obrigatório), para o selo "preenchida". */
   livre?: string;
+  /**
+   * Tela opcional (Denis, 19/11, t_5b05b9cd): continua no plano e pode ser preenchida, mas não conta no %,
+   * na contagem de telas nem na lista do que falta. As respostas já gravadas ficam intactas.
+   */
+  opcional?: boolean;
 };
 
 export const P15_CAMPOS: [string, string, "money" | "int" | "pct", "tem" | "parc" | "nao"][] = [
@@ -287,6 +292,7 @@ export const TELAS: Tela[] = [
     intro:
       "Plano sem quem cobre é diário. Este pacto é o que transforma o seu plano em compromisso.",
     req: ["pa.nome", "pa.c.0", "pa.cad"],
+    opcional: true,
   },
   {
     id: "p49",
@@ -297,6 +303,7 @@ export const TELAS: Tela[] = [
     intro:
       "Não é faturamento, não é ranking, não é clube. A sua meta é uma só: A PRIMEIRA VENDA. Primeira CRE até o dia 45, três CREs até o dia 90.",
     req: ["d90.cre1", "d90.venda1", "d90.parceiro", "d90.aprender"],
+    opcional: true,
   },
   {
     id: "p50",
@@ -479,8 +486,11 @@ export function feitosDaTela(id: string, S: Respostas) {
   const sug = sugPreguicosa(S);
   return p.req.filter((k) => preenchido(k, S, sug)).length;
 }
+/** Telas que contam no % e na contagem de telas: todas da ordem única, menos as opcionais. */
+export const ORDEM_CONTA: string[] = ORDEM.filter((id) => !tela(id)?.opcional);
+
 export function progresso(S: Respostas) {
-  const ids = ORDEM;
+  const ids = ORDEM_CONTA;
   const sug = sugPreguicosa(S);
   const req = ids.flatMap((id) => tela(id)!.req);
   const feitos = req.filter((k) => preenchido(k, S, sug)).length;
@@ -495,13 +505,34 @@ export function progresso(S: Respostas) {
   };
 }
 
-/** ok = preenchida; parc = em parte; vazio = nada; auto = tela automática (cockpit/painel). */
-export function statusTela(id: string, S: Respostas): "ok" | "parc" | "vazio" | "auto" | null {
+/**
+ * O que falta para 100%: telas que contam (fora as opcionais) com campo obrigatório ainda vazio, na ordem
+ * do plano. Mesma regra do %: lista vazia ⇔ 100%; a soma de `faltam` = campos que faltam no %.
+ */
+export function pendencias(S: Respostas): { id: string; t: string; faltam: number }[] {
+  const sug = sugPreguicosa(S);
+  return ORDEM_CONTA.flatMap((id) => {
+    const p = tela(id)!;
+    const faltam = p.req.filter((k) => !preenchido(k, S, sug)).length;
+    return faltam ? [{ id, t: p.t, faltam }] : [];
+  });
+}
+
+/**
+ * ok = preenchida; parc = em parte; vazio = nada; auto = tela automática (cockpit/painel);
+ * opc = tela opcional ainda incompleta (não pesa no % nem aparece como pendente).
+ */
+export function statusTela(
+  id: string,
+  S: Respostas,
+): "ok" | "parc" | "vazio" | "auto" | "opc" | null {
   const p = tela(id);
   if (!p) return null;
   if (p.req.length) {
     const f = feitosDaTela(id, S);
-    return f === p.req.length ? "ok" : f > 0 ? "parc" : "vazio";
+    if (f === p.req.length) return "ok";
+    if (p.opcional) return "opc";
+    return f > 0 ? "parc" : "vazio";
   }
   if (!p.livre) return "auto";
   // Tela livre (sem obrigatório) segue contando só o digitado: a taxa padrão do funil (p37) sempre
