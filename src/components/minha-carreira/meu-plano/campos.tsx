@@ -123,10 +123,10 @@ const mostraSugestao = (v: number, tipo: TipoCampo) =>
   tipo === "money" ? fmt.brl0(v) : tipo === "pct" ? `${textoSugestao(v)}%` : textoSugestao(v);
 
 /**
- * Campo vazio com sugestão (Denis, 19/11, t_7af25f25). A sugestão aparece ESCURA, como valor normal
- * (placeholder em cor de texto), com o selo "sugerido"; ela já conta como preenchida no % e não é
- * gravada. Digitar substitui (o selo some); apagar volta para a sugestão. "Usar sugestão" GRAVA o
- * valor no campo: vira valor digitado e deixa de acompanhar as telas anteriores.
+ * Campo vazio com sugestão (Denis, 19/11, t_7af25f25 + t_f219bc57). A sugestão aparece em PRETO,
+ * na mesma cor de um valor digitado, com o selo "sugerido"; ela já conta como preenchida no % e não
+ * é gravada. Digitar substitui (o selo some); apagar volta para a sugestão. Sem botão "Usar
+ * sugestão" (Denis: "sem botão, com etiqueta" — confundia quem já preenche o plano).
  */
 function CampoSugerido({
   k,
@@ -176,16 +176,6 @@ function CampoSugerido({
         >
           sugerido
         </span>
-        {!ro ? (
-          <button
-            type="button"
-            className="text-[11px] font-medium leading-tight text-primary underline underline-offset-2"
-            data-testid={`usar-sugestao-${k}`}
-            onClick={() => set(k, textoSugestao(v))}
-          >
-            Usar sugestão
-          </button>
-        ) : null}
       </div>
     </div>
   );
