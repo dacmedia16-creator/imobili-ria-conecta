@@ -3,8 +3,15 @@ import { toast } from "sonner";
 import { ChevronLeft, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState, ListSkeleton, Pill } from "@/components/visual/base";
-import { calc, cheio, type Respostas, type TaxasFunil } from "@/lib/meu-plano-2027/regras";
-import { ANO_PLANO, ORDEM, inicioNoventaDias, progresso, tela } from "@/lib/meu-plano-2027/telas";
+import { calc, type Respostas, type TaxasFunil } from "@/lib/meu-plano-2027/regras";
+import {
+  ANO_PLANO,
+  ORDEM,
+  feitosDaTela,
+  inicioNoventaDias,
+  progresso,
+  tela,
+} from "@/lib/meu-plano-2027/telas";
 import { erroPlano, planoDb } from "@/lib/meu-plano-2027/modulo";
 import { PlanoCtx, Bloco, Stat } from "./campos";
 import { Cockpit, CorpoTela } from "./telas";
@@ -152,7 +159,7 @@ export function EquipePlano({
           <h3 className="pt-2 text-base font-semibold">Todas as respostas, página por página</h3>
           {ORDEM.filter((id) => id !== "p52").map((id) => {
             const t = tela(id)!;
-            const f = t.req.filter((k) => cheio(S[k])).length;
+            const f = feitosDaTela(id, S);
             return (
               <details key={id} className="rounded-xl border bg-card">
                 <summary className="flex cursor-pointer items-center justify-between gap-2 px-3 py-2.5 text-sm font-semibold">

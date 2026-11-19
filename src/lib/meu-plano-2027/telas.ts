@@ -3,7 +3,16 @@
  * igual ao book — Denis 13/11, t_296fc69e), campos obrigatórios e progresso. Só dados e funções puras; o desenho de cada tela fica em
  * src/components/minha-carreira/meu-plano/telas.tsx (mesmo id).
  */
-import { AFIRMACOES, NEGOCIO, PESSOAL, calc, cheio, ok, type Respostas } from "./regras";
+import {
+  AFIRMACOES,
+  NEGOCIO,
+  PESSOAL,
+  calc,
+  cheio,
+  divisaoTransacoes,
+  ok,
+  type Respostas,
+} from "./regras";
 
 export const ANO_PLANO = 2027;
 /**
@@ -417,26 +426,64 @@ export function inicioNoventaDias(
 }
 
 /**
- * Campo obrigatório que conta como preenchido mesmo vazio, porque a conta já usa uma sugestão válida
- * (diagnóstico ou telas anteriores). Só muda o % e o selo exibidos; nenhuma conta muda.
+ * Sugestão de cada campo que a conta usa quando ele fica em branco (diagnóstico, telas anteriores ou
+ * taxa padrão do funil). Fonte única para a tela (valor escuro + selo "sugerido" + botão "Usar
+ * sugestão"), para o % (preenchido) e para o PDF (t_7af25f25). Nada aqui é gravado: muda junto com as
+ * telas anteriores. Os valores são exatamente os que calc() usa com o campo vazio; por isso nenhuma
+ * conta muda. Só entram campos VAZIOS com sugestão válida.
  */
-function preenchido(k: string, S: Respostas, C: () => ReturnType<typeof calc>) {
-  if (cheio(S[k])) return true;
-  if (k === "m.ticket") return ok(C().ticket) && C().ticket > 0;
-  if (k === "m.conv") return ok(C().conv) && C().conv > 0;
-  if (k === "mt.creFim") return ok(C().creFim);
-  return false;
+export function sugestoes(S: Respostas, C: ReturnType<typeof calc>): Record<string, number> {
+  const pos = (v: number) => (ok(v) && v > 0 ? v : NaN);
+  const div = divisaoTransacoes(C.trans);
+  // Com o campo vazio, C.<x> é a própria sugestão (calc usa "digitado ou sugestão").
+  const todas: Record<string, number> = {
+    "m.ticket": pos(C.d.ticket),
+    "m.conv": pos(C.d.conv),
+    "m.meses": ok(C.d.dias) ? pos(Math.round((C.d.dias / 30) * 10) / 10) : NaN,
+    "mt.creIni": C.d.ativos,
+    "mt.novas": C.captAno,
+    "mt.vendidas": C.vendidas,
+    "mt.canc": C.canc,
+    "mt.creFim": C.estoqueFim,
+    "mt.tCapt": div.capt,
+    "mt.tVenda": div.venda,
+    "mt.comMedia": C.comTrans,
+    "fu.v2cre": C.txV2Cre,
+    "fu.v1v2": C.txV1V2,
+    "fu.folga": C.folga,
+  };
+  const r: Record<string, number> = {};
+  for (const [k, v] of Object.entries(todas)) if (!cheio(S[k]) && ok(v)) r[k] = v;
+  return r;
 }
-const calcPreguicoso = (S: Respostas) => {
-  let c: ReturnType<typeof calc> | null = null;
-  return () => (c ??= calc(S));
-};
 
+/** Texto gravado pelo botão "Usar sugestão": no formato que o corretor digitaria ("700.000", "4,5"). */
+export const textoSugestao = (v: number) => v.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+
+type Preguicoso = () => Record<string, number>;
+/**
+ * Campo obrigatório conta como preenchido quando foi digitado OU quando está vazio com sugestão válida
+ * (Denis, 19/11, t_7af25f25). Só muda o % e o selo exibidos; nenhuma conta muda.
+ */
+function preenchido(k: string, S: Respostas, sug: Preguicoso) {
+  return cheio(S[k]) || k in sug();
+}
+const sugPreguicosa = (S: Respostas): Preguicoso => {
+  let c: Record<string, number> | null = null;
+  return () => (c ??= sugestoes(S, calc(S)));
+};
+/** Quantos campos obrigatórios da tela contam como preenchidos (mesma regra do % e do selo). */
+export function feitosDaTela(id: string, S: Respostas) {
+  const p = tela(id);
+  if (!p) return 0;
+  const sug = sugPreguicosa(S);
+  return p.req.filter((k) => preenchido(k, S, sug)).length;
+}
 export function progresso(S: Respostas) {
   const ids = ORDEM;
-  const C = calcPreguicoso(S);
+  const sug = sugPreguicosa(S);
   const req = ids.flatMap((id) => tela(id)!.req);
-  const feitos = req.filter((k) => preenchido(k, S, C)).length;
+  const feitos = req.filter((k) => preenchido(k, S, sug)).length;
   const telas = ids.filter((id) => {
     const st = statusTela(id, S);
     return st !== "vazio" && st !== "parc";
@@ -453,11 +500,12 @@ export function statusTela(id: string, S: Respostas): "ok" | "parc" | "vazio" | 
   const p = tela(id);
   if (!p) return null;
   if (p.req.length) {
-    const C = calcPreguicoso(S);
-    const f = p.req.filter((k) => preenchido(k, S, C)).length;
+    const f = feitosDaTela(id, S);
     return f === p.req.length ? "ok" : f > 0 ? "parc" : "vazio";
   }
   if (!p.livre) return "auto";
+  // Tela livre (sem obrigatório) segue contando só o digitado: a taxa padrão do funil (p37) sempre
+  // existe e deixaria um plano vazio com a tela "preenchida".
   return Object.keys(S).some((k) => k.startsWith(p.livre!) && cheio(S[k])) ? "ok" : "vazio";
 }
 

@@ -29,7 +29,17 @@ import {
   type TaxasFunil,
   type Valor,
 } from "./regras";
-import { KRIS, ORDEM, P15_CAMPOS, inicioNoventaDias, progresso, rotuloPagina, tela } from "./telas";
+import {
+  KRIS,
+  ORDEM,
+  P15_CAMPOS,
+  inicioNoventaDias,
+  progresso,
+  rotuloPagina,
+  sugestoes,
+  tela,
+  textoSugestao,
+} from "./telas";
 import {
   ATIVIDADES_SEMANA,
   BLOCOS_SEMANA,
@@ -119,6 +129,11 @@ const conta = (rot: string, val: string): ItemPdf => ({ k: "campo", rot, val, ca
 /** Itens de cada tela (mesmos campos e rótulos das telas em telas.tsx). */
 function itensDaTela(id: string, S: Respostas, C: Calc, d: PlanoPdfDados): ItemPdf[] {
   const s = (k: string) => S[k];
+  // Campo vazio com sugestão (t_7af25f25): sai o valor sugerido com "(sugerido)", não "—", porque ele
+  // conta como preenchido no % do plano. Digitado sai como digitado.
+  const SUG = sugestoes(S, C);
+  const sg = (k: string, f: (v: Valor) => string) =>
+    k in SUG ? `${f(textoSugestao(SUG[k]))} (sugerido)` : f(s(k));
   switch (id) {
     case "p15":
       return P15_CAMPOS.map(([k, l, t]) =>
@@ -180,7 +195,7 @@ function itensDaTela(id: string, S: Respostas, C: Calc, d: PlanoPdfDados): ItemP
         conta("1 · O número do meu estilo de vida", cBrl(C.estiloAno)),
         campo("2 · Minha faixa de comissionamento hoje", opcao(s("m.faixa"), FAIXAS_OP)),
         conta("3 · Comissão bruta que preciso gerar (1 ÷ 2)", cBrl(C.bruta)),
-        campo("4 · Meu ticket médio", dinheiro(s("m.ticket"))),
+        campo("4 · Meu ticket médio", sg("m.ticket", dinheiro)),
         campo("5 · Percentual de comissão por transação", pct(s("m.pct"))),
         conta("6 · Comissão média por transação (4 × 5)", cBrl(C.comTrans)),
         conta("7 · Transações que preciso fechar em 2027 (3 ÷ 6)", cInt(C.trans)),
@@ -190,7 +205,7 @@ function itensDaTela(id: string, S: Respostas, C: Calc, d: PlanoPdfDados): ItemP
     case "p30":
       return [
         conta("1 · Transações que preciso fechar", cInt(C.trans)),
-        campo("2 · Minha conversão da captação", pct(s("m.conv"))),
+        campo("2 · Minha conversão da captação", sg("m.conv", pct)),
         conta("3 · Captações que preciso fazer em 2027 (1 ÷ 2)", cInt(C.captAno)),
         conta("4 · Captações por mês (3 ÷ 12)", cInt(C.captMes)),
       ];
@@ -199,7 +214,7 @@ function itensDaTela(id: string, S: Respostas, C: Calc, d: PlanoPdfDados): ItemP
         campo("Quantas CREs ativas quero manter ao longo de 2027", inteiro(s("m.carteira"))),
         campo("Onde eu quero estar", txt(s("m.alvo"))),
         conta("Captações por mês", cInt(C.captMes)),
-        campo("Meses que cada imóvel fica na sua carteira", inteiro(s("m.meses"))),
+        campo("Meses que cada imóvel fica na sua carteira", sg("m.meses", inteiro)),
         conta(
           "≈ CREs ativas (captações/mês × meses)",
           ok(C.creEstimada) ? `${cInt(C.creEstimada)} · ${C.creEstimadaRegua}` : VAZIO,
@@ -212,16 +227,16 @@ function itensDaTela(id: string, S: Respostas, C: Calc, d: PlanoPdfDados): ItemP
           `Ao final de 2027 eu terei ${cInt(C.creFim)} CREs ativas na minha carteira e o valor geral de comissão de ${cBrl0(C.vgc)}, atingindo o ${C.clube || VAZIO}.`,
         ),
         { k: "sub", t: "CREs (captações com representação exclusiva)" },
-        campo("Quantidade inicial de CREs ativas", inteiro(s("mt.creIni"))),
-        campo("Meta de novas CREs", inteiro(s("mt.novas"))),
-        campo("Meta de CREs canceladas/expiradas", inteiro(s("mt.canc"))),
-        campo("Meta de CREs vendidas", inteiro(s("mt.vendidas"))),
+        campo("Quantidade inicial de CREs ativas", sg("mt.creIni", inteiro)),
+        campo("Meta de novas CREs", sg("mt.novas", inteiro)),
+        campo("Meta de CREs canceladas/expiradas", sg("mt.canc", inteiro)),
+        campo("Meta de CREs vendidas", sg("mt.vendidas", inteiro)),
         conta("Estoque no fim do ano (início + novas − canceladas − vendidas)", cInt(C.estoqueFim)),
-        campo("Meta de CREs ativas no fim de 2027", inteiro(s("mt.creFim"))),
+        campo("Meta de CREs ativas no fim de 2027", sg("mt.creFim", inteiro)),
         { k: "sub", t: "Valor geral de comissão (VGC)" },
-        campo("Meta de transações de captação", inteiro(s("mt.tCapt"))),
-        campo("Meta de transações de venda", inteiro(s("mt.tVenda"))),
-        campo("Comissão média por transação", dinheiro(s("mt.comMedia"))),
+        campo("Meta de transações de captação", sg("mt.tCapt", inteiro)),
+        campo("Meta de transações de venda", sg("mt.tVenda", inteiro)),
+        campo("Comissão média por transação", sg("mt.comMedia", dinheiro)),
         conta("Meta de transações", cInt(C.transMeta)),
         conta("Meta de VGC (transações × comissão média)", cBrl0(C.vgc)),
         campo("Clube que quero conquistar em 2027", txt(s("mt.clube"))),
@@ -245,11 +260,11 @@ function itensDaTela(id: string, S: Respostas, C: Calc, d: PlanoPdfDados): ItemP
     case "p37":
       return [
         conta("CREs por mês (da tela de captação)", cInt(C.captMes)),
-        campo("De cada 100 V2, quantas viram CRE? (%)", pct(s("fu.v2cre"))),
+        campo("De cada 100 V2, quantas viram CRE? (%)", sg("fu.v2cre", pct)),
         conta("Segundas visitas (V2) por mês", cInt(C.v2Mes)),
-        campo("De cada 100 V1, quantas viram V2? (%)", pct(s("fu.v1v2"))),
+        campo("De cada 100 V1, quantas viram V2? (%)", sg("fu.v1v2", pct)),
         conta("Primeiras visitas (V1) por mês", cInt(C.v1Mes)),
-        campo("Taxa de folga para quem desmarca (%)", pct(s("fu.folga"))),
+        campo("Taxa de folga para quem desmarca (%)", sg("fu.folga", pct)),
         conta("Resultado · contatos com agendamento por semana", cInt(C.contSem)),
         campo("Pessoas no CRM hoje", inteiro(s("fu.crmHoje"))),
         campo("Quero ter no fim de 2027", inteiro(s("fu.crmFim"))),
