@@ -14,6 +14,22 @@ export function agencyLocationLabel(agency: Pick<AgencyLike, "cidade" | "uf">): 
   return cidade || uf;
 }
 
+/**
+ * Iniciais do card quando a imobiliária não tem logo (t_332f1790). Ignora "RE/MAX"/"REMAX",
+ * que todas têm: "RE/MAX Única Escolha" → "ÚE", "REMAX MEET" → "M".
+ */
+export function agencyInitials(nome: string): string {
+  const words = nome
+    .replace(/\bRE\s*\/?\s*MAX\b/gi, " ")
+    .split(/\s+/)
+    .filter((w) => /\p{L}|\d/u.test(w));
+  const base = words.length > 0 ? words : nome.split(/\s+/).filter(Boolean);
+  return base
+    .slice(0, 2)
+    .map((w) => (w.match(/[\p{L}\d]/u)?.[0] ?? "").toUpperCase())
+    .join("");
+}
+
 export function specialistsCountLabel(n: number): string {
   return `${n} ${n === 1 ? "especialista" : "especialistas"}`;
 }
