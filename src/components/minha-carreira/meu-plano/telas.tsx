@@ -890,8 +890,10 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
 
 function TelaMetas({ extra, irPara }: { extra?: ReactNode; irPara?: (id: string) => void }) {
   const { C } = usePlanoCtx();
+  // Em R$ a dica é só o valor ("R$ 12.000"): com "sugestão:" na frente não cabe no campo de 7,5rem
+  // e o número sumia (t_d5f24ab7). Nos campos de número a dica continua "sugestão: 20".
   const sug = (v: number, money?: boolean) =>
-    ok(v) ? `sugestão: ${money ? fmt.brl0(v) : fmt.int(v)}` : "";
+    ok(v) ? (money ? fmt.brl0(v) : `sugestão: ${fmt.int(v)}`) : "";
   return (
     <>
       <Bloco className="border-rose-900/40">
