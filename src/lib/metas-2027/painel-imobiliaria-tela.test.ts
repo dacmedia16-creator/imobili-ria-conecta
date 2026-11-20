@@ -157,16 +157,23 @@ describe("Painel de metas 2027 · Imobiliária", () => {
     responder();
     render(createElement(PainelMetasImobiliaria));
     const topo = await screen.findByTestId("topo-metas");
-    expect(within(topo).getByTestId("meta-direcao").textContent).toMatch(/R\$\s?200\.000/);
-    expect(within(topo).getByTestId("soma-assinados").textContent).toMatch(/R\$\s?120\.000/);
-    expect(within(topo).getByTestId("soma-preenchimento").textContent).toMatch(/R\$\s?120\.000/);
+    expect(within(topo).getByTestId("meta-direcao").textContent).toMatch(/R\$\s?200\.000,00/);
+    expect(within(topo).getByTestId("soma-assinados").textContent).toMatch(/R\$\s?120\.000,00/);
+    expect(within(topo).getByTestId("soma-preenchimento").textContent).toMatch(/R\$\s?120\.000,00/);
     for (const id of ["meta-direcao", "soma-assinados", "soma-preenchimento"])
       expect(within(topo).getByTestId(`rotulo-vgc-${id}`).textContent).toBe("VGC (comissão do ano)");
     expect(within(topo).getByTestId("diferenca").textContent).toMatch(
-      /Faltam R\$\s?80\.000 nos planos assinados.*\(60%\)/,
+      /Faltam R\$\s?80\.000,00 nos planos assinados.*\(60%\)/,
     );
     const tab = within(topo).getByTestId("tabela-direcao").textContent ?? "";
     expect(tab).toMatch(/Vendas20/);
+    // Centavos em todo valor em R$ (t_57737e80); quantidades seguem inteiras.
+    expect(tab).toMatch(/R\$\s?200\.000,00/);
+    expect(tab).not.toMatch(/Vendas20,/);
+    // O texto curto do celular (R$ 0,2 mi / R$ 120 mil) é abreviação de propósito; o resto exige ",00".
+    const valores = (topo.textContent ?? "").match(/R\$\s?[\d.,]+(\s?mil?(?![a-z]))?/g) ?? [];
+    expect(valores.length).toBeGreaterThan(5);
+    expect(valores.filter((v) => !/mil?$/.test(v) && !/,\d{2}$/.test(v))).toEqual([]);
     const real = screen.getByTestId("realizado");
     expect(real.textContent).toMatch(/17% da meta oficial/);
     // Duas comparações separadas e explícitas na tela.
@@ -184,11 +191,11 @@ describe("Painel de metas 2027 · Imobiliária", () => {
     responder();
     render(createElement(PainelMetasImobiliaria));
     const q = await screen.findByTestId("quebra-comissao");
-    expect(q.textContent).toMatch(/Bruta \(1 vendas\)R\$\s?45\.000/);
-    expect(q.textContent).toMatch(/\(−\) ImobiliáriaR\$\s?22\.000/);
-    expect(q.textContent).toMatch(/\(−\) Gestores\/TLR\$\s?2\.000/);
-    expect(q.textContent).toMatch(/\(−\) IndicadorR\$\s?1\.000/);
-    expect(q.textContent).toMatch(/= Líquido dos corretoresR\$\s?20\.000/);
+    expect(q.textContent).toMatch(/Bruta \(1 vendas\)R\$\s?45\.000,00/);
+    expect(q.textContent).toMatch(/\(−\) ImobiliáriaR\$\s?22\.000,00/);
+    expect(q.textContent).toMatch(/\(−\) Gestores\/TLR\$\s?2\.000,00/);
+    expect(q.textContent).toMatch(/\(−\) IndicadorR\$\s?1\.000,00/);
+    expect(q.textContent).toMatch(/= Líquido dos corretoresR\$\s?20\.000,00/);
     expect(screen.getByTestId("indicadores").textContent).toMatch(/30 exclusivas/);
     // Ícone "i" em cada número, inclusive em cada parte da quebra (t_065a0ff9).
     for (const k of [
