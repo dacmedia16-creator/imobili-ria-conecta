@@ -13,6 +13,8 @@ async function rpc<T>(nome: string, args?: Record<string, unknown>): Promise<T> 
 
 export const painelFin = (competencia: string | null) =>
   rpc<unknown>("locacao_fin_painel", { _competencia: competencia });
+export const receberIntermediacaoFin = (id: string, data: string) =>
+  rpc<{ ok: boolean }>("locacao_fin_intermediacao_receber", { _id: id, _data: data });
 export const contratoFin = (id: string) => rpc<unknown>("locacao_fin_contrato", { _id: id });
 export const salvarContratoFin = (id: string, dados: Record<string, unknown>) =>
   rpc<unknown>("locacao_fin_contrato_salvar", { _id: id, _dados: dados });

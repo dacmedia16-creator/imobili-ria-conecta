@@ -95,7 +95,18 @@ export type Cobranca = {
 
 export type EventoFin = { em: string; acao: string; descricao: string; atorNome: string };
 
+export type IntermediacaoFin = {
+  locacaoId: string;
+  codigo: string;
+  endereco: string;
+  valor: number;
+  vencimento: string;
+  status: "aberta" | "recebida";
+  recebidaEm: string | null;
+};
+
 export type PainelFin = {
+  intermediacoes: IntermediacaoFin[];
   competencia: string;
   hoje: string;
   config: ConfigFin;
@@ -225,6 +236,15 @@ export function lerPainelFin(raw: unknown): PainelFin {
     hoje: s(o.hoje),
     config: lerConfigFin(o.config),
     podeRegras: o.pode_regras === true,
+    intermediacoes: arr(o.intermediacoes).map((raw) => {
+      const i = obj(raw);
+      return {
+        locacaoId: s(i.locacao_id), codigo: s(i.codigo), endereco: s(i.endereco),
+        valor: n(i.valor), vencimento: s(i.vencimento),
+        status: i.status === "recebida" ? "recebida" as const : "aberta" as const,
+        recebidaEm: sOuNull(i.recebida_em),
+      };
+    }),
     contratos: arr(o.contratos).map(lerContrato),
     cobrancas: arr(o.cobrancas).map(lerCobranca),
     atrasadasAntes: arr(o.atrasadas_antes).map(lerCobranca),

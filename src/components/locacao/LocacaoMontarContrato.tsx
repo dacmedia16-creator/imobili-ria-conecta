@@ -26,7 +26,7 @@ import {
   type LocacaoBase,
   type Montagem,
 } from "@/lib/locacao-montagem";
-import { modelosDaGarantia } from "@/lib/locacao-modelos";
+import { chaveBaseModelo, modelosDaGarantia } from "@/lib/locacao-modelos";
 import { linhasPessoas, parseSexos } from "@/lib/locacao-concordancia";
 
 export function LocacaoMontarContrato({
@@ -180,7 +180,7 @@ export function LocacaoMontarContrato({
             necessária.
           </p>
         )}
-        {modelo?.chave === "seguro_porto" && (
+        {modelo && chaveBaseModelo(modelo.chave) === "seguro_porto" && (
           <p className="text-xs text-amber-700">
             Porto Seguro: o texto original usa IGP-M. Confirmar com Larissa antes de enviar.
           </p>

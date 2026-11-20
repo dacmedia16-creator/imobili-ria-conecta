@@ -17,7 +17,8 @@ import { gerarPdfContrato } from "@/lib/locacao-montagem";
 import {
   BLOCOS_MODELO,
   CAMPOS_MODELO,
-  CHAVES_MODELO,
+  CHAVES_TODAS,
+  chaveBaseModelo,
   limparParagrafos,
   lerModelo,
   novoIdParagrafo,
@@ -30,19 +31,20 @@ import {
 import { textoTesteModelo } from "@/lib/locacao-modelos-preview";
 import { errorMessage } from "@/lib/errors";
 
-const nome = (k: string) =>
-  (
-    ({
-      fiador: "Fiador",
-      caucao_dinheiro: "Caução em dinheiro",
-      caucao_imovel: "Imóvel caucionado",
-      seguro_porto: "Porto Seguro",
-      seguro_pottencial: "Pottencial",
-      seguro_tokio: "Tokio Marine",
-      seguro_almada: "Almada",
-      loft: "CredPago (Loft)",
-    }) as Record<string, string>
-  )[k] || k;
+const nome = (k: ChaveModelo) => {
+  const base = chaveBaseModelo(k);
+  const rotulo = ({
+    fiador: "Fiador",
+    caucao_dinheiro: "Caução em dinheiro",
+    caucao_imovel: "Imóvel caucionado",
+    seguro_porto: "Porto Seguro",
+    seguro_pottencial: "Pottencial",
+    seguro_tokio: "Tokio Marine",
+    seguro_almada: "Almada",
+    loft: "CredPago (Loft)",
+  } as Record<string, string>)[base] || base;
+  return k.endsWith("_intermediacao") ? `${rotulo} — só intermediação` : rotulo;
+};
 
 type Versao = {
   versao: number;
@@ -258,7 +260,7 @@ export function LocacaoModelosContrato() {
             onChange={(e) => trocar(e.target.value as ChaveModelo)}
             className="mt-1 h-9 w-full rounded-md border bg-background px-3"
           >
-            {CHAVES_MODELO.map((k) => (
+            {CHAVES_TODAS.map((k) => (
               <option key={k} value={k}>
                 {nome(k)}{" "}
                 {lista.find((m) => m.chave === k)?.versao
