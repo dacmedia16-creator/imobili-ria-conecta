@@ -10,6 +10,7 @@ DROP FUNCTION IF EXISTS public.locacao_parceiro_pag_ler(uuid);
 DROP FUNCTION IF EXISTS public.locacao_parceiro_pag_json(public.locacao_parceiro_pagamento);
 DROP FUNCTION IF EXISTS public.locacao_parceiro_pag_pode(uuid, uuid);
 DROP FUNCTION IF EXISTS public.locacao_cnpj_ok(text);
+DROP FUNCTION IF EXISTS public.locacao_cnpj_limpo(text);
 DROP TABLE IF EXISTS public.locacao_parceiro_pagamento;
 
 CREATE OR REPLACE FUNCTION public.locacao_lancamento_ler(_id uuid)

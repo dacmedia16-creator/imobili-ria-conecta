@@ -38,6 +38,7 @@ export function LocacaoParceiroPagamento({
   const [v, setV] = useState<PagamentoValores>(PAGAMENTO_VAZIO);
   const [editando, setEditando] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
     try {
@@ -48,12 +49,15 @@ export function LocacaoParceiroPagamento({
       setSalvo(p);
       setV(p ?? PAGAMENTO_VAZIO);
       setEditando(ok && !p);
-    } catch {
-      setPode(false);
+      setErro(null);
+    } catch (e) {
+      // Falha de rede/banco não é "sem permissão": mostra o erro (sem dado nenhum).
+      setErro(errorMessage(e, "Não foi possível ler os dados de pagamento do parceiro."));
     }
   }, [id]);
   useEffect(() => void carregar(), [carregar]);
 
+  if (erro) return <p className="text-sm text-destructive">{erro}</p>;
   if (!pode) return null;
   const set = <K extends keyof PagamentoValores>(k: K, x: PagamentoValores[K]) =>
     setV((a) => ({ ...a, [k]: x }));

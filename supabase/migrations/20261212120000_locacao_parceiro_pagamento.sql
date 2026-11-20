@@ -37,7 +37,8 @@ CREATE TABLE IF NOT EXISTS public.locacao_parceiro_pagamento (
   favorecido_tipo text NOT NULL CONSTRAINT locacao_ppag_tipo_check CHECK (favorecido_tipo IN ('imobiliaria', 'corretor')),
   favorecido_nome text NOT NULL CONSTRAINT locacao_ppag_nome_check CHECK (length(favorecido_nome) BETWEEN 2 AND 200),
   documento text NOT NULL CONSTRAINT locacao_ppag_doc_check CHECK (
-    (favorecido_tipo = 'corretor' AND documento ~ '^[0-9]{11}$') OR (favorecido_tipo = 'imobiliaria' AND documento ~ '^[0-9]{14}$')),
+    (favorecido_tipo = 'corretor' AND documento ~ '^[0-9]{11}$')
+    OR (favorecido_tipo = 'imobiliaria' AND documento ~ '^[0-9A-Z]{12}[0-9]{2}$')),
   pix text CONSTRAINT locacao_ppag_pix_check CHECK (length(pix) BETWEEN 3 AND 140),
   banco text CONSTRAINT locacao_ppag_banco_check CHECK (length(banco) BETWEEN 2 AND 100),
   agencia text CONSTRAINT locacao_ppag_agencia_check CHECK (length(agencia) BETWEEN 1 AND 20),
@@ -53,21 +54,30 @@ ALTER TABLE public.locacao_parceiro_pagamento ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.locacao_parceiro_pagamento FROM PUBLIC, anon, authenticated;
 GRANT ALL ON public.locacao_parceiro_pagamento TO service_role;
 
--- CNPJ com dígitos verificadores (só números ou com pontuação). Par do locacao_cpf_ok.
+-- Normaliza o CNPJ: tira pontuação e põe em maiúsculas (aceita o CNPJ alfanumérico da Receita, de 07/2026).
+CREATE OR REPLACE FUNCTION public.locacao_cnpj_limpo(_v text) RETURNS text
+LANGUAGE sql IMMUTABLE SET search_path TO '' AS $$
+  SELECT upper(regexp_replace(coalesce(_v, ''), '[./ -]', '', 'g'))
+$$;
+REVOKE ALL ON FUNCTION public.locacao_cnpj_limpo(text) FROM PUBLIC, anon, authenticated;
+
+-- CNPJ com dígitos verificadores (com ou sem pontuação; numérico ou alfanumérico). Par do locacao_cpf_ok.
+-- Cada caractere vale (código ASCII − 48): 0–9 iguais, A=17 … Z=42; os 2 últimos são sempre números.
 CREATE OR REPLACE FUNCTION public.locacao_cnpj_ok(_v text) RETURNS boolean
 LANGUAGE plpgsql IMMUTABLE SET search_path TO '' AS $$
-DECLARE _d text := regexp_replace(coalesce(_v, ''), '[^0-9]', '', 'g'); _p int[]; _s int; _r int; _n int; _i int;
+DECLARE _d text := public.locacao_cnpj_limpo(_v); _p int[]; _s int; _r int; _n int; _i int;
 BEGIN
-  IF length(_d) <> 14 OR _d ~ '^([0-9])\1{13}$' OR coalesce(_v, '') !~ '^[0-9./ -]+$' THEN RETURN false; END IF;
+  IF _d !~ '^[0-9A-Z]{12}[0-9]{2}$' OR _d ~ '^([0-9])\1{13}$' OR coalesce(_v, '') !~ '^[0-9A-Za-z./ -]+$' THEN RETURN false; END IF;
   FOREACH _n IN ARRAY ARRAY[12, 13] LOOP
     _p := CASE WHEN _n = 12 THEN ARRAY[5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] ELSE ARRAY[6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] END;
     _s := 0;
-    FOR _i IN 1.._n LOOP _s := _s + substr(_d, _i, 1)::int * _p[_i]; END LOOP;
+    FOR _i IN 1.._n LOOP _s := _s + (ascii(substr(_d, _i, 1)) - 48) * _p[_i]; END LOOP;
     _r := _s % 11;
     IF (CASE WHEN _r < 2 THEN 0 ELSE 11 - _r END) <> substr(_d, _n + 1, 1)::int THEN RETURN false; END IF;
   END LOOP;
   RETURN true;
 END $$;
+REVOKE ALL ON FUNCTION public.locacao_cnpj_ok(text) FROM PUBLIC, anon, authenticated;
 
 -- Quem vê/grava os dados de pagamento: Financeiro da locação (linha explícita) ou gestão (admin, adm. principal, staff).
 CREATE OR REPLACE FUNCTION public.locacao_parceiro_pag_pode(_uid uuid, _org uuid) RETURNS boolean
@@ -125,7 +135,7 @@ CREATE OR REPLACE FUNCTION public.locacao_lancamento_salvar(_id uuid, _dados jso
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
 DECLARE _l public.locacoes := public.locacao_pega(_id); _d jsonb := coalesce(_dados, '{}'::jsonb);
   _cap uuid; _ge uuid; _tl uuid; _alu numeric; _tx numeric; _par text; _uni text; _pco text; _pim text; _loc text; _obs text;
-  _lado text; _creci text; _novo boolean; _k text;
+  _lado text; _creci text; _novo boolean; _k text; _ant public.locacao_lancamentos;
 BEGIN
   PERFORM public.locacao_exige(_l, ARRAY['pos_assinatura', 'chaves', 'comissao'], 'vistoria');
   IF jsonb_typeof(_d) <> 'object' OR EXISTS (SELECT 1 FROM jsonb_each(_d) e WHERE e.key NOT IN
@@ -165,7 +175,8 @@ BEGIN
   IF _par = 'nenhuma' THEN _pco := NULL; END IF;
   IF _par <> 'remax' THEN _uni := NULL; END IF;
   IF _par <> 'externa' THEN _pim := NULL; END IF;
-  _novo := NOT EXISTS (SELECT 1 FROM public.locacao_lancamentos WHERE locacao_id = _id);
+  SELECT * INTO _ant FROM public.locacao_lancamentos WHERE locacao_id = _id;
+  _novo := _ant.locacao_id IS NULL;
   INSERT INTO public.locacao_lancamentos AS x (locacao_id, organization_id, captador_id, locador, gestor_id, team_leader_id, aluguel,
     taxa_adm, parceria, parceria_unidade, parceria_corretor, parceria_imobiliaria, observacao, parceria_lado, parceria_creci,
     lancado_por, atualizado_por)
@@ -176,8 +187,16 @@ BEGIN
     parceria_imobiliaria = EXCLUDED.parceria_imobiliaria, observacao = EXCLUDED.observacao,
     parceria_lado = EXCLUDED.parceria_lado, parceria_creci = EXCLUDED.parceria_creci,
     atualizado_por = auth.uid(), atualizado_em = now();
-  -- Sem parceria não há a quem pagar: não guarda documento/PIX/conta à toa (LGPD).
-  IF _par = 'nenhuma' THEN DELETE FROM public.locacao_parceiro_pagamento WHERE locacao_id = _id; END IF;
+  -- Sem parceria não há a quem pagar (LGPD); se o parceiro mudou (tipo, imobiliária/unidade, corretor ou lado), os dados
+  -- antigos não valem mais: apaga para o Financeiro não pagar a pessoa errada. Histórico sem os dados.
+  IF NOT _novo AND (_par = 'nenhuma' OR _ant.parceria IS DISTINCT FROM _par OR _ant.parceria_imobiliaria IS DISTINCT FROM _pim
+     OR _ant.parceria_unidade IS DISTINCT FROM _uni OR _ant.parceria_corretor IS DISTINCT FROM _pco
+     OR _ant.parceria_lado IS DISTINCT FROM _lado) THEN
+    DELETE FROM public.locacao_parceiro_pagamento WHERE locacao_id = _id;
+    IF FOUND THEN
+      PERFORM public.locacao_evento(_l, 'vistoria', 'Dados de pagamento do parceiro removidos (parceria alterada no lançamento)');
+    END IF;
+  END IF;
   PERFORM public.locacao_evento(_l, 'vistoria', 'Lançamento para comissão ' || CASE WHEN _novo THEN 'registrado' ELSE 'atualizado' END
     || ': aluguel ' || public.locacao_fin_brl(_alu) || ', taxa ' || trim(to_char(_tx, 'FM990.99')) || '%, parceria '
     || CASE _par WHEN 'nenhuma' THEN 'nenhuma' WHEN 'remax' THEN 'RE/MAX (' || _uni || ')' ELSE 'externa (' || _pim || ')' END
@@ -230,7 +249,8 @@ BEGIN
     RAISE EXCEPTION 'Campos inválidos' USING ERRCODE = '22023';
   END IF;
   _tipo := _d->>'favorecido_tipo'; _nome := nullif(btrim(coalesce(_d->>'favorecido_nome', '')), '');
-  _doc := regexp_replace(coalesce(_d->>'documento', ''), '[^0-9]', '', 'g');
+  _doc := CASE WHEN _tipo = 'imobiliaria' THEN public.locacao_cnpj_limpo(_d->>'documento')
+               ELSE regexp_replace(coalesce(_d->>'documento', ''), '[^0-9]', '', 'g') END;
   _pix := nullif(btrim(coalesce(_d->>'pix', '')), ''); _ban := nullif(btrim(coalesce(_d->>'banco', '')), '');
   _ag := nullif(btrim(coalesce(_d->>'agencia', '')), ''); _ct := nullif(btrim(coalesce(_d->>'conta', '')), '');
   _tel := nullif(btrim(coalesce(_d->>'telefone', '')), ''); _mail := nullif(btrim(coalesce(_d->>'email', '')), '');

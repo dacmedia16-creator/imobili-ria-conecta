@@ -190,6 +190,7 @@ function Parceiros() {
             <div className="flex flex-wrap items-center gap-2">
               <b>{i.codigo}</b>
               <span className="text-muted-foreground">{i.endereco}</span>
+              {i.encerrada && <Pill tom="red">locação encerrada</Pill>}
               <span className="flex-1" />
               <Pill tom="violet">{brl(i.valorParceiro)}</Pill>
               {i.pagamento ? (

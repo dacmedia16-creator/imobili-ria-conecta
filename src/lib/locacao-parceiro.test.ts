@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { CONFIG_PADRAO, calcularComissao } from "./locacao";
 import {
   PAGAMENTO_VAZIO,
+  cnpjValido,
   documentoTela,
   faltasPagamento,
   lerParceirosPagar,
@@ -107,6 +108,16 @@ describe("dados de pagamento", () => {
     expect(faltasPagamento({ ...cnpj, documento: "529.982.247-25" })).toEqual(["CNPJ válido"]);
     expect(faltasPagamento({ ...cnpj, conta: "" })).toEqual(["PIX ou banco, agência e conta"]);
   });
+  it("CNPJ numérico e alfanumérico (Receita 07/2026), igual ao banco", () => {
+    expect(cnpjValido("11.222.333/0001-81")).toBe(true);
+    expect(cnpjValido("12.ABC.345/01DE-35")).toBe(true);
+    expect(cnpjValido("12abc34501de35")).toBe(true);
+    expect(cnpjValido("12.ABC.345/01DE-34")).toBe(false);
+    expect(cnpjValido("AB11.222.333/0001-81")).toBe(false);
+    expect(cnpjValido("11111111111111")).toBe(false);
+    expect(cnpjValido("11.222.333/0001-8#")).toBe(false);
+    expect(documentoTela("imobiliaria", "12ABC34501DE35")).toBe("12.ABC.345/01DE-35");
+  });
   it("vazio lista tudo, na ordem do banco", () => {
     expect(faltasPagamento(PAGAMENTO_VAZIO)).toEqual([
       "favorecido (imobiliária ou corretor)",
@@ -154,12 +165,14 @@ describe("Financeiro — valor do parceiro", () => {
           parceria: "externa",
           parceria_lado: "locatario",
           parceria_imobiliaria: "Imob",
+          situacao: "encerrada",
           pagamento: { favorecido_tipo: "corretor", documento: "52998224725", emite_nf: true },
         },
       ],
     });
     expect(r.itens[0].valorParceiro).toBe(400);
     expect(r.itens[0].lado).toBe("locatario");
+    expect(r.itens[0].encerrada).toBe(true);
     expect(r.itens[0].pagamento?.documento).toBe("529.982.247-25");
   });
 });
@@ -191,6 +204,7 @@ describe("migration e rollback", () => {
       "locacao_parceiro_pag_salvar",
       "locacao_parceiro_pag_ler",
       "locacao_cnpj_ok",
+      "locacao_cnpj_limpo",
       "TABLE IF EXISTS public.locacao_parceiro_pagamento",
       "COLUMN IF EXISTS parceria_lado",
     ]) {

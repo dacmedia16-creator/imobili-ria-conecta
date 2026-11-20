@@ -2,7 +2,6 @@
 // Regras puras usadas pelas telas. O banco repete todas as validações e só deixa ler/gravar o Financeiro da locação e a
 // gestão (locacao_parceiro_pag_pode); o corretor recebe {pode:false} sem dado nenhum.
 import { calcularComissao, cpfValido, lerConfig, type ConfigLocacao } from "@/lib/locacao";
-import { isValidCnpj, formatCnpj } from "@/lib/platform-organizations";
 
 export type ParceriaLado = "captador" | "locatario";
 export const PARCERIA_LADO_LABEL: Record<ParceriaLado, string> = {
@@ -44,6 +43,27 @@ export const PAGAMENTO_VAZIO: PagamentoValores = {
   emiteNf: "",
 };
 
+/** CNPJ sem pontuação, em maiúsculas. Espelho de locacao_cnpj_limpo(). */
+export const cnpjLimpo = (v: string) => v.replace(/[./ -]/g, "").toUpperCase();
+
+/**
+ * CNPJ com dígitos verificadores, numérico ou alfanumérico (Receita, 07/2026). Espelho de locacao_cnpj_ok():
+ * cada caractere vale (código − 48); os 2 últimos são números.
+ */
+export function cnpjValido(v: string): boolean {
+  if (!/^[0-9A-Za-z./ -]+$/.test(v)) return false;
+  const d = cnpjLimpo(v);
+  if (!/^[0-9A-Z]{12}[0-9]{2}$/.test(d) || /^(\d)\1{13}$/.test(d)) return false;
+  const dv = (n: number) => {
+    const pesos =
+      n === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    const s = pesos.reduce((a, p, i) => a + (d.charCodeAt(i) - 48) * p, 0);
+    const r = s % 11;
+    return r < 2 ? 0 : 11 - r;
+  };
+  return dv(12) === Number(d[12]) && dv(13) === Number(d[13]);
+}
+
 const o = (v: unknown): Record<string, unknown> =>
   v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 const t = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -53,7 +73,9 @@ export function documentoTela(tipo: FavorecidoTipo | "", doc: string): string {
   const d = doc.replace(/\D/g, "");
   if (tipo === "corretor" && d.length === 11)
     return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
-  if (tipo === "imobiliaria") return formatCnpj(d);
+  const c = cnpjLimpo(doc);
+  if (tipo === "imobiliaria" && c.length === 14)
+    return `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12)}`;
   return doc;
 }
 
@@ -84,7 +106,7 @@ export function faltasPagamento(v: PagamentoValores): string[] {
   if (!v.favorecidoTipo) f.push("favorecido (imobiliária ou corretor)");
   if (v.favorecidoNome.trim().length < 2) f.push("nome do favorecido");
   if (v.favorecidoTipo === "corretor" && !cpfValido(v.documento.trim())) f.push("CPF válido");
-  if (v.favorecidoTipo === "imobiliaria" && !isValidCnpj(v.documento.trim())) f.push("CNPJ válido");
+  if (v.favorecidoTipo === "imobiliaria" && !cnpjValido(v.documento.trim())) f.push("CNPJ válido");
   if (!v.pix.trim() && (!v.banco.trim() || !v.agencia.trim() || !v.conta.trim())) {
     f.push("PIX ou banco, agência e conta");
   }
@@ -121,6 +143,8 @@ export type ParceiroPagar = {
   codigo: string;
   endereco: string;
   chaveEm: string | null;
+  /** Locação encerrada: o Financeiro vê o aviso antes de pagar. */
+  encerrada: boolean;
   aluguel: number;
   taxaAdm: number;
   parceria: "remax" | "externa";
@@ -153,6 +177,7 @@ export function lerParceirosPagar(raw: unknown): { config: ConfigLocacao; itens:
       codigo: t(i.codigo),
       endereco: t(i.endereco),
       chaveEm: t(i.chave_em) || null,
+      encerrada: i.situacao === "encerrada",
       aluguel,
       taxaAdm,
       parceria,

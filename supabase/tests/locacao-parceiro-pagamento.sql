@@ -37,7 +37,10 @@ INSERT INTO public.organization_modules (organization_id, module, enabled) VALUE
   (pg_temp.id('orgB'), 'locacao', true)
 ON CONFLICT (organization_id, module) DO UPDATE SET enabled = true;
 INSERT INTO public.locacao_papeis (organization_id, user_id, papel) VALUES (pg_temp.id('orgA'), pg_temp.id('ges'), 'gestora'),
-  (pg_temp.id('orgA'), pg_temp.id('con'), 'vistoria'), (pg_temp.id('orgA'), pg_temp.id('fin'), 'financeiro')
+  (pg_temp.id('orgA'), pg_temp.id('con'), 'vistoria'), (pg_temp.id('orgA'), pg_temp.id('fin'), 'financeiro'),
+  (pg_temp.id('orgA'), pg_temp.id('a1'), 'contratos')
+ON CONFLICT DO NOTHING;
+INSERT INTO public.user_roles (user_id, role, organization_id) VALUES (pg_temp.id('a1'), 'financeiro', pg_temp.id('orgA'))
 ON CONFLICT DO NOTHING;
 -- Duas locações fictícias da A já assinadas (L = com parceria; S = sem) e uma da B.
 WITH s AS (INSERT INTO public.locacoes (organization_id, corretor_id, etapa, aluguel, taxa_adm, endereco)
@@ -156,6 +159,13 @@ SELECT pg_temp.ok(NOT (public.locacao_detalhe(pg_temp.id('L'))::text ~ '11222333
 SELECT pg_temp.as_user(pg_temp.id('ges')::text);
 SELECT pg_temp.ok((public.locacao_parceiro_pag_ler(pg_temp.id('L'))->>'pode')::boolean = false
   AND pg_temp.err('SELECT public.locacao_parceiros_pagar()') LIKE '42501%', 'gestora não vê');
+-- a1 = Financeiro GLOBAL (app_role) + papel Contratos da locação: nenhum dos dois dá acesso.
+SELECT pg_temp.as_user(pg_temp.id('a1')::text);
+SELECT pg_temp.ok((public.locacao_parceiro_pag_ler(pg_temp.id('L'))->>'pode')::boolean = false
+  AND pg_temp.err('SELECT public.locacao_parceiros_pagar()') LIKE '42501%'
+  AND pg_temp.err(format('SELECT public.locacao_parceiro_pag_salvar(%L, %L)', pg_temp.id('L'),
+      '{"favorecido_tipo":"corretor","favorecido_nome":"X","documento":"529.982.247-25","pix":"x@y.co","emite_nf":false}')) LIKE '42501%',
+  'Financeiro global e papel Contratos não veem nem gravam');
 SELECT pg_temp.as_user(pg_temp.id('admB')::text);
 SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_parceiro_pag_ler(%L)', pg_temp.id('L'))) LIKE '42501%'
   AND pg_temp.err(format('SELECT public.locacao_parceiro_pag_salvar(%L, %L)', pg_temp.id('L'),
@@ -174,6 +184,20 @@ SET LOCAL ROLE authenticated;
 SELECT pg_temp.as_user(pg_temp.id('adm')::text);
 SELECT pg_temp.ok((public.locacao_parceiro_pag_ler(pg_temp.id('L'))->>'pode')::boolean
   AND jsonb_array_length(public.locacao_parceiros_pagar()->'itens') = 1, 'administrador (gestão) vê');
+SELECT pg_temp.as_user(pg_temp.id('con')::text);
+SELECT pg_temp.ok((public.locacao_lancamento_salvar(pg_temp.id('L'), jsonb_build_object('aluguel', '3100', 'taxa_adm', '10',
+  'parceria', 'externa', 'parceria_imobiliaria', 'Imob Parceira (fictícia)', 'parceria_corretor', 'Corretor Parceiro (fictício)',
+  'parceria_creci', '12345-F', 'parceria_lado', 'captador'))->>'ok')::boolean
+  AND (pg_temp.pag('L')).locacao_id IS NOT NULL, 'mudar só o aluguel mantém os dados de pagamento');
+SELECT pg_temp.ok((public.locacao_lancamento_salvar(pg_temp.id('L'), jsonb_build_object('aluguel', '3100', 'taxa_adm', '10',
+  'parceria', 'remax', 'parceria_unidade', 'RE/MAX Fictícia', 'parceria_corretor', 'Outra Pessoa', 'parceria_lado', 'captador'))->>'ok')::boolean
+  AND (pg_temp.pag('L')).locacao_id IS NULL AND pg_temp.eventos('L') LIKE '%Dados de pagamento do parceiro removidos%',
+  'trocar o parceiro apaga os dados antigos (não paga a pessoa errada) e registra no histórico');
+SELECT pg_temp.as_user(pg_temp.id('fin')::text);
+SELECT pg_temp.ok((public.locacao_parceiro_pag_salvar(pg_temp.id('L'), '{"favorecido_tipo":"imobiliaria","favorecido_nome":"RE/MAX Fictícia",
+  "documento":"12.abc.345/01de-35","pix":"chave-pix","emite_nf":true}')->>'ok')::boolean
+  AND (pg_temp.pag('L')).documento = '12ABC34501DE35', 'CNPJ alfanumérico (Receita 07/2026) aceito e gravado em maiúsculas');
+SELECT pg_temp.ok(NOT pg_temp.cnpj('12.ABC.345/01DE-34') AND NOT pg_temp.cnpj('12ABC34501DE3A'), 'CNPJ alfanumérico com dígito errado recusado');
 SELECT pg_temp.as_user(pg_temp.id('con')::text);
 SELECT pg_temp.ok((public.locacao_lancamento_salvar(pg_temp.id('L'), '{"aluguel":"3000","taxa_adm":"10","parceria":"nenhuma"}')->>'ok')::boolean
   AND (pg_temp.pag('L')).locacao_id IS NULL, 'lançamento volta para sem parceria: dados de pagamento apagados');
