@@ -34,6 +34,7 @@ import { Route as AuthenticatedFotografoRouteImport } from './routes/_authentica
 import { Route as AuthenticatedMapaCaptacoesRouteImport } from './routes/_authenticated/mapa-captacoes'
 import { Route as AuthenticatedMeusLeadsRouteImport } from './routes/_authenticated/meus-leads'
 import { Route as AuthenticatedMinhaCarreiraRouteImport } from './routes/_authenticated/minha-carreira'
+import { Route as AuthenticatedMinhaImobiliariaRouteImport } from './routes/_authenticated/minha-imobiliaria'
 import { Route as AuthenticatedMuralConquistasRouteImport } from './routes/_authenticated/mural-conquistas'
 import { Route as AuthenticatedNotificacoesRouteImport } from './routes/_authenticated/notificacoes'
 import { Route as AuthenticatedOcorrenciasConcluidasRouteImport } from './routes/_authenticated/ocorrencias-concluidas'
@@ -218,6 +219,12 @@ const AuthenticatedMinhaCarreiraRoute =
   AuthenticatedMinhaCarreiraRouteImport.update({
     id: '/minha-carreira',
     path: '/minha-carreira',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedMinhaImobiliariaRoute =
+  AuthenticatedMinhaImobiliariaRouteImport.update({
+    id: '/minha-imobiliaria',
+    path: '/minha-imobiliaria',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedMuralConquistasRoute =
@@ -551,6 +558,7 @@ export interface FileRoutesByFullPath {
   '/mapa-captacoes': typeof AuthenticatedMapaCaptacoesRoute
   '/meus-leads': typeof AuthenticatedMeusLeadsRoute
   '/minha-carreira': typeof AuthenticatedMinhaCarreiraRoute
+  '/minha-imobiliaria': typeof AuthenticatedMinhaImobiliariaRoute
   '/mural-conquistas': typeof AuthenticatedMuralConquistasRoute
   '/notificacoes': typeof AuthenticatedNotificacoesRoute
   '/ocorrencias-concluidas': typeof AuthenticatedOcorrenciasConcluidasRoute
@@ -631,6 +639,7 @@ export interface FileRoutesByTo {
   '/mapa-captacoes': typeof AuthenticatedMapaCaptacoesRoute
   '/meus-leads': typeof AuthenticatedMeusLeadsRoute
   '/minha-carreira': typeof AuthenticatedMinhaCarreiraRoute
+  '/minha-imobiliaria': typeof AuthenticatedMinhaImobiliariaRoute
   '/mural-conquistas': typeof AuthenticatedMuralConquistasRoute
   '/notificacoes': typeof AuthenticatedNotificacoesRoute
   '/ocorrencias-concluidas': typeof AuthenticatedOcorrenciasConcluidasRoute
@@ -713,6 +722,7 @@ export interface FileRoutesById {
   '/_authenticated/mapa-captacoes': typeof AuthenticatedMapaCaptacoesRoute
   '/_authenticated/meus-leads': typeof AuthenticatedMeusLeadsRoute
   '/_authenticated/minha-carreira': typeof AuthenticatedMinhaCarreiraRoute
+  '/_authenticated/minha-imobiliaria': typeof AuthenticatedMinhaImobiliariaRoute
   '/_authenticated/mural-conquistas': typeof AuthenticatedMuralConquistasRoute
   '/_authenticated/notificacoes': typeof AuthenticatedNotificacoesRoute
   '/_authenticated/ocorrencias-concluidas': typeof AuthenticatedOcorrenciasConcluidasRoute
@@ -795,6 +805,7 @@ export interface FileRouteTypes {
     | '/mapa-captacoes'
     | '/meus-leads'
     | '/minha-carreira'
+    | '/minha-imobiliaria'
     | '/mural-conquistas'
     | '/notificacoes'
     | '/ocorrencias-concluidas'
@@ -875,6 +886,7 @@ export interface FileRouteTypes {
     | '/mapa-captacoes'
     | '/meus-leads'
     | '/minha-carreira'
+    | '/minha-imobiliaria'
     | '/mural-conquistas'
     | '/notificacoes'
     | '/ocorrencias-concluidas'
@@ -956,6 +968,7 @@ export interface FileRouteTypes {
     | '/_authenticated/mapa-captacoes'
     | '/_authenticated/meus-leads'
     | '/_authenticated/minha-carreira'
+    | '/_authenticated/minha-imobiliaria'
     | '/_authenticated/mural-conquistas'
     | '/_authenticated/notificacoes'
     | '/_authenticated/ocorrencias-concluidas'
@@ -1213,6 +1226,13 @@ declare module '@tanstack/react-router' {
       path: '/minha-carreira'
       fullPath: '/minha-carreira'
       preLoaderRoute: typeof AuthenticatedMinhaCarreiraRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/minha-imobiliaria': {
+      id: '/_authenticated/minha-imobiliaria'
+      path: '/minha-imobiliaria'
+      fullPath: '/minha-imobiliaria'
+      preLoaderRoute: typeof AuthenticatedMinhaImobiliariaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/mural-conquistas': {
@@ -1613,6 +1633,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedMapaCaptacoesRoute: typeof AuthenticatedMapaCaptacoesRoute
   AuthenticatedMeusLeadsRoute: typeof AuthenticatedMeusLeadsRoute
   AuthenticatedMinhaCarreiraRoute: typeof AuthenticatedMinhaCarreiraRoute
+  AuthenticatedMinhaImobiliariaRoute: typeof AuthenticatedMinhaImobiliariaRoute
   AuthenticatedMuralConquistasRoute: typeof AuthenticatedMuralConquistasRoute
   AuthenticatedNotificacoesRoute: typeof AuthenticatedNotificacoesRoute
   AuthenticatedOcorrenciasConcluidasRoute: typeof AuthenticatedOcorrenciasConcluidasRoute
@@ -1672,6 +1693,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedMapaCaptacoesRoute: AuthenticatedMapaCaptacoesRoute,
   AuthenticatedMeusLeadsRoute: AuthenticatedMeusLeadsRoute,
   AuthenticatedMinhaCarreiraRoute: AuthenticatedMinhaCarreiraRoute,
+  AuthenticatedMinhaImobiliariaRoute: AuthenticatedMinhaImobiliariaRoute,
   AuthenticatedMuralConquistasRoute: AuthenticatedMuralConquistasRoute,
   AuthenticatedNotificacoesRoute: AuthenticatedNotificacoesRoute,
   AuthenticatedOcorrenciasConcluidasRoute:
