@@ -28,6 +28,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState, ListSkeleton, Pill, type Tom } from "@/components/visual/base";
 import { lerTaxasPadrao } from "./Diario";
+import type { ChaveExplicacao } from "@/lib/metas-2027/explicacoes";
+import { InfoDica, RotuloInfo } from "@/components/metas-2027/InfoDica";
+import { ContextoInfo } from "@/components/metas-2027/contexto-info";
 
 // Painéis de metas 2027 — ETAPA 2 (cartão t_2fa76ce2, Denis 19/11): painel do corretor. SUBSTITUI o "Meu mês".
 // A tela não faz conta: tudo sai de montarPainelCorretor() (src/lib/metas-2027). O banco garante que só vêm
@@ -214,7 +217,14 @@ export function PainelMetasCorretor({ userId }: { userId: string }) {
         ) : !dados ? (
           <ListSkeleton />
         ) : (
-          <Conteudo dados={dados} />
+          <ContextoInfo.Provider
+            value={{
+              ano: dados.painel.pos.fase === "antes" ? Number(p.hoje.slice(0, 4)) : ANO_PLANO,
+              anoPlano: ANO_PLANO,
+            }}
+          >
+            <Conteudo dados={dados} />
+          </ContextoInfo.Provider>
         )}
         <Anotacoes userId={userId} />
       </CardContent>
@@ -235,7 +245,10 @@ function Conteudo({ dados }: { dados: Dados }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2" data-testid="farol-meta">
-        {farol}
+        <span className="inline-flex items-center gap-0.5">
+          {farol}
+          <InfoDica chave="corretor_farol" />
+        </span>
         {avaliacao.farol === "verde" ||
         avaliacao.farol === "amarelo" ||
         avaliacao.farol === "vermelho" ? (
@@ -262,12 +275,29 @@ function Conteudo({ dados }: { dados: Dados }) {
             {situacao === "assinado"
               ? `Sua meta de ${ANO_PLANO} é ${brl(c.metaAno ?? 0)} de comissão. A contagem começa em 1º de janeiro.`
               : `As metas valem a partir de janeiro de ${ANO_PLANO}.`}
+            {situacao === "assinado" ? <InfoDica chave="corretor_meta_ano_antes" /> : null}
           </p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Kpi label="Comissão no mês" value={brl(agora.mes.comissao)} />
-            <Kpi label="Vendas no mês" value={String(agora.mes.vendas)} />
-            <Kpi label="Comissão no ano" value={brl(agora.ano.comissao)} />
-            <Kpi label="Vendas no ano" value={String(agora.ano.vendas)} />
+            <Kpi
+              label="Comissão no mês"
+              info="corretor_antes_comissao_mes"
+              value={brl(agora.mes.comissao)}
+            />
+            <Kpi
+              label="Vendas no mês"
+              info="corretor_antes_vendas_mes"
+              value={String(agora.mes.vendas)}
+            />
+            <Kpi
+              label="Comissão no ano"
+              info="corretor_antes_comissao_ano"
+              value={brl(agora.ano.comissao)}
+            />
+            <Kpi
+              label="Vendas no ano"
+              info="corretor_antes_vendas_ano"
+              value={String(agora.ano.vendas)}
+            />
           </div>
         </div>
       ) : situacao === "assinado" ? (
@@ -276,6 +306,7 @@ function Conteudo({ dados }: { dados: Dados }) {
             <BarraGrande
               testid="barra-ano"
               titulo={`🎯 Meta do ano ${ANO_PLANO}`}
+              info="corretor_barra_ano"
               feito={c.realAno}
               alvo={c.metaAno}
               esperado={c.esperado}
@@ -288,6 +319,7 @@ function Conteudo({ dados }: { dados: Dados }) {
                         ? `${brl(c.diferenca)} à frente`
                         : `${brl(-c.diferenca)} atrás`}
                     </b>
+                    <InfoDica chave="corretor_ritmo" />
                   </>
                 )
               }
@@ -295,6 +327,7 @@ function Conteudo({ dados }: { dados: Dados }) {
             <BarraGrande
               testid="barra-mes"
               titulo={`📅 Meta de ${mesNome}`}
+              info="corretor_barra_mes"
               feito={c.realMes}
               alvo={c.metaMes}
               rodape={
@@ -303,19 +336,31 @@ function Conteudo({ dados }: { dados: Dados }) {
                     Falta no mês: <b>{brl(c.faltaMes)}</b> · por semana:{" "}
                     <b>{brl(c.faltaSemana ?? 0)}</b> ({pos.semanasRestantes}{" "}
                     {pos.semanasRestantes === 1 ? "semana restante" : "semanas restantes"})
+                    <InfoDica chave="corretor_falta_mes" />
                   </span>
                 )
               }
             />
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" data-testid="barras-menores">
-            <BarraMenor titulo="Vendas no ano" a={avaliacao.indicadores.vendas} fmt={String} />
+            <BarraMenor
+              titulo="Vendas no ano"
+              info="corretor_vendas_ano"
+              a={avaliacao.indicadores.vendas}
+              fmt={String}
+            />
             <BarraMenor
               titulo="Captações no ano"
+              info="corretor_captacoes_ano"
               a={avaliacao.indicadores.captacoes}
               fmt={String}
             />
-            <BarraMenor titulo="VGV no ano" a={avaliacao.indicadores.vgv} fmt={brl} />
+            <BarraMenor
+              titulo="VGV no ano"
+              info="corretor_vgv_ano"
+              a={avaliacao.indicadores.vgv}
+              fmt={brl}
+            />
           </div>
           <p className="text-xs text-muted-foreground">
             A meta do mês segue a distribuição que você fez no plano. Vendas conta captação + venda,
@@ -324,11 +369,16 @@ function Conteudo({ dados }: { dados: Dados }) {
         </>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Kpi label="Comissão no ano" value={brl(c.realAno)} />
-          <Kpi label="Comissão no mês" value={brl(c.realMes)} />
-          <Kpi label="Vendas no ano" value={String(avaliacao.indicadores.vendas.realAno)} />
+          <Kpi label="Comissão no ano" info="corretor_comissao_ano" value={brl(c.realAno)} />
+          <Kpi label="Comissão no mês" info="corretor_comissao_mes" value={brl(c.realMes)} />
+          <Kpi
+            label="Vendas no ano"
+            info="corretor_vendas_ano"
+            value={String(avaliacao.indicadores.vendas.realAno)}
+          />
           <Kpi
             label="Captações no ano"
+            info="corretor_captacoes_ano"
             value={
               avaliacao.indicadores.captacoes.realAno == null
                 ? "–"
@@ -346,6 +396,7 @@ function Conteudo({ dados }: { dados: Dados }) {
 function BarraGrande(props: {
   testid: string;
   titulo: string;
+  info: ChaveExplicacao;
   feito: number;
   alvo: number | null;
   esperado?: number | null;
@@ -354,7 +405,9 @@ function BarraGrande(props: {
   const b = larguraBarra(props.feito, props.alvo, props.esperado);
   return (
     <div className="space-y-2 rounded-lg border p-3" data-testid={props.testid}>
-      <p className="text-sm font-semibold text-muted-foreground">{props.titulo}</p>
+      <p className="text-sm font-semibold text-muted-foreground">
+        <RotuloInfo chave={props.info}>{props.titulo}</RotuloInfo>
+      </p>
       <p className="text-2xl font-bold">
         {brl(props.feito)}{" "}
         <span className="text-sm font-normal text-muted-foreground">
@@ -386,12 +439,19 @@ function BarraGrande(props: {
   );
 }
 
-function BarraMenor(props: { titulo: string; a: AvaliacaoIndicador; fmt: (n: number) => string }) {
+function BarraMenor(props: {
+  titulo: string;
+  info: ChaveExplicacao;
+  a: AvaliacaoIndicador;
+  fmt: (n: number) => string;
+}) {
   const { a } = props;
   const b = larguraBarra(a.realAno, a.metaAno, a.esperado);
   return (
     <div className="space-y-1 rounded-lg border p-3">
-      <p className="text-xs text-muted-foreground">{props.titulo}</p>
+      <p className="text-xs text-muted-foreground">
+        <RotuloInfo chave={props.info}>{props.titulo}</RotuloInfo>
+      </p>
       <p className="text-base font-semibold">
         {props.fmt(a.realAno)}
         <span className="text-xs font-normal text-muted-foreground">
@@ -406,10 +466,12 @@ function BarraMenor(props: { titulo: string; a: AvaliacaoIndicador; fmt: (n: num
   );
 }
 
-function Kpi({ label, value }: { label: string; value: string }) {
+function Kpi({ label, value, info }: { label: string; value: string; info: ChaveExplicacao }) {
   return (
-    <div className="rounded-lg border p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
+    <div className="min-w-0 rounded-lg border p-3">
+      <p className="text-xs text-muted-foreground">
+        <RotuloInfo chave={info}>{label}</RotuloInfo>
+      </p>
       <p className="text-lg font-semibold">{value}</p>
     </div>
   );
@@ -448,7 +510,8 @@ function Cumpridas({ painel }: { painel: PainelCorretor }) {
                 </p>
                 {x.tipo === "venda" ? (
                   <p className="text-xs" data-testid="comissao-venda">
-                    Sua parte: <b>{brl(x.comissao.suaParte)}</b>
+                    <RotuloInfo chave="corretor_sua_parte">Sua parte:</RotuloInfo>{" "}
+                    <b>{brl(x.comissao.suaParte)}</b>
                     {x.comissao.descontadoDeVoce.total > 0 ? (
                       <span className="text-muted-foreground">
                         {" "}
@@ -460,6 +523,7 @@ function Cumpridas({ painel }: { painel: PainelCorretor }) {
                           ? `${x.comissao.descontadoDeVoce.indicador > 0 ? ", " : ""}extras ${brl(x.comissao.descontadoDeVoce.extras)}`
                           : ""}
                         )
+                        <InfoDica chave="corretor_descontado" />
                       </span>
                     ) : null}
                   </p>
@@ -475,6 +539,7 @@ function Cumpridas({ painel }: { painel: PainelCorretor }) {
           {totalAno.descontado > 0
             ? ` · descontado de você (indicador/extras): ${brl(totalAno.descontado)}`
             : ""}
+          <InfoDica chave="corretor_total_ano" />
         </p>
       ) : null}
     </div>

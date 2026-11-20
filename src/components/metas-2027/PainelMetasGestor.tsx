@@ -26,6 +26,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ListSkeleton, Pill, type Tom } from "@/components/visual/base";
 import { lerTaxasPadrao } from "@/components/minha-carreira/Diario";
+import type { ChaveExplicacao } from "@/lib/metas-2027/explicacoes";
+import { InfoDica, RotuloInfo } from "./InfoDica";
+import { ContextoInfo } from "./contexto-info";
 
 // Painéis de metas 2027 — ETAPA 3 (cartão t_863b7590, Denis 20/11): painel do gestor/broker/Team Leader.
 // Tela NOVA: não altera o Painel da Equipe nem o Farol. A tela não faz conta: tudo sai de montarPainelGestor()
@@ -125,7 +128,9 @@ export function PainelMetasGestor() {
         ) : !painel ? (
           <ListSkeleton />
         ) : (
-          <Conteudo painel={painel} sel={sel} setSel={setSel} />
+          <ContextoInfo.Provider value={{ ano: painel.anoDados, anoPlano: ANO_PLANO }}>
+            <Conteudo painel={painel} sel={sel} setSel={setSel} />
+          </ContextoInfo.Provider>
         )}
       </CardContent>
     </Card>
@@ -258,18 +263,26 @@ function ResumoGrupo({
             <p className="text-xs text-muted-foreground">Líder: {grupo.liderNome}</p>
           ) : null}
         </div>
-        <Pill tom={TOM_FAROL[grupo.avaliacao.farol]}>
-          {grupo.avaliacao.farol === "cinza"
-            ? "⚪ Sem plano assinado"
-            : FAROL_META_ROTULO[grupo.avaliacao.farol]}
-        </Pill>
+        <span className="inline-flex items-center gap-0.5">
+          <Pill tom={TOM_FAROL[grupo.avaliacao.farol]}>
+            {grupo.avaliacao.farol === "cinza"
+              ? "⚪ Sem plano assinado"
+              : FAROL_META_ROTULO[grupo.avaliacao.farol]}
+          </Pill>
+          <InfoDica chave="equipe_farol" />
+        </span>
       </div>
 
       {antes ? (
         <div className="grid grid-cols-2 gap-2 text-sm">
-          <Mini titulo={`Meta ${ANO_PLANO} (assinados)`} valor={brlOuTraco(c.metaAno)} />
+          <Mini
+            titulo={`Meta ${ANO_PLANO} (assinados)`}
+            valor={brlOuTraco(c.metaAno)}
+            info="equipe_meta_assinados"
+          />
           <Mini
             titulo={`Comissão em ${painel.anoDados}`}
+            info="equipe_comissao_ano"
             valor={brl(grupo.realizadoAno.comissao ?? 0)}
           />
         </div>
@@ -277,6 +290,7 @@ function ResumoGrupo({
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Barra
             titulo="Meta do ANO (planos assinados)"
+            info="equipe_barra_ano"
             a={c}
             feito={c.realAno}
             alvo={c.metaAno}
@@ -291,12 +305,14 @@ function ResumoGrupo({
                       : `${brl(-c.diferenca)} atrás`}
                   </b>{" "}
                   ({pct(c.pctEsperado)} do esperado até hoje)
+                  <InfoDica chave="equipe_ritmo" />
                 </>
               )
             }
           />
           <Barra
             titulo={`Meta do MÊS (${mesNome})`}
+            info="equipe_barra_mes"
             a={c}
             feito={c.realMes}
             alvo={c.metaMes}
@@ -314,26 +330,30 @@ function ResumoGrupo({
       <div className="grid grid-cols-3 gap-2 text-xs">
         <Mini
           titulo="Vendas"
+          info="equipe_vendas"
           valor={`${grupo.realizadoAno.vendas ?? 0}${metaTxt(grupo.avaliacao.indicadores.vendas, String)}`}
         />
         <Mini
           titulo="Captações"
+          info="equipe_captacoes"
           valor={
             grupo.realizadoAno.captacoes == null
               ? "–"
               : `${grupo.realizadoAno.captacoes}${metaTxt(grupo.avaliacao.indicadores.captacoes, String)}`
           }
         />
-        <Mini titulo="VGV" valor={brl(grupo.realizadoAno.vgv ?? 0)} />
+        <Mini titulo="VGV" info="equipe_vgv" valor={brl(grupo.realizadoAno.vgv ?? 0)} />
       </div>
 
       <p className="text-xs text-muted-foreground" data-testid="cobertura">
-        Planos assinados: <b>{grupo.cobertura.assinados}</b> de {grupo.cobertura.elegiveis} (
+        <RotuloInfo chave="equipe_planos_assinados">Planos assinados:</RotuloInfo>{" "}
+        <b>{grupo.cobertura.assinados}</b> de {grupo.cobertura.elegiveis} (
         {pct(grupo.cobertura.pct)})
         {grupo.soma.qtdPreenchimento > 0 ? (
           <>
             {" "}
-            · em preenchimento: {grupo.soma.qtdPreenchimento}
+            · <RotuloInfo chave="equipe_preenchimento">em preenchimento:</RotuloInfo>{" "}
+            {grupo.soma.qtdPreenchimento}
             {grupo.soma.preenchimentoAno.comissao != null ? (
               <> (somam {brl(grupo.soma.preenchimentoAno.comissao)}, fora da meta oficial)</>
             ) : null}
@@ -352,6 +372,7 @@ function ResumoGrupo({
 
 function Barra(props: {
   titulo: string;
+  info: ChaveExplicacao;
   a: AvaliacaoIndicador;
   feito: number;
   alvo: number | null;
@@ -361,7 +382,9 @@ function Barra(props: {
   const b = larguraBarra(props.feito, props.alvo, props.esperado);
   return (
     <div className="space-y-1">
-      <p className="text-xs font-semibold text-muted-foreground">{props.titulo}</p>
+      <p className="text-xs font-semibold text-muted-foreground">
+        <RotuloInfo chave={props.info}>{props.titulo}</RotuloInfo>
+      </p>
       <p className="text-lg font-bold">
         {brl(props.feito)}{" "}
         <span className="text-xs font-normal text-muted-foreground">
@@ -404,15 +427,21 @@ function CartaoPessoa({ c, painel }: { c: CartaoCorretor; painel: PainelGestor }
     >
       <div className="flex items-start justify-between gap-2">
         <p className="min-w-0 truncate font-semibold">{c.nome}</p>
-        <Pill tom={TOM_FAROL[c.avaliacao.farol]} className="shrink-0">
-          {FAROL_META_ROTULO[c.avaliacao.farol]}
-        </Pill>
+        <span className="inline-flex shrink-0 items-center gap-0.5">
+          <Pill tom={TOM_FAROL[c.avaliacao.farol]} className="shrink-0">
+            {FAROL_META_ROTULO[c.avaliacao.farol]}
+          </Pill>
+          <InfoDica chave="pessoa_farol" />
+        </span>
       </div>
-      <p className="text-xs text-muted-foreground">Plano: {ROTULO_PLANO[c.situacao]}</p>
+      <p className="text-xs text-muted-foreground">
+        <RotuloInfo chave="pessoa_plano">Plano: {ROTULO_PLANO[c.situacao]}</RotuloInfo>
+      </p>
       {assinado && painel.pos.fase !== "antes" ? (
         <>
           <p className="text-sm">
             Ano: <b>{brl(k.realAno)}</b> de {brlOuTraco(k.metaAno)}
+            <InfoDica chave="pessoa_ano" />
           </p>
           <div className="relative h-2 rounded-full bg-muted" aria-hidden>
             <div className="h-2 rounded-full bg-primary" style={{ width: `${b.pct}%` }} />
@@ -425,22 +454,26 @@ function CartaoPessoa({ c, painel }: { c: CartaoCorretor; painel: PainelGestor }
           </div>
           <p className="text-xs" data-testid="falta">
             Falta no mês: <b>{brl(k.faltaMes ?? 0)}</b> · no ano: <b>{brl(k.faltaAno ?? 0)}</b>
+            <InfoDica chave="pessoa_falta" />
           </p>
         </>
       ) : assinado ? (
         <p className="text-sm">
           Meta {ANO_PLANO}: <b>{brlOuTraco(k.metaAno)}</b> · comissão em {painel.anoDados}:{" "}
           {brl(c.realizadoAno.comissao ?? 0)}
+          <InfoDica chave="pessoa_meta_antes" />
         </p>
       ) : (
         <p className="text-sm text-muted-foreground">
           Sem meta oficial até assinar o plano. Comissão no ano:{" "}
           <b className="text-foreground">{brl(c.realizadoAno.comissao ?? 0)}</b>
+          <InfoDica chave="pessoa_sem_meta" />
         </p>
       )}
       <p className="text-xs text-muted-foreground">
         Vendas no ano: {c.realizadoAno.vendas ?? 0}
         {c.realizadoAno.captacoes != null ? ` · Captações: ${c.realizadoAno.captacoes}` : ""}
+        <InfoDica chave="pessoa_vendas_captacoes" />
       </p>
       {c.anotacoes.length === 0 ? (
         <p className="text-xs text-muted-foreground">Sem anotações recentes.</p>
@@ -475,6 +508,7 @@ function Alertas({ alertas }: { alertas: AlertaParado[] }) {
     >
       <p className="flex items-center gap-2 text-sm font-semibold text-rose-800 dark:text-rose-200">
         <AlarmClock className="h-4 w-4" aria-hidden /> Há mais tempo sem vender ou captar
+        <InfoDica chave="equipe_parados" />
       </p>
       <ul className="space-y-0.5 text-xs">
         {top.map((a) => (
@@ -488,10 +522,12 @@ function Alertas({ alertas }: { alertas: AlertaParado[] }) {
   );
 }
 
-function Mini({ titulo, valor }: { titulo: string; valor: string }) {
+function Mini({ titulo, valor, info }: { titulo: string; valor: string; info: ChaveExplicacao }) {
   return (
-    <div className="rounded-md border bg-background p-2">
-      <p className="text-[11px] text-muted-foreground">{titulo}</p>
+    <div className="min-w-0 rounded-md border bg-background p-2">
+      <p className="text-[11px] text-muted-foreground">
+        <RotuloInfo chave={info}>{titulo}</RotuloInfo>
+      </p>
       <p className="font-semibold">{valor}</p>
     </div>
   );

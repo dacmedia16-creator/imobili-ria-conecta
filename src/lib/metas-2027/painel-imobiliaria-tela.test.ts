@@ -182,6 +182,31 @@ describe("Painel de metas 2027 · Imobiliária", () => {
     expect(q.textContent).toMatch(/\(−\) IndicadorR\$\s?1\.000/);
     expect(q.textContent).toMatch(/= Líquido dos corretoresR\$\s?20\.000/);
     expect(screen.getByTestId("indicadores").textContent).toMatch(/30 exclusivas/);
+    // Ícone "i" em cada número, inclusive em cada parte da quebra (t_065a0ff9).
+    for (const k of [
+      "imob_meta_direcao",
+      "imob_soma_assinados",
+      "imob_preenchimento",
+      "imob_tabela_direcao",
+      "imob_realizado",
+      "imob_ritmo",
+      "imob_cobertura",
+      "imob_grafico",
+      "imob_vgv",
+      "imob_vendas",
+      "imob_captacoes",
+      "imob_estoque",
+      "imob_quebra_bruta",
+      "imob_quebra_imobiliaria",
+      "imob_quebra_lideres",
+      "imob_quebra_indicador",
+      "imob_quebra_parceria",
+      "imob_quebra_corretores",
+      "imob_ranking_equipes",
+      "imob_ranking_corretores",
+      "imob_farol",
+    ])
+      expect(screen.getByTestId(`info-${k}`), k).toBeTruthy();
   });
 
   it("admin define a meta da direção pelo formulário (RPC; nada gravado direto na tabela)", async () => {
