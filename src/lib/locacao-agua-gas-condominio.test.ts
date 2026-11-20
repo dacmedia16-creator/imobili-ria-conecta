@@ -8,9 +8,17 @@ import {
   faltasContrato,
   incluidoCondominio,
 } from "./locacao-contrato";
-import { incluidaNoCondominio, lerLocacao, titularidadePendente, type Titularidade } from "./locacao";
+import {
+  incluidaNoCondominio,
+  lerLocacao,
+  titularidadePendente,
+  type Titularidade,
+} from "./locacao";
 
-const MIG = readFileSync("supabase/migrations/20261211150000_locacao_agua_gas_condominio.sql", "utf8");
+const MIG = readFileSync(
+  "supabase/migrations/20261211150000_locacao_agua_gas_condominio.sql",
+  "utf8",
+);
 const RB = readFileSync("supabase/rollback/20261211150000_locacao_agua_gas_condominio.sql", "utf8");
 
 // Locação residencial com fiador e todos os dados do contrato preenchidos, menos o código de água.
@@ -65,7 +73,7 @@ describe("água e gás incluídos no condomínio", () => {
     expect(incluidoCondominio(v.imv_agua)).toBe(true);
   });
 
-  it("texto livre antigo \"cobrado no condomínio\" continua valendo", () => {
+  it('texto livre antigo "cobrado no condomínio" continua valendo', () => {
     expect(incluidoCondominio("cobrado no condomínio")).toBe(true);
     expect(incluidoCondominio("Incluso no CONDOMINIO")).toBe(true);
     expect(incluidoCondominio("123456")).toBe(false);
