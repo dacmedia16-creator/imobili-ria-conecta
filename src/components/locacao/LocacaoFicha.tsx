@@ -389,7 +389,9 @@ export function FichaAbertura({ d, ctx, busy, rodar, editavel, aConfirmar, aviso
             {imovelTipo === "condominio" && (
               <p className="text-xs text-muted-foreground">
                 Condomínio: a Documentação pede o boleto do condomínio (obrigatório) e a CND do
-                condomínio (opcional).
+                condomínio (opcional). Se água ou gás vêm na taxa, marque lá &quot;Água incluída no
+                condomínio&quot; / &quot;Gás incluído no condomínio&quot;: não pede código, conta
+                nem boleto.
               </p>
             )}
           </div>

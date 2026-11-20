@@ -1,9 +1,17 @@
 /**
  * Avisos de WhatsApp ao corretor da locação (t_8f09d406, item 7). Parte pura (testável): monta o texto e decide
- * se o aviso pode sair. O envio em si fica em locacao-avisos.functions.ts (servidor, mesmo ZionTalk das vendas).
+ * se o aviso pode sair. O envio em si fica em locacao-avisos.server.ts (servidor, mesmo ZionTalk das vendas).
  */
 export type EventoAvisoLocacao =
-  "minuta_enviada" | "pendencia" | "ajuste" | "devolvida" | "andamento";
+  | "minuta_enviada"
+  | "pendencia"
+  | "ajuste"
+  | "devolvida"
+  | "andamento"
+  // t_c3ea1b18: vistoria (lembrete na véspera, ~2 h antes e laudo registrado).
+  | "vistoria_vespera"
+  | "vistoria_2h"
+  | "vistoria_concluida";
 
 export const TITULO_AVISO_LOCACAO: Record<EventoAvisoLocacao, string> = {
   minuta_enviada: "Minuta para conferir",
@@ -11,6 +19,9 @@ export const TITULO_AVISO_LOCACAO: Record<EventoAvisoLocacao, string> = {
   ajuste: "Minuta em ajuste",
   devolvida: "Locacao devolvida",
   andamento: "Andamento aguardando voce",
+  vistoria_vespera: "Vistoria agendada",
+  vistoria_2h: "Vistoria em 2 horas",
+  vistoria_concluida: "Vistoria concluida",
 };
 
 /**

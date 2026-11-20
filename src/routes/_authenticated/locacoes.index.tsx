@@ -428,7 +428,9 @@ function Fila({ titulo, itens, pos }: { titulo: string; itens: Locacao[]; pos?: 
                             ? "vistoria pedida"
                             : "vistoria pendente"}{" "}
                         · {l.pos.seguroEm ? "seguro ✅" : "seguro ⬜"} ·{" "}
-                        {titularidadePendente(l.pos.tit).length ? "⚠️ protocolo" : "✅"}
+                        {titularidadePendente(l.pos.tit, l.contasCondominio).length
+                          ? "⚠️ protocolo"
+                          : "✅"}
                       </>
                     ) : (
                       <>
@@ -523,7 +525,7 @@ function Comissao({ itens, ctx }: { itens: Locacao[]; ctx: ContextoLocacao }) {
               </thead>
               <tbody>
                 {linhas.map(({ l, v, r }) => {
-                  const pend = titularidadePendente(l.pos.tit);
+                  const pend = titularidadePendente(l.pos.tit, l.contasCondominio);
                   return (
                     <tr
                       key={l.id}
@@ -637,11 +639,11 @@ function Comissao({ itens, ctx }: { itens: Locacao[]; ctx: ContextoLocacao }) {
                 </tr>
               </tbody>
             </table>
-            {titularidadePendente(s.l.pos.tit).length > 0 && (
+            {titularidadePendente(s.l.pos.tit, s.l.contasCondominio).length > 0 && (
               <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
                 ⚠️ <b>Alerta (não bloqueia):</b> troca de titularidade sem protocolo de{" "}
-                {titularidadePendente(s.l.pos.tit).join(", ")}. A comissão segue normalmente; o
-                aviso fica para o corretor e a gestora.
+                {titularidadePendente(s.l.pos.tit, s.l.contasCondominio).join(", ")}. A comissão
+                segue normalmente; o aviso fica para o corretor e a gestora.
               </p>
             )}
             <p className="mt-2 text-xs text-muted-foreground">

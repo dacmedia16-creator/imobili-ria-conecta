@@ -75,6 +75,19 @@ export const salvarMontagem = (id: string, dados: Record<string, string>) =>
   rpc<{ ok: boolean }>("locacao_montagem_salvar", { _id: id, _dados: dados });
 export const corretorMinuta = (id: string, acao: string, texto: string | null = null) =>
   rpc<unknown>("locacao_corretor_minuta", { _id: id, _acao: acao, _texto: texto });
+/** t_c3ea1b18: agenda/reagenda a vistoria. `quando` = "YYYY-MM-DDTHH:MM" no horário de Brasília. */
+export const agendarVistoria = (
+  id: string,
+  quando: string,
+  vistoriador: string,
+  acompanha: boolean,
+) =>
+  rpc<{ ok: boolean; em: string }>("locacao_vistoria_agendar", {
+    _id: id,
+    _quando: quando,
+    _vistoriador: vistoriador,
+    _acompanha: acompanha,
+  });
 export const posAcao = (id: string, acao: string, dados: Record<string, unknown> = {}) =>
   rpc<{ ok: boolean; etapa: string; alerta?: boolean }>("locacao_pos_acao", {
     _id: id,
