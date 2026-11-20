@@ -53,11 +53,14 @@ import {
   salvarConfigFin,
   salvarContratoFin,
 } from "@/lib/locacao-fin-db";
+import { parceirosPagar } from "@/lib/locacao-db";
+import { PARCERIA_LADO_LABEL, lerParceirosPagar, type ParceiroPagar } from "@/lib/locacao-parceiro";
+import { LocacaoParceiroPagamento } from "@/components/locacao/LocacaoParceiroPagamento";
 
 // Financeiro da locação — Fase 2, parte 1 (t_be750361; maquete t_de4e155c). Só para o papel "Financeiro da locação"
 // (ou administrador). Nada aqui gera boleto, envia mensagem ou move dinheiro: baixa e repasse são REGISTROS manuais.
 
-type Sub = "painel" | "contratos" | "repasse" | "regras";
+type Sub = "painel" | "contratos" | "repasse" | "parceiros" | "regras";
 
 const num = (v: string) => Number(v.replace(/\./g, "").replace(",", ".")) || 0;
 const numSimples = (v: string) => Number(v.replace(",", ".")) || 0;
@@ -118,6 +121,7 @@ export function LocacaoFinanceiro() {
             )}
           </TabsTrigger>
           <TabsTrigger value="repasse">Repasse e extrato</TabsTrigger>
+          <TabsTrigger value="parceiros">Pagamento a parceiros</TabsTrigger>
           <TabsTrigger value="regras">Regras financeiras</TabsTrigger>
         </TabsList>
         <TabsContent value="painel">
@@ -129,6 +133,7 @@ export function LocacaoFinanceiro() {
         <TabsContent value="repasse">
           <Repasse p={p} onAbrir={setCob} />
         </TabsContent>
+        <TabsContent value="parceiros">{sub === "parceiros" && <Parceiros />}</TabsContent>
         <TabsContent value="regras">
           <RegrasFin config={p.config} podeEditar={p.podeRegras} onSalvo={carregar} />
         </TabsContent>
@@ -143,6 +148,78 @@ export function LocacaoFinanceiro() {
         />
       )}
     </div>
+  );
+}
+
+// --- Pagamento a parceiros (t_756c1c63) -----------------------------------------------------------------------------
+// Locações com parceria lançada pela vistoria: valor do parceiro (mesma regra da aba Comissão) + dados de pagamento.
+// O banco (locacao_parceiros_pagar) só responde ao Financeiro da locação e à gestão.
+function Parceiros() {
+  const [dados, setDados] = useState<{ itens: ParceiroPagar[] } | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [aberto, setAberto] = useState<string | null>(null);
+  const carregar = useCallback(async () => {
+    try {
+      setDados(lerParceirosPagar(await parceirosPagar()));
+      setErro(null);
+    } catch (e) {
+      setErro(errorMessage(e, "Não foi possível carregar os pagamentos a parceiros."));
+    }
+  }, []);
+  useEffect(() => void carregar(), [carregar]);
+  if (erro) return <p className="text-sm text-destructive">{erro}</p>;
+  if (!dados) return <ListSkeleton />;
+  if (!dados.itens.length) {
+    return <EmptyState icon={Banknote}>Nenhuma locação com parceria lançada.</EmptyState>;
+  }
+  const semDados = dados.itens.filter((i) => !i.pagamento).length;
+  return (
+    <Card data-testid="fin-parceiros">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">Pagamento a parceiros</CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Valor do parceiro = mesma regra da aba Comissão (aluguel ÷ 2 × % da tabela pela taxa; ex.:
+          taxa 10% → 50%) <AConfirmar />. CPF/CNPJ, PIX e conta só aparecem para o Financeiro da
+          locação e a gestão.
+          {semDados > 0 ? ` ${semDados} sem dados de pagamento.` : ""}
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {dados.itens.map((i) => (
+          <div key={i.id} className="space-y-2 rounded-md border p-3 text-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <b>{i.codigo}</b>
+              <span className="text-muted-foreground">{i.endereco}</span>
+              <span className="flex-1" />
+              <Pill tom="violet">{brl(i.valorParceiro)}</Pill>
+              {i.pagamento ? (
+                <Pill tom="green">dados de pagamento ok</Pill>
+              ) : (
+                <Pill tom="amber">sem dados de pagamento</Pill>
+              )}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {i.parceria === "remax" ? "RE/MAX" : "Imobiliária externa"}: {i.parceiroNome || "—"}
+              {i.corretor ? ` · corretor ${i.corretor}` : ""}
+              {i.creci ? ` · CRECI ${i.creci}` : ""} · lado do parceiro:{" "}
+              {i.lado ? PARCERIA_LADO_LABEL[i.lado] : "não informado (lançamento antigo)"} · chave{" "}
+              {dataBr(i.chaveEm)} · aluguel {brl(i.aluguel)} · taxa {i.taxaAdm}%
+            </div>
+            {aberto === i.id ? (
+              <LocacaoParceiroPagamento
+                id={i.id}
+                valor={i.valorParceiro}
+                onSalvo={() => void carregar()}
+              />
+            ) : (
+              <Button size="sm" variant="outline" onClick={() => setAberto(i.id)}>
+                {i.pagamento ? "Ver dados de pagamento" : "Registrar dados de pagamento"}
+              </Button>
+            )}
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   );
 }
 

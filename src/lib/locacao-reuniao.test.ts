@@ -186,6 +186,8 @@ describe("item 6 — lançamento da Fernanda na comissão", () => {
       parceriaUnidade: "",
       parceriaCorretor: "",
       parceriaImobiliaria: "sobra",
+      parceriaLado: "locatario",
+      parceriaCreci: "",
       observacao: "",
     };
     expect(faltasLancamento(v)).toEqual(["unidade RE/MAX parceira", "corretor parceiro"]);

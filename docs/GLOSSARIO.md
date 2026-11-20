@@ -260,6 +260,9 @@ Quando o código e este glossário divergirem, vale o código; corrija o glossá
 **Garantia (locatícia)** — Forma de garantia do aluguel: seguro-fiança, caução, fiador, Loft, título de capitalização, outras.
 - Código: `src/lib/locacao.ts`.
 
+**Parceria na locação** — Locação feita com outra RE/MAX ou imobiliária externa. Um lado é sempre da casa e o outro do parceiro (no máximo 1 lado externo): **Captador (lado do proprietário)** ou **Corretor do locatário**. O pagamento do parceiro vai para a imobiliária (CNPJ) ou direto ao corretor (CPF). (Denis, 20/11)
+- Código: `locacao_lancamentos.parceria_lado`; dados de pagamento em `locacao_parceiro_pagamento` (só Financeiro da locação e gestão; RPCs `locacao_parceiro_pag_*`).
+
 **Repasse** — Valor do aluguel repassado ao proprietário depois dos descontos.
 - Código: `locacao_repasses`.
 
