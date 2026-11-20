@@ -48,7 +48,9 @@ import {
   type LocacaoDetalhe as Detalhe,
 } from "@/lib/locacao";
 import { LocacaoArquivoAcoes } from "@/components/locacao/LocacaoArquivoAcoes";
+import { VistoriaAgendaItem } from "@/components/locacao/LocacaoVistoriaAgenda";
 import {
+  agendarVistoria,
   contextoLocacao,
   contratosAcao,
   corretorMinuta,
@@ -910,6 +912,18 @@ function PosAssinatura({
             <CardTitle className="text-sm">Vistoria</CardTitle>
           </CardHeader>
           <CardContent>
+            <VistoriaAgendaItem
+              agenda={p.vistoriaAgenda}
+              podeAgendar={vistoria}
+              laudoRegistrado={!!p.laudoEm}
+              busy={busy}
+              agendar={(x) =>
+                void rodar(
+                  () => agendarVistoria(d.id, x.quando, x.vistoriador, x.acompanha),
+                  p.vistoriaAgenda ? "Vistoria reagendada" : "Vistoria agendada",
+                )
+              }
+            />
             <Item
               ok={!!p.vistoriaPedida}
               extra={

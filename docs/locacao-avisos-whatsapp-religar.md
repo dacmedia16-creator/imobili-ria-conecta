@@ -12,6 +12,19 @@ Publicado DESLIGADO em 16/11/2026 (cartão t_3194d2d4, autorização do Denis: "
 - A chave do ZionTalk (`ZIONTALK_API_KEY`) **não foi alterada** e os avisos de **vendas** continuam iguais.
 - Aviso pendente com mais de 24 h vira **expirado** sozinho na próxima vez que alguém mexer naquela locação.
 
+## Avisos da vistoria (t_c3ea1b18, migration 20261214120000)
+Com a variável ligada, o corretor responsável também recebe:
+- **Lembrete da véspera** e **lembrete ~2 h antes** da vistoria agendada (data, hora, endereço e se ele acompanha).
+  Quem gera é a rota `/api/leads/reengajar`, que o pg_cron `leads-reengajar` já chama a cada 5 min
+  (seg–sáb, 9h–18h55 de Brasília). Nenhum agendador novo. Por causa desse horário:
+  - no sábado, a vistoria de segunda já recebe o lembrete de véspera;
+  - vistoria antes das 11h só recebe o de 2 h se o pg_cron já estiver rodando (a véspera cobre o dia anterior).
+  - Se o job `leads-reengajar` for removido (`cron.unschedule`), os lembretes da vistoria param junto.
+- **Vistoria concluída** quando o laudo é registrado, com o prazo de contestação do locatário (10 dias corridos da
+  entrega das chaves, cláusula 15ª dos modelos). Sai logo após o clique da vistoria, como os demais avisos.
+- Com a variável desligada, os lembretes **não são nem gerados** (nada acumula); o aviso do laudo fica "pendente"
+  e expira em 24 h, como os outros. Reagendar expira o lembrete da data antiga.
+
 ## Antes de religar: o que fazer com os avisos acumulados (NÃO mandar em lote)
 Se religar sem limpar, a próxima ação em cada locação mandaria até 5 avisos antigos (das últimas 24 h) de uma vez.
 Por isso, **no mesmo momento de religar**, marque os pendentes antigos como expirados (não apaga nada, fica o histórico):
