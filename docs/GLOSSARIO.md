@@ -263,6 +263,10 @@ Quando o código e este glossário divergirem, vale o código; corrija o glossá
 **Repasse** — Valor do aluguel repassado ao proprietário depois dos descontos.
 - Código: `locacao_repasses`.
 
+**Documentos finais** — PDFs ASSINADOS da locação (contrato de locação, contrato de administração e laudo de vistoria) guardados no sistema, com ver/baixar e reenvio ao locatário/proprietário pelo WhatsApp. Só o corretor daquela locação, gestora, contratos, vistoria e a gerência veem.
+- Código: `locacao_docs_finais`, `locacao_docs_finais_envios`, `src/lib/locacao-finais*.ts`, `LocacaoDocumentosFinais.tsx`; trava do envio aos clientes `LOCACAO_DOCS_FINAIS_WHATSAPP` (separada de `LOCACAO_AVISOS_WHATSAPP`).
+- Evite: "minuta" (é a versão antes da assinatura).
+
 ## 9. Atendimento e outros
 
 **Lead** — Contato de interessado vindo de portal/formulário.
