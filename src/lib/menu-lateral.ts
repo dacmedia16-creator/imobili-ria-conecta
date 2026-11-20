@@ -39,6 +39,7 @@ import {
   Camera,
   KeyRound,
   GalleryHorizontal,
+  Target,
 } from "lucide-react";
 import { podeAtenderLeads, podeVerPainelLeads } from "@/lib/leads";
 import { podeAcessarCentralFinanceira } from "@/lib/financeiro-dashboard-calc";
@@ -202,6 +203,13 @@ export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
           label: "Painel da Equipe",
           icon: LayoutDashboard,
           // Gestor, Team Leader, líder auxiliar e admin (Denis, 08/10/2026). A RPC restringe à própria equipe.
+          show: podeAcessarPainelEquipe(roles),
+        },
+        {
+          to: "/painel-metas",
+          label: "Metas 2027 · Equipes",
+          icon: Target,
+          // Painel de metas 2027 (t_863b7590): mesmos papéis do Painel da Equipe; a RPC restringe o TL à equipe dele.
           show: podeAcessarPainelEquipe(roles),
         },
         {

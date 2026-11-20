@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Painéis de metas 2027, etapa 3 (migration 20261207120000, t_863b7590) numa ÚNICA transação revertida
+# (homologação ou banco descartável, NUNCA produção): fingerprint A -> up -> suíte -> rollback ->
+# fingerprint == A -> reaplica (idempotência) -> ROLLBACK. Nada fica gravado.
+# Uso: PSQL="psql <conninfo da homologação>" bash supabase/tests/run-metas-2027-painel-gestor.sh
+#      MIG=<outra migration> para o controle negativo (a suíte tem de falhar).
+set -euo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$HERE/../.." && pwd)"
+PSQL="${PSQL:?defina PSQL (homologação ou banco descartável; nunca produção)}"
+V=20261207120000
+MIG="${MIG:-$ROOT/supabase/migrations/${V}_metas_2027_painel_gestor.sql}"
+RB="$ROOT/supabase/rollback/${V}_metas_2027_painel_gestor.sql"
+strip() { grep -v -E '^(BEGIN|COMMIT|ROLLBACK);\s*$' "$1"; }
+FP="SELECT 'FP=' || md5(coalesce((SELECT string_agg(x, ',' ORDER BY x) FROM (
+  SELECT 'fn:'||p.oid::regprocedure::text||':'||p.prosecdef::text||':'||coalesce(p.proacl::text,'')||':'||md5(p.prosrc) x
+    FROM pg_proc p WHERE p.pronamespace='public'::regnamespace
+  UNION ALL SELECT 'rel:'||c.relname||':'||c.relkind::text FROM pg_class c WHERE c.relnamespace='public'::regnamespace
+  UNION ALL SELECT 'col:'||table_name||'.'||column_name FROM information_schema.columns WHERE table_schema='public'
+  UNION ALL SELECT 'con:'||conrelid::regclass::text||'.'||conname FROM pg_constraint WHERE connamespace='public'::regnamespace
+  UNION ALL SELECT 'pol:'||schemaname||'.'||tablename||'.'||policyname FROM pg_policies
+  UNION ALL SELECT 'tg:'||tgrelid::regclass::text||'.'||tgname FROM pg_trigger WHERE NOT tgisinternal) s),''));"
+{
+  echo "BEGIN;"
+  # Pré-requisito que a homologação pode não ter (produção tem desde t_00c1173c): só nesta transação.
+  echo "SELECT (to_regprocedure('public.eh_so_locacao(uuid)') IS NULL) AS need_loc \\gset"
+  echo "\\if :need_loc"
+  echo "CREATE FUNCTION public.eh_so_locacao(uuid) RETURNS boolean LANGUAGE sql STABLE AS 'SELECT false';"
+  echo "GRANT EXECUTE ON FUNCTION public.eh_so_locacao(uuid) TO authenticated;"
+  echo "\\endif"
+  echo "$FP"
+  strip "$MIG"
+  echo "\\echo [migration ok]"
+  echo "SAVEPOINT suite;"
+  strip "$HERE/metas_2027_painel_gestor.sql"
+  echo "RESET ROLE;"
+  echo "ROLLBACK TO SAVEPOINT suite;"
+  strip "$RB"
+  echo "\\echo [rollback ok]"
+  echo "$FP"
+  strip "$MIG"
+  strip "$MIG"
+  echo "\\echo [reaplicada 2x ok]"
+  echo "ROLLBACK;"
+} | $PSQL -X -q -At -v ON_ERROR_STOP=1 2>&1 | grep -E "^\[|^(ok|FALHA|TOTAL=|FP=)|ERROR|LINE|DETAIL|CONTEXT|psql:" || true
