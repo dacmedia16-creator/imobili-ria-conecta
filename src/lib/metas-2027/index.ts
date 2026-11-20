@@ -3,3 +3,4 @@ export * from "./regra";
 export * from "./realizado";
 export * from "./consolidado";
 export * from "./comissao";
+export * from "./painel-corretor";

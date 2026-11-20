@@ -31,7 +31,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ListSkeleton, PageHeader, Pill, type Tom } from "@/components/visual/base";
-import { MeuMes } from "@/components/minha-carreira/MeuMes";
+import { PainelMetasCorretor } from "@/components/minha-carreira/PainelMetasCorretor";
 import { MeuPlanoCartao } from "@/components/minha-carreira/MeuPlanoCartao";
 import { MeuDinheiro } from "@/components/minha-carreira/MeuDinheiro";
 import { Conquistas } from "@/components/minha-carreira/Conquistas";
@@ -271,7 +271,8 @@ function MinhaCarreiraPage() {
       {/* Meu Plano 2027 (t_1ac2e95d): só com o módulo meu_plano_2027 ligado. */}
       {userId ? <MeuPlanoCartao userId={userId} /> : null}
 
-      {userId ? <MeuMes userId={userId} /> : null}
+      {/* Painel de metas 2027 (t_2fa76ce2): substitui o "Meu mês" (decisão de Denis, 19/11). */}
+      {userId ? <PainelMetasCorretor userId={userId} /> : null}
 
       {/* Vouchers de fotos (t_d86ab990): só com o módulo Agendar fotos ligado. */}
       {userId ? <VouchersCarreira /> : null}
