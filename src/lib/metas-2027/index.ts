@@ -5,3 +5,5 @@ export * from "./consolidado";
 export * from "./comissao";
 export * from "./painel-corretor";
 export * from "./painel-gestor";
+export * from "./painel-imobiliaria";
+export * from "./acesso";
