@@ -412,6 +412,17 @@ function TopoMetas({
           </p>
         </div>
       </div>
+      {p.total.aConferir.assinados + p.total.aConferir.preenchimento > 0 ? (
+        <p
+          className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+          data-testid="imob-a-conferir"
+        >
+          <RotuloInfo chave="plano_a_conferir">⚠ Planos com valor a conferir:</RotuloInfo>{" "}
+          <b>{p.total.aConferir.assinados}</b> assinado(s) e{" "}
+          <b>{p.total.aConferir.preenchimento}</b> em preenchimento (
+          {p.total.aConferir.nomes.join(", ")}). Já incluídos nas somas acima.
+        </p>
+      ) : null}
 
       {cc.diferenca == null ? (
         <p className="text-sm text-muted-foreground" data-testid="diferenca">
@@ -823,6 +834,17 @@ function Ranking({
                   {i + 1}. {l.nome}
                 </p>
                 {l.sub ? <p className="truncate text-xs text-muted-foreground">{l.sub}</p> : null}
+                {l.aConferir > 0 ? (
+                  <p
+                    className="text-xs text-amber-800 dark:text-amber-200"
+                    data-testid="ranking-a-conferir"
+                  >
+                    ⚠{" "}
+                    {l.aConferir === 1
+                      ? "plano com valor a conferir"
+                      : `${l.aConferir} planos com valor a conferir`}
+                  </p>
+                ) : null}
                 <p className="text-xs">
                   {brl(l.realizado)}{" "}
                   <span className="text-muted-foreground">

@@ -84,6 +84,8 @@ export type LinhaRanking = {
   pctAno: number | null;
   pctEsperado: number | null;
   farol: FarolMeta;
+  /** Corretor com plano com valor a conferir (t_125c4dd3); equipe: quantos planos assim. */
+  aConferir: number;
 };
 
 export type PainelImobiliaria = {
@@ -185,6 +187,7 @@ function linhaGrupo(g: GrupoPainel): LinhaRanking {
     pctAno: c.pctAno,
     pctEsperado: c.pctEsperado,
     farol: g.avaliacao.farol,
+    aConferir: g.aConferir.assinados + g.aConferir.preenchimento,
   };
 }
 
@@ -199,6 +202,7 @@ function linhaPessoa(p: CartaoCorretor, equipe: string): LinhaRanking {
     pctAno: c.pctAno,
     pctEsperado: c.pctEsperado,
     farol: p.avaliacao.farol,
+    aConferir: p.aConferir ? 1 : 0,
   };
 }
 

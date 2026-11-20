@@ -20,6 +20,7 @@
  */
 import { ANO_PLANO } from "@/lib/meu-plano-2027/telas";
 import { num, ok, type Respostas, type TaxasFunil } from "@/lib/meu-plano-2027/regras";
+import { conferirPlano } from "@/lib/meu-plano-2027/conferencia";
 import {
   avaliar,
   INDICADORES,
@@ -152,6 +153,11 @@ export type CartaoCorretor = {
   elegivel: boolean;
   /** Dados para coberturaPlanos (papéis e se vende). */
   cobertura: PessoaCobertura;
+  /**
+   * "Plano com valor a conferir" (t_125c4dd3): algum valor da meta fora da faixa (conferirPlano). Só marca: o plano
+   * continua na soma e no farol como antes.
+   */
+  aConferir: boolean;
 };
 
 /** Produção de quem NÃO tem plano assinado (fora da meta e do farol). */
@@ -184,6 +190,8 @@ export type GrupoPainel = {
   naoAssinados: ProducaoNaoAssinados;
   cobertura: Cobertura;
   pessoas: CartaoCorretor[];
+  /** Planos com valor a conferir (assinados e em preenchimento), já incluídos nas somas. */
+  aConferir: { assinados: number; preenchimento: number; nomes: string[] };
 };
 
 export type AlertaParado = {
@@ -346,7 +354,7 @@ export function montarPainelGestor(e: {
     notasDe.set(a.user_id, xs);
   }
 
-  type Base = { p: PessoaRpc; situacao: SituacaoPlano; meta: MetaPlano | null };
+  type Base = { p: PessoaRpc; situacao: SituacaoPlano; meta: MetaPlano | null; aConferir: boolean };
   const vistos = new Set<string>();
   const base: Base[] = [];
   for (const p of e.planos.pessoas) {
@@ -357,10 +365,11 @@ export function montarPainelGestor(e: {
       p,
       situacao: situacaoPlano(plano),
       meta: p.tem_plano ? metaDoPlano(p.respostas, e.padrao) : null,
+      aConferir: p.tem_plano && conferirPlano(p.respostas, e.padrao).aConferir,
     });
   }
 
-  const cartao = ({ p, situacao, meta }: Base): CartaoCorretor => {
+  const cartao = ({ p, situacao, meta, aConferir }: Base): CartaoCorretor => {
     const real = realizadoDoGrupo(e.realizadoAno, new Set([p.user_id]), anoDados);
     const papeis = p.papeis ?? [];
     const vende = situacao !== "sem_plano" || ultVenda.has(p.user_id) || ultCapt.has(p.user_id);
@@ -380,6 +389,7 @@ export function montarPainelGestor(e: {
       diasSemCaptar: uc ? Math.max(0, diasEntre(uc, e.hoje)) : null,
       elegivel: contaNaCobertura(pc),
       cobertura: pc,
+      aConferir,
     };
   };
 
@@ -437,6 +447,11 @@ export function montarPainelGestor(e: {
       },
       cobertura,
       pessoas,
+      aConferir: {
+        assinados: pessoas.filter((c) => c.aConferir && c.situacao === "assinado").length,
+        preenchimento: pessoas.filter((c) => c.aConferir && c.situacao === "preenchimento").length,
+        nomes: pessoas.filter((c) => c.aConferir).map((c) => c.nome),
+      },
     };
   };
 

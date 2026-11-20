@@ -8,6 +8,7 @@ import {
   type Valor,
 } from "@/lib/meu-plano-2027/regras";
 import { erroPlano, planoDb } from "@/lib/meu-plano-2027/modulo";
+import { conferirPlano } from "@/lib/meu-plano-2027/conferencia";
 
 /**
  * Estado do plano do corretor logado + gravação a cada campo.
@@ -258,6 +259,9 @@ export function usePlano(userId: string) {
   // Só depois que tudo foi salvo (status ok); para quando a meta gravada já bate com a conta.
   useEffect(() => {
     if (!plano?.assinado_corretor_em || status !== "ok" || sincronizando.current) return;
+    // Valor fora do possível (t_125c4dd3): a meta oficial NÃO acompanha até o corretor corrigir. O banco também
+    // recusa (carreira_plano_usar_meta); aqui evita a chamada que daria erro.
+    if (conferirPlano(plano.respostas, taxasPadrao).bloqueiaAssinatura) return;
     const m = metaOficialDoPlano(calc(plano.respostas, taxasPadrao));
     if (!m || metaIgual(plano.meta_oficial, m)) return;
     sincronizando.current = true;

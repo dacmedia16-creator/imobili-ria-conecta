@@ -389,6 +389,22 @@ function ResumoGrupo({
         {brl(grupo.naoAssinados.realizado.vgv ?? 0)}. Fora da meta e do farol.
       </p>
 
+      {grupo.aConferir.assinados + grupo.aConferir.preenchimento > 0 ? (
+        <p
+          className="rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+          data-testid="grupo-a-conferir"
+        >
+          <RotuloInfo chave="plano_a_conferir">
+            ⚠ {grupo.aConferir.assinados + grupo.aConferir.preenchimento}{" "}
+            {grupo.aConferir.assinados + grupo.aConferir.preenchimento === 1
+              ? "plano com valor a conferir"
+              : "planos com valor a conferir"}
+            :
+          </RotuloInfo>{" "}
+          {grupo.aConferir.nomes.join(", ")}. Já incluídos nas somas.
+        </p>
+      ) : null}
+
       <p className="text-xs text-muted-foreground" data-testid="cobertura">
         <RotuloInfo chave="equipe_planos_assinados">Planos assinados:</RotuloInfo>{" "}
         <b>{grupo.cobertura.assinados}</b> de {grupo.cobertura.elegiveis} (
@@ -481,6 +497,7 @@ function CartaoPessoa({ c, painel }: { c: CartaoCorretor; painel: PainelGestor }
       <p className="text-xs text-muted-foreground">
         <RotuloInfo chave="pessoa_plano">Plano: {ROTULO_PLANO[c.situacao]}</RotuloInfo>
       </p>
+      {c.aConferir ? <SeloConferir /> : null}
       {assinado && painel.pos.fase !== "antes" ? (
         <>
           <p className="text-sm">
@@ -538,6 +555,18 @@ function CartaoPessoa({ c, painel }: { c: CartaoCorretor; painel: PainelGestor }
         </ul>
       )}
     </div>
+  );
+}
+
+/** Selo "plano com valor a conferir" (t_125c4dd3). Só marca: o plano continua nas somas. */
+export function SeloConferir() {
+  return (
+    <span className="inline-flex items-center gap-0.5" data-testid="selo-a-conferir">
+      <Pill tom="amber" className="text-[11px]">
+        ⚠ Plano com valor a conferir
+      </Pill>
+      <InfoDica chave="plano_a_conferir" />
+    </span>
   );
 }
 

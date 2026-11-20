@@ -60,6 +60,8 @@ import {
   Inp,
   Linha,
   LinhaComissao,
+  LinhaTransacao,
+  AvisosCampo,
   Nota,
   Radio,
   Selecao,
@@ -356,6 +358,7 @@ export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
               ajuda="p27.pct"
               ph="ex.: 3"
             />
+            <AvisosCampo campos={["m.ticket", "d.ticket", "m.pct"]} />
             <Conta rot="6 · Comissão média por transação (4 × 5)" v={C.comTrans} />
             <Conta
               rot="7 · TRANSAÇÕES QUE PRECISO FECHAR EM 2027 (3 ÷ 6)"
@@ -931,31 +934,31 @@ function TelaMetas({ extra, irPara }: { extra?: ReactNode; irPara?: (id: string)
         </details>
       </Bloco>
       <Bloco titulo="CREs (captações com representação exclusiva)" ajuda="p32.cres">
-        <Linha
+        <LinhaTransacao
           k="mt.creIni"
           rot="Quantidade inicial de CREs ativas"
-          tipo="int"
+          nome="CREs ativas no início"
           ph={sug(C.d.ativos)}
         />
-        <Linha
+        <LinhaTransacao
           k="mt.novas"
           rot="Meta de novas CREs"
           sub="sugestão: captações do ano"
-          tipo="int"
+          nome="novas CREs"
           ph={sug(C.captAno)}
         />
-        <Linha
+        <LinhaTransacao
           k="mt.canc"
           rot="Meta de CREs canceladas/expiradas"
           sub="as que a conversão não vende"
-          tipo="int"
+          nome="CREs canceladas/expiradas"
           ph={sug(C.canc)}
         />
-        <Linha
+        <LinhaTransacao
           k="mt.vendidas"
           rot="Meta de CREs vendidas"
           sub="sugestão: novas × conversão"
-          tipo="int"
+          nome="CREs vendidas"
           ph={sug(C.vendidas)}
         />
         <Conta
@@ -963,26 +966,26 @@ function TelaMetas({ extra, irPara }: { extra?: ReactNode; irPara?: (id: string)
           v={C.estoqueFim}
           f="int"
         />
-        <Linha
+        <LinhaTransacao
           k="mt.creFim"
           rot="Meta de CREs ativas no fim de 2027"
-          tipo="int"
+          nome="CREs ativas no fim"
           ph={sug(C.estoqueFim)}
         />
       </Bloco>
       <TabelaMesBloco id="cres" />
       <Bloco titulo="Valor geral de comissão (VGC)" ajuda="p32.vgc">
-        <Linha
+        <LinhaTransacao
           k="mt.tCapt"
           rot="Meta de transações de captação"
-          tipo="int"
+          nome="transações de captação"
           ph={sug(divisaoTransacoes(C.trans).capt)}
         />
-        <Linha
+        <LinhaTransacao
           k="mt.tVenda"
           rot="Meta de transações de venda"
           sub="lado comprador (se também atende compradores)"
-          tipo="int"
+          nome="transações de venda"
           ph={sug(divisaoTransacoes(C.trans).venda)}
         />
         <LinhaComissao
@@ -992,6 +995,7 @@ function TelaMetas({ extra, irPara }: { extra?: ReactNode; irPara?: (id: string)
         />
         <Conta rot="Meta de transações" v={C.transMeta} f="int" />
         <Conta rot="META DE VGC (transações × comissão média)" v={C.vgc} f="brl0" main />
+        <AvisosCampo campos={["vgc"]} />
         <Selecao
           k="mt.clube"
           label="Clube que quero conquistar em 2027"
