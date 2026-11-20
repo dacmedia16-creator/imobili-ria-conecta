@@ -6,7 +6,7 @@
  */
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createElement } from "react";
 import type { Respostas } from "@/lib/meu-plano-2027/regras";
 
@@ -33,6 +33,8 @@ function cadeia(tabela: string) {
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: { rpc: (...a: unknown[]) => rpc(...a), from: (t: string) => cadeia(t) },
 }));
+// Botão "Reabrir plano" (t_495e4305) usa o login para esconder o botão no próprio plano.
+vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: "quem-ve" } }) }));
 
 import { PainelMetasGestor } from "@/components/metas-2027/PainelMetasGestor";
 
@@ -146,6 +148,51 @@ describe("Painel de metas 2027 · Equipes", () => {
     expect(beta.textContent).toMatch(/⚪ Sem plano assinado/);
     expect(beta.textContent).toMatch(/Sem meta oficial até assinar o plano/);
     expect(beta.textContent).toMatch(/Sem anotações recentes/);
+  });
+
+  it("Reabrir plano (t_495e4305): só no assinado; depois de reabrir, recarrega e a contagem cai na hora", async () => {
+    data("2027-03-16");
+    let reaberto = false;
+    rpc.mockImplementation((fn: string, args: Record<string, unknown>) => {
+      if (fn === "carreira_plano_reabrir") {
+        reaberto = true;
+        return Promise.resolve({ data: { status: "reaberto" }, error: null });
+      }
+      if (fn === "metas_equipe_planos") {
+        const pessoas = PLANOS_ADMIN.pessoas.map((p) =>
+          reaberto && p.user_id === "a" ? { ...p, assinado_em: null } : p,
+        );
+        return Promise.resolve({ data: { ...PLANOS_ADMIN, pessoas }, error: null });
+      }
+      if (fn === "metas_equipe_realizado") return Promise.resolve({ data: REAL, error: null });
+      return Promise.resolve({ data: args ?? null, error: null });
+    });
+    render(createElement(PainelMetasGestor));
+    fireEvent.click(await screen.findByRole("tab", { name: "Equipe Azul" }));
+    const cartoes = await screen.findAllByTestId("cartao-corretor");
+    const alfa = cartoes.find((c) => c.textContent?.includes("Corretor Alfa"))!;
+    const beta = cartoes.find((c) => c.textContent?.includes("Corretora Beta"))!;
+    expect(within(beta).queryByTestId("reabrir-plano")).toBeNull();
+    expect(screen.getByTestId("cobertura").textContent).toMatch(/Planos assinados: 1 de 2/);
+    fireEvent.click(within(alfa).getByTestId("reabrir-plano"));
+    fireEvent.change(await screen.findByTestId("reabrir-motivo"), {
+      target: { value: "Transações digitadas em reais" },
+    });
+    fireEvent.click(screen.getByTestId("reabrir-ok"));
+    await waitFor(() =>
+      expect(screen.getByTestId("cobertura").textContent).toMatch(/Planos assinados: 0 de 2/),
+    );
+    expect(rpc).toHaveBeenCalledWith("carreira_plano_reabrir", {
+      _corretor: "a",
+      _ano: 2027,
+      _motivo: "Transações digitadas em reais",
+    });
+    const depois = (await screen.findAllByTestId("cartao-corretor")).find((c) =>
+      c.textContent?.includes("Corretor Alfa"),
+    )!;
+    expect(depois.textContent).toMatch(/📝 em preenchimento/);
+    expect(within(depois).queryByTestId("reabrir-plano")).toBeNull();
+    expect(escritas).toEqual([]);
   });
 
   it("alerta de quem está há mais tempo sem vender ou captar", async () => {

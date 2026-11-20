@@ -28,6 +28,8 @@ import { EmptyState, ListSkeleton, Pill, type Tom } from "@/components/visual/ba
 import { lerTaxasPadrao } from "@/components/minha-carreira/Diario";
 import type { ChaveExplicacao } from "@/lib/metas-2027/explicacoes";
 import { InfoDica, RotuloInfo } from "./InfoDica";
+import { BotaoReabrirPlano } from "@/components/minha-carreira/meu-plano/ReabrirPlano";
+import { useAuth } from "@/lib/auth";
 import { ContextoInfo } from "./contexto-info";
 
 // Painéis de metas 2027 — ETAPA 3 (cartão t_863b7590, Denis 20/11): painel do gestor/broker/Team Leader.
@@ -129,7 +131,7 @@ export function PainelMetasGestor() {
           <ListSkeleton />
         ) : (
           <ContextoInfo.Provider value={{ ano: painel.anoDados, anoPlano: ANO_PLANO }}>
-            <Conteudo painel={painel} sel={sel} setSel={setSel} />
+            <Conteudo painel={painel} sel={sel} setSel={setSel} recarregar={carregar} />
           </ContextoInfo.Provider>
         )}
       </CardContent>
@@ -141,10 +143,12 @@ function Conteudo({
   painel,
   sel,
   setSel,
+  recarregar,
 }: {
   painel: PainelGestor;
   sel: string;
   setSel: (s: string) => void;
+  recarregar: () => Promise<void>;
 }) {
   const grupo = sel === TODAS ? null : painel.grupos.find((g) => (g.id ?? "") === sel);
   const equipesSel = painel.grupos.length > 1 || painel.todas;
@@ -208,7 +212,7 @@ function Conteudo({
             ) : (
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {grupo.pessoas.map((c) => (
-                  <CartaoPessoa key={c.userId} c={c} painel={painel} />
+                  <CartaoPessoa key={c.userId} c={c} painel={painel} recarregar={recarregar} />
                 ))}
               </div>
             )}
@@ -460,7 +464,16 @@ function Barra(props: {
   );
 }
 
-function CartaoPessoa({ c, painel }: { c: CartaoCorretor; painel: PainelGestor }) {
+function CartaoPessoa({
+  c,
+  painel,
+  recarregar,
+}: {
+  c: CartaoCorretor;
+  painel: PainelGestor;
+  recarregar: () => Promise<void>;
+}) {
+  const { user } = useAuth();
   const k = c.avaliacao.indicadores.comissao;
   const b = larguraBarra(k.realAno, k.metaAno, k.esperado);
   const assinado = c.situacao === "assinado";
@@ -478,9 +491,15 @@ function CartaoPessoa({ c, painel }: { c: CartaoCorretor; painel: PainelGestor }
           <InfoDica chave="pessoa_farol" />
         </span>
       </div>
-      <p className="text-xs text-muted-foreground">
-        <RotuloInfo chave="pessoa_plano">Plano: {ROTULO_PLANO[c.situacao]}</RotuloInfo>
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          <RotuloInfo chave="pessoa_plano">Plano: {ROTULO_PLANO[c.situacao]}</RotuloInfo>
+        </p>
+        {/* Reabrir (t_495e4305): o banco confere quem pode (broker = imobiliária; TL = só a equipe dele). */}
+        {assinado && c.userId !== user?.id ? (
+          <BotaoReabrirPlano userId={c.userId} nome={c.nome} aoReabrir={recarregar} compacto />
+        ) : null}
+      </div>
       {assinado && painel.pos.fase !== "antes" ? (
         <>
           <p className="text-sm">
