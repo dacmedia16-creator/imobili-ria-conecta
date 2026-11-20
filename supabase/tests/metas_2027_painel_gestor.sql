@@ -267,6 +267,18 @@ SELECT pg_temp.ok(pg_temp.err('SELECT public.metas_equipe_realizado(current_date
 SELECT pg_temp.ok(pg_temp.err(format('SELECT public.metas_equipe_planos(2027, %L)', gen_random_uuid())) LIKE '42501%',
   'equipe que não existe: recusado');
 RESET ROLE;
+-- Coordenador de lançamento: a linha vem marcada para ficar FORA da soma da equipe (participacoes_comerciais_validas).
+INSERT INTO public.occurrence_commissions (occurrence_id, organization_id, papel, user_id, valor)
+VALUES (pg_temp.id('ov1'), pg_temp.id('orgA'), 'coordenador_lancamento', pg_temp.id('ga'), 300);
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.as_user(pg_temp.id('adm')::text);
+SELECT pg_temp.ok((SELECT count(*) = 1 AND bool_and(NOT (x ->> 'conta_equipe')::boolean AND NOT (x ->> 'ponta')::boolean
+                                          AND (x ->> 'lados')::int = 0 AND (x ->> 'comissao')::numeric = 300)
+                     FROM jsonb_array_elements(public.metas_equipe_realizado((SELECT hoje - 1 FROM d), (SELECT hoje FROM d)) -> 'vendas') x
+                    WHERE (x ->> 'user_id')::uuid = pg_temp.id('ga') AND (x ->> 'sale_id')::uuid = pg_temp.id('v1')),
+  'coordenador de lançamento: linha vem com conta_equipe = false e ponta = false');
+RESET ROLE;
+DELETE FROM public.occurrence_commissions WHERE occurrence_id = pg_temp.id('ov1') AND papel = 'coordenador_lancamento';
 
 -- 8) Só leitura -----------------------------------------------------------------------------------------------------
 SELECT pg_temp.ok((SELECT h FROM antes) = (SELECT md5(string_agg(t, ',' ORDER BY t)) FROM (
