@@ -346,6 +346,17 @@ export const EXPLICACOES = {
       "Farol",
       `Compara a comissão de quem assinou o plano com o que os planos assinados previam até hoje: ${FAROL_FAIXAS}. Fica ⚪ sem plano assinado e até 1º de janeiro de ${anoPlano}.`,
     ),
+  // "Plano com valor a conferir" (t_125c4dd3): mesma regra nos 3 painéis (src/lib/meu-plano-2027/conferencia.ts).
+  plano_a_conferir: () =>
+    e(
+      "Plano com valor a conferir",
+      "O plano tem número fora do comum: transações acima de 150 por ano (ou com ponto/vírgula), ticket abaixo de R$ 50 mil ou acima de R$ 10 mi, comissão por transação abaixo de R$ 1.000 ou fora de 1% a 10%, ou meta acima de R$ 1 mi. Só marca para revisar: o plano continua na soma e no farol como está.",
+    ),
+  corretor_a_conferir: () =>
+    e(
+      "Seu plano tem valor a conferir",
+      "Algum número do seu Meu Plano 2027 está fora do comum e pode ser erro de digitação (ex.: transações digitadas como valor em reais). A meta abaixo continua sendo a do seu plano; corrija no plano se for erro.",
+    ),
 } satisfies Record<string, Gerador>;
 
 export type ChaveExplicacao = keyof typeof EXPLICACOES;

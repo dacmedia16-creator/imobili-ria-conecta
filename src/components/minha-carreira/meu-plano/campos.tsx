@@ -18,6 +18,7 @@ import {
   MSG_COMISSAO_PCT,
   temPorcento,
 } from "@/lib/meu-plano-2027/comissao";
+import { avisosDoCampo, conferirPlano, recusaTransacao } from "@/lib/meu-plano-2027/conferencia";
 import { InfoDot } from "@/components/dashboard/shared";
 
 /** Contexto de uma tela do plano: respostas, contas e se é somente leitura (visão do broker). */
@@ -300,6 +301,83 @@ export function LinhaComissao({ k, rot, ph }: { k: string; rot: string; ph?: str
     </p>
   ) : null;
   return <Linha k={k} rot={rot} tipo="money" ph={ph} aceita={aceita} abaixo={msg} />;
+}
+
+/**
+ * Avisos da conferência do plano (conferencia.ts, t_125c4dd3) para os campos pedidos. Amarelo = aviso
+ * (salva normal); vermelho = bloqueia a assinatura (o rascunho continua salvo).
+ */
+export function AvisosCampo({ campos }: { campos: string[] }) {
+  const { S } = usePlanoCtx();
+  const xs = avisosDoCampo(conferirPlano(S), ...campos);
+  if (!xs.length) return null;
+  return (
+    <div className="space-y-1">
+      {xs.map((a) => (
+        <p
+          key={a.campo + a.msg}
+          role={a.nivel === "bloqueio" ? "alert" : "status"}
+          data-testid={`conferir-${a.nivel}-${a.campo}`}
+          className={cn(
+            "rounded-md px-2 py-1 text-xs",
+            a.nivel === "bloqueio"
+              ? "bg-red-50 font-medium text-red-800 dark:bg-red-950/40 dark:text-red-200"
+              : "bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200",
+          )}
+        >
+          ⚠ {a.msg}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Quantidade de transações/CREs do ano (tela Metas, p32): só inteiro (t_125c4dd3). Ponto, vírgula ou letra é
+ * recusado na digitação (mensagem em vermelho, nada é gravado). Acima de 500 fica como digitado, com o aviso
+ * vermelho embaixo, e a assinatura trava (conferirPlano).
+ * Valor antigo já gravado fora da regra (ex.: "42.000,00") continua editável para o corretor corrigir.
+ */
+export function LinhaTransacao({
+  k,
+  rot,
+  sub,
+  ph,
+  nome,
+}: {
+  k: string;
+  rot: string;
+  sub?: ReactNode;
+  ph?: string;
+  nome: string;
+}) {
+  const { S } = usePlanoCtx();
+  const [recusa, setRecusa] = useState<string | null>(null);
+  const aceita = (txt: string) => {
+    const r = recusaTransacao(txt, nome);
+    // Valor gravado já fora da regra: deixa editar (apagar/corrigir); a assinatura segue bloqueada até corrigir.
+    const atualRuim =
+      recusaTransacao(typeof S[k] === "string" ? (S[k] as string) : "", nome) !== null;
+    // A mensagem fica até o campo ser apagado (a próxima tecla válida não a esconde).
+    if (r !== null || txt.trim() === "") setRecusa(r);
+    return r === null || atualRuim;
+  };
+  // A recusa fica visível (ex.: "2,5" vira "25": o corretor precisa ver que a vírgula não entrou).
+  const msg = (
+    <>
+      {recusa ? (
+        <p
+          role="alert"
+          data-testid={`recusa-${k}`}
+          className="text-xs font-medium text-red-700 dark:text-red-300"
+        >
+          {recusa}
+        </p>
+      ) : null}
+      <AvisosCampo campos={[k]} />
+    </>
+  );
+  return <Linha k={k} rot={rot} sub={sub} tipo="int" ph={ph} aceita={aceita} abaixo={msg} />;
 }
 
 /** Conta automática (somente leitura). */

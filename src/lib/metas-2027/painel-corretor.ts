@@ -12,6 +12,7 @@
 import { dataCivilSaoPaulo } from "@/lib/hoje-sao-paulo";
 import { ANO_PLANO } from "@/lib/meu-plano-2027/telas";
 import type { Respostas, TaxasFunil } from "@/lib/meu-plano-2027/regras";
+import { conferirPlano, type AvisoPlano } from "@/lib/meu-plano-2027/conferencia";
 import {
   avaliar,
   metaDoPlano,
@@ -69,6 +70,8 @@ export type PainelCorretor = {
   cumpridas: Cumprida[];
   /** Total da comissão do corretor no ano e do que foi descontado dele (só para o rodapé da lista). */
   totalAno: { suaParte: number; descontado: number };
+  /** Avisos do plano que mexem na meta (t_125c4dd3); vazio = nada a conferir. Só mostra: a meta não muda. */
+  aConferir: AvisoPlano[];
 };
 
 const n = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
@@ -197,6 +200,10 @@ export function montarPainelCorretor(e: {
     avaliacao,
     cumpridas,
     totalAno,
+    aConferir: (() => {
+      const c = conferirPlano(e.plano?.respostas, e.padrao);
+      return c.aConferir ? c.avisos.filter((a) => a.naMeta) : [];
+    })(),
   };
 }
 
