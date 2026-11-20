@@ -107,6 +107,9 @@ export type Titularidade = Record<
   { aplica: boolean; protocolo: string | null }
 >;
 
+/** Água/gás incluídos no condomínio (t_778e6bef), calculado pelo banco a partir dos dados do contrato. */
+export type ContasCondominio = { agua: boolean; gas: boolean };
+
 /** Tipo do imóvel escolhido ao abrir a locação (t_8f09d406, item 2). */
 export type ImovelTipo = "condominio" | "casa" | "comercial";
 export const IMOVEL_TIPO_LABEL: Record<ImovelTipo, string> = {
@@ -190,6 +193,8 @@ export type Locacao = {
     vistJunto: boolean;
     tit: Titularidade;
   };
+  /** t_778e6bef: água/gás incluídos no condomínio (sem titularidade, sem aviso de protocolo). */
+  contasCondominio: ContasCondominio;
   chaveEm: string | null;
   /** Ficha de abertura (t_28e583e2): o resto do formulário cadastral da locação. */
   ficha: FichaLocacao;
@@ -466,6 +471,10 @@ export function lerLocacao(raw: unknown): Locacao {
       mudanca: sn(p.mudanca),
       vistJunto: b(p.vist_junto),
       tit: lerTit(p.tit),
+    },
+    contasCondominio: {
+      agua: b(obj(o.contas_condominio).agua),
+      gas: b(obj(o.contas_condominio).gas),
     },
     chaveEm: sn(o.chave_em),
     ficha: lerFicha(o.ficha),
@@ -753,11 +762,20 @@ export function dataPagamento(chaveEm: string | null, cfg: ConfigLocacao): strin
   return `${ano}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
 }
 
-/** Serviços aplicáveis sem protocolo. Vazio = titularidade ok. Só ALERTA (não bloqueia a comissão). */
-export function titularidadePendente(tit: Titularidade): string[] {
-  return SERVICOS.filter((x) => tit[x.key].aplica && !tit[x.key].protocolo).map((x) =>
-    x.key.toUpperCase(),
-  );
+/** t_778e6bef: água (SAAE) e gás marcados como incluídos no condomínio não têm troca de titularidade. */
+export function incluidaNoCondominio(
+  servico: "cpfl" | "saae" | "gas",
+  contas: ContasCondominio | undefined,
+): boolean {
+  return (servico === "saae" && !!contas?.agua) || (servico === "gas" && !!contas?.gas);
+}
+
+/** Serviços aplicáveis sem protocolo. Vazio = titularidade ok. Só ALERTA (não bloqueia a comissão).
+ * Conta incluída no condomínio (t_778e6bef) não se aplica e não gera o aviso. */
+export function titularidadePendente(tit: Titularidade, contas?: ContasCondominio): string[] {
+  return SERVICOS.filter(
+    (x) => tit[x.key].aplica && !tit[x.key].protocolo && !incluidaNoCondominio(x.key, contas),
+  ).map((x) => x.key.toUpperCase());
 }
 
 // ----------------------------------------------------------------------------------------------------------------

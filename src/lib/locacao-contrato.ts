@@ -88,6 +88,24 @@ export const CHAVES_CONTRATO = CAMPOS_CONTRATO.map((c) => c.k);
 export const NAO_POSSUI = "não possui";
 export const CAMPOS_NAO_POSSUI = new Set(["imv_gas", "imv_vagas"]);
 export const naoPossui = (v: string | undefined) => (v ?? "").trim().toLowerCase() === NAO_POSSUI;
+
+/** t_778e6bef (pedido de Denis 20/11): imóvel de condomínio com água/gás incluídos na taxa. O campo do código fica
+ * preenchido com o motivo (não pede código, conta nem boleto) e a troca de titularidade daquela conta "não se aplica".
+ * Mesma regra do banco (public.locacao_contas_condominio): qualquer texto com "condomínio" vale — inclusive o texto
+ * livre "cobrado no condomínio" das locações antigas. */
+export const INCLUIDO_CONDOMINIO: Record<"imv_agua" | "imv_gas", string> = {
+  imv_agua: "incluída no condomínio",
+  imv_gas: "incluído no condomínio",
+};
+export const ROTULO_INCLUIDO_CONDOMINIO: Record<"imv_agua" | "imv_gas", string> = {
+  imv_agua: "Água incluída no condomínio",
+  imv_gas: "Gás incluído no condomínio",
+};
+export const incluidoCondominio = (v: string | undefined) => /condom[ií]nio/i.test(v ?? "");
+/** Campos que ganham a opção "incluída no condomínio": só imóvel de condomínio (casa de rua e comercial, nenhum). */
+export function camposIncluidoCondominio(imovelTipo: string | null | undefined): string[] {
+  return imovelTipo === "condominio" ? Object.keys(INCLUIDO_CONDOMINIO) : [];
+}
 const CHAVES = new Set(CHAVES_CONTRATO);
 
 export const SECOES: { key: SecaoContrato; titulo: string; soFiador?: boolean }[] = [
