@@ -32,7 +32,8 @@ RETURNS jsonb LANGUAGE sql IMMUTABLE SET search_path TO '' AS $function$
    WHERE split_part(e.key, '.', 1) NOT IN ('ac', 'pm', 'sem', 'mc', 'ui')
 $function$;
 REVOKE ALL ON FUNCTION public.carreira_plano_parte_travada(jsonb) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.carreira_plano_parte_travada(jsonb) TO service_role;
+-- Função pura (sem leitura de tabela): o gatilho roda com o papel de quem faz o UPDATE.
+GRANT EXECUTE ON FUNCTION public.carreira_plano_parte_travada(jsonb) TO authenticated, service_role;
 
 CREATE OR REPLACE FUNCTION public.carreira_plano_trava_assinado()
 RETURNS trigger LANGUAGE plpgsql SET search_path TO '' AS $function$
@@ -51,6 +52,8 @@ BEGIN
         IS DISTINCT FROM public.carreira_plano_parte_travada(OLD.respostas) THEN
     RAISE EXCEPTION 'Plano assinado. Para mudar, peça ao seu gestor para reabrir.' USING ERRCODE = '55000';
   END IF;
+  -- shortcut: a meta da assinatura é gravada numa 2ª chamada (o app chama carreira_plano_usar_meta logo depois de
+  -- assinar), então vale 1 gravação nos 15 min seguintes; o servidor não confere se a meta bate com as respostas.
   IF (NEW.meta_oficial IS DISTINCT FROM OLD.meta_oficial OR NEW.meta_oficial_em IS DISTINCT FROM OLD.meta_oficial_em)
      AND NOT ((OLD.meta_oficial_em IS NULL OR OLD.meta_oficial_em < OLD.assinado_corretor_em)
               AND now() <= OLD.assinado_corretor_em + interval '15 minutes') THEN

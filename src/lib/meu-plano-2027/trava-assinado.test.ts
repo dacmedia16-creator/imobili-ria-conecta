@@ -166,6 +166,25 @@ describe("hook do plano assinado", () => {
     expect(salvamentos()[0]).toEqual({ "mt.tCapt": "20" });
   });
 
+  it("não assina com alteração ainda não salva (sem internet): nada se perde", async () => {
+    rpc.mockImplementation((fn: string) =>
+      Promise.resolve(
+        fn === "carreira_plano_salvar"
+          ? { data: null, error: { message: "Failed to fetch" } }
+          : { data: "2026-11-20T12:00:00Z", error: null },
+      ),
+    );
+    linhaPlano = { respostas: { "mt.tCapt": "12" }, assinado_corretor_em: null };
+    const { result } = renderHook(() => usePlano("u1"));
+    await waitFor(() => expect(result.current.plano).not.toBeNull());
+    act(() => result.current.set("mt.tCapt", "30"));
+    await expect(result.current.assinar()).rejects.toThrow(/Ainda salvando/);
+    expect(rpc.mock.calls.filter((c) => c[0] === "carreira_plano_assinar")).toHaveLength(0);
+    expect(JSON.parse(window.localStorage.getItem("meu-plano-2027:fila:u1") ?? "{}")).toEqual({
+      "mt.tCapt": "30",
+    });
+  });
+
   it("ao assinar, trava na hora: a edição seguinte de meta não é enviada", async () => {
     rpc.mockImplementation((fn: string) =>
       Promise.resolve(

@@ -145,6 +145,15 @@ export function MeuPlano({
 
   // Plano assinado (t_850a0d39): só leitura nos campos de meta e cálculo; muda só depois de reaberto.
   const travado = !!plano?.assinado_corretor_em;
+  // Assinou e a meta oficial desta assinatura ainda não foi gravada (ex.: falhou a internet logo depois).
+  // O banco aceita gravar só nos 15 min seguintes à assinatura; depois disso, só reabrindo.
+  const metaPendente =
+    travado &&
+    (!plano?.meta_oficial_em ||
+      new Date(plano.meta_oficial_em) < new Date(plano.assinado_corretor_em as string));
+  const metaNoPrazo =
+    metaPendente &&
+    Date.now() - new Date(plano?.assinado_corretor_em as string).getTime() < 14 * 60_000;
 
   // Meta x atividades (t_09c29e96): cópia das metas da semana (campos ms.*) para o team leader, que não
   // lê o plano. Atualiza junto com o plano, a partir da mesma calc(). Plano assinado: a cópia é a da
@@ -444,9 +453,18 @@ export function MeuPlano({
           </p>
         ) : null}
         {conf.bloqueiaMeta ? travaAssinatura : null}
+        {metaPendente && !metaNoPrazo ? (
+          <p
+            className="mt-1 text-xs text-amber-800 dark:text-amber-200"
+            data-testid="meta-nao-gravada"
+          >
+            A meta oficial desta assinatura não foi gravada. Peça ao seu gestor para reabrir o plano
+            e assine de novo.
+          </p>
+        ) : null}
         <Button
           className="mt-2 w-full bg-emerald-700 text-white hover:bg-emerald-800"
-          disabled={ocupado || !meta || conf.bloqueiaMeta || travado}
+          disabled={ocupado || !meta || conf.bloqueiaMeta || (travado && !metaNoPrazo)}
           onClick={() => void usarMeta(false)}
           data-testid="usar-meta"
         >

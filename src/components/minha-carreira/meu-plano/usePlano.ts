@@ -93,6 +93,7 @@ export function usePlano(userId: string) {
   // Plano assinado (t_850a0d39): lido dentro de set/enviar sem recriar as funções.
   const travado = useRef(false);
   const recarregarRef = useRef<() => Promise<void>>(async () => undefined);
+  const recusasTrava = useRef(0);
 
   const enviar = useCallback(async () => {
     if (timer.current) clearTimeout(timer.current);
@@ -123,8 +124,10 @@ export function usePlano(userId: string) {
       _campos: corpo,
     });
     enviando.current = false;
-    if (error && erroPlanoAssinado(error.message)) {
-      // Assinado em outro aparelho/aba: descarta o que é travado e relê o plano, sem erro na tela.
+    if (error && erroPlanoAssinado(error.message) && recusasTrava.current < 1) {
+      // Assinado em outro aparelho/aba: descarta o que é travado e relê o plano, sem erro na tela (uma vez só;
+      // se recusar de novo, cai no erro normal com espera crescente, sem laço).
+      recusasTrava.current += 1;
       travado.current = true;
       for (const k of Object.keys(fila.current)) if (!campoLivre(k)) delete fila.current[k];
       gravarFila(userId, fila.current);
@@ -143,6 +146,7 @@ export function usePlano(userId: string) {
       return;
     }
     tentativas.current = 0;
+    recusasTrava.current = 0;
     setMsg(null);
     // Tira da fila só o que não mudou enquanto enviava.
     for (const k of chaves) if (fila.current[k] === lote[k]) delete fila.current[k];
@@ -274,7 +278,13 @@ export function usePlano(userId: string) {
 
   const sincronizando = useRef(false);
   const assinar = useCallback(async () => {
+    // Plano assinado trava (t_850a0d39): só assina com tudo gravado, senão o que faltou se perderia.
+    for (let i = 0; i < 20 && enviando.current; i++) await new Promise((r) => setTimeout(r, 150));
     await enviar();
+    if (Object.keys(fila.current).length)
+      throw new Error(
+        "Ainda salvando suas últimas alterações. Confira a conexão e tente assinar de novo.",
+      );
     const { data, error } = await planoDb.rpc("carreira_plano_assinar", { _ano: ANO_PLANO });
     if (error) throw new Error(erroPlano(error.message));
     const m = metaOficialDoPlano(calc(plano?.respostas ?? {}, taxasPadrao));
