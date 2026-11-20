@@ -114,7 +114,10 @@ function Sub({
 }
 
 export function CorpoTela({ id, extras }: { id: string; extras?: Extras }) {
-  const { S, C, inicio, ro } = usePlanoCtx();
+  const ctxPlano = usePlanoCtx();
+  const { S, C, inicio } = ctxPlano;
+  // Plano assinado (t_850a0d39) trava o dia 1 dos 90 dias, como a visão do broker.
+  const ro = ctxPlano.ro || !!ctxPlano.travado;
   switch (id) {
     case "p15":
       return (
@@ -1022,7 +1025,10 @@ function TelaMetas({ extra, irPara }: { extra?: ReactNode; irPara?: (id: string)
  * Computador: Anual + Jan…Dez lado a lado. Celular: um mês por linha. Só planejamento: não muda calc().
  */
 function TabelaMesBloco({ id }: { id: IdTabelaMes }) {
-  const { S, C, set, ro } = usePlanoCtx();
+  const ctxPlano = usePlanoCtx();
+  const { S, C, set } = ctxPlano;
+  // Plano assinado (t_850a0d39): a distribuição mês a mês é meta, então some o "Voltar tudo para a sugestão".
+  const ro = ctxPlano.ro || !!ctxPlano.travado;
   const t = tabelasMes(S, C).find((x) => x.id === id)!;
   const digitadas = t.linhas.filter((l) => !l.calc);
   const algum = digitadas.some((l) => l.algumDigitado);

@@ -27,6 +27,7 @@ import { metasDoCalc, snapshotMudou } from "@/lib/meta-atividades";
 import { PlanoCtx, Aviso, Bloco, Stat } from "./campos";
 import { CorpoTela } from "./telas";
 import { conferirPlano } from "@/lib/meu-plano-2027/conferencia";
+import { MSG_PLANO_ASSINADO, TELAS_LIVRES } from "@/lib/meu-plano-2027/trava-assinado";
 import { Leitor, PaginaOriginal, destinoExercicios } from "./Leitor";
 import { usePlano, type StatusSalvar } from "./usePlano";
 import { BotaoBaixarPlano } from "./BaixarPdf";
@@ -142,10 +143,14 @@ export function MeuPlano({
   // Trava contra valores absurdos (t_125c4dd3): bloqueio = não assina nem grava a meta oficial.
   const conf = useMemo(() => conferirPlano(S, h.taxasPadrao), [S, h.taxasPadrao]);
 
+  // Plano assinado (t_850a0d39): só leitura nos campos de meta e cálculo; muda só depois de reaberto.
+  const travado = !!plano?.assinado_corretor_em;
+
   // Meta x atividades (t_09c29e96): cópia das metas da semana (campos ms.*) para o team leader, que não
-  // lê o plano. Atualiza junto com o plano, a partir da mesma calc().
+  // lê o plano. Atualiza junto com o plano, a partir da mesma calc(). Plano assinado: a cópia é a da
+  // assinatura e não é regravada ao abrir (era o salvamento automático que dava erro).
   useEffect(() => {
-    if (!plano) return;
+    if (!plano || plano.assinado_corretor_em) return;
     const dif = snapshotMudou(S, metasDoCalc(C));
     if (Object.keys(dif).length) h.setVarios(dif);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -192,6 +197,7 @@ export function MeuPlano({
     C,
     set: h.set,
     ro: false,
+    travado,
     inicio: inicioNoventaDias(plano.ativacao_inicio, S),
   };
 
@@ -285,7 +291,11 @@ export function MeuPlano({
 
   const barraSalvar = (
     <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-      <span>Cada campo é salvo assim que você digita.</span>
+      <span>
+        {travado
+          ? "Plano assinado: só o acompanhamento é salvo."
+          : "Cada campo é salvo assim que você digita."}
+      </span>
       <SalvoIndicador status={h.status} msg={h.msg} />
     </div>
   );
@@ -398,7 +408,7 @@ export function MeuPlano({
         <Button
           size="sm"
           className="mt-2 w-full"
-          disabled={ocupado}
+          disabled={ocupado || travado}
           onClick={() => void trazerNumeros()}
           data-testid="trazer-numeros"
         >
@@ -419,7 +429,7 @@ export function MeuPlano({
             ✔ Meta oficial gravada em {dataHora(plano.meta_oficial_em)}: VGC{" "}
             {fmt.brl0(Number(mo.meta_comissao))} · {mo.meta_vendas ?? "—"} transações ·{" "}
             {mo.meta_captacoes ?? "—"} captações.
-            {metaMudou ? (
+            {metaMudou && !travado ? (
               <>
                 <br />
                 <b>Os números do plano mudaram depois disso.</b> Toque de novo para atualizar.
@@ -436,7 +446,7 @@ export function MeuPlano({
         {conf.bloqueiaMeta ? travaAssinatura : null}
         <Button
           className="mt-2 w-full bg-emerald-700 text-white hover:bg-emerald-800"
-          disabled={ocupado || !meta || conf.bloqueiaMeta}
+          disabled={ocupado || !meta || conf.bloqueiaMeta || travado}
           onClick={() => void usarMeta(false)}
           data-testid="usar-meta"
         >
@@ -541,6 +551,19 @@ export function MeuPlano({
             </Button>
           </div>
         </Bloco>
+        {travado ? (
+          <div
+            role="status"
+            data-testid="aviso-plano-assinado"
+            className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-[13px] text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100"
+          >
+            <b>🔒 {MSG_PLANO_ASSINADO}</b>
+            <br />
+            {TELAS_LIVRES.includes(t.id)
+              ? "Esta tela é de acompanhamento e continua liberada: pode anotar à vontade."
+              : "Os campos desta tela ficam só para leitura. O acompanhamento (painel mensal, semanal, 4 primeiras semanas e primeiros marcos) continua liberado."}
+          </div>
+        ) : null}
         {barraSalvar}
         <OQueFalta S={S} irTela={irTela} />
         <LeiaAntes ids={t.leia} verPagina={setOriginal} abrirBook={abrirBook} />

@@ -8,7 +8,7 @@ import {
   type Valor,
 } from "@/lib/meu-plano-2027/regras";
 import { erroPlano, planoDb } from "@/lib/meu-plano-2027/modulo";
-import { conferirPlano } from "@/lib/meu-plano-2027/conferencia";
+import { campoLivre, erroPlanoAssinado, filaPermitida } from "@/lib/meu-plano-2027/trava-assinado";
 
 /**
  * Estado do plano do corretor logado + gravação a cada campo.
@@ -17,6 +17,10 @@ import { conferirPlano } from "@/lib/meu-plano-2027/conferencia";
  * - Sem internet / erro: a fila fica guardada e é reenviada com espera crescente (até 30 s), ao voltar a
  *   conexão e ao reabrir a tela. Nada digitado se perde ao recarregar.
  * shortcut: a fila do aparelho vale por usuário + ano; dois aparelhos editando o MESMO campo = vale o último.
+ * - Plano ASSINADO (t_850a0d39): só os campos de acompanhamento (campoLivre) são gravados; os outros nem entram
+ *   na fila, a fila antiga do aparelho é limpa deles e a meta oficial não é regravada sozinha. O banco também
+ *   recusa (gatilho em carreira_plano); se recusar mesmo assim (ex.: assinou em outro aparelho), a tela recarrega
+ *   o plano em vez de mostrar erro.
  */
 export type Plano = {
   respostas: Respostas;
@@ -86,11 +90,24 @@ export function usePlano(userId: string) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const enviando = useRef(false);
   const tentativas = useRef(0);
+  // Plano assinado (t_850a0d39): lido dentro de set/enviar sem recriar as funções.
+  const travado = useRef(false);
+  const recarregarRef = useRef<() => Promise<void>>(async () => undefined);
 
   const enviar = useCallback(async () => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
     if (enviando.current) return;
+    if (travado.current) {
+      // Nunca manda campo travado de um plano assinado (o banco recusaria).
+      let tirou = false;
+      for (const k of Object.keys(fila.current))
+        if (!campoLivre(k)) {
+          delete fila.current[k];
+          tirou = true;
+        }
+      if (tirou) gravarFila(userId, fila.current);
+    }
     const lote = { ...fila.current };
     const chaves = Object.keys(lote);
     if (!chaves.length) {
@@ -106,6 +123,17 @@ export function usePlano(userId: string) {
       _campos: corpo,
     });
     enviando.current = false;
+    if (error && erroPlanoAssinado(error.message)) {
+      // Assinado em outro aparelho/aba: descarta o que é travado e relê o plano, sem erro na tela.
+      travado.current = true;
+      for (const k of Object.keys(fila.current)) if (!campoLivre(k)) delete fila.current[k];
+      gravarFila(userId, fila.current);
+      tentativas.current = 0;
+      setMsg(null);
+      setStatus(Object.keys(fila.current).length ? "pendente" : "ok");
+      void recarregarRef.current();
+      return;
+    }
     if (error) {
       tentativas.current += 1;
       setStatus("erro");
@@ -150,9 +178,13 @@ export function usePlano(userId: string) {
       ? { ...VAZIO, ...(p.data as Plano), respostas: (p.data.respostas ?? {}) as Respostas }
       : VAZIO;
     // Fila guardada no aparelho (ex.: caiu a internet) vale por cima do banco e é reenviada.
+    // Plano assinado: só as chaves livres seguem (o resto o banco recusaria; o plano assinado é o que vale).
+    travado.current = !!base.assinado_corretor_em;
     const pend = lerFila(userId);
     for (const k of Object.keys(pend)) if (!CAMPO_VALIDO.test(k)) delete pend[k];
-    fila.current = { ...pend, ...fila.current };
+    const f = filaPermitida({ ...pend, ...fila.current }, travado.current);
+    fila.current = f.fica;
+    if (f.descartou) gravarFila(userId, fila.current);
     setPlano({ ...base, respostas: { ...base.respostas, ...fila.current } });
     const tx = t.data as {
       funil_v2_cre: number | null;
@@ -172,6 +204,7 @@ export function usePlano(userId: string) {
   }, [userId, enviar]);
 
   useEffect(() => {
+    recarregarRef.current = carregar;
     void carregar();
   }, [carregar]);
 
@@ -192,6 +225,7 @@ export function usePlano(userId: string) {
   const set = useCallback(
     (k: string, v: Valor) => {
       if (!CAMPO_VALIDO.test(k)) return;
+      if (travado.current && !campoLivre(k)) return; // plano assinado: campo travado não muda
       setPlano((p) => (p ? { ...p, respostas: { ...p.respostas, [k]: v } } : p));
       fila.current[k] = v;
       gravarFila(userId, fila.current);
@@ -248,6 +282,7 @@ export function usePlano(userId: string) {
     sincronizando.current = true;
     try {
       setPlano((p) => (p ? { ...p, assinado_corretor_em: data as string } : p));
+      travado.current = true;
       if (m)
         await usarMeta(m, true).catch((e: Error) => {
           throw new Error(`Pacto assinado, mas a meta oficial não foi gravada: ${e.message}`);
@@ -258,22 +293,9 @@ export function usePlano(userId: string) {
     return { metaGravada: !!m };
   }, [enviar, plano, taxasPadrao, usarMeta]);
 
-  // Plano já assinado e alterado depois: a meta anual de 2027 acompanha (o plano é a fonte).
-  // Só depois que tudo foi salvo (status ok); para quando a meta gravada já bate com a conta.
-  useEffect(() => {
-    if (!plano?.assinado_corretor_em || status !== "ok" || sincronizando.current) return;
-    // Valor fora do possível (t_125c4dd3): a meta oficial NÃO acompanha até o corretor corrigir. O banco também
-    // recusa (carreira_plano_usar_meta); aqui evita a chamada que daria erro.
-    if (conferirPlano(plano.respostas, taxasPadrao).bloqueiaMeta) return;
-    const m = metaOficialDoPlano(calc(plano.respostas, taxasPadrao));
-    if (!m || metaIgual(plano.meta_oficial, m)) return;
-    sincronizando.current = true;
-    void usarMeta(m, true)
-      .catch(() => undefined)
-      .finally(() => {
-        sincronizando.current = false;
-      });
-  }, [plano, status, taxasPadrao, usarMeta]);
+  // Plano assinado (t_850a0d39): a meta oficial NÃO é regravada sozinha. Antes, abrir o plano assinado tentava
+  // regravar a meta quando a conta mudava; agora só a própria assinatura grava (assinar acima) e, para mudar,
+  // o gestor reabre o plano.
 
   return {
     plano,

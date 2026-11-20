@@ -34,7 +34,7 @@ export const EXPLICACOES = {
   corretor_meta_ano_antes: ({ anoPlano }) =>
     e(
       `Sua meta de ${anoPlano}`,
-      `É a meta de comissão do ano do seu Meu Plano ${anoPlano} assinado, a mesma gravada na assinatura. Começa a contar em 1º de janeiro de ${anoPlano}.`,
+      `É a meta de comissão do ano do seu Meu Plano ${anoPlano} assinado, a mesma gravada na assinatura. Começa a contar em 1º de janeiro de ${anoPlano} e só muda se o seu gestor reabrir o plano.`,
     ),
   corretor_antes_comissao_mes: () =>
     e(
@@ -195,7 +195,7 @@ export const EXPLICACOES = {
   pessoa_plano: ({ anoPlano }) =>
     e(
       "Situação do plano",
-      `Assinado = o corretor assinou o Meu Plano ${anoPlano}; em preenchimento = começou e não assinou, ou o plano foi reaberto pelo gestor/líder; sem plano = nem começou. Só o plano assinado vale como meta, e o botão "Reabrir plano" desfaz a assinatura sem apagar valores.`,
+      `Assinado = o corretor assinou o Meu Plano ${anoPlano}; em preenchimento = começou e não assinou, ou o plano foi reaberto pelo gestor/líder; sem plano = nem começou. Só o plano assinado vale como meta e fica só leitura para o corretor; para mudar, o botão "Reabrir plano" desfaz a assinatura sem apagar valores.`,
     ),
   pessoa_ano: () =>
     e(

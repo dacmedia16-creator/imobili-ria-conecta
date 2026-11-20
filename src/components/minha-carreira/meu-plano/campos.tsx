@@ -20,6 +20,7 @@ import {
 } from "@/lib/meu-plano-2027/comissao";
 import { avisosDoCampo, conferirPlano, recusaTransacao } from "@/lib/meu-plano-2027/conferencia";
 import { InfoDot } from "@/components/dashboard/shared";
+import { campoLivre } from "@/lib/meu-plano-2027/trava-assinado";
 
 /** Contexto de uma tela do plano: respostas, contas e se é somente leitura (visão do broker). */
 export type CtxPlano = {
@@ -27,6 +28,11 @@ export type CtxPlano = {
   C: Calc;
   set: (k: string, v: Valor) => void;
   ro: boolean;
+  /**
+   * Plano assinado (t_850a0d39): só os campos de acompanhamento (campoLivre) seguem editáveis. O banco também
+   * recusa; aqui só evita a tela tentar gravar.
+   */
+  travado?: boolean;
   /** Dia 1 dos 90 dias (YYYY-MM-DD), de inicioNoventaDias(): ativacao_inicio gravado ou d90.inicio. */
   inicio: string | null;
 };
@@ -36,6 +42,9 @@ export const usePlanoCtx = () => {
   if (!c) throw new Error("usePlanoCtx fora do PlanoCtx");
   return c;
 };
+/** Campo sem edição: visão do broker (ro) ou plano assinado fora dos campos livres. */
+export const campoBloqueado = (c: Pick<CtxPlano, "ro" | "travado">, k: string) =>
+  c.ro || (!!c.travado && !campoLivre(k));
 
 /**
  * Bolinha "i" com o "como preencher" da parte (textos em lib/meu-plano-2027/ajuda.ts). Usa o InfoDot do
@@ -76,7 +85,9 @@ export function Inp({
   /** Filtro da digitação: devolve false para recusar o texto (nada é gravado). */
   aceita?: (txt: string) => boolean;
 }) {
-  const { S, C, set: setCtx, ro } = usePlanoCtx();
+  const ctxPlano = usePlanoCtx();
+  const { S, C, set: setCtx } = ctxPlano;
+  const ro = campoBloqueado(ctxPlano, k);
   const set = (kk: string, val: Valor) => {
     if (aceita && typeof val === "string" && !aceita(val)) return;
     setCtx(kk, val);
@@ -207,7 +218,9 @@ export function Selecao({
   ph?: string;
   ajuda?: IdAjuda;
 }) {
-  const { S, set, ro } = usePlanoCtx();
+  const ctxPlano = usePlanoCtx();
+  const { S, set } = ctxPlano;
+  const ro = campoBloqueado(ctxPlano, k);
   const id = useId();
   return (
     <div className="space-y-1 pt-2">
@@ -408,7 +421,9 @@ export function Conta({
 }
 
 export function Check({ k, children }: { k: string; children: ReactNode }) {
-  const { S, set, ro } = usePlanoCtx();
+  const ctxPlano = usePlanoCtx();
+  const { S, set } = ctxPlano;
+  const ro = campoBloqueado(ctxPlano, k);
   return (
     <label className="flex items-start gap-3 border-b border-dashed py-2.5 text-sm last:border-0">
       <input
@@ -425,7 +440,9 @@ export function Check({ k, children }: { k: string; children: ReactNode }) {
 }
 
 export function Radio({ k, opcoes }: { k: string; opcoes: string[] }) {
-  const { S, set, ro } = usePlanoCtx();
+  const ctxPlano = usePlanoCtx();
+  const { S, set } = ctxPlano;
+  const ro = campoBloqueado(ctxPlano, k);
   return (
     <div role="radiogroup">
       {opcoes.map((o) => (
@@ -451,7 +468,9 @@ export function Radio({ k, opcoes }: { k: string; opcoes: string[] }) {
 
 /** Nota de 1 a 5 em botões grandes (toque no celular). */
 export function Nota({ k, rot }: { k: string; rot: ReactNode }) {
-  const { S, set, ro } = usePlanoCtx();
+  const ctxPlano = usePlanoCtx();
+  const { S, set } = ctxPlano;
+  const ro = campoBloqueado(ctxPlano, k);
   return (
     <div className="pt-3">
       <p className="mb-1 text-sm font-semibold">{rot}</p>

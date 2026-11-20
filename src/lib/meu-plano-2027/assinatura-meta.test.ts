@@ -141,7 +141,9 @@ describe("assinar grava a meta anual oficial de 2027", () => {
     expect(chamadasMeta()).toHaveLength(0);
   });
 
-  it("plano assinado e alterado depois: a meta acompanha uma vez e para", async () => {
+  // t_850a0d39 (Denis 20/11, "trava sim"): plano assinado é só leitura. A meta oficial NÃO acompanha mais
+  // sozinha ao abrir (era o salvamento automático que regravava a meta); para mudar, o gestor reabre.
+  it("plano assinado com conta diferente da meta gravada: NÃO regrava ao abrir", async () => {
     banco();
     linhaPlano = {
       respostas: ANA,
@@ -149,15 +151,10 @@ describe("assinar grava a meta anual oficial de 2027", () => {
       meta_oficial: { ...META_ANA, meta_comissao: 300000 },
     };
     const { result } = renderHook(() => usePlano("u1"));
-    await waitFor(() => expect(chamadasMeta()).toHaveLength(1));
-    expect(chamadasMeta()[0][1]).toMatchObject({
-      _ano: 2027,
-      _comissao: 588000,
-      _substituir: true,
-    });
-    await waitFor(() => expect(result.current.plano?.meta_oficial).toEqual(META_ANA));
-    await new Promise((x) => setTimeout(x, 30));
-    expect(chamadasMeta()).toHaveLength(1);
+    await waitFor(() => expect(result.current.plano).not.toBeNull());
+    await new Promise((x) => setTimeout(x, 50));
+    expect(chamadasMeta()).toHaveLength(0);
+    expect(result.current.plano?.meta_oficial?.meta_comissao).toBe(300000);
   });
 
   it("plano assinado com meta já igual: não regrava", async () => {
@@ -171,29 +168,6 @@ describe("assinar grava a meta anual oficial de 2027", () => {
     await waitFor(() => expect(result.current.plano).not.toBeNull());
     await new Promise((x) => setTimeout(x, 30));
     expect(chamadasMeta()).toHaveLength(0);
-  });
-
-  it("meta assinada com o VGV antigo (transações × ticket): regrava uma vez só o VGV novo", async () => {
-    banco();
-    linhaPlano = {
-      respostas: ANA,
-      assinado_corretor_em: "2026-11-18T13:00:00Z",
-      meta_oficial: { ...META_ANA, meta_vgv: 19600000 },
-    };
-    const { result } = renderHook(() => usePlano("u1"));
-    await waitFor(() => expect(chamadasMeta()).toHaveLength(1));
-    expect(chamadasMeta()[0][1]).toEqual({
-      _ano: 2027,
-      _comissao: 588000,
-      _vgv: 9800000,
-      _vendas: 28,
-      _captacoes: 127,
-      _substituir: true,
-    });
-    await waitFor(() => expect(result.current.plano?.meta_oficial).toEqual(META_ANA));
-    expect(result.current.plano?.assinado_corretor_em).toBe("2026-11-18T13:00:00Z");
-    await new Promise((x) => setTimeout(x, 30));
-    expect(chamadasMeta()).toHaveLength(1);
   });
 
   it("metaIgual compara com arredondamento de centavos", () => {
