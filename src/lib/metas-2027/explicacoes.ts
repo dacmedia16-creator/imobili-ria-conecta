@@ -120,50 +120,57 @@ export const EXPLICACOES = {
   // ---------------------------------------------------------------------------------------------------------
   // Painel das EQUIPES (/painel-metas): resumo do total, cartão de cada equipe e cartão de cada corretor
   // ---------------------------------------------------------------------------------------------------------
-  equipe_farol: ({ anoPlano }) =>
+  equipe_farol: () =>
     e(
       "Farol da equipe",
-      `Compara a comissão da equipe no ano com o que a soma dos planos assinados previa até hoje: ${FAROL_FAIXAS}. Fica ⚪ sem nenhum plano assinado e até 1º de janeiro de ${anoPlano}.`,
+      `Compara a comissão de quem assinou o plano com o que a soma dos planos assinados previa até hoje: ${FAROL_FAIXAS}. Quem não assinou fica fora; sem nenhum plano assinado fica ⚪, e antes de janeiro o farol não aparece.`,
     ),
   equipe_meta_assinados: ({ anoPlano }) =>
     e(
       `Meta ${anoPlano} (assinados)`,
-      `Soma das metas de comissão do ano dos planos ${anoPlano} já ASSINADOS pelas pessoas desta equipe; planos em preenchimento e quem está sem plano não entram. Pode vir de poucas pessoas: veja "Planos assinados" logo abaixo.`,
+      `Soma das metas de comissão do ano dos planos ${anoPlano} já ASSINADOS pelas pessoas desta equipe; planos em preenchimento e quem está sem plano não entram. É comparada só com o realizado de quem assinou: sem nenhum plano assinado, não há meta nem farol.`,
     ),
   equipe_comissao_ano: ({ ano, anoPlano }) =>
     e(
-      `Comissão em ${ano}`,
-      `Soma da parte de comissão de TODAS as pessoas que estão hoje na equipe, com ou sem plano assinado (não é a bruta; inclui repasse de líder e de indicação recebido por elas). Vem das vendas com contrato assinado em ${ano}, de 1º de janeiro até hoje${ano < anoPlano ? `, então ainda não é o realizado da meta ${anoPlano}` : ""}.`,
+      "Comissão",
+      ano < anoPlano
+        ? `Comissão ${ano} = parte de comissão (não a bruta) de quem já assinou o plano, nas vendas assinadas em ${ano}; meta ${anoPlano} = soma das metas desses planos. São anos diferentes, por isso não há barra, % nem farol até janeiro.`
+        : `Parte de comissão (não a bruta) de quem já assinou o plano, nas vendas assinadas em ${ano}, de 1º de janeiro até hoje. A produção de quem não assinou aparece à parte, embaixo.`,
     ),
   equipe_barra_ano: () =>
     e(
       "Meta do ano (planos assinados)",
-      'O número grande é a comissão de todas as pessoas da equipe nas vendas assinadas desde 1º de janeiro, e o "de" é a soma das metas do ano só dos planos assinados. Quem não assinou o plano entra no realizado, mas não na meta.',
+      'O número grande é a comissão SÓ de quem assinou o plano nas vendas assinadas desde 1º de janeiro (o ano inteiro, mesmo de quem assinou no meio do ano), e o "de" é a soma das metas desses planos. A produção de quem não assinou aparece à parte e não entra aqui.',
     ),
   equipe_ritmo: () =>
     e(
       "Ritmo da equipe",
-      "Diferença entre a comissão da equipe no ano e o que a soma dos planos assinados previa até hoje (meses que passaram mais a parte do mês atual pelos dias corridos). O % entre parênteses é o realizado dividido por esse esperado.",
+      "Diferença entre a comissão de quem assinou o plano e o que a soma dos planos assinados previa até hoje (meses que passaram mais a parte do mês atual pelos dias corridos). O % entre parênteses é esse realizado dividido pelo esperado.",
     ),
   equipe_barra_mes: () =>
     e(
       "Meta do mês",
-      'Comissão da equipe nas vendas assinadas neste mês contra a soma das metas deste mês dos planos assinados (distribuição mês a mês de cada plano). O "falta" é a meta do mês menos o realizado do mês.',
+      'Comissão de quem assinou o plano nas vendas assinadas neste mês contra a soma das metas deste mês dos planos assinados. O "falta" é a meta do mês menos esse realizado.',
     ),
   equipe_vendas: ({ ano, anoPlano }) =>
     e(
-      "Vendas (realizado / meta)",
-      `O 1º número é o realizado de ${ano}: lados de venda de todas as pessoas da equipe nas vendas com contrato assinado (captou = 1, vendeu = 1). O 2º é a meta de transações de ${anoPlano}, somada só dos planos assinados.`,
+      "Vendas",
+      `Realizado de ${ano} = lados de venda só de quem assinou o plano (captou = 1, vendeu = 1), nas vendas com contrato assinado. Meta = transações de ${anoPlano} somadas dos planos assinados${ano < anoPlano ? "; até janeiro os dois aparecem separados, sem %" : ""}.`,
     ),
   equipe_captacoes: ({ ano, anoPlano }) =>
     e(
-      "Captações (realizado / meta)",
-      `O 1º número é o realizado de ${ano}: captações exclusivas aprovadas das pessoas da equipe, contadas para o captador original na data da aprovação. O 2º é a meta de novas captações de ${anoPlano}, somada só dos planos assinados.`,
+      "Captações",
+      `Realizado de ${ano} = captações exclusivas aprovadas só de quem assinou o plano, para o captador original na data da aprovação. Meta = novas captações de ${anoPlano} somadas dos planos assinados.`,
     ),
   equipe_vgv: ({ ano }) =>
     e(
       "VGV",
-      `Soma do valor das vendas assinadas em ${ano} com alguém da equipe (VGV próprio, sem parceria externa). Venda dividida entre duas pessoas da equipe conta 1 vez, com o valor inteiro.`,
+      `Valor das vendas assinadas em ${ano} com alguém que assinou o plano (VGV próprio, sem parceria externa). Venda dividida conta 1 vez, inteira: se um lado assinou e o outro não, fica aqui e não na produção de quem não assinou.`,
+    ),
+  equipe_nao_assinados: ({ ano }) =>
+    e(
+      "Produção de quem ainda não assinou",
+      `Comissão, lados de venda e VGV de ${ano} das pessoas desta equipe sem plano assinado, e quantas delas produziram. Só informa: não entra na meta, no %, no ritmo nem no farol.`,
     ),
   equipe_planos_assinados: ({ anoPlano }) =>
     e(
@@ -244,15 +251,25 @@ export const EXPLICACOES = {
       "Indicadores do ano",
       "Para comissão, VGV, vendas (transações) e captações: meta da direção, soma dos planos assinados e a diferença entre elas. A meta da direção é só do ano, sem mês a mês.",
     ),
-  imob_realizado: ({ ano }) =>
+  imob_realizado: ({ ano, anoPlano }) =>
     e(
-      "Realizado no ano",
-      `Soma da parte de comissão de cada pessoa (não a bruta) nas vendas assinadas em ${ano}, na imobiliária inteira, incluindo quem já saiu e repasses de líder e indicação a pessoas com cadastro. O 1º % compara com a meta oficial (planos assinados) e o 2º com a meta da direção.`,
+      "Realizado de quem assinou × meta oficial",
+      `Parte de comissão (não a bruta) de quem tem plano ${anoPlano} assinado, nas vendas assinadas em ${ano}, comparada com a meta oficial (soma desses planos). A produção de quem não assinou e a imobiliária inteira × meta da direção aparecem logo abaixo, separadas.`,
+    ),
+  imob_nao_assinados: ({ ano }) =>
+    e(
+      "Produção de quem não assinou",
+      `Comissão de ${ano} de quem não tem plano assinado, incluindo quem já saiu da imobiliária e repasses a pessoas com cadastro. Não entra na meta oficial nem no farol.`,
+    ),
+  imob_realizado_casa: ({ ano, anoPlano }) =>
+    e(
+      "Imobiliária inteira × meta da direção",
+      `Comissão de ${ano} da imobiliária INTEIRA (quem assinou, quem não assinou e quem já saiu), porque a meta da direção vale para a casa toda. O % só aparece a partir de janeiro de ${anoPlano}.`,
     ),
   imob_ritmo: ({ anoPlano }) =>
     e(
       "Ritmo esperado até hoje",
-      `Diferença entre o realizado do ano e o que a soma dos planos assinados previa até hoje (meses que passaram mais a parte do mês atual pelos dias corridos). Começa a contar em janeiro de ${anoPlano}.`,
+      `Diferença entre a comissão de quem assinou o plano e o que a soma dos planos assinados previa até hoje (meses que passaram mais a parte do mês atual pelos dias corridos). Começa a contar em janeiro de ${anoPlano}.`,
     ),
   imob_cobertura: ({ anoPlano }) =>
     e(
@@ -262,12 +279,12 @@ export const EXPLICACOES = {
   imob_grafico: ({ ano }) =>
     e(
       "Mês a mês",
-      `Barra cinza = soma das metas do mês dos planos assinados; barra azul = comissão do mês (parte de cada pessoa, vendas assinadas em ${ano}). Fica verde quando o mês bateu a meta.`,
+      `Barra cinza = soma das metas do mês dos planos assinados; barra azul = comissão do mês só de quem assinou o plano (vendas assinadas em ${ano}). Fica verde quando o mês bateu a meta.`,
     ),
   imob_vgv: ({ ano }) =>
     e(
       "VGV",
-      `Soma do valor das vendas assinadas em ${ano} na imobiliária (VGV próprio, sem parceria externa). Venda dividida entre dois corretores conta 1 vez, com o valor inteiro.`,
+      `Soma do valor das vendas assinadas em ${ano} na imobiliária inteira, com ou sem plano assinado (VGV próprio, sem parceria externa). Venda dividida entre dois corretores conta 1 vez, com o valor inteiro.`,
     ),
   imob_vendas: ({ ano }) =>
     e(
@@ -317,7 +334,7 @@ export const EXPLICACOES = {
   imob_ranking_equipes: ({ ano }) =>
     e(
       "Ranking por equipe",
-      `Equipes ordenadas pelo % do esperado até hoje: comissão da equipe ÷ o que os planos assinados previam. Mostra a comissão de ${ano}, a meta somada dos planos assinados e quantos planos foram assinados.`,
+      `Equipes ordenadas pelo % do esperado até hoje: comissão de quem assinou o plano ÷ o que os planos assinados previam. Mostra essa comissão de ${ano}, a meta somada dos planos assinados e quantos planos foram assinados.`,
     ),
   imob_ranking_corretores: ({ ano }) =>
     e(
@@ -327,7 +344,7 @@ export const EXPLICACOES = {
   imob_farol: ({ anoPlano }) =>
     e(
       "Farol",
-      `Compara a comissão no ano com o que os planos assinados previam até hoje: ${FAROL_FAIXAS}. Fica ⚪ sem plano assinado e até 1º de janeiro de ${anoPlano}.`,
+      `Compara a comissão de quem assinou o plano com o que os planos assinados previam até hoje: ${FAROL_FAIXAS}. Fica ⚪ sem plano assinado e até 1º de janeiro de ${anoPlano}.`,
     ),
 } satisfies Record<string, Gerador>;
 

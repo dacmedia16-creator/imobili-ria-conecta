@@ -44,24 +44,24 @@ describe("textos do ícone i", () => {
     expect(Object.keys(EXPLICACOES).filter((k) => !usadas.has(k))).toEqual([]);
   });
 
-  it("o ponto de conferência fica explícito: meta só dos assinados, realizado de todos e do ano dos dados", () => {
+  it("Opção A fica explícita: meta e realizado só de quem assinou; resto à parte; direção × casa toda", () => {
     const antes = { ano: 2026, anoPlano: 2027 };
+    const dur = { ano: 2027, anoPlano: 2027 };
     expect(explicacao("equipe_meta_assinados", antes).texto).toMatch(/ASSINADOS/);
     expect(explicacao("equipe_meta_assinados", antes).texto).toMatch(
       /em preenchimento.*não entram/,
     );
     const com = explicacao("equipe_comissao_ano", antes);
-    expect(com.titulo).toBe("Comissão em 2026");
-    expect(com.texto).toMatch(/TODAS as pessoas.*com ou sem plano assinado/);
-    expect(com.texto).toMatch(/não é a bruta/);
-    expect(com.texto).toMatch(/ainda não é o realizado da meta 2027/);
-    expect(explicacao("equipe_comissao_ano", { ano: 2027, anoPlano: 2027 }).texto).not.toMatch(
-      /ainda não é/,
-    );
-    const v = explicacao("equipe_vendas", antes).texto;
-    expect(v).toMatch(/1º número é o realizado de 2026/);
-    expect(v).toMatch(/2º é a meta de transações de 2027/);
-    expect(explicacao("equipe_vgv", antes).texto).toMatch(/conta 1 vez/);
+    expect(com.texto).toMatch(/Comissão 2026 = .*de quem já assinou o plano/);
+    expect(com.texto).toMatch(/não a bruta/);
+    expect(com.texto).toMatch(/não há barra, % nem farol até janeiro/);
+    expect(explicacao("equipe_comissao_ano", dur).texto).not.toMatch(/até janeiro/);
+    expect(explicacao("equipe_barra_ano", dur).texto).toMatch(/SÓ de quem assinou/);
+    expect(explicacao("equipe_vendas", antes).texto).toMatch(/só de quem assinou/);
+    expect(explicacao("equipe_vgv", antes).texto).toMatch(/conta 1 vez, inteira/);
+    expect(explicacao("equipe_nao_assinados", dur).texto).toMatch(/não entra na meta.*farol/);
+    expect(explicacao("imob_realizado_casa", dur).texto).toMatch(/imobiliária INTEIRA/);
+    expect(explicacao("imob_realizado", dur).texto).toMatch(/de quem tem plano 2027 assinado/);
   });
 });
 

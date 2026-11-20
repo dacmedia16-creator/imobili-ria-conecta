@@ -165,8 +165,14 @@ describe("Painel de metas 2027 · Imobiliária", () => {
     );
     const tab = within(topo).getByTestId("tabela-direcao").textContent ?? "";
     expect(tab).toMatch(/Vendas20/);
-    expect(screen.getByTestId("realizado").textContent).toMatch(
-      /17% da meta oficial · 10% da meta da direção/,
+    const real = screen.getByTestId("realizado");
+    expect(real.textContent).toMatch(/17% da meta oficial/);
+    // Duas comparações separadas e explícitas na tela.
+    expect(within(real).getByTestId("casa-direcao").textContent).toMatch(
+      /Imobiliária inteira × meta da direção.*10% da meta da direção/,
+    );
+    expect(within(real).getByTestId("nao-assinados").textContent).toMatch(
+      /Produção de quem não assinou/,
     );
     expect(screen.getByTestId("cobertura").textContent).toMatch(/1 de 2/);
   });

@@ -159,8 +159,8 @@ export function PainelMetasImobiliaria() {
           <Building2 className="h-5 w-5" aria-hidden /> Painel de metas {ANO_PLANO} · Imobiliária
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          Meta oficial = soma dos planos ASSINADOS. Realizado = vendas assinadas e captações
-          aprovadas, que entram sozinhas.
+          Meta oficial = soma dos planos ASSINADOS, comparada com o realizado só de quem assinou. A
+          meta da direção é comparada com a imobiliária inteira.
         </p>
       </CardHeader>
       <CardContent className="space-y-4 px-3 sm:px-6" data-testid="painel-metas-imobiliaria">
@@ -217,14 +217,50 @@ function Conteudo({
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <Bloco
-          titulo="Realizado no ano (comissão dos corretores)"
+          titulo={
+            antes
+              ? `Comissão em ${p.base.anoDados} de quem assinou o plano`
+              : "Realizado de quem assinou × meta oficial"
+          }
           info="imob_realizado"
           testid="realizado"
         >
-          <p className="text-2xl font-bold">{brl(c.realAno)}</p>
-          <BarraMeta feito={c.realAno} alvo={c.metaAno} esperado={antes ? null : c.esperado} />
-          <p className="text-xs text-muted-foreground">
-            {pct(c.pctAno)} da meta oficial · {pct(p.pctDirecao)} da meta da direção
+          <p className="text-2xl font-bold">{brl(p.total.realizadoAno.comissao ?? 0)}</p>
+          {antes ? (
+            <p className="text-xs text-muted-foreground">
+              meta {ANO_PLANO} (assinados): <b>{brlOuTraco(c.metaAno)}</b>
+            </p>
+          ) : (
+            <>
+              <BarraMeta feito={c.realAno} alvo={c.metaAno} esperado={c.esperado} />
+              <p className="text-xs text-muted-foreground">
+                {pct(c.pctAno)} da meta oficial (soma dos planos assinados)
+              </p>
+            </>
+          )}
+          <p className="text-xs text-muted-foreground" data-testid="nao-assinados">
+            <RotuloInfo chave="imob_nao_assinados">
+              Produção de quem não assinou (inclui quem já saiu):
+            </RotuloInfo>{" "}
+            <b className="text-foreground">{brl(p.total.naoAssinados.realizado.comissao ?? 0)}</b> ·{" "}
+            {p.total.naoAssinados.pessoas}{" "}
+            {p.total.naoAssinados.pessoas === 1 ? "corretor" : "corretores"}. Fora da meta oficial e
+            do farol.
+          </p>
+          <p className="border-t pt-2 text-xs text-muted-foreground" data-testid="casa-direcao">
+            <RotuloInfo chave="imob_realizado_casa">
+              Imobiliária inteira × meta da direção:
+            </RotuloInfo>{" "}
+            <b className="text-foreground">{brl(p.realizadoCasa)}</b>
+            {antes ? (
+              <>
+                {" "}
+                em {p.base.anoDados} · meta da direção {ANO_PLANO}:{" "}
+                {brlOuTraco(p.direcao?.comissao)}
+              </>
+            ) : (
+              <> · {pct(p.pctDirecao)} da meta da direção</>
+            )}
           </p>
         </Bloco>
         <Bloco titulo="Ritmo esperado até hoje" info="imob_ritmo" testid="ritmo">
@@ -643,7 +679,8 @@ function Grafico({ p }: { p: PainelImobiliaria }) {
 // --- Indicadores ------------------------------------------------------------------------------------------
 
 function Indicadores({ p }: { p: PainelImobiliaria }) {
-  const r = p.total.realizadoAno;
+  // Indicadores da casa toda (não se comparam com meta): imobiliária inteira, assinados ou não.
+  const r = p.total.realizadoTodos;
   const q = p.comissao;
   const e = p.estoque;
   return (

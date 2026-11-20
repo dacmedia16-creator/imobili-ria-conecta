@@ -18,7 +18,6 @@ import { INDICADORES, type FarolMeta, type Indicador, type Valores } from "./reg
 import { compararComDirecao, type ComparacaoDirecao, type MetaDirecao } from "./consolidado";
 import {
   montarPainelGestor,
-  realizadoDoGrupo,
   type CartaoCorretor,
   type GrupoPainel,
   type PainelGestor,
@@ -95,9 +94,11 @@ export type PainelImobiliaria = {
   comparacao: Record<Indicador, ComparacaoDirecao>;
   /** Soma do ano dos planos em preenchimento (fora da meta oficial). */
   preenchimento: Valores;
-  /** realizado do ano ÷ meta da direção (comissão). */
+  /** Comissão do ano da imobiliária INTEIRA (assinados + não assinados + quem já saiu). */
+  realizadoCasa: number;
+  /** realizadoCasa ÷ meta da direção (comissão). null antes de jan/2027 ou sem meta da direção. */
   pctDirecao: number | null;
-  /** 12 meses: meta (soma dos assinados) e realizado da imobiliária. */
+  /** 12 meses: meta (soma dos assinados) e realizado SÓ de quem assinou. */
   meses: { mes: number; meta: number | null; realizado: number; futuro: boolean }[];
   rankingEquipes: LinhaRanking[];
   rankingCorretores: LinhaRanking[];
@@ -212,21 +213,18 @@ export function montarPainelImobiliaria(
   const total = base.total;
   const direcao = direcaoDeRpc(e.direcao);
   const comparacao = compararComDirecao(total.soma, direcao);
-  const realMeses = realizadoDoGrupo(
-    e.realizadoAno,
-    base.todas ? null : new Set(total.pessoas.map((p) => p.userId)),
-    base.anoDados,
-    true,
-  );
+  // Opção A (Denis 20/11): o gráfico compara a meta (soma dos assinados) com o realizado SÓ de quem assinou.
   const metaMeses = total.soma.assinados?.meses ?? null;
   const ate = base.pos.fase === "antes" ? Number(e.hoje.slice(5, 7)) : base.pos.mes;
-  const meses = realMeses.map((m, i) => ({
+  const meses = total.mesesAssinados.map((m, i) => ({
     mes: i + 1,
     meta: metaMeses ? (metaMeses[i]?.comissao ?? null) : null,
     realizado: m.comissao ?? 0,
     futuro: i + 1 > ate,
   }));
-  const realAno = total.avaliacao.indicadores.comissao.realAno;
+  // EXCEÇÃO: a meta da direção vale para a casa toda, então compara com o realizado da imobiliária INTEIRA
+  // (assinados + não assinados + quem já saiu). Antes de jan/2027 não há % (o realizado ainda é do ano anterior).
+  const realCasa = total.realizadoTodos.comissao ?? 0;
   const dComissao = direcao?.comissao ?? null;
   const nomeEquipe = new Map(base.grupos.map((g) => [g.id, g.nome] as const));
   return {
@@ -236,8 +234,11 @@ export function montarPainelImobiliaria(
     direcaoAtualizadaEm: e.direcao?.updated_at ?? null,
     comparacao,
     preenchimento: total.soma.preenchimentoAno,
+    realizadoCasa: realCasa,
     pctDirecao:
-      dComissao != null && dComissao > 0 ? Math.round((realAno / dComissao) * 10000) / 10000 : null,
+      base.pos.fase !== "antes" && dComissao != null && dComissao > 0
+        ? Math.round((realCasa / dComissao) * 10000) / 10000
+        : null,
     meses,
     rankingEquipes: base.grupos
       .filter((g) => g.pessoas.length > 0)

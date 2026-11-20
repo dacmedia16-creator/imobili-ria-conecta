@@ -154,14 +154,34 @@ export type CartaoCorretor = {
   cobertura: PessoaCobertura;
 };
 
+/** Produção de quem NÃO tem plano assinado (fora da meta e do farol). */
+export type ProducaoNaoAssinados = {
+  /** Pessoas sem plano assinado com alguma venda ou captação no período (imobiliária: inclui quem já saiu). */
+  pessoas: number;
+  /** = realizadoTodos − realizadoAno (as duas partes sempre fecham com o total). */
+  realizado: Valores;
+};
+
 export type GrupoPainel = {
   /** id da equipe; null = pessoas sem equipe. */
   id: string | null;
   nome: string;
   liderNome: string | null;
   soma: SomaPlanos;
+  /** Meta (soma dos assinados) × realizado SÓ de quem assinou (Opção A, Denis 20/11). */
   avaliacao: Avaliacao;
+  /**
+   * Realizado do ano SÓ de quem tem plano assinado: é o que se compara com a meta (%, ritmo, falta, farol).
+   * Venda dividida entre quem assinou e quem não assinou: VGV inteiro 1 vez aqui; comissão/lados de cada um na sua parte.
+   */
   realizadoAno: Valores;
+  /** Mês a mês de realizadoAno (gráfico da imobiliária). */
+  mesesAssinados: Valores[];
+  /** Realizado do grupo inteiro (assinados + não assinados; imobiliária: inclui quem já saiu). */
+  realizadoTodos: Valores;
+  /** Mês a mês de realizadoTodos. */
+  mesesTodos: Valores[];
+  naoAssinados: ProducaoNaoAssinados;
   cobertura: Cobertura;
   pessoas: CartaoCorretor[];
 };
@@ -241,6 +261,43 @@ function totalAte(meses: Valores[], ate: number): Valores {
   const out = {} as Valores;
   for (const k of INDICADORES) out[k] = somaMeses(meses, k, ate);
   return out;
+}
+
+/** a − b por indicador (null fica null: ex.: captações com o módulo desligado). */
+function menos(a: Valores, b: Valores): Valores {
+  const out = {} as Valores;
+  for (const k of INDICADORES) {
+    const x = a[k];
+    out[k] = x == null ? null : Math.round((x - (b[k] ?? 0)) * 100) / 100;
+  }
+  return out;
+}
+
+/** Mês a mês a − b. */
+const menosMeses = (a: Valores[], b: Valores[]) => a.map((m, i) => menos(m, b[i]));
+
+/**
+ * Quantas pessoas FORA de `assinados` têm venda (que conta para a equipe) ou captação no ano, até o mês `ate`.
+ * `pessoas` null = imobiliária inteira (inclui quem já saiu).
+ */
+function pessoasComProducao(
+  real: Pick<RealizadoRpc, "vendas" | "captacoes" | "captacoes_ligadas">,
+  pessoas: ReadonlySet<string> | null,
+  assinados: ReadonlySet<string>,
+  ano: number,
+  ate: number,
+): number {
+  const conta = (u: string) => (!pessoas || pessoas.has(u)) && !assinados.has(u);
+  const no = (d: string) => {
+    const m = mesNoAno(d, ano);
+    return m != null && m <= ate;
+  };
+  const xs = new Set<string>();
+  for (const v of real.vendas)
+    if (v.conta_equipe !== false && conta(v.user_id) && no(v.venda_em)) xs.add(v.user_id);
+  if (real.captacoes_ligadas)
+    for (const c of real.captacoes) if (conta(c.user_id) && no(c.aprovada_em)) xs.add(c.user_id);
+  return xs.size;
 }
 
 /** Última data (aaaa-mm-dd) de venda (só como captador/vendedor) e de captação de cada pessoa. */
@@ -337,7 +394,13 @@ export function montarPainelGestor(e: {
     const soma = somarPlanos(
       membros.map((m) => ({ userId: m.p.user_id, situacao: m.situacao, meta: m.meta })),
     );
-    const real = realizadoDoGrupo(e.realizadoAno, todos ? null : ids, anoDados, true);
+    // Opção A (Denis 20/11): a meta é só dos planos assinados, então o realizado comparado com ela também é só de
+    // quem assinou (o ano inteiro dessa pessoa, mesmo que tenha assinado no meio do ano). O resto aparece à parte.
+    const assinados = new Set(
+      membros.filter((m) => m.situacao === "assinado").map((m) => m.p.user_id),
+    );
+    const todosMeses = realizadoDoGrupo(e.realizadoAno, todos ? null : ids, anoDados, true);
+    const realAss = realizadoDoGrupo(e.realizadoAno, assinados, anoDados, true);
     const pessoas = membros
       .map(cartao)
       .sort(
@@ -357,8 +420,21 @@ export function montarPainelGestor(e: {
       nome,
       liderNome,
       soma,
-      avaliacao: avaliarGrupo(soma, real, pos),
-      realizadoAno: totalAte(real, ateMes),
+      avaliacao: avaliarGrupo(soma, realAss, pos),
+      realizadoAno: totalAte(realAss, ateMes),
+      mesesAssinados: realAss,
+      realizadoTodos: totalAte(todosMeses, ateMes),
+      mesesTodos: todosMeses,
+      naoAssinados: {
+        pessoas: pessoasComProducao(
+          e.realizadoAno,
+          todos ? null : ids,
+          assinados,
+          anoDados,
+          ateMes,
+        ),
+        realizado: totalAte(menosMeses(todosMeses, realAss), ateMes),
+      },
       cobertura,
       pessoas,
     };
