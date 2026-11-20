@@ -109,10 +109,19 @@ SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_lancamento_salvar(%L
   pg_temp.id('C'))) LIKE '22023%taxa%', 'com administração continua exigindo a taxa');
 SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_lancamento_salvar(%L, ''{"aluguel": "2000", "taxa_adm": "40"}'')',
   pg_temp.id('C'))) LIKE '22023%taxa%', 'com administração, taxa acima de 30% recusada');
-SELECT pg_temp.ok(NOT (public.locacao_lancamento_salvar(pg_temp.id('S'), '{"aluguel": "2000", "taxa_adm": "10"}')->>'novo')::boolean
-  AND (SELECT NOT sem_administracao AND taxa_adm = 10 FROM pg_temp.lan('S')) IS TRUE,
-  'Fernanda pode corrigir para com administração (sem a chave = com)');
+SELECT public.locacao_lancamento_salvar(pg_temp.id('S'), '{"aluguel": "2000", "taxa_adm": "10"}');
+SELECT pg_temp.ok((SELECT sem_administracao AND taxa_adm = 0 FROM pg_temp.lan('S')) IS TRUE
+  AND (SELECT sem_administracao FROM pg_temp.loc('S')),
+  'pedido sem a escolha (aba com o site antigo) mantém "sem administração"');
+SELECT pg_temp.ok(NOT (public.locacao_lancamento_salvar(pg_temp.id('S'), '{"aluguel": "2000", "taxa_adm": "9", "sem_administracao": false}')->>'novo')::boolean
+  AND (SELECT NOT sem_administracao AND taxa_adm = 9 FROM pg_temp.lan('S')) IS TRUE
+  AND (SELECT NOT sem_administracao AND taxa_adm = 9 FROM pg_temp.loc('S')),
+  'Fernanda corrige para com administração antes da chave: locação acompanha (mesma taxa)');
 SELECT public.locacao_lancamento_salvar(pg_temp.id('S'), '{"aluguel": "2000", "sem_administracao": true}');
+SELECT pg_temp.ok((SELECT sem_administracao AND taxa_adm = 0 FROM pg_temp.loc('S')),
+  'Fernanda volta para sem administração: locação acompanha (taxa 0)');
+SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_lancamento_salvar(%L, ''{"aluguel": "2000", "sem_administracao": true, "locador": true}'')',
+  pg_temp.id('C'))) LIKE '22023%Campos%', 'verdadeiro/falso só é aceito no campo sem_administracao');
 SELECT pg_temp.as_user(pg_temp.id('c2')::text);
 SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_lancamento_salvar(%L, ''{"aluguel": "2000", "sem_administracao": true}'')',
   pg_temp.id('S'))) LIKE '42501%', 'corretor continua sem lançar');
@@ -132,6 +141,21 @@ SELECT pg_temp.ok(pg_temp.ncontratos('C') = 1, 'chave entregue com administraç�
 SELECT pg_temp.ok((SELECT taxa_adm = 10 FROM public.locacao_contratos WHERE locacao_id = pg_temp.id('C')), 'contrato com a taxa da locação');
 SELECT pg_temp.ok(public.locacao_fin_criar_contrato(pg_temp.loc('S')) IS NULL AND pg_temp.ncontratos('S') = 0,
   'chamada direta também não cria contrato sem administração');
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.as_user(pg_temp.id('con')::text);
+SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_lancamento_salvar(%L, ''{"aluguel": "2000", "sem_administracao": true}'')',
+  pg_temp.id('C'))) LIKE '22023%Chaves já entregues%', 'depois da chave, trocar com → sem pelo lançamento é recusado');
+SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_lancamento_salvar(%L, ''{"aluguel": "2000", "taxa_adm": "10", "sem_administracao": false}'')',
+  pg_temp.id('S'))) LIKE '22023%Chaves já entregues%', 'depois da chave, trocar sem → com pelo lançamento é recusado');
+SELECT pg_temp.ok((public.locacao_lancamento_salvar(pg_temp.id('S'), '{"aluguel": "2100", "sem_administracao": true}')->>'ok')::boolean,
+  'depois da chave, corrigir outros valores mantendo a escolha continua permitido');
+RESET ROLE;
+SELECT pg_temp.ok(pg_temp.ncontratos('S') = 0 AND (SELECT sem_administracao FROM pg_temp.loc('S'))
+  AND (SELECT NOT sem_administracao FROM pg_temp.loc('C')), 'locação e Financeiro continuam coerentes');
+SELECT pg_temp.ok((SELECT count(*) FROM public.locacao_eventos WHERE locacao_id = pg_temp.id('S')
+   AND descricao = 'Marcada sem administração (intermediação: 1 aluguel)') >= 1
+  AND (SELECT count(*) FROM public.locacao_eventos WHERE locacao_id = pg_temp.id('S')
+   AND descricao LIKE 'Marcada com administração (taxa 10%)') >= 1, 'pré-análise registra a troca com/sem no histórico');
 
 SELECT CASE WHEN ok THEN 'ok   ' ELSE 'FALHA ' END || msg FROM r;
 SELECT 'TOTAL=' || count(*) || ' ok=' || count(*) FILTER (WHERE ok) || ' falhas=' || count(*) FILTER (WHERE NOT ok) FROM r;

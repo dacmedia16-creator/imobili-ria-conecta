@@ -64,6 +64,21 @@ BASES=(
     echo "RESET ROLE;"
     echo "ROLLBACK TO SAVEPOINT regr;"
   fi
+  # O rollback tem de funcionar COM locação/lançamento "sem administração" já gravados (voltam com 10%).
+  echo "SAVEPOINT rbsem;"
+  cat <<'EOF'
+INSERT INTO public.locacoes (id, organization_id, corretor_id, etapa, candidato, endereco, garantia, aluguel, condominio, iptu,
+  taxa_adm, sem_administracao)
+VALUES ('7c000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000001', 'ebffaded-075c-493f-89e2-1d3d62901dc4',
+  'pos_assinatura', '{"nome":"Sem Adm Fictícia"}', 'Rua Fictícia, 1', 'caucao', 2000, 0, 0, 0, true);
+INSERT INTO public.locacao_lancamentos (locacao_id, organization_id, aluguel, taxa_adm, sem_administracao)
+VALUES ('7c000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000001', 2000, 0, true);
+EOF
+  strip "$RB"
+  echo "SELECT CASE WHEN (SELECT taxa_adm FROM public.locacoes WHERE id = '7c000000-0000-4000-8000-000000000001') = 10
+    AND (SELECT taxa_adm FROM public.locacao_lancamentos WHERE locacao_id = '7c000000-0000-4000-8000-000000000001') = 10
+    THEN 'ok   rollback com linhas sem administração (voltam com 10%)' ELSE 'FALHA rollback com linhas sem administração' END;"
+  echo "ROLLBACK TO SAVEPOINT rbsem;"
   strip "$RB"
   echo "\\echo [rollback ok]"
   echo "$FP"

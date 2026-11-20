@@ -14,6 +14,9 @@
 --  2) locacao_lancamentos.sem_administracao (padrão false), com a mesma regra da taxa.
 --  3) locacao_salvar_pre aceita "sem_administracao". Sem: taxa 0. Voltando para "com" sem informar taxa: 10%.
 --  4) locacao_lancamento_salvar/ler aceitam e devolvem "sem_administracao"; sem administração não cobra a taxa.
+--     Locação e lançamento ficam sempre iguais: antes da chave, a escolha da Fernanda também atualiza a locação;
+--     depois da chave, trocar com/sem pelo lançamento é recusado (o Financeiro já foi definido na entrega da chave).
+--     Sem a chave no pedido (site antigo), mantém o valor atual.
 --  5) locacao_lista leva "sem_administracao" do lançamento (aba Comissão).
 --  6) locacao_fin_criar_contrato NÃO cria contrato no Financeiro para locação sem administração: sem cobrança mensal,
 --     sem repasse e sem taxa de administração.
@@ -37,6 +40,7 @@ ALTER TABLE public.locacao_lancamentos ADD CONSTRAINT locacao_lancamentos_taxa_c
 CREATE OR REPLACE FUNCTION public.locacao_salvar_pre(_id uuid, _dados jsonb) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
 DECLARE _l public.locacoes := public.locacao_pega(_id); _cand jsonb; _ficha jsonb; _cap uuid; _sem boolean;
+  _antes boolean := _l.sem_administracao;
 BEGIN
   PERFORM public.locacao_exige(_l, ARRAY['pre_analise'], 'corretor');
   IF _dados IS NULL OR jsonb_typeof(_dados) <> 'object' OR EXISTS (SELECT 1 FROM jsonb_object_keys(_dados) k WHERE k NOT IN
@@ -77,6 +81,11 @@ BEGIN
     sem_administracao = _sem, parceria = coalesce((_dados->>'parceria')::boolean, parceria),
     ficha = _ficha, captador_id = _cap, atualizado_em = now()
    WHERE id = _id RETURNING * INTO _l;
+  IF _l.sem_administracao IS DISTINCT FROM _antes THEN
+    PERFORM public.locacao_evento(_l, 'corretor', CASE WHEN _l.sem_administracao
+      THEN 'Marcada sem administração (intermediação: 1 aluguel)' ELSE 'Marcada com administração (taxa '
+        || trim(to_char(_l.taxa_adm, 'FM990.99')) || '%)' END);
+  END IF;
   RETURN jsonb_build_object('ok', true);
 EXCEPTION WHEN invalid_text_representation OR numeric_value_out_of_range OR check_violation THEN
   RAISE EXCEPTION 'Valor inválido na pré-análise' USING ERRCODE = '22023';
@@ -123,7 +132,8 @@ BEGIN
   IF jsonb_typeof(_d) <> 'object' OR EXISTS (SELECT 1 FROM jsonb_each(_d) e WHERE e.key NOT IN
      ('captador_id', 'locador', 'gestor_id', 'team_leader_id', 'aluguel', 'taxa_adm', 'parceria', 'parceria_unidade',
       'parceria_corretor', 'parceria_imobiliaria', 'observacao', 'sem_administracao')
-      OR jsonb_typeof(e.value) NOT IN ('string', 'number', 'null', 'boolean')) THEN
+      OR jsonb_typeof(e.value) NOT IN ('string', 'number', 'null')
+         AND NOT (e.key = 'sem_administracao' AND jsonb_typeof(e.value) = 'boolean')) THEN
     RAISE EXCEPTION 'Campos inválidos' USING ERRCODE = '22023';
   END IF;
   FOREACH _k IN ARRAY ARRAY['captador_id', 'gestor_id', 'team_leader_id'] LOOP
@@ -133,7 +143,10 @@ BEGIN
   END LOOP;
   _cap := nullif(_d->>'captador_id', '')::uuid; _ge := nullif(_d->>'gestor_id', '')::uuid; _tl := nullif(_d->>'team_leader_id', '')::uuid;
   _alu := nullif(_d->>'aluguel', '')::numeric; _tx := nullif(_d->>'taxa_adm', '')::numeric;
-  _sem := coalesce(nullif(_d->>'sem_administracao', '')::boolean, false);
+  -- Sem a chave (ex.: aba com o site antigo), mantém o que já estava (lançamento ou, se não houver, a locação).
+  _sem := CASE WHEN _d ? 'sem_administracao' THEN coalesce(nullif(_d->>'sem_administracao', '')::boolean, false)
+               ELSE coalesce((SELECT x.sem_administracao FROM public.locacao_lancamentos x WHERE x.locacao_id = _id),
+                             _l.sem_administracao) END;
   _par := coalesce(nullif(_d->>'parceria', ''), 'nenhuma');
   _loc := nullif(btrim(coalesce(_d->>'locador', '')), ''); _obs := nullif(btrim(coalesce(_d->>'observacao', '')), '');
   _uni := nullif(btrim(coalesce(_d->>'parceria_unidade', '')), ''); _pco := nullif(btrim(coalesce(_d->>'parceria_corretor', '')), '');
@@ -151,6 +164,16 @@ BEGIN
   END IF;
   IF _par <> 'remax' THEN _uni := NULL; _pco := NULL; END IF;
   IF _par <> 'externa' THEN _pim := NULL; END IF;
+  -- Locação e lançamento não podem divergir na administração (o Financeiro segue a locação).
+  -- Antes da chave: a escolha da Fernanda vale também para a locação. Depois da chave: não muda mais aqui.
+  IF _sem IS DISTINCT FROM _l.sem_administracao THEN
+    IF _l.chave_em IS NOT NULL THEN
+      RAISE EXCEPTION 'Chaves já entregues: com/sem administração não muda mais pelo lançamento (fale com o Financeiro).'
+        USING ERRCODE = '22023';
+    END IF;
+    UPDATE public.locacoes SET sem_administracao = _sem, taxa_adm = CASE WHEN _sem THEN 0 ELSE _tx END, atualizado_em = now()
+     WHERE id = _id;
+  END IF;
   _novo := NOT EXISTS (SELECT 1 FROM public.locacao_lancamentos WHERE locacao_id = _id);
   INSERT INTO public.locacao_lancamentos AS x (locacao_id, organization_id, captador_id, locador, gestor_id, team_leader_id, aluguel,
     taxa_adm, sem_administracao, parceria, parceria_unidade, parceria_corretor, parceria_imobiliaria, observacao, lancado_por, atualizado_por)

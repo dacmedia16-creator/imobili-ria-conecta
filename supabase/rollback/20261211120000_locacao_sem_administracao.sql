@@ -6,6 +6,8 @@
 --      SELECT id, numero FROM public.locacoes WHERE sem_administracao;
 --      SELECT locacao_id FROM public.locacao_lancamentos WHERE sem_administracao;
 --    Locação sem administração que já entregou a chave fica SEM contrato no Financeiro (nada é criado no rollback).
+--    ATENÇÃO: uma locação "sem" que ainda NÃO entregou a chave volta como "com 10%"; na entrega da chave nasceria
+--    contrato cobrando 10% de administração. Antes do rollback, combinar com o Financeiro o que fazer com elas.
 BEGIN;
 SELECT set_config('lock_timeout', '5s', true);
 
@@ -160,7 +162,7 @@ BEGIN
             FROM public.locacoes l WHERE l.organization_id = _org AND public.locacao_pode_ver(l));
 END $function$;
 
-CREATE OR REPLACE FUNCTION public.locacao_fin_criar_contrato(_l locacoes)
+CREATE OR REPLACE FUNCTION public.locacao_fin_criar_contrato(_l public.locacoes)
  RETURNS uuid
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -184,13 +186,14 @@ BEGIN
 END $function$;
 
 
-UPDATE public.locacao_lancamentos SET taxa_adm = 10 WHERE sem_administracao;
+-- A regra nova é derrubada ANTES de trocar a taxa (senão "sem administração + taxa 10" é recusado).
 ALTER TABLE public.locacao_lancamentos DROP CONSTRAINT locacao_lancamentos_taxa_check;
+UPDATE public.locacao_lancamentos SET taxa_adm = 10 WHERE sem_administracao;
 ALTER TABLE public.locacao_lancamentos DROP COLUMN sem_administracao;
 ALTER TABLE public.locacao_lancamentos ADD CONSTRAINT locacao_lancamentos_taxa_check CHECK (taxa_adm > 0 AND taxa_adm <= 30);
 
-UPDATE public.locacoes SET taxa_adm = 10 WHERE sem_administracao;
 ALTER TABLE public.locacoes DROP CONSTRAINT locacoes_taxa_check;
+UPDATE public.locacoes SET taxa_adm = 10 WHERE sem_administracao;
 ALTER TABLE public.locacoes DROP COLUMN sem_administracao;
 ALTER TABLE public.locacoes ADD CONSTRAINT locacoes_taxa_check CHECK (taxa_adm > 0 AND taxa_adm <= 30);
 COMMIT;
