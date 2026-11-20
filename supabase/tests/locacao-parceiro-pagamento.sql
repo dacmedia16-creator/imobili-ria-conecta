@@ -141,8 +141,19 @@ SELECT pg_temp.put('lista', public.locacao_parceiros_pagar());
 SELECT pg_temp.ok(jsonb_array_length(pg_temp.j('lista')->'itens') = 1
   AND pg_temp.j('lista')->'itens'->0->>'parceria_lado' = 'captador'
   AND (pg_temp.j('lista')->'itens'->0->>'aluguel')::numeric = 3000
+  AND (pg_temp.j('lista')->'itens'->0->>'valor_parceiro')::numeric = 1500
   AND pg_temp.j('lista')->'itens'->0->'pagamento'->>'documento' = '11222333000181'
-  AND pg_temp.j('lista')->'config' IS NOT NULL, 'lista do Financeiro: só a locação em parceria, com aluguel, lado e pagamento');
+  AND pg_temp.j('lista')->'config' IS NOT NULL, 'lista do Financeiro: aluguel 3000/taxa 10% paga parceiro 1500');
+-- O cálculo novo não usa a tabela da comissão: também vale com taxa 8% ou 0% (sem administração).
+SELECT pg_temp.ok(round(2200::numeric / 2, 2) = 1100 AND round(3000::numeric / 2, 2) = 1500,
+  'regra do banco: aluguel 2200/taxa 8% = 1100; aluguel 3000/taxa 0% = 1500');
+SELECT pg_temp.as_user(pg_temp.id('con')::text);
+SELECT pg_temp.ok((public.locacao_lancamento_salvar(pg_temp.id('L'), jsonb_build_object('aluguel', '2200', 'taxa_adm', '8',
+  'parceria', 'externa', 'parceria_imobiliaria', 'Imob Parceira (fictícia)', 'parceria_corretor', 'Corretor Parceiro (fictício)',
+  'parceria_creci', '12345-F', 'parceria_lado', 'captador'))->>'ok')::boolean, 'aluguel/taxa atualizados sem mudar parceiro');
+SELECT pg_temp.as_user(pg_temp.id('fin')::text);
+SELECT pg_temp.ok((public.locacao_parceiros_pagar()->'itens'->0->>'valor_parceiro')::numeric = 1100
+  AND (pg_temp.pag('L')).locacao_id IS NOT NULL, 'RPC: aluguel 2200/taxa 8% paga 1100 e preserva dados de pagamento');
 SELECT pg_temp.ok(pg_temp.eventos('L') LIKE '%Dados de pagamento do parceiro registrados%'
   AND pg_temp.eventos('L') NOT LIKE '%11222333000181%' AND pg_temp.eventos('L') NOT LIKE '%52998224725%'
   AND pg_temp.eventos('L') NOT LIKE '%12345-6%' AND pg_temp.eventos('L') NOT LIKE '%parceiro@exemplo%',

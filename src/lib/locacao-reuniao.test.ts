@@ -168,7 +168,7 @@ describe("item 6 — lançamento da Fernanda na comissão", () => {
     expect(v).toEqual({ aluguel: 3000, taxaAdm: 8, parceria: true, lancado: true });
     const r = calcularComissao(v, cfg);
     expect(r.base).toBe(1500);
-    expect(r.parceiro).toBe(600);
+    expect(r.parceiro).toBe(1500); // parceiro = metade de 1 aluguel (t_45d1a6eb)
   });
   it("lançamento inválido é ignorado", () => {
     expect(lerLancamentoResumo(null)).toBeNull();

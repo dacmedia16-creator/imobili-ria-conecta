@@ -146,12 +146,17 @@ describe("dados de pagamento", () => {
 });
 
 describe("Financeiro — valor do parceiro", () => {
-  it("mesma regra da aba Comissão (calcularComissao → parceiro)", () => {
-    expect(valorParceiro(3000, 10, CONFIG_PADRAO)).toBe(
-      calcularComissao({ aluguel: 3000, taxaAdm: 10, parceria: true }, CONFIG_PADRAO).parceiro,
-    );
-    expect(valorParceiro(3000, 10, CONFIG_PADRAO)).toBe(750);
-    expect(valorParceiro(3000, 10, { ...CONFIG_PADRAO, parceriaDividePorDois: false })).toBe(0);
+  it("metade de 1 aluguel independente da taxa/administração e sem alterar comissão da casa", () => {
+    expect(valorParceiro(3000)).toBe(1500); // 10% com administração
+    expect(valorParceiro(2200)).toBe(1100); // 8% com administração
+    expect(valorParceiro(3000)).toBe(1500); // sem administração (taxa 0)
+    expect(valorParceiro(2200.01)).toBe(1100.01); // arredonda centavos
+    // Aba Comissão mostra o mesmo valor; o lado da casa continua pela tabela da taxa.
+    const c = calcularComissao({ aluguel: 3000, taxaAdm: 10, parceria: true }, CONFIG_PADRAO);
+    expect(c.parceiro).toBe(1500);
+    expect(c.totalLado).toBe(750);
+    expect(calcularComissao({ aluguel: 2200, taxaAdm: 8, parceria: true }, CONFIG_PADRAO).parceiro).toBe(1100);
+    expect(calcularComissao({ aluguel: 3000, taxaAdm: 10, parceria: false }, CONFIG_PADRAO).parceiro).toBe(0);
   });
   it("lista: valor calculado e pagamento lido", () => {
     const r = lerParceirosPagar({
@@ -160,8 +165,9 @@ describe("Financeiro — valor do parceiro", () => {
         {
           id: "l1",
           codigo: "LOC-0001",
-          aluguel: 2000,
+          aluguel: 2200,
           taxa_adm: 8,
+          valor_parceiro: 1100,
           parceria: "externa",
           parceria_lado: "locatario",
           parceria_imobiliaria: "Imob",
@@ -170,7 +176,7 @@ describe("Financeiro — valor do parceiro", () => {
         },
       ],
     });
-    expect(r.itens[0].valorParceiro).toBe(400);
+    expect(r.itens[0].valorParceiro).toBe(1100);
     expect(r.itens[0].lado).toBe("locatario");
     expect(r.itens[0].encerrada).toBe(true);
     expect(r.itens[0].pagamento?.documento).toBe("529.982.247-25");

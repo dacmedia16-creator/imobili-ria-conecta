@@ -152,7 +152,7 @@ export function LocacaoFinanceiro() {
 }
 
 // --- Pagamento a parceiros (t_756c1c63) -----------------------------------------------------------------------------
-// Locações com parceria lançada pela vistoria: valor do parceiro (mesma regra da aba Comissão) + dados de pagamento.
+// Locações com parceria lançada pela vistoria: metade de 1 aluguel para o parceiro + dados de pagamento.
 // O banco (locacao_parceiros_pagar) só responde ao Financeiro da locação e à gestão.
 function Parceiros() {
   const [dados, setDados] = useState<{ itens: ParceiroPagar[] } | null>(null);
@@ -178,9 +178,8 @@ function Parceiros() {
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Pagamento a parceiros</CardTitle>
         <p className="text-xs text-muted-foreground">
-          Valor do parceiro = mesma regra da aba Comissão (aluguel ÷ 2 × % da tabela pela taxa; ex.:
-          taxa 10% → 50%) <AConfirmar />. CPF/CNPJ, PIX e conta só aparecem para o Financeiro da
-          locação e a gestão.
+          Valor do parceiro = metade de 1 aluguel. O parceiro não recebe administração. CPF/CNPJ,
+          PIX e conta só aparecem para o Financeiro da locação e a gestão.
           {semDados > 0 ? ` ${semDados} sem dados de pagamento.` : ""}
         </p>
       </CardHeader>

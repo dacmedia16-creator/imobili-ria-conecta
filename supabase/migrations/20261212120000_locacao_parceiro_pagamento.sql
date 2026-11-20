@@ -17,7 +17,7 @@
 --     (administrador, administrador principal, staff). Corretor, vistoria, gestora, contratos e o Financeiro global NÃO.
 --     Nenhuma lista, detalhe, link de cliente, consulta pública ou "Consultar imóvel" lê essa tabela.
 --  4) locacao_parceiros_pagar(): lista do Financeiro com os lançamentos em parceria + dados de pagamento; o valor do
---     parceiro é calculado na tela com a mesma regra da aba Comissão (calcularComissao → parceiro).
+--     parceiro é metade de 1 aluguel, independente da taxa. A comissão interna não muda.
 -- Funções redefinidas (o rollback devolve o texto exato de produção): locacao_lancamento_ler, locacao_lancamento_salvar.
 -- Locações e lançamentos existentes não mudam (colunas novas vazias; nenhum preenchimento retroativo).
 BEGIN;
@@ -290,7 +290,7 @@ END $$;
 REVOKE ALL ON FUNCTION public.locacao_parceiro_pag_salvar(uuid, jsonb) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.locacao_parceiro_pag_salvar(uuid, jsonb) TO authenticated;
 
--- Lista do Financeiro: lançamentos em parceria (o valor sai na tela pela regra da Comissão, com a config devolvida).
+-- Lista do Financeiro: lançamentos em parceria. O parceiro recebe 1/2 aluguel (não a comissão nem a administração).
 CREATE OR REPLACE FUNCTION public.locacao_parceiros_pagar() RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO '' AS $$
 DECLARE _org uuid := public.locacao_ctx();
@@ -302,7 +302,8 @@ BEGIN
     'config', to_jsonb(public.locacao_cfg(_org)) - 'organization_id' - 'atualizado_por',
     'itens', (SELECT coalesce(jsonb_agg(jsonb_build_object(
         'id', l.id, 'codigo', 'LOC-' || lpad(l.numero::text, 4, '0'), 'endereco', l.endereco, 'chave_em', l.chave_em,
-        'etapa', l.etapa, 'situacao', l.situacao, 'aluguel', x.aluguel, 'taxa_adm', x.taxa_adm, 'parceria', x.parceria,
+        'etapa', l.etapa, 'situacao', l.situacao, 'aluguel', x.aluguel, 'taxa_adm', x.taxa_adm,
+        'valor_parceiro', round(x.aluguel / 2, 2), 'parceria', x.parceria,
         'parceria_lado', x.parceria_lado, 'parceria_unidade', x.parceria_unidade, 'parceria_imobiliaria', x.parceria_imobiliaria,
         'parceria_corretor', x.parceria_corretor, 'parceria_creci', x.parceria_creci,
         'pagamento', public.locacao_parceiro_pag_json(p))

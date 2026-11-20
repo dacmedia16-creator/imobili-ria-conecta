@@ -739,7 +739,8 @@ export function calcularComissao(
   const temCoord = !l.parceria || cfg.coordenadorNaParceria;
   const coordenador = temCoord ? centavos((totalLado * cfg.pctCoordenador) / 100) : 0;
   const corretor = cfg.coordenadorSaiDoCorretor ? centavos(totalLado - coordenador) : totalLado;
-  const parceiro = divide ? centavos(((l.aluguel / 2) * pct) / 100) : 0;
+  // Parceiro: sempre metade de 1 aluguel, sem administração e sem a tabela da taxa (Denis, 20/11; t_45d1a6eb).
+  const parceiro = l.parceria ? centavos(l.aluguel / 2) : 0;
   return { pct, base: centavos(base), totalLado, coordenador, corretor, parceiro };
 }
 

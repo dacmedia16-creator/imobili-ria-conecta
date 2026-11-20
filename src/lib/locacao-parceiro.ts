@@ -1,7 +1,7 @@
 // Dados de pagamento do parceiro na parceria da locação (t_756c1c63; migration 20261212120000).
 // Regras puras usadas pelas telas. O banco repete todas as validações e só deixa ler/gravar o Financeiro da locação e a
 // gestão (locacao_parceiro_pag_pode); o corretor recebe {pode:false} sem dado nenhum.
-import { calcularComissao, cpfValido, lerConfig, type ConfigLocacao } from "@/lib/locacao";
+import { cpfValido, lerConfig, type ConfigLocacao } from "@/lib/locacao";
 
 export type ParceriaLado = "captador" | "locatario";
 export const PARCERIA_LADO_LABEL: Record<ParceriaLado, string> = {
@@ -156,12 +156,9 @@ export type ParceiroPagar = {
   pagamento: PagamentoValores | null;
 };
 
-/**
- * Valor do parceiro = mesma regra da aba Comissão (calcularComissao → parceiro), com os valores do lançamento.
- * Se a regra "Parceria: aluguel ÷ 2 × %" estiver desligada nas Regras, o valor é 0 (como na Comissão).
- */
-export function valorParceiro(aluguel: number, taxaAdm: number, cfg: ConfigLocacao): number {
-  return calcularComissao({ aluguel, taxaAdm, parceria: true }, cfg).parceiro;
+/** Valor a pagar ao parceiro: metade do aluguel, nunca da taxa de administração nem da comissão interna. */
+export function valorParceiro(aluguel: number): number {
+  return Math.round(aluguel * 50) / 100;
 }
 
 export function lerParceirosPagar(raw: unknown): { config: ConfigLocacao; itens: ParceiroPagar[] } {
@@ -185,7 +182,7 @@ export function lerParceirosPagar(raw: unknown): { config: ConfigLocacao; itens:
       parceiroNome: parceria === "remax" ? t(i.parceria_unidade) : t(i.parceria_imobiliaria),
       corretor: t(i.parceria_corretor),
       creci: t(i.parceria_creci),
-      valorParceiro: valorParceiro(aluguel, taxaAdm, config),
+      valorParceiro: i.valor_parceiro == null ? valorParceiro(aluguel) : Number(i.valor_parceiro),
       pagamento: lerPagamento(i.pagamento),
     } satisfies ParceiroPagar;
   });

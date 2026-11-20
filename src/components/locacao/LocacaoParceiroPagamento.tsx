@@ -29,7 +29,7 @@ export function LocacaoParceiroPagamento({
   onSalvo,
 }: {
   id: string;
-  /** Valor do parceiro (calcularComissao → parceiro), quando a tela já tem a regra. */
+  /** Metade de 1 aluguel, sem participação na administração ou comissão interna. */
   valor?: number;
   onSalvo?: () => void;
 }) {
