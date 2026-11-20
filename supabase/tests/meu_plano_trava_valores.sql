@@ -60,6 +60,11 @@ SELECT pg_temp.ok(public.carreira_plano_trava('{"mt.tCapt":"10","mt.tVenda":"10"
   'trava: ticket baixo so avisa (nao bloqueia no servidor)');
 SELECT pg_temp.ok(public.carreira_plano_trava('{}') IS NULL AND public.carreira_plano_trava(NULL) IS NULL, 'trava: vazio passa');
 SELECT pg_temp.ok(public.carreira_plano_trava('{"mt.novas":" 24 ","mt.creFim":24}') IS NULL, 'trava: numero JSON e espacos passam');
+SELECT pg_temp.ok(public.carreira_plano_trava(jsonb_build_object('mt.tCapt', '42' || chr(160), 'mt.tVenda', E'\t10\n')) IS NULL,
+  'trava: NBSP, tab e quebra de linha nas pontas passam (igual a tela)');
+SELECT pg_temp.ok(public.carreira_plano_trava('{"mt.canc":-5}') LIKE '%não é um número inteiro%', 'trava: numero JSON negativo recusa');
+SELECT pg_temp.ok(public.carreira_plano_trava('{"mt.tCapt":"44","mt.tVenda":"40","d.ticket":"1.000.000","m.pct":"6"}') LIKE 'Meta de comissão%',
+  'trava: ticket do diagnostico (m.ticket em branco) entra na conta do VGC');
 
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.as_user(:'c1');

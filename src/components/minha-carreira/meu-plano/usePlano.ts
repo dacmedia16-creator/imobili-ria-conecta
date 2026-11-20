@@ -248,7 +248,10 @@ export function usePlano(userId: string) {
     sincronizando.current = true;
     try {
       setPlano((p) => (p ? { ...p, assinado_corretor_em: data as string } : p));
-      if (m) await usarMeta(m, true);
+      if (m)
+        await usarMeta(m, true).catch((e: Error) => {
+          throw new Error(`Pacto assinado, mas a meta oficial não foi gravada: ${e.message}`);
+        });
     } finally {
       sincronizando.current = false;
     }
@@ -261,7 +264,7 @@ export function usePlano(userId: string) {
     if (!plano?.assinado_corretor_em || status !== "ok" || sincronizando.current) return;
     // Valor fora do possível (t_125c4dd3): a meta oficial NÃO acompanha até o corretor corrigir. O banco também
     // recusa (carreira_plano_usar_meta); aqui evita a chamada que daria erro.
-    if (conferirPlano(plano.respostas, taxasPadrao).bloqueiaAssinatura) return;
+    if (conferirPlano(plano.respostas, taxasPadrao).bloqueiaMeta) return;
     const m = metaOficialDoPlano(calc(plano.respostas, taxasPadrao));
     if (!m || metaIgual(plano.meta_oficial, m)) return;
     sincronizando.current = true;

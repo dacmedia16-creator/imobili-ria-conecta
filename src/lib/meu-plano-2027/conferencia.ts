@@ -54,8 +54,10 @@ export type AvisoPlano = {
 };
 export type ConferenciaPlano = {
   avisos: AvisoPlano[];
-  /** Algum bloqueio: não assina nem grava a meta oficial (rascunho continua salvo). */
+  /** Algum bloqueio: não assina (rascunho continua salvo). */
   bloqueiaAssinatura: boolean;
+  /** Bloqueio em valor que entra na meta: não grava/atualiza a meta oficial. */
+  bloqueiaMeta: boolean;
   /** Algum aviso em valor que entra na meta: marca "plano com valor a conferir" nos painéis. */
   aConferir: boolean;
 };
@@ -67,7 +69,7 @@ const texto = (v: Valor) =>
 /** Texto digitado é número inteiro sem ponto/vírgula ("42", " 7 "). Vazio = true (não avisa). */
 export function textoInteiro(v: Valor): boolean {
   if (v === undefined || v === null || v === "" || typeof v === "boolean") return true;
-  if (typeof v === "number") return Number.isInteger(v);
+  if (typeof v === "number") return Number.isInteger(v) && v >= 0;
   const s = v.trim();
   return s === "" || /^\d+$/.test(s);
 }
@@ -141,7 +143,8 @@ export function conferirPlano(
 ): ConferenciaPlano {
   const r = S ?? {};
   const avisos: AvisoPlano[] = [];
-  if (Object.keys(r).length === 0) return { avisos, bloqueiaAssinatura: false, aConferir: false };
+  if (Object.keys(r).length === 0)
+    return { avisos, bloqueiaAssinatura: false, bloqueiaMeta: false, aConferir: false };
   const C = calc(r, padrao);
   const usado: Record<string, number> = {
     "mt.tCapt": C.tCapt,
@@ -213,6 +216,7 @@ export function conferirPlano(
   return {
     avisos,
     bloqueiaAssinatura: avisos.some((a) => a.nivel === "bloqueio"),
+    bloqueiaMeta: avisos.some((a) => a.nivel === "bloqueio" && a.naMeta),
     // Só marca plano que tem meta (plano sem VGC não entra em soma nenhuma).
     aConferir: ok(C.vgc) && avisos.some((a) => a.naMeta),
   };

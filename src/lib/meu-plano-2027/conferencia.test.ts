@@ -255,8 +255,32 @@ describe("inteiro × decimal e limites exatos", () => {
     expect(campos({ "mt.novas": "600" })).toEqual(["bloqueio:mt.novas"]);
   });
   it("plano vazio não avisa nem marca", () => {
-    expect(conferirPlano({})).toEqual({ avisos: [], bloqueiaAssinatura: false, aConferir: false });
+    expect(conferirPlano({})).toEqual({
+      avisos: [],
+      bloqueiaAssinatura: false,
+      bloqueiaMeta: false,
+      aConferir: false,
+    });
     expect(conferirPlano(null).aConferir).toBe(false);
+  });
+});
+
+describe("ajustes da revisão", () => {
+  it("número JSON negativo ou decimal bloqueia (igual ao banco)", () => {
+    expect(textoInteiro(-5)).toBe(false);
+    expect(campos({ "mt.canc": -5 })).toEqual(["bloqueio:mt.canc"]);
+  });
+  it("bloqueio em campo fora da meta trava a assinatura, mas não a meta oficial", () => {
+    const c = conferirPlano({
+      "mt.tCapt": "10",
+      "mt.tVenda": "10",
+      "mt.comMedia": "10000",
+      "mt.creFim": "42.000,00",
+    });
+    expect(c.bloqueiaAssinatura).toBe(true);
+    expect(c.bloqueiaMeta).toBe(false);
+    const d = conferirPlano({ "mt.tCapt": "42.000,00", "mt.tVenda": "1", "mt.comMedia": "10000" });
+    expect([d.bloqueiaAssinatura, d.bloqueiaMeta]).toEqual([true, true]);
   });
 });
 

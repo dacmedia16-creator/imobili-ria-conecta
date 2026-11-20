@@ -39,6 +39,10 @@ export function erroPlano(msg: string | undefined | null): string {
   if (/Login necessário/i.test(m)) return "Sua sessão expirou. Entre de novo.";
   if (/ainda não assinou/i.test(m)) return "O corretor ainda não assinou o pacto.";
   if (/Preencha o pacto/i.test(m)) return "Preencha o pacto antes de assinar.";
+  // Trava de valores (t_125c4dd3): o banco explica o motivo depois dos dois pontos.
+  const trava = m.match(/Plano com valor fora do limite:\s*(.+)$/i);
+  if (trava) return trava[1];
+  if (/Meta inválida/i.test(m)) return "A meta tem valor fora do permitido. Confira a tela Metas.";
   if (/líder de equipe vê a equipe/i.test(m)) return "Você ainda não lidera nenhuma equipe.";
   if (/Failed to fetch|NetworkError|network/i.test(m)) return "Sem conexão. Tentando de novo…";
   return m || "Não foi possível salvar.";

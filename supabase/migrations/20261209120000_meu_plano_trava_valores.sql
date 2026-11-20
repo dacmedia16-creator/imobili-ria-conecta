@@ -29,8 +29,9 @@ REVOKE ALL ON FUNCTION public.carreira_plano_num(jsonb) FROM PUBLIC, anon, authe
 GRANT EXECUTE ON FUNCTION public.carreira_plano_num(jsonb) TO service_role;
 
 -- Motivo para NÃO assinar (null = pode). Só olha o que foi DIGITADO; sugestões em branco a tela confere.
--- shortcut: a meta de comissão só é conferida aqui quando transações e comissão média (ou ticket e %) estão
--- digitadas; com sugestão em branco, quem segura é carreira_plano_usar_meta (comissão > R$ 5 mi).
+-- shortcut: a meta de comissão só é conferida aqui quando a captação está digitada e há comissão média (digitada
+-- ou ticket × %). Transação SUGERIDA (em branco) depende do estilo de vida (despesas ÷ faixa) e não é refeita no
+-- banco: nesse caso a tela trava e, se alguém pular a tela, carreira_plano_usar_meta recusa a meta acima de R$ 5 mi.
 CREATE OR REPLACE FUNCTION public.carreira_plano_trava(_r jsonb)
 RETURNS text LANGUAGE plpgsql IMMUTABLE SET search_path TO '' AS $function$
 DECLARE
@@ -43,7 +44,8 @@ BEGIN
   FOR _k IN SELECT jsonb_object_keys(_nomes) LOOP
     _v := _r -> _k;
     IF _v IS NULL OR jsonb_typeof(_v) NOT IN ('number', 'string') THEN CONTINUE; END IF;
-    _t := btrim(_v #>> '{}');
+    -- Tira espaço comum, tab, quebra de linha, NBSP e BOM das pontas (igual ao trim() da tela).
+    _t := regexp_replace(_v #>> '{}', '^[\s' || chr(160) || chr(65279) || ']+|[\s' || chr(160) || chr(65279) || ']+$', '', 'g');
     IF _t = '' THEN CONTINUE; END IF;
     IF _t !~ '^\d+$' THEN
       RETURN format('%s: "%s" não é um número inteiro. Corrija na tela Metas.', _nomes ->> _k, left(_t, 20));
@@ -57,7 +59,9 @@ BEGIN
   _tv := public.carreira_plano_num(_r -> 'mt.tVenda');
   _cm := public.carreira_plano_num(_r -> 'mt.comMedia');
   IF _cm IS NULL THEN
-    _tk := public.carreira_plano_num(_r -> 'm.ticket');
+    -- Mesma ordem da conta (calc): ticket digitado ou, em branco, o do diagnóstico (> 0).
+    _tk := coalesce(public.carreira_plano_num(_r -> 'm.ticket'),
+                    nullif(greatest(public.carreira_plano_num(_r -> 'd.ticket'), 0), 0));
     _pct := public.carreira_plano_num(_r -> 'm.pct');
     IF _tk > 0 AND _pct > 0 THEN _cm := _tk * _pct / 100; END IF;
   END IF;

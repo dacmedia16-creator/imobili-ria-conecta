@@ -230,7 +230,7 @@ export function MeuPlano({
       toast.error("Complete as telas anteriores para calcular o VGC.");
       return;
     }
-    if (conf.bloqueiaAssinatura) {
+    if (conf.bloqueiaMeta) {
       toast.error(
         "Corrija os valores marcados em vermelho na tela Metas antes de usar como meta oficial.",
       );
@@ -433,10 +433,10 @@ export function MeuPlano({
             {meta.vgv ? ` · VGV ${fmt.brl0(meta.vgv)}` : ""}.
           </p>
         ) : null}
-        {travaAssinatura}
+        {conf.bloqueiaMeta ? travaAssinatura : null}
         <Button
           className="mt-2 w-full bg-emerald-700 text-white hover:bg-emerald-800"
-          disabled={ocupado || !meta || conf.bloqueiaAssinatura}
+          disabled={ocupado || !meta || conf.bloqueiaMeta}
           onClick={() => void usarMeta(false)}
           data-testid="usar-meta"
         >
