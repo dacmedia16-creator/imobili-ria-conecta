@@ -26,6 +26,7 @@ import { erroPlano, planoDb } from "@/lib/meu-plano-2027/modulo";
 import { metasDoCalc, snapshotMudou } from "@/lib/meta-atividades";
 import { PlanoCtx, Aviso, Bloco, Stat } from "./campos";
 import { CorpoTela } from "./telas";
+import { conferirPlano } from "@/lib/meu-plano-2027/conferencia";
 import { Leitor, PaginaOriginal, destinoExercicios } from "./Leitor";
 import { usePlano, type StatusSalvar } from "./usePlano";
 import { BotaoBaixarPlano } from "./BaixarPdf";
@@ -138,6 +139,8 @@ export function MeuPlano({
   const [ocupado, setOcupado] = useState(false);
   const S: Respostas = plano?.respostas ?? {};
   const C = useMemo(() => calc(S, h.taxasPadrao), [S, h.taxasPadrao]);
+  // Trava contra valores absurdos (t_125c4dd3): bloqueio = não assina nem grava a meta oficial.
+  const conf = useMemo(() => conferirPlano(S, h.taxasPadrao), [S, h.taxasPadrao]);
 
   // Meta x atividades (t_09c29e96): cópia das metas da semana (campos ms.*) para o team leader, que não
   // lê o plano. Atualiza junto com o plano, a partir da mesma calc().
@@ -227,6 +230,12 @@ export function MeuPlano({
       toast.error("Complete as telas anteriores para calcular o VGC.");
       return;
     }
+    if (conf.bloqueiaMeta) {
+      toast.error(
+        "Corrija os valores marcados em vermelho na tela Metas antes de usar como meta oficial.",
+      );
+      return;
+    }
     setOcupado(true);
     try {
       await h.enviar();
@@ -253,6 +262,12 @@ export function MeuPlano({
   }
 
   async function assinar() {
+    if (conf.bloqueiaAssinatura) {
+      toast.error(
+        "Corrija os valores marcados em vermelho antes de assinar. O plano continua salvo.",
+      );
+      return;
+    }
     setOcupado(true);
     try {
       const r = await h.assinar();
@@ -353,6 +368,26 @@ export function MeuPlano({
     (Math.round(Number(mo.meta_comissao)) !== Math.round(meta.comissao) ||
       Number(mo.meta_vendas) !== meta.vendas);
 
+  const bloqueios = conf.avisos.filter((a) => a.nivel === "bloqueio");
+  const travaAssinatura = bloqueios.length ? (
+    <div
+      role="alert"
+      data-testid="bloqueio-assinatura"
+      className="mt-2 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-[13px] text-red-900 dark:bg-red-950/40 dark:text-red-200"
+    >
+      <b>Não dá para {plano.assinado_corretor_em ? "atualizar a meta" : "assinar"} ainda.</b> O
+      plano está salvo, mas tem valor fora do possível:
+      <ul className="mt-1 list-disc space-y-0.5 pl-5">
+        {bloqueios.map((a) => (
+          <li key={a.campo + a.msg}>{a.msg}</li>
+        ))}
+      </ul>
+      <button type="button" className="mt-1 font-semibold underline" onClick={() => irTela("p32")}>
+        Corrigir na tela Metas
+      </button>
+    </div>
+  ) : null;
+
   const extras = {
     irPara: (id: string) => irTela(id),
     p15: (
@@ -398,9 +433,10 @@ export function MeuPlano({
             {meta.vgv ? ` · VGV ${fmt.brl0(meta.vgv)}` : ""}.
           </p>
         ) : null}
+        {conf.bloqueiaMeta ? travaAssinatura : null}
         <Button
           className="mt-2 w-full bg-emerald-700 text-white hover:bg-emerald-800"
-          disabled={ocupado || !meta}
+          disabled={ocupado || !meta || conf.bloqueiaMeta}
           onClick={() => void usarMeta(false)}
           data-testid="usar-meta"
         >
@@ -426,9 +462,10 @@ export function MeuPlano({
               : "pendente: assina no painel de gestão"}
           </span>
         </div>
+        {plano.assinado_corretor_em ? null : travaAssinatura}
         <Button
           className="mt-1 w-full"
-          disabled={ocupado || !!plano.assinado_corretor_em}
+          disabled={ocupado || !!plano.assinado_corretor_em || conf.bloqueiaAssinatura}
           onClick={() => void assinar()}
           data-testid="assinar-pacto"
         >
