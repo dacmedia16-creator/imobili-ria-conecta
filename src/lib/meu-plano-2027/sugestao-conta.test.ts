@@ -156,12 +156,13 @@ describe("foco: digitar num campo vazio com sugestão não perde o cursor (t_f99
     return createElement(PlanoCtx.Provider, { value: ctx }, createElement(CorpoTela, { id }));
   }
 
-  const casos: [string, string][] = [
-    ["p27", "m.ticket"],
-    ["p32", "mt.comMedia"],
-    ["p32", "mt.creFim"],
+  // Campos de quantidade aceitam no máximo 500 (trava t_125c4dd3): neles digita "120".
+  const casos: [string, string, string][] = [
+    ["p27", "m.ticket", "12000"],
+    ["p32", "mt.comMedia", "12000"],
+    ["p32", "mt.creFim", "120"],
   ];
-  for (const [id, k] of casos)
+  for (const [id, k, digita] of casos)
     it(`${k}: vários caracteres seguidos ficam no mesmo campo, com foco`, () => {
       const { container } = render(createElement(TelaViva, { id, inicial: S }));
       const sel = `input[data-k="${k}"]`;
@@ -169,13 +170,13 @@ describe("foco: digitar num campo vazio com sugestão não perde o cursor (t_f99
       expect(screen.getByTestId(`selo-sugerido-${k}`)).toBeTruthy();
       inp.focus();
       let txt = "";
-      for (const c of "12000") {
+      for (const c of digita) {
         txt += c;
         fireEvent.change(document.activeElement as HTMLInputElement, { target: { value: txt } });
         expect(container.querySelector(sel)).toBe(inp); // mesmo elemento: não foi recriado
         expect(document.activeElement).toBe(inp); // foco continua no campo
       }
-      expect(inp.value).toBe("12000");
+      expect(inp.value).toBe(digita);
       expect(screen.queryByTestId(`selo-sugerido-${k}`)).toBeNull();
       // Apagar volta a mostrar a sugestão no MESMO campo, ainda com foco.
       fireEvent.change(inp, { target: { value: "" } });
