@@ -2,7 +2,7 @@
 -- proprietário pelo WhatsApp (t_dfc8daf2; pedido de Denis 20/11/2026, tópico 6238).
 -- CONSTRUÇÃO EM TESTE: aplicar em produção só junto com o lote da Locação, depois da revisão e do "pode publicar".
 --
--- Rollback: supabase/rollback/20261213120000_locacao_documentos_finais.sql
+-- Rollback: supabase/rollback/20261214130000_locacao_documentos_finais.sql
 -- Teste:    supabase/tests/run-locacao-docs-finais.sh (homologação, transação desfeita; nunca produção).
 --
 -- O que muda:

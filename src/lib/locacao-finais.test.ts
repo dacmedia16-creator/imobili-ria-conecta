@@ -45,10 +45,10 @@ import {
 import { enviarFinalLocacao } from "./locacao-finais.functions";
 
 const MIG = readFileSync(
-  "supabase/migrations/20261213120000_locacao_documentos_finais.sql",
+  "supabase/migrations/20261214130000_locacao_documentos_finais.sql",
   "utf8",
 );
-const RB = readFileSync("supabase/rollback/20261213120000_locacao_documentos_finais.sql", "utf8");
+const RB = readFileSync("supabase/rollback/20261214130000_locacao_documentos_finais.sql", "utf8");
 const DOC = "11111111-1111-4111-8111-111111111111";
 
 describe("regras puras", () => {

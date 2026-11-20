@@ -1,4 +1,4 @@
--- Reverte 20261213120000_locacao_documentos_finais; rode só após retirar o frontend novo.
+-- Reverte 20261214130000_locacao_documentos_finais; rode só após retirar o frontend novo.
 BEGIN;
 CREATE OR REPLACE FUNCTION public.locacao_detalhe(_id uuid) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO '' AS $$

@@ -5,8 +5,8 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 PGCONN="${PGCONN:?Use a conexão da homologação; produção é proibida.}"
 case "$PGCONN" in *xvvymgurpchhlmbpjbgc*) echo 'PRODUÇÃO RECUSADA'; exit 1;; esac
-MIG="$ROOT/supabase/migrations/20261213120000_locacao_documentos_finais.sql"
-RB="$ROOT/supabase/rollback/20261213120000_locacao_documentos_finais.sql"
+MIG="$ROOT/supabase/migrations/20261214130000_locacao_documentos_finais.sql"
+RB="$ROOT/supabase/rollback/20261214130000_locacao_documentos_finais.sql"
 strip() { grep -v -E '^(BEGIN|COMMIT|ROLLBACK);[[:space:]]*$' "$1"; }
 FP="SELECT 'FP=' || md5(coalesce((SELECT string_agg(x, ',' ORDER BY x) FROM (
  SELECT 'fn:'||p.oid::regprocedure::text||':'||md5(pg_get_functiondef(p.oid)) x FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.prokind='f'
