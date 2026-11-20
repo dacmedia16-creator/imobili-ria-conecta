@@ -5,7 +5,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { errorMessage } from "@/lib/errors";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
-import { brl } from "@/lib/exclusive-captures-dashboard";
 import { ANO_PLANO } from "@/lib/meu-plano-2027/telas";
 import type { TaxasFunil } from "@/lib/meu-plano-2027/regras";
 import {
@@ -45,6 +44,15 @@ const db = supabase as unknown as SupabaseClient;
 
 const MES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const pct = (x: number | null) => (x == null ? "–" : `${Math.round(x * 100)}%`);
+/** Reais SEMPRE com centavos nesta tela (pedido de Denis 20/11, t_57737e80): "R$ 3.989.416,00".
+ *  Local de propósito: o brl() de exclusive-captures-dashboard (sem centavos) é usado por outras telas. */
+const brl = (n: number) =>
+  n.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 const brlOuTraco = (v: number | null | undefined) => (v == null ? "–" : brl(v));
 const inteiro = (v: number | null | undefined) =>
   v == null ? "–" : Math.round(v).toLocaleString("pt-BR");
