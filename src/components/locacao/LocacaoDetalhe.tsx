@@ -42,6 +42,7 @@ import {
   lerContexto,
   lerDetalhe,
   textoParado,
+  incluidaNoCondominio,
   titularidadePendente,
   tomParado,
   type ContextoLocacao,
@@ -1053,6 +1054,21 @@ function PosAssinatura({
           <CardContent className="space-y-2">
             {SERVICOS.map((s) => {
               const t = p.tit[s.key];
+              // t_778e6bef: conta incluída no condomínio não tem troca de titularidade.
+              if (incluidaNoCondominio(s.key, d.contasCondominio))
+                return (
+                  <div
+                    key={s.key}
+                    className="flex flex-wrap items-center gap-2 text-sm"
+                    data-testid={`tit-condominio-${s.key}`}
+                  >
+                    <span aria-hidden>➖</span>
+                    <span className="w-28">{s.label}</span>
+                    <span className="text-xs text-muted-foreground">
+                      não se aplica (incluída no condomínio)
+                    </span>
+                  </div>
+                );
               return (
                 <div key={s.key} className="flex flex-wrap items-center gap-2 text-sm">
                   <span aria-hidden>{!t.aplica ? "➖" : t.protocolo ? "✅" : "⚠️"}</span>
@@ -1200,7 +1216,7 @@ function ComissaoResumo({ d, ctx, souCorretor, busy, rodar }: P & { souCorretor:
         }
       : null;
   const r = calcularComissao(valoresParaComissao({ ...d, lancamento }), ctx.config);
-  const pend = titularidadePendente(d.pos.tit);
+  const pend = titularidadePendente(d.pos.tit, d.contasCondominio);
   return (
     <div className="space-y-2">
       <Aviso tom="green">
