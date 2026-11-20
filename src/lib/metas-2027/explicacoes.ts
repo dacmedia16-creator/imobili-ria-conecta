@@ -175,12 +175,12 @@ export const EXPLICACOES = {
   equipe_planos_assinados: ({ anoPlano }) =>
     e(
       "Planos assinados",
-      `Quantas pessoas da equipe já assinaram o Meu Plano ${anoPlano}, de quantas deveriam ter plano (corretores ativos + gestores/Team Leaders que vendem). Gestor/TL "vende" se tem plano ou teve venda ou captação nos últimos 12 meses.`,
+      `Quantas pessoas da equipe estão com o Meu Plano ${anoPlano} assinado agora (plano reaberto sai na hora), de quantas deveriam ter plano: corretores ativos + gestores/TLs que vendem. Gestor/TL "vende" se tem plano ou teve venda ou captação nos últimos 12 meses.`,
     ),
   equipe_preenchimento: () =>
     e(
       "Em preenchimento",
-      "Planos começados e ainda não assinados, e a soma das metas de comissão deles. Só informa: não entra na meta oficial nem no farol.",
+      "Planos começados e ainda não assinados (inclusive os reabertos), e a soma das metas de comissão deles. Só informa: não entra na meta oficial nem no farol.",
     ),
   equipe_parados: () =>
     e(
@@ -195,7 +195,7 @@ export const EXPLICACOES = {
   pessoa_plano: ({ anoPlano }) =>
     e(
       "Situação do plano",
-      `Assinado = o corretor assinou o Meu Plano ${anoPlano}; em preenchimento = começou e não assinou; sem plano = nem começou. Só o plano assinado vale como meta.`,
+      `Assinado = o corretor assinou o Meu Plano ${anoPlano}; em preenchimento = começou e não assinou, ou o plano foi reaberto pelo gestor/líder; sem plano = nem começou. Só o plano assinado vale como meta, e o botão "Reabrir plano" desfaz a assinatura sem apagar valores.`,
     ),
   pessoa_ano: () =>
     e(

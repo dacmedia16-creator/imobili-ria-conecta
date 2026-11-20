@@ -17,6 +17,8 @@ import { PlanoCtx, Bloco, Stat } from "./campos";
 import { Cockpit, CorpoTela } from "./telas";
 import { BotaoBaixarPlano } from "./BaixarPdf";
 import { OQueFalta } from "./OQueFalta";
+import { BotaoReabrirPlano } from "./ReabrirPlano";
+import { useAuth } from "@/lib/auth";
 
 type Membro = {
   user_id: string;
@@ -50,6 +52,7 @@ export function EquipePlano({
   const [erro, setErro] = useState<string | null>(null);
   const [taxas, setTaxas] = useState<TaxasFunil | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  const { user } = useAuth();
 
   const carregar = useCallback(async () => {
     setErro(null);
@@ -157,6 +160,15 @@ export function EquipePlano({
             ) : (
               <p className="text-xs text-muted-foreground">O corretor ainda não assinou.</p>
             )}
+            {/* Reabrir: broker (imobiliária) e TL (só a equipe dele; o banco confere). Nunca o próprio plano. */}
+            {m.assinado_corretor_em && m.user_id !== user?.id ? (
+              <div className="pt-2">
+                <BotaoReabrirPlano userId={m.user_id} nome={m.nome} aoReabrir={carregar} />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Desfaz a assinatura para o corretor corrigir o plano. Nenhum valor é apagado.
+                </p>
+              </div>
+            ) : null}
           </Bloco>
           <h3 className="pt-2 text-base font-semibold">Todas as respostas, página por página</h3>
           {ORDEM.filter((id) => id !== "p52").map((id) => {
@@ -210,6 +222,11 @@ export function EquipePlano({
                 <p className="truncate text-sm font-medium">{x.nome}</p>
                 <p className="text-xs text-muted-foreground">
                   {p.telas}/{p.total} telas ·{" "}
+                  {x.assinado_corretor_em
+                    ? "✅ assinado · "
+                    : x.updated_at || Object.keys(x.respostas).length
+                      ? "📝 em preenchimento · "
+                      : ""}
                   {x.updated_at ? `mexeu em ${quando(x.updated_at)}` : "não começou"}
                 </p>
                 <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">

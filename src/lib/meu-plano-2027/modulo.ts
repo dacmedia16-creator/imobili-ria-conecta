@@ -44,6 +44,12 @@ export function erroPlano(msg: string | undefined | null): string {
   if (trava) return trava[1];
   if (/Meta inválida/i.test(m)) return "A meta tem valor fora do permitido. Confira a tela Metas.";
   if (/líder de equipe vê a equipe/i.test(m)) return "Você ainda não lidera nenhuma equipe.";
+  if (/reabrir o seu próprio plano/i.test(m)) return "Você não pode reabrir o seu próprio plano.";
+  if (/líder da equipe reabre/i.test(m))
+    return "Só o gestor, o administrador ou o líder da equipe do corretor reabre o plano.";
+  if (/motivo da reabertura/i.test(m)) return "Escreva o motivo da reabertura (5 a 300 letras).";
+  if (/não está assinado/i.test(m))
+    return "Este plano já está em preenchimento (não está assinado).";
   if (/Failed to fetch|NetworkError|network/i.test(m)) return "Sem conexão. Tentando de novo…";
   return m || "Não foi possível salvar.";
 }
