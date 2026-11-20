@@ -160,6 +160,8 @@ describe("Painel de metas 2027 · Imobiliária", () => {
     expect(within(topo).getByTestId("meta-direcao").textContent).toMatch(/R\$\s?200\.000/);
     expect(within(topo).getByTestId("soma-assinados").textContent).toMatch(/R\$\s?120\.000/);
     expect(within(topo).getByTestId("soma-preenchimento").textContent).toMatch(/R\$\s?120\.000/);
+    for (const id of ["meta-direcao", "soma-assinados", "soma-preenchimento"])
+      expect(within(topo).getByTestId(`rotulo-vgc-${id}`).textContent).toBe("VGC (comissão do ano)");
     expect(within(topo).getByTestId("diferenca").textContent).toMatch(
       /Faltam R\$\s?80\.000 nos planos assinados.*\(60%\)/,
     );

@@ -387,6 +387,9 @@ function TopoMetas({
           <p className="text-2xl font-bold" data-testid="meta-direcao">
             {brlOuTraco(p.direcao?.comissao)}
           </p>
+          <p className="text-xs font-medium text-muted-foreground" data-testid="rotulo-vgc-meta-direcao">
+            VGC (comissão do ano)
+          </p>
           <p className="text-xs text-muted-foreground">Digitada pelo administrador</p>
         </div>
         <div className="min-w-0">
@@ -395,6 +398,9 @@ function TopoMetas({
           </p>
           <p className="text-2xl font-bold" data-testid="soma-assinados">
             {brlOuTraco(cc.somaAssinados)}
+          </p>
+          <p className="text-xs font-medium text-muted-foreground" data-testid="rotulo-vgc-soma-assinados">
+            VGC (comissão do ano)
           </p>
           <p className="text-xs text-muted-foreground">
             {p.total.soma.qtdAssinados} plano(s) assinado(s)
@@ -406,6 +412,9 @@ function TopoMetas({
           </p>
           <p className="text-2xl font-bold text-muted-foreground" data-testid="soma-preenchimento">
             {brlOuTraco(p.preenchimento.comissao)}
+          </p>
+          <p className="text-xs font-medium text-muted-foreground" data-testid="rotulo-vgc-soma-preenchimento">
+            VGC (comissão do ano)
           </p>
           <p className="text-xs text-muted-foreground">
             {p.total.soma.qtdPreenchimento} plano(s) ainda sem assinatura
