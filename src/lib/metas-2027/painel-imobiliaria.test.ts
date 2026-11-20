@@ -92,10 +92,21 @@ describe("painel da imobiliária — meta da direção × planos", () => {
     expect(p.comparacao.captacoes.diferenca).toBeNull();
   });
 
-  it("realizado inclui quem já saiu e % da direção = realizado ÷ direção", () => {
+  it("meta oficial × só quem assinou; meta da direção × imobiliária INTEIRA (inclui quem já saiu)", () => {
     const p = painel();
-    expect(p.total.realizadoAno.comissao).toBe(33000);
+    // a (12 mil + 9 mil) + c (7 mil) assinaram.
+    expect(p.total.realizadoAno.comissao).toBe(28000);
+    expect(p.total.avaliacao.indicadores.comissao.realAno).toBe(28000);
+    // Quem já saiu (ex, 5 mil) fica à parte e conta para a direção.
+    expect(p.total.naoAssinados.realizado.comissao).toBe(5000);
+    expect(p.total.naoAssinados.pessoas).toBe(1);
+    expect(p.realizadoCasa).toBe(33000);
     expect(p.pctDirecao).toBe(Math.round((33000 / 1400000) * 10000) / 10000);
+  });
+
+  it("antes de jan/2027: sem % da direção (o realizado ainda é do ano anterior)", () => {
+    const p = painel({ hoje: "2026-11-20" });
+    expect(p.pctDirecao).toBeNull();
   });
 
   it("sem meta da direção: comparação sem diferença e sem %", () => {
@@ -114,11 +125,11 @@ describe("painel da imobiliária — meta da direção × planos", () => {
     ).toBeNull();
   });
 
-  it("mês a mês: 12 meses, meta dos assinados, realizado da imobiliária e meses futuros marcados", () => {
+  it("mês a mês: 12 meses, meta dos assinados, realizado só de quem assinou e meses futuros marcados", () => {
     const p = painel();
     expect(p.meses).toHaveLength(12);
     expect(p.meses[0].realizado).toBe(12000);
-    expect(p.meses[1].realizado).toBe(5000);
+    expect(p.meses[1].realizado).toBe(0); // fevereiro: só quem já saiu vendeu (fora da meta oficial)
     expect(p.meses[2].realizado).toBe(16000);
     expect(p.meses[2].futuro).toBe(false);
     expect(p.meses[3].futuro).toBe(true);

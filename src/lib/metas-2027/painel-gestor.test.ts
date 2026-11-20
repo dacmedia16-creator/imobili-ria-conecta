@@ -316,12 +316,19 @@ describe("painel do gestor — montagem", () => {
     expect(azul.soma.assinados!.meses[6].comissao).toBe(10000); // julho: só o plano de 120 mil
   });
 
-  it("realizado da equipe soma também quem está em preenchimento ou sem plano (é produção real)", () => {
+  it("Opção A: realizado comparado com a meta = só quem assinou; quem não assinou aparece à parte", () => {
     const azul = montar().grupos.find((g) => g.id === "t1")!;
     const c = azul.avaliacao.indicadores.comissao;
-    expect(c.realAno).toBe(32000); // 12 mil + 9 mil + 7 mil + 4 mil (c, em preenchimento)
+    expect(c.realAno).toBe(28000); // 12 mil + 9 mil + 7 mil (a e b assinaram)
     expect(c.realMes).toBe(16000);
-    expect(azul.realizadoAno.vgv).toBe(1200000); // s1 1 vez + s2 + s3
+    expect(azul.realizadoAno.vgv).toBe(900000); // s1 1 vez + s2
+    // c (em preenchimento) vendeu 4 mil: fora da meta, mas visível à parte.
+    expect(azul.naoAssinados.pessoas).toBe(1);
+    expect(azul.naoAssinados.realizado.comissao).toBe(4000);
+    expect(azul.naoAssinados.realizado.vgv).toBe(300000);
+    // As duas partes fecham com o total da equipe.
+    expect(azul.realizadoTodos.comissao).toBe(32000);
+    expect(azul.realizadoTodos.vgv).toBe(1200000);
   });
 
   it("farol do corretor: ⚪ sem plano assinado / em preenchimento; com plano compara com o esperado", () => {

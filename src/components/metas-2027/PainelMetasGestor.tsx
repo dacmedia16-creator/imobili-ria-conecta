@@ -118,8 +118,8 @@ export function PainelMetasGestor() {
           <Target className="h-5 w-5" aria-hidden /> Painel de metas {ANO_PLANO} · Equipes
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          A meta vem só dos planos ASSINADOS (Meu Plano {ANO_PLANO}). O realizado entra sozinho
-          pelas vendas assinadas e captações aprovadas.
+          A meta vem só dos planos ASSINADOS (Meu Plano {ANO_PLANO}) e é comparada só com o
+          realizado de quem assinou. A produção de quem ainda não assinou aparece à parte.
         </p>
       </CardHeader>
       <CardContent className="space-y-4 px-3 sm:px-6" data-testid="painel-metas-gestor">
@@ -263,29 +263,58 @@ function ResumoGrupo({
             <p className="text-xs text-muted-foreground">Líder: {grupo.liderNome}</p>
           ) : null}
         </div>
-        <span className="inline-flex items-center gap-0.5">
-          <Pill tom={TOM_FAROL[grupo.avaliacao.farol]}>
-            {grupo.avaliacao.farol === "cinza"
-              ? "⚪ Sem plano assinado"
-              : FAROL_META_ROTULO[grupo.avaliacao.farol]}
-          </Pill>
-          <InfoDica chave="equipe_farol" />
-        </span>
+        {/* Antes de jan/2027 não há farol de equipe (o realizado é de outro ano). */}
+        {antes ? null : (
+          <span className="inline-flex items-center gap-0.5" data-testid="farol-equipe">
+            <Pill tom={TOM_FAROL[grupo.avaliacao.farol]}>
+              {grupo.avaliacao.farol === "cinza"
+                ? "⚪ Sem plano assinado"
+                : FAROL_META_ROTULO[grupo.avaliacao.farol]}
+            </Pill>
+            <InfoDica chave="equipe_farol" />
+          </span>
+        )}
       </div>
 
       {antes ? (
-        <div className="grid grid-cols-2 gap-2 text-sm">
-          <Mini
-            titulo={`Meta ${ANO_PLANO} (assinados)`}
-            valor={brlOuTraco(c.metaAno)}
-            info="equipe_meta_assinados"
-          />
-          <Mini
-            titulo={`Comissão em ${painel.anoDados}`}
+        // Antes de jan/2027: o realizado é de outro ano. Dois números com rótulo, sem barra, sem % e sem farol.
+        <div className="grid grid-cols-2 gap-2 text-xs" data-testid="antes-pares">
+          <Par
+            titulo="Comissão"
             info="equipe_comissao_ano"
-            valor={brl(grupo.realizadoAno.comissao ?? 0)}
+            ano={painel.anoDados}
+            feito={brl(grupo.realizadoAno.comissao ?? 0)}
+            meta={brlOuTraco(c.metaAno)}
+          />
+          <Par
+            titulo="Vendas"
+            info="equipe_vendas"
+            ano={painel.anoDados}
+            feito={String(grupo.realizadoAno.vendas ?? 0)}
+            meta={numOuTraco(grupo.avaliacao.indicadores.vendas.metaAno)}
+          />
+          <Par
+            titulo="Captações"
+            info="equipe_captacoes"
+            ano={painel.anoDados}
+            feito={
+              grupo.realizadoAno.captacoes == null ? "–" : String(grupo.realizadoAno.captacoes)
+            }
+            meta={numOuTraco(grupo.avaliacao.indicadores.captacoes.metaAno)}
+          />
+          <Par
+            titulo="VGV"
+            info="equipe_vgv"
+            ano={painel.anoDados}
+            feito={brl(grupo.realizadoAno.vgv ?? 0)}
+            meta={brlOuTraco(grupo.avaliacao.indicadores.vgv.metaAno)}
           />
         </div>
+      ) : grupo.soma.qtdAssinados === 0 ? (
+        <p className="text-sm text-muted-foreground" data-testid="sem-assinados">
+          Ninguém assinou o plano ainda: sem meta para comparar.
+          <InfoDica chave="equipe_meta_assinados" />
+        </p>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Barra
@@ -327,23 +356,38 @@ function ResumoGrupo({
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-2 text-xs">
-        <Mini
-          titulo="Vendas"
-          info="equipe_vendas"
-          valor={`${grupo.realizadoAno.vendas ?? 0}${metaTxt(grupo.avaliacao.indicadores.vendas, String)}`}
-        />
-        <Mini
-          titulo="Captações"
-          info="equipe_captacoes"
-          valor={
-            grupo.realizadoAno.captacoes == null
-              ? "–"
-              : `${grupo.realizadoAno.captacoes}${metaTxt(grupo.avaliacao.indicadores.captacoes, String)}`
-          }
-        />
-        <Mini titulo="VGV" info="equipe_vgv" valor={brl(grupo.realizadoAno.vgv ?? 0)} />
-      </div>
+      {antes ? null : (
+        <div className="grid grid-cols-3 gap-2 text-xs">
+          <Mini
+            titulo="Vendas"
+            info="equipe_vendas"
+            valor={`${grupo.realizadoAno.vendas ?? 0}${metaTxt(grupo.avaliacao.indicadores.vendas, String)}`}
+          />
+          <Mini
+            titulo="Captações"
+            info="equipe_captacoes"
+            valor={
+              grupo.realizadoAno.captacoes == null
+                ? "–"
+                : `${grupo.realizadoAno.captacoes}${metaTxt(grupo.avaliacao.indicadores.captacoes, String)}`
+            }
+          />
+          <Mini titulo="VGV" info="equipe_vgv" valor={brl(grupo.realizadoAno.vgv ?? 0)} />
+        </div>
+      )}
+
+      <p
+        className="rounded-md border border-dashed px-2 py-1.5 text-xs text-muted-foreground"
+        data-testid="nao-assinados"
+      >
+        <RotuloInfo chave="equipe_nao_assinados">
+          Produção de quem ainda não assinou o plano{antes ? ` (${painel.anoDados})` : ""}:
+        </RotuloInfo>{" "}
+        <b className="text-foreground">{brl(grupo.naoAssinados.realizado.comissao ?? 0)}</b> ·{" "}
+        {grupo.naoAssinados.pessoas} {grupo.naoAssinados.pessoas === 1 ? "corretor" : "corretores"}{" "}
+        · {grupo.naoAssinados.realizado.vendas ?? 0} vendas · VGV{" "}
+        {brl(grupo.naoAssinados.realizado.vgv ?? 0)}. Fora da meta e do farol.
+      </p>
 
       <p className="text-xs text-muted-foreground" data-testid="cobertura">
         <RotuloInfo chave="equipe_planos_assinados">Planos assinados:</RotuloInfo>{" "}
@@ -533,6 +577,33 @@ function Mini({ titulo, valor, info }: { titulo: string; valor: string; info: Ch
   );
 }
 
+/** Antes de jan/2027: realizado do ano dos dados e meta do ano do plano, lado a lado (sem barra, sem %). */
+function Par(props: {
+  titulo: string;
+  info: ChaveExplicacao;
+  ano: number;
+  feito: string;
+  meta: string;
+}) {
+  return (
+    <div className="min-w-0 rounded-md border bg-background p-2">
+      <p className="text-[11px] text-muted-foreground">
+        <RotuloInfo chave={props.info}>{props.titulo}</RotuloInfo>
+      </p>
+      <p>
+        <span className="text-muted-foreground">
+          {props.titulo.toLowerCase()} {props.ano}:
+        </span>{" "}
+        <b>{props.feito}</b>
+      </p>
+      <p>
+        <span className="text-muted-foreground">meta {ANO_PLANO}:</span> <b>{props.meta}</b>
+      </p>
+    </div>
+  );
+}
+
 const brlOuTraco = (v: number | null) => (v == null ? "–" : brl(v));
+const numOuTraco = (v: number | null) => (v == null ? "–" : String(Math.round(v)));
 const metaTxt = (a: AvaliacaoIndicador, f: (n: number) => string) =>
   a.metaAno == null ? "" : ` / ${f(a.metaAno)}`;

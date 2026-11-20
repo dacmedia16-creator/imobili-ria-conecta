@@ -189,24 +189,32 @@ describe("Painel de metas 2027 · Equipes", () => {
     expect((await screen.findByTestId("antes-vigencia")).textContent).toMatch(
       /a partir de janeiro de 2027/,
     );
-    expect(screen.getByTestId("grupo-total").textContent).toMatch(
-      /Plano vale a partir de jan\/2027/,
+    // Opção A: antes de jan/2027, a equipe não tem farol, barra nem "37 / 20": dois números rotulados.
+    const total = screen.getByTestId("grupo-total");
+    expect(within(total).queryByTestId("farol-equipe")).toBeNull();
+    expect(within(total).queryByRole("progressbar")).toBeNull();
+    const azul = screen.getByTestId("grupo-t1");
+    const pares = within(azul).getByTestId("antes-pares").textContent ?? "";
+    // Só Alfa assinou (s1 em 2027 não entra em 2026): vendas 2026 = 0 · meta 2027 = 24 transações.
+    expect(pares).toMatch(/vendas 2026:\s*0meta 2027:\s*24/);
+    expect(pares).toMatch(/comissão 2026:\s*R\$\s?0meta 2027:\s*R\$\s?120\.000/);
+    expect(azul.textContent).not.toMatch(/\d+ \/ \d+/);
+    expect(within(azul).getByTestId("nao-assinados").textContent).toMatch(
+      /Produção de quem ainda não assinou o plano \(2026\)/,
     );
     // Ícone "i" (t_065a0ff9): antes de 2027, a comissão é de 2026 e o "i" diz isso.
-    const azul = screen.getByTestId("grupo-t1");
     for (const k of [
-      "equipe_farol",
-      "equipe_meta_assinados",
       "equipe_comissao_ano",
       "equipe_vendas",
       "equipe_captacoes",
       "equipe_vgv",
+      "equipe_nao_assinados",
       "equipe_planos_assinados",
     ])
       expect(within(azul).getByTestId(`info-${k}`), k).toBeTruthy();
-    fireEvent.click(within(azul).getByRole("button", { name: "O que é: Comissão em 2026" }));
+    fireEvent.click(within(azul).getByRole("button", { name: "O que é: Comissão" }));
     expect((await screen.findByTestId("info-balao")).textContent).toMatch(
-      /TODAS as pessoas.*ainda não é o realizado da meta 2027/,
+      /Comissão 2026 = .*quem já assinou.*não há barra, % nem farol até janeiro/,
     );
     expect(rpc).toHaveBeenCalledWith("metas_equipe_realizado", {
       _inicio: "2026-01-01",
