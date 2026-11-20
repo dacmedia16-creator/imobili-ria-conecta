@@ -41,6 +41,7 @@ import { Route as AuthenticatedOcorrenciasImprimirRouteImport } from './routes/_
 import { Route as AuthenticatedOportunidadesRouteImport } from './routes/_authenticated/oportunidades'
 import { Route as AuthenticatedPainelEquipeRouteImport } from './routes/_authenticated/painel-equipe'
 import { Route as AuthenticatedPainelLeadsRouteImport } from './routes/_authenticated/painel-leads'
+import { Route as AuthenticatedPainelMetasRouteImport } from './routes/_authenticated/painel-metas'
 import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated/perfil'
 import { Route as AuthenticatedProducaoPorPessoaRouteImport } from './routes/_authenticated/producao-por-pessoa'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
@@ -258,6 +259,12 @@ const AuthenticatedPainelLeadsRoute =
   AuthenticatedPainelLeadsRouteImport.update({
     id: '/painel-leads',
     path: '/painel-leads',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedPainelMetasRoute =
+  AuthenticatedPainelMetasRouteImport.update({
+    id: '/painel-metas',
+    path: '/painel-metas',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedPerfilRoute = AuthenticatedPerfilRouteImport.update({
@@ -544,6 +551,7 @@ export interface FileRoutesByFullPath {
   '/oportunidades': typeof AuthenticatedOportunidadesRoute
   '/painel-equipe': typeof AuthenticatedPainelEquipeRoute
   '/painel-leads': typeof AuthenticatedPainelLeadsRoute
+  '/painel-metas': typeof AuthenticatedPainelMetasRoute
   '/perfil': typeof AuthenticatedPerfilRoute
   '/producao-por-pessoa': typeof AuthenticatedProducaoPorPessoaRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
@@ -622,6 +630,7 @@ export interface FileRoutesByTo {
   '/oportunidades': typeof AuthenticatedOportunidadesRoute
   '/painel-equipe': typeof AuthenticatedPainelEquipeRoute
   '/painel-leads': typeof AuthenticatedPainelLeadsRoute
+  '/painel-metas': typeof AuthenticatedPainelMetasRoute
   '/perfil': typeof AuthenticatedPerfilRoute
   '/producao-por-pessoa': typeof AuthenticatedProducaoPorPessoaRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
@@ -702,6 +711,7 @@ export interface FileRoutesById {
   '/_authenticated/oportunidades': typeof AuthenticatedOportunidadesRoute
   '/_authenticated/painel-equipe': typeof AuthenticatedPainelEquipeRoute
   '/_authenticated/painel-leads': typeof AuthenticatedPainelLeadsRoute
+  '/_authenticated/painel-metas': typeof AuthenticatedPainelMetasRoute
   '/_authenticated/perfil': typeof AuthenticatedPerfilRoute
   '/_authenticated/producao-por-pessoa': typeof AuthenticatedProducaoPorPessoaRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
@@ -782,6 +792,7 @@ export interface FileRouteTypes {
     | '/oportunidades'
     | '/painel-equipe'
     | '/painel-leads'
+    | '/painel-metas'
     | '/perfil'
     | '/producao-por-pessoa'
     | '/relatorios'
@@ -860,6 +871,7 @@ export interface FileRouteTypes {
     | '/oportunidades'
     | '/painel-equipe'
     | '/painel-leads'
+    | '/painel-metas'
     | '/perfil'
     | '/producao-por-pessoa'
     | '/relatorios'
@@ -939,6 +951,7 @@ export interface FileRouteTypes {
     | '/_authenticated/oportunidades'
     | '/_authenticated/painel-equipe'
     | '/_authenticated/painel-leads'
+    | '/_authenticated/painel-metas'
     | '/_authenticated/perfil'
     | '/_authenticated/producao-por-pessoa'
     | '/_authenticated/relatorios'
@@ -1236,6 +1249,13 @@ declare module '@tanstack/react-router' {
       path: '/painel-leads'
       fullPath: '/painel-leads'
       preLoaderRoute: typeof AuthenticatedPainelLeadsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/painel-metas': {
+      id: '/_authenticated/painel-metas'
+      path: '/painel-metas'
+      fullPath: '/painel-metas'
+      preLoaderRoute: typeof AuthenticatedPainelMetasRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/perfil': {
@@ -1580,6 +1600,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedOportunidadesRoute: typeof AuthenticatedOportunidadesRoute
   AuthenticatedPainelEquipeRoute: typeof AuthenticatedPainelEquipeRoute
   AuthenticatedPainelLeadsRoute: typeof AuthenticatedPainelLeadsRoute
+  AuthenticatedPainelMetasRoute: typeof AuthenticatedPainelMetasRoute
   AuthenticatedPerfilRoute: typeof AuthenticatedPerfilRoute
   AuthenticatedProducaoPorPessoaRoute: typeof AuthenticatedProducaoPorPessoaRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
@@ -1638,6 +1659,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedOportunidadesRoute: AuthenticatedOportunidadesRoute,
   AuthenticatedPainelEquipeRoute: AuthenticatedPainelEquipeRoute,
   AuthenticatedPainelLeadsRoute: AuthenticatedPainelLeadsRoute,
+  AuthenticatedPainelMetasRoute: AuthenticatedPainelMetasRoute,
   AuthenticatedPerfilRoute: AuthenticatedPerfilRoute,
   AuthenticatedProducaoPorPessoaRoute: AuthenticatedProducaoPorPessoaRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
