@@ -1,4 +1,4 @@
--- Suíte da migration 20261212120000 (dados de pagamento do parceiro na locação, t_756c1c63). Roda DENTRO de transação
+-- Suíte da migration 20261214140000 (dados de pagamento do parceiro na locação, t_756c1c63). Roda DENTRO de transação
 -- revertida (run-locacao-parceiro-pagamento.sh), na homologação, só com dados fictícios. Pessoas da homologação (Agência A):
 -- c2 = QA A Corretor Dois (corretor dono), con = QA A Dono Plataforma (vistoria = Fernanda), ges = gestora,
 -- fin = QA A Corretor Um (recebe aqui o papel Financeiro da locação), adm = administrador, a1 = UE Corretor,

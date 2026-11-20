@@ -1,4 +1,4 @@
-// Dados de pagamento do parceiro na parceria da locação (t_756c1c63; migration 20261212120000).
+// Dados de pagamento do parceiro na parceria da locação (t_756c1c63; migration 20261214140000).
 // Regras puras usadas pelas telas. O banco repete todas as validações e só deixa ler/gravar o Financeiro da locação e a
 // gestão (locacao_parceiro_pag_pode); o corretor recebe {pode:false} sem dado nenhum.
 import { cpfValido, lerConfig, type ConfigLocacao } from "@/lib/locacao";

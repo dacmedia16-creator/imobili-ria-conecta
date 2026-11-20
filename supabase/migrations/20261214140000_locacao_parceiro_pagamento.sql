@@ -1,7 +1,7 @@
 -- Locação — dados de pagamento do parceiro (corretor/imobiliária externa) na parceria. Cartão t_756c1c63 (Denis, 20/11,
 -- tópico 6238). CONSTRUÇÃO EM TESTE: aplicar em produção só com a revisão do MAX Principal e o "pode publicar" de Denis.
 --
--- Rollback: supabase/rollback/20261212120000_locacao_parceiro_pagamento.sql
+-- Rollback: supabase/rollback/20261214140000_locacao_parceiro_pagamento.sql
 -- Teste:    supabase/tests/run-locacao-parceiro-pagamento.sh (homologação, transação desfeita; nunca produção).
 --
 -- Decisões de Denis: (1) o pagamento vai para a imobiliária (CNPJ) OU direto para o corretor (CPF); (2) em parceria um

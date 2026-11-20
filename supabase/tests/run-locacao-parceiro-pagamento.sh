@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Dados de pagamento do parceiro na Locação (migration 20261212120000, t_756c1c63) numa ÚNICA transação revertida (homologação ou clone,
+# Dados de pagamento do parceiro na Locação (migration 20261214140000, t_756c1c63) numa ÚNICA transação revertida (homologação ou clone,
 # NUNCA produção). Aplica as bases da Locação que faltarem, tira a impressão digital, aplica a migration, roda a suíte,
 # desfaz a migration e confere que o esquema voltou EXATAMENTE ao estado anterior. Por fim ROLLBACK: nada fica gravado.
 # Uso: PGCONN="<conninfo da homologação>" bash supabase/tests/run-locacao-parceiro-pagamento.sh
@@ -35,7 +35,7 @@ BASES=(
     if [ "$tem" != "t" ]; then for m in $migs; do strip "$ROOT/supabase/migrations/$m.sql"; echo "\\echo [base $m]"; done; fi
   done
   echo "$FP"
-  strip "$ROOT/supabase/migrations/20261212120000_locacao_parceiro_pagamento.sql"
+  strip "$ROOT/supabase/migrations/20261214140000_locacao_parceiro_pagamento.sql"
   echo "\\echo [migration ok]"
   if [ "${SO_MIGRATION:-}" != "1" ]; then
     echo "SAVEPOINT suite;"
@@ -43,7 +43,7 @@ BASES=(
     echo "RESET ROLE;"
     echo "ROLLBACK TO SAVEPOINT suite;"
   fi
-  strip "$ROOT/supabase/rollback/20261212120000_locacao_parceiro_pagamento.sql"
+  strip "$ROOT/supabase/rollback/20261214140000_locacao_parceiro_pagamento.sql"
   echo "\\echo [rollback ok]"
   echo "$FP"
   echo "ROLLBACK;"

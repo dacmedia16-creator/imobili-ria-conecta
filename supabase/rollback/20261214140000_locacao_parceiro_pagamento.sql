@@ -1,4 +1,4 @@
--- Rollback da 20261212120000_locacao_parceiro_pagamento (t_756c1c63).
+-- Rollback da 20261214140000_locacao_parceiro_pagamento (t_756c1c63).
 -- Devolve o texto exato (lido da produção em 20/11/2026) de locacao_lancamento_ler e locacao_lancamento_salvar e apaga
 -- o que a migration criou. ATENÇÃO: apaga junto os dados de pagamento de parceiros gravados depois da publicação
 -- (tabela locacao_parceiro_pagamento) e as colunas parceria_lado/parceria_creci dos lançamentos.

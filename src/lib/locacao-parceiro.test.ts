@@ -20,10 +20,10 @@ import {
 } from "@/components/locacao/LocacaoLancamento";
 
 const MIG = readFileSync(
-  "supabase/migrations/20261212120000_locacao_parceiro_pagamento.sql",
+  "supabase/migrations/20261214140000_locacao_parceiro_pagamento.sql",
   "utf8",
 );
-const RB = readFileSync("supabase/rollback/20261212120000_locacao_parceiro_pagamento.sql", "utf8");
+const RB = readFileSync("supabase/rollback/20261214140000_locacao_parceiro_pagamento.sql", "utf8");
 
 const base: LancamentoValores = {
   captadorId: "u-casa",
