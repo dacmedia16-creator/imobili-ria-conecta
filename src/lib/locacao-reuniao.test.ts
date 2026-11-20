@@ -306,8 +306,14 @@ describe("item 7 — aviso de WhatsApp", () => {
     const iTrava = FN.indexOf("avisosLocacaoLigados(process.env.LOCACAO_AVISOS_WHATSAPP)");
     expect(iTrava).toBeGreaterThan(0);
     // A trava vem antes de reservar a fila e antes de ler a chave do ZionTalk: nada muda de "pendente".
-    expect(iTrava).toBeLessThan(FN.indexOf("locacao_avisos_reservar"));
     expect(iTrava).toBeLessThan(FN.indexOf("process.env.ZIONTALK_API_KEY"));
+    expect(iTrava).toBeLessThan(FN.indexOf("enviarFilaLocacao(data.locacaoId"));
+    // t_c3ea1b18: o envio passou para locacao-avisos.server.ts, que confere a trava de novo antes de reservar.
+    const SV = readFileSync("src/lib/locacao-avisos.server.ts", "utf8");
+    const iTravaSv = SV.indexOf("avisosLocacaoLigados(deps.env.LOCACAO_AVISOS_WHATSAPP)");
+    expect(iTravaSv).toBeGreaterThan(0);
+    expect(iTravaSv).toBeLessThan(SV.indexOf('"locacao_avisos_reservar"'));
+    expect(iTravaSv).toBeLessThan(SV.indexOf("deps.env.ZIONTALK_API_KEY"));
   });
 });
 

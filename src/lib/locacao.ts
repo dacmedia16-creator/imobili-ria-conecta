@@ -183,6 +183,8 @@ export type Locacao = {
   };
   pos: {
     vistoriaPedida: string | null;
+    /** t_c3ea1b18: vistoria agendada (data/hora ISO, vistoriador e se o corretor acompanha). */
+    vistoriaAgenda: VistoriaAgenda | null;
     laudoEm: string | null;
     contestacaoEm: string | null;
     seguroEm: string | null;
@@ -462,6 +464,7 @@ export function lerLocacao(raw: unknown): Locacao {
     },
     pos: {
       vistoriaPedida: sn(p.vistoria_pedida),
+      vistoriaAgenda: lerVistoriaAgenda(p.vistoria_agenda),
       laudoEm: sn(p.laudo_em),
       contestacaoEm: sn(p.contestacao_em),
       seguroEm: sn(p.seguro_em),
@@ -946,6 +949,53 @@ export function faltasPreAprovacao(x: {
 
 export function brl(v: number): string {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+/** t_c3ea1b18: vistoria agendada (gravada em pos.vistoria_agenda pela RPC locacao_vistoria_agendar). */
+export type VistoriaAgenda = { em: string; vistoriador: string; acompanha: boolean };
+
+export function lerVistoriaAgenda(v: unknown): VistoriaAgenda | null {
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  const em = sn(o.em);
+  if (!em || Number.isNaN(Date.parse(em))) return null;
+  return { em, vistoriador: s(o.vistoriador), acompanha: b(o.acompanha) };
+}
+
+const FORMATO_AGENDA_SP = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: "America/Sao_Paulo",
+  weekday: "short",
+  day: "2-digit",
+  month: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+/** "sex., 21/11, 14:00" no horário de Brasília (mesma referência dos lembretes do banco). */
+export function quandoVistoria(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "—" : FORMATO_AGENDA_SP.format(d);
+}
+
+/** Valor do campo datetime-local ("YYYY-MM-DDTHH:MM") em Brasília, para reabrir o agendamento na tela. */
+export function agendaParaCampo(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(d)
+      .map((x) => [x.type, x.value]),
+  );
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
 }
 
 export function dataBr(iso: string | null | undefined): string {

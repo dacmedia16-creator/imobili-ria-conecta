@@ -44,6 +44,7 @@ import {
 } from "./leads-ia";
 import { montarExtrator, type EscolhaModelo, type UsoModelo } from "./leads-ia-modelo";
 import { textoToque15 } from "./leads-ia-toque15";
+import { lembretesVistoriaRodada } from "./locacao-avisos.server";
 import {
   AVISO_SEM_RESPOSTA,
   falasSemResposta,
@@ -718,6 +719,9 @@ export type DepsReengajar = Pick<
   avisos?: Pick<DepsAvisoCorretor, "avisosReservar" | "avisoResultado">;
   /** t_a2cae373: aquecimento de leads parados (chip próprio). Sem ele (ou com a migration ausente), não roda. */
   aquecer?: Omit<DepsAquecer, "env" | "fetchFn">;
+  /** t_c3ea1b18: lembretes da vistoria da Locação (véspera e ~2 h antes). Sem ele (ou com a trava
+   * LOCACAO_AVISOS_WHATSAPP desligada / migration ausente), não roda. Erro nele não muda a resposta. */
+  locacaoVistoria?: () => Promise<unknown>;
 };
 
 // --- Lembrete rápido de 15 min (t_b3f753a5) ------------------------------------------------------------------
@@ -952,6 +956,7 @@ export async function receberReengajar(request: Request, deps: DepsReengajar): P
     await aquecerUmaRodada({ ...deps.aquecer, env: deps.env, fetchFn: deps.fetchFn }).catch(() => ({
       r: "erro" as const,
     }));
+  if (deps.locacaoVistoria) await deps.locacaoVistoria().catch(() => null);
   return json(r.r === "erro" ? 503 : 200, r.r);
 }
 
@@ -1036,6 +1041,9 @@ export async function depsReengajarReais(request: Request): Promise<DepsReengaja
       enviarPendentesLead: (leadId, canal, chip) =>
         enviarPendentes(leadId, { ...base, ...depsEnvioAquecer(db, chip), canalAquecer: canal }),
     },
+    // t_c3ea1b18: mesma rodada do pg_cron, sem agendador novo. Usa a trava e a chave dos avisos da Locação.
+    locacaoVistoria: () =>
+      lembretesVistoriaRodada({ rpc: (fn, args) => db.rpc(fn, args), env: base.env }),
   };
 }
 
