@@ -3,16 +3,18 @@
 // locatário/proprietário/fiador, documentos ou valores (LGPD).
 import { etapaLabel, type EtapaLocacao } from "@/lib/locacao";
 
-export type StatusConsulta = "livre" | "pre_analise" | "documentacao" | "contrato";
+export type StatusConsulta = "livre" | "alugado" | "pre_analise" | "documentacao" | "contrato";
 
 export const TERMO_MINIMO = 3;
 export const TERMO_MAXIMO = 100;
 
+// "Alugado" (t_56101806): chave já entregue; "Livre" só sem processo ou com processo cancelado/desistido.
 export const STATUS_CONSULTA: Record<
   StatusConsulta,
-  { emoji: string; label: string; tom: "green" | "amber" | "violet" | "red" }
+  { emoji: string; label: string; tom: "green" | "slate" | "amber" | "violet" | "red" }
 > = {
   livre: { emoji: "🟢", label: "Livre (sem processo ativo)", tom: "green" },
+  alugado: { emoji: "⚪", label: "Alugado", tom: "slate" },
   pre_analise: { emoji: "🟡", label: "Em pré-análise", tom: "amber" },
   documentacao: { emoji: "🟠", label: "Documentação em andamento", tom: "violet" },
   contrato: { emoji: "🔴", label: "Aprovado / contrato em andamento", tom: "red" },
@@ -39,7 +41,7 @@ export function lerConsulta(raw: unknown): ImovelConsultado[] {
       const status = STATUS.includes(o.status as StatusConsulta)
         ? (o.status as StatusConsulta)
         : "livre";
-      const livre = status === "livre";
+      const livre = status === "livre" || status === "alugado"; // sem processo andando: sem etapa nem corretor
       return {
         imovelId: txt(o.imovel_id),
         endereco: txt(o.endereco),

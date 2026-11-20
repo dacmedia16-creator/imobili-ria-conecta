@@ -45,12 +45,23 @@ INSERT INTO public.locacoes (organization_id, corretor_id, etapa, situacao, ende
   (pg_temp.id('orgA'), pg_temp.id('a1'), 'minuta', 'ativa', 'R. Sete-Zzk, 70', '{}', '{"imovel_id":"ZZQ-7"}', 900, now()),
   -- ZZQ-4: só encerrada (reprovada) -> Livre.
   (pg_temp.id('orgA'), pg_temp.id('a1'), 'aprovacao', 'encerrada', 'Rua Zzq Quatro, 40', '{}', '{"imovel_id":"ZZQ-4"}', 900, now()),
-  -- ZZQ-5: comissão (depois da chave, ainda ativa) -> contrato em andamento.
+  -- ZZQ-5: comissão (depois da chave, ainda ativa) -> Alugado (t_56101806).
   (pg_temp.id('orgA'), pg_temp.id('c2'), 'comissao', 'ativa', 'Rua Zzq Cinco, 50', '{}', '{"imovel_id":"ZZQ-5"}', 900, now()),
+  -- ZZQ-D: documentação cancelada/desistida (encerrada sem chave) -> Livre.
+  (pg_temp.id('orgA'), pg_temp.id('a1'), 'documentacao', 'encerrada', 'Rua Zzq Dez, 10', '{}', '{"imovel_id":"ZZQ-D"}', 900, now()),
   -- ZZQ-6: aprovação gestora -> pré-análise.
   (pg_temp.id('orgA'), pg_temp.id('a1'), 'aprovacao', 'ativa', 'Rua Zzq Seis, 60', '{}', '{"imovel_id":"ZZQ-6"}', 900, now()),
   -- Agência B com o MESMO código: a A nunca pode ver.
   (pg_temp.id('orgB'), pg_temp.id('b1'), 'minuta', 'ativa', 'Rua Fictícia Açaí, 100', '{}', '{"imovel_id":"ZZQ-1"}', 999, now());
+-- Com chave entregue (t_56101806): ZZQ-8 locação encerrada normalmente depois da chave -> Alugado;
+-- ZZQ-9 alugado antigo + processo ATIVO novo em pré-análise -> vale o ativo.
+INSERT INTO public.locacoes (organization_id, corretor_id, etapa, situacao, endereco, ficha, chave_em, atualizado_em) VALUES
+  (pg_temp.id('orgA'), pg_temp.id('c2'), 'comissao', 'encerrada', 'Rua Zzq Oito, 80', '{"imovel_id":"ZZQ-8"}',
+   current_date - 400, now() - interval '30 day'),
+  (pg_temp.id('orgA'), pg_temp.id('c2'), 'comissao', 'encerrada', 'Rua Zzq Nove, 90', '{"imovel_id":"ZZQ-9"}',
+   current_date - 400, now()),
+  (pg_temp.id('orgA'), pg_temp.id('a1'), 'pre_analise', 'ativa', 'Rua Zzq Nove, 90', '{"imovel_id":"ZZQ-9"}',
+   NULL, now() - interval '1 day');
 -- 12 imóveis "ZZW-nn" para provar o limite de 10.
 INSERT INTO public.locacoes (organization_id, corretor_id, etapa, situacao, endereco, ficha)
 SELECT pg_temp.id('orgA'), pg_temp.id('c2'), 'pre_analise', 'ativa', 'Travessa Zzw ' || g, jsonb_build_object('imovel_id', 'ZZW-' || g)
@@ -99,7 +110,20 @@ SELECT pg_temp.put('q7', public.locacao_consultar_imovel('rua zzq sete'));
 SELECT pg_temp.ok(jsonb_array_length(pg_temp.j('q7')) = 1 AND pg_temp.j('q7')->0->>'status' = 'contrato'
   AND pg_temp.j('q7')->0->>'corretor' = 'UE Corretor' AND pg_temp.j('q7')->0->>'endereco' = 'R. Sete-Zzk, 70',
   'busca por endereço antigo acha o processo ativo do mesmo código (sem Livre falso)');
-SELECT pg_temp.ok(public.locacao_consultar_imovel('ZZQ-5')->0->>'status' = 'contrato', 'comissão (depois da chave) -> vermelho');
+SELECT pg_temp.put('q5', public.locacao_consultar_imovel('ZZQ-5'));
+SELECT pg_temp.ok(pg_temp.j('q5')->0->>'status' = 'alugado' AND pg_temp.j('q5')->0->'corretor' = 'null'::jsonb
+  AND (pg_temp.j('q5')->0->>'processos_ativos')::int = 0, 'comissão (chave já entregue) -> Alugado, sem corretor');
+SELECT pg_temp.put('q8', public.locacao_consultar_imovel('ZZQ-8'));
+SELECT pg_temp.ok(jsonb_array_length(pg_temp.j('q8')) = 1 AND pg_temp.j('q8')->0->>'status' = 'alugado'
+  AND pg_temp.j('q8')->0->'corretor' = 'null'::jsonb AND pg_temp.j('q8')->0->'etapa' = 'null'::jsonb,
+  'encerrada normalmente depois da chave -> Alugado (não Livre)');
+SELECT pg_temp.put('q9', public.locacao_consultar_imovel('zzq nove'));
+SELECT pg_temp.ok(jsonb_array_length(pg_temp.j('q9')) = 1 AND pg_temp.j('q9')->0->>'status' = 'pre_analise'
+  AND pg_temp.j('q9')->0->>'corretor' = 'UE Corretor' AND (pg_temp.j('q9')->0->>'processos_ativos')::int = 1,
+  'alugado antigo + processo ativo novo: vale o ativo (pré-análise)');
+SELECT pg_temp.put('q10', public.locacao_consultar_imovel('ZZQ-D'));
+SELECT pg_temp.ok(pg_temp.j('q10')->0->>'status' = 'livre' AND pg_temp.j('q10')->0->'corretor' = 'null'::jsonb,
+  'cancelada/desistida sem chave -> Livre');
 SELECT pg_temp.ok(public.locacao_consultar_imovel('ZZQ-6')->0->>'status' = 'pre_analise', 'aprovação gestora -> amarelo');
 SELECT pg_temp.ok(public.locacao_consultar_imovel('nada-zzq-existe') = '[]'::jsonb, 'nada achado: lista vazia');
 SELECT pg_temp.ok(jsonb_array_length(public.locacao_consultar_imovel('zzw-')) = 10, 'no máximo 10 resultados');

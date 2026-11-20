@@ -42,6 +42,14 @@ describe("lerConsulta", () => {
     expect(b.status).toBe("livre");
     expect(lerConsulta(null)).toEqual([]);
   });
+  it("alugado também não mostra corretor nem etapa", () => {
+    const [i] = lerConsulta([
+      { imovel_id: "IM-4", status: "alugado", corretor: "X", etapa: "comissao" },
+    ]);
+    expect(i.status).toBe("alugado");
+    expect(i.corretor).toBeNull();
+    expect(i.etapa).toBeNull();
+  });
   it("etapa em linguagem simples", () => {
     const [i] = lerConsulta([{ status: "contrato", etapa: "assinatura", corretor: "Y" }]);
     expect(detalheEtapa(i)).toBe("etapa: Assinatura");
@@ -57,19 +65,32 @@ describe("termo de busca", () => {
 });
 
 describe("status simplificado = banco", () => {
-  it("4 cores com emoji e mesmas chaves da RPC", () => {
+  it("5 status com emoji e mesmas chaves da RPC", () => {
     expect(Object.keys(STATUS_CONSULTA)).toEqual([
       "livre",
+      "alugado",
       "pre_analise",
       "documentacao",
       "contrato",
     ]);
-    expect(Object.values(STATUS_CONSULTA).map((s) => s.emoji)).toEqual(["🟢", "🟡", "🟠", "🔴"]);
-    expect(MIG).toContain(
-      "WHEN 0 THEN 'livre' WHEN 1 THEN 'pre_analise' WHEN 2 THEN 'documentacao'",
-    );
-    expect(MIG).toContain("WHEN t.etapa IN ('pre_analise', 'aprovacao') THEN 1");
+    expect(Object.values(STATUS_CONSULTA).map((s) => s.emoji)).toEqual([
+      "🟢",
+      "⚪",
+      "🟡",
+      "🟠",
+      "🔴",
+    ]);
+    expect(STATUS_CONSULTA.alugado.label).toBe("Alugado");
+    expect(MIG).toContain("WHEN 0 THEN 'livre' WHEN 1 THEN 'alugado' WHEN 2 THEN 'pre_analise'");
+    expect(MIG).toContain("WHEN 3 THEN 'documentacao' ELSE 'contrato' END");
+    expect(MIG).toContain("WHEN t.etapa IN ('pre_analise', 'aprovacao') THEN 2");
     expect(MIG).toContain("WHEN t.situacao <> 'ativa' THEN 0");
+  });
+  it("chave entregue = alugado (vem antes do teste de encerrada); cancelada sem chave = livre", () => {
+    const alugado = MIG.indexOf("WHEN t.chave_em IS NOT NULL OR t.etapa = 'comissao' THEN 1");
+    const livre = MIG.indexOf("WHEN t.situacao <> 'ativa' THEN 0");
+    expect(alugado).toBeGreaterThan(0);
+    expect(alugado).toBeLessThan(livre);
   });
 });
 

@@ -3,6 +3,8 @@
 -- imóvel (ficha.imovel_id) ou por parte do endereço. Devolve SÓ: código, endereço do imóvel, status simplificado, etapa,
 -- nome do corretor responsável e quantos processos ativos há. NADA de locatário, proprietário, fiador, documentos,
 -- valores ou observações (LGPD). Não muda tabela, RLS nem SELECT de locacoes: só cria esta função.
+-- Status (ajuste de Denis 20/11, t_56101806): chave entregue = "alugado" (também se depois encerrada); encerrada sem
+-- chave (reprovada/cancelada/desistência) ou sem processo = "livre"; processo ativo antes da chave prevalece sobre ambos.
 -- Rollback: supabase/rollback/20261211120000_locacao_consultar_imovel.sql
 BEGIN;
 
@@ -26,7 +28,7 @@ BEGIN
 
   RETURN (
     WITH todos AS (
-      SELECT l.etapa, l.situacao, l.corretor_id, l.atualizado_em, b.cod, b.ender,
+      SELECT l.etapa, l.situacao, l.corretor_id, l.atualizado_em, l.chave_em, b.cod, b.ender,
              -- Mesmo imóvel = mesmo código; sem código, mesmo endereço (sem maiúsculas/acentos).
              coalesce('c:' || translate(lower(b.cod), _de, _pa), 'e:' || translate(lower(b.ender), _de, _pa)) AS chave,
              (translate(lower(coalesce(b.cod, '')), _de, _pa) LIKE _q
@@ -39,15 +41,18 @@ BEGIN
       -- Todos os processos do imóvel achado (mesmo os que não casaram com o termo): evita "Livre" falso quando o
       -- processo ativo do mesmo código foi digitado com outro endereço.
       SELECT t.*,
-             CASE WHEN t.situacao <> 'ativa' THEN 0
-                  WHEN t.etapa IN ('pre_analise', 'aprovacao') THEN 1
-                  WHEN t.etapa = 'documentacao' THEN 2
-                  ELSE 3 END AS grau
+             -- 0 livre < 1 alugado < 2..4 processo ativo antes da chave (vale o maior grau do imóvel).
+             -- Chave entregue (chave_em / etapa comissão) = alugado, mesmo se depois for encerrada (t_56101806).
+             CASE WHEN t.chave_em IS NOT NULL OR t.etapa = 'comissao' THEN 1
+                  WHEN t.situacao <> 'ativa' THEN 0
+                  WHEN t.etapa IN ('pre_analise', 'aprovacao') THEN 2
+                  WHEN t.etapa = 'documentacao' THEN 3
+                  ELSE 4 END AS grau
         FROM todos t
        WHERE t.chave IN (SELECT x.chave FROM todos x WHERE x.casou)
     ), imoveis AS (
       SELECT DISTINCT ON (m.chave) m.chave, m.cod, m.ender, m.grau, m.etapa, m.corretor_id,
-             count(*) FILTER (WHERE m.grau > 0) OVER (PARTITION BY m.chave) AS ativos
+             count(*) FILTER (WHERE m.grau > 1) OVER (PARTITION BY m.chave) AS ativos
         FROM marcados m
        ORDER BY m.chave, m.grau DESC, m.atualizado_em DESC
     ), top AS (
@@ -56,10 +61,10 @@ BEGIN
     SELECT coalesce(jsonb_agg(jsonb_build_object(
              'imovel_id', t.cod,
              'endereco', nullif(t.ender, ''),
-             'status', CASE t.grau WHEN 0 THEN 'livre' WHEN 1 THEN 'pre_analise' WHEN 2 THEN 'documentacao'
-                                   ELSE 'contrato' END,
-             'etapa', CASE WHEN t.grau > 0 THEN t.etapa END,
-             'corretor', CASE WHEN t.grau > 0 THEN (SELECT p.nome FROM public.profiles p WHERE p.id = t.corretor_id) END,
+             'status', CASE t.grau WHEN 0 THEN 'livre' WHEN 1 THEN 'alugado' WHEN 2 THEN 'pre_analise'
+                                   WHEN 3 THEN 'documentacao' ELSE 'contrato' END,
+             'etapa', CASE WHEN t.grau > 1 THEN t.etapa END,
+             'corretor', CASE WHEN t.grau > 1 THEN (SELECT p.nome FROM public.profiles p WHERE p.id = t.corretor_id) END,
              'processos_ativos', t.ativos)
            ORDER BY t.grau DESC, t.ender, t.cod), '[]'::jsonb)
       FROM top t);
