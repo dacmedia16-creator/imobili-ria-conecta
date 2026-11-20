@@ -81,6 +81,32 @@ const montagem: Montagem = {
   },
 };
 
+describe("cláusulas adicionais vindas da ficha (t_a0736d87)", () => {
+  const comObs = {
+    ...base,
+    ficha: { ...base.ficha, observacoes: "  30 meses, isenção de multa após 12  " },
+  };
+  it("campo vazio: pré-preenche com o texto da ficha", () => {
+    expect(camposIniciais(comObs, montagem).clausulas_adicionais).toBe(
+      "30 meses, isenção de multa após 12",
+    );
+  });
+  it("nunca sobrescreve o que o setor de contratos já salvou", () => {
+    const m = {
+      ...montagem,
+      campos: { ...montagem.campos, clausulas_adicionais: "Texto da Larissa" },
+    };
+    expect(camposIniciais(comObs, m).clausulas_adicionais).toBe("Texto da Larissa");
+  });
+  it("salvo só com espaços conta como vazio; ficha sem texto deixa vazio", () => {
+    const m = { ...montagem, campos: { ...montagem.campos, clausulas_adicionais: "   " } };
+    expect(camposIniciais(comObs, m).clausulas_adicionais).toBe(
+      "30 meses, isenção de multa após 12",
+    );
+    expect(camposIniciais(base, montagem).clausulas_adicionais).toBe("");
+  });
+});
+
 describe("montagem residencial com fiador", () => {
   it("prefill da ficha e documentos, com correção isolada na montagem", () => {
     const c = camposIniciais(base, montagem);

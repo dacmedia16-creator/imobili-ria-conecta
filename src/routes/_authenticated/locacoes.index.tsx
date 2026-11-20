@@ -189,8 +189,8 @@ function LocacoesPage() {
           <DialogHeader>
             <DialogTitle>Nova locação — qual o tipo do imóvel?</DialogTitle>
             <DialogDescription>
-              Condomínio pede a CND do condomínio (opcional). Comercial já vem com prazo de 36
-              meses. Dá para trocar depois, ainda na pré-análise.
+              Condomínio pede o boleto do condomínio e a CND (opcional). Comercial já vem com prazo
+              de 36 meses. Dá para trocar depois, ainda na pré-análise.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-2">

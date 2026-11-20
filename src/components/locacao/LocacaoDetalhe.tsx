@@ -432,7 +432,7 @@ function DecisaoGestora({ d, ctx, busy, rodar }: P) {
             {d.ficha.observacoes && (
               <>
                 <br />
-                <b>Observações:</b> {d.ficha.observacoes}
+                <b>Cláusulas adicionais e tratativas:</b> {d.ficha.observacoes}
               </>
             )}
           </div>
