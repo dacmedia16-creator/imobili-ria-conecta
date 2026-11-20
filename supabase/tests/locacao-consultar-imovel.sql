@@ -1,4 +1,4 @@
--- Suíte da migration 20261211120000 ("Consultar imóvel" da Locação, t_241e03a9). Roda DENTRO de transação revertida
+-- Suíte da migration 20261211130000 ("Consultar imóvel" da Locação, t_241e03a9). Roda DENTRO de transação revertida
 -- (run-locacao-consultar-imovel.sh), na homologação, só com dados fictícios. Pessoas da homologação:
 -- c2 = QA A Corretor Dois (corretor da Agência A), a1 = UE Corretor (outro corretor da A), b1 = QA B Corretor Um (Agência B).
 CREATE TEMP TABLE r(ok bool, msg text);

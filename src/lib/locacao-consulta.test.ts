@@ -5,8 +5,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { STATUS_CONSULTA, detalheEtapa, lerConsulta, termoValido } from "./locacao-consulta";
 
-const MIG = readFileSync("supabase/migrations/20261211120000_locacao_consultar_imovel.sql", "utf8");
-const RB = readFileSync("supabase/rollback/20261211120000_locacao_consultar_imovel.sql", "utf8");
+const MIG = readFileSync("supabase/migrations/20261211130000_locacao_consultar_imovel.sql", "utf8");
+const RB = readFileSync("supabase/rollback/20261211130000_locacao_consultar_imovel.sql", "utf8");
 
 describe("lerConsulta", () => {
   it("lê só os 6 campos e descarta qualquer outro (LGPD)", () => {

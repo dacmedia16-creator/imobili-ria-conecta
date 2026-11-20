@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# "Consultar imóvel" da Locação (migration 20261211120000, t_241e03a9) numa ÚNICA transação revertida (homologação ou
+# "Consultar imóvel" da Locação (migration 20261211130000, t_241e03a9) numa ÚNICA transação revertida (homologação ou
 # clone, NUNCA produção): impressão digital A -> migration -> suíte -> rollback -> impressão digital == A -> ROLLBACK.
 # Nada fica gravado. Uso: PGCONN="<conninfo da homologação>" bash supabase/tests/run-locacao-consultar-imovel.sh
 # Controle negativo: MIG=<outro arquivo> roda a suíte contra outra versão da função.
@@ -8,8 +8,8 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 PGCONN="${PGCONN:?defina PGCONN (homologação ou clone, nunca produção)}"
 case "$PGCONN" in *xvvymgurpchhlmbpjbgc*) echo "PRODUCAO RECUSADA"; exit 1;; esac
-MIG="${MIG:-$ROOT/supabase/migrations/20261211120000_locacao_consultar_imovel.sql}"
-RB="$ROOT/supabase/rollback/20261211120000_locacao_consultar_imovel.sql"
+MIG="${MIG:-$ROOT/supabase/migrations/20261211130000_locacao_consultar_imovel.sql}"
+RB="$ROOT/supabase/rollback/20261211130000_locacao_consultar_imovel.sql"
 strip() { grep -v -E '^(BEGIN|COMMIT|ROLLBACK);\s*$' "$1"; }
 FP="SELECT 'FP=' || md5(coalesce((SELECT string_agg(x, ',' ORDER BY x) FROM (
   SELECT 'fn:'||p.oid::regprocedure::text||':'||p.prosecdef::text||':'||coalesce((SELECT string_agg(a::text, ',' ORDER BY a::text) FROM unnest(p.proacl) a),'')||':'||coalesce(p.proconfig::text,'')||':'||md5(pg_get_functiondef(p.oid)) x

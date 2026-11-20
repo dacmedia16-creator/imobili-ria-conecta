@@ -1,5 +1,5 @@
 // "Consultar imóvel" da Locação (t_241e03a9): leitura fechada do que a RPC locacao_consultar_imovel devolve
-// (migration 20261211120000). Só código, endereço, status simplificado, etapa e nome do corretor — nada do
+// (migration 20261211130000). Só código, endereço, status simplificado, etapa e nome do corretor — nada do
 // locatário/proprietário/fiador, documentos ou valores (LGPD).
 import { etapaLabel, type EtapaLocacao } from "@/lib/locacao";
 

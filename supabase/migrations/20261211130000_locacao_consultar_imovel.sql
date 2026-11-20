@@ -5,7 +5,7 @@
 -- valores ou observações (LGPD). Não muda tabela, RLS nem SELECT de locacoes: só cria esta função.
 -- Status (ajuste de Denis 20/11, t_56101806): chave entregue = "alugado" (também se depois encerrada); encerrada sem
 -- chave (reprovada/cancelada/desistência) ou sem processo = "livre"; processo ativo antes da chave prevalece sobre ambos.
--- Rollback: supabase/rollback/20261211120000_locacao_consultar_imovel.sql
+-- Rollback: supabase/rollback/20261211130000_locacao_consultar_imovel.sql
 BEGIN;
 
 CREATE OR REPLACE FUNCTION public.locacao_consultar_imovel(_termo text) RETURNS jsonb
