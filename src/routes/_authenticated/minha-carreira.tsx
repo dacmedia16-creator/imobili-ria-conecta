@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { podeVerMinhaImobiliaria } from "@/lib/minha-imobiliaria/acesso";
 import { errorMessage } from "@/lib/errors";
 import { exclusiveEnabled } from "@/lib/exclusive-captures-db";
 import { opportunitiesEnabled } from "@/lib/oportunidades-module";
@@ -55,9 +56,15 @@ import { CheckCircle2, ListTodo, Radar, Sprout, Building2 } from "lucide-react";
 // filtram por auth.uid() e current_org_id() no banco; a tela não recebe dado de colega.
 export const Route = createFileRoute("/_authenticated/minha-carreira")({
   head: () => ({ meta: [{ title: "Minha carreira" }] }),
-  beforeLoad: async () => {
+  beforeLoad: async ({ context }) => {
     const { data } = await supabase.auth.getSession();
-    if (!data.session || !(await exclusiveEnabled())) throw redirect({ to: "/dashboard" });
+    if (!data.session) throw redirect({ to: "/dashboard" });
+    // Dono e admin usam "Minha imobiliária" (t_f7f1b3e4, Denis 20/11); gestor, TL e corretor seguem aqui.
+    // O Meu Plano 2027 (/minha-carreira/plano, inclusive a visão da equipe) continua aberto para eles.
+    const acesso = await context.auth.getAccess();
+    if (acesso && podeVerMinhaImobiliaria(acesso.roles))
+      throw redirect({ to: "/minha-imobiliaria" });
+    if (!(await exclusiveEnabled())) throw redirect({ to: "/dashboard" });
   },
   component: MinhaCarreiraPage,
 });

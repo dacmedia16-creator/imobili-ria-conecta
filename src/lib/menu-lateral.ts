@@ -41,6 +41,7 @@ import {
   GalleryHorizontal,
   Target,
   Goal,
+  Warehouse,
 } from "lucide-react";
 import { podeAtenderLeads, podeVerPainelLeads } from "@/lib/leads";
 import { podeAcessarCentralFinanceira } from "@/lib/financeiro-dashboard-calc";
@@ -48,6 +49,7 @@ import { podeVerOcorrenciasConcluidas } from "@/lib/ocorrencias-concluidas";
 import { podeAcessarVendasPorRegiao } from "@/lib/vendas-por-regiao";
 import { podeAcessarPainelEquipe } from "@/lib/painel-equipe-calc";
 import { podeAcessarPainelImobiliaria } from "@/lib/metas-2027/acesso";
+import { podeVerMinhaCarreira, podeVerMinhaImobiliaria } from "@/lib/minha-imobiliaria/acesso";
 import { ehSoFotografo } from "@/lib/fotografo";
 import { ehSoLocacao } from "@/lib/papel-locacao";
 
@@ -115,13 +117,19 @@ export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
       items: [
         { to: "/dashboard", label: "Início", icon: Home, show: true },
         {
+          to: "/minha-imobiliaria",
+          label: "Minha imobiliária",
+          icon: Warehouse,
+          // Painel do dono/admin (t_f7f1b3e4, Denis 20/11): só admin e Administrador principal. O banco recusa os demais.
+          show: podeVerMinhaImobiliaria(roles),
+        },
+        {
           to: "/minha-carreira",
           label: "Minha carreira",
           icon: Sprout,
-          // Mesmos perfis de Captações exclusivas; as RPCs só devolvem dados do próprio usuário.
-          show:
-            carreiraVisible &&
-            hasAny(["corretor", "gestor", "team_leader", "admin", "super_admin"]),
+          // Corretor, gestor e TL (t_f7f1b3e4): dono e admin deixam de ver (têm "Minha imobiliária").
+          // As RPCs só devolvem dados do próprio usuário.
+          show: carreiraVisible && podeVerMinhaCarreira(roles),
         },
       ],
     },

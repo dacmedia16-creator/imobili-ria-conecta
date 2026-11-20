@@ -27,6 +27,8 @@ function menuAnterior(ctx: MenuContexto): Set<string> {
   const hasAny = (rs: string[]) => rs.some((r) => roles.includes(r));
   const itens: [string, boolean][] = [
     ["/dashboard", true],
+    // Minha imobiliária (t_f7f1b3e4): item novo, só admin e Administrador principal (dono).
+    ["/minha-imobiliaria", hasAny(["admin", "super_admin"])],
     ["/vendas", true],
     [
       "/exclusividades",
@@ -195,7 +197,7 @@ describe("menu lateral agrupado", () => {
     });
     const rotulo = new Map(grupos.flatMap((g) => g.items).map((i) => [i.to, i.label]));
     const arquivo: Record<string, string> = {
-      "/minha-carreira": "minha-carreira.tsx",
+      "/minha-imobiliaria": "minha-imobiliaria.tsx",
       "/vendas": "vendas.index.tsx",
       "/exclusividades": "exclusividades.index.tsx",
       "/mapa-captacoes": "mapa-captacoes.tsx",
@@ -284,6 +286,36 @@ describe("menu lateral agrupado", () => {
       expect(vê([p], true)).toBe(false);
   });
 
+  it("Minha imobiliária (t_f7f1b3e4): só dono e admin, logo abaixo do Início, sem depender de módulo", () => {
+    const base = {
+      platformAdmin: false,
+      exclusiveVisible: false,
+      roomVisible: false,
+      feedbackVisible: false,
+    };
+    const vê = (roles: string[]) =>
+      itensVisiveis(montarMenuLateral({ ...base, roles })).includes("/minha-imobiliaria");
+    for (const p of ["admin", "super_admin"]) {
+      expect(vê([p])).toBe(true);
+      expect(vê([p, "corretor"])).toBe(true);
+    }
+    for (const p of [
+      "corretor",
+      "gestor",
+      "team_leader",
+      "juridico",
+      "financeiro",
+      "lancamento",
+      "staff",
+    ])
+      expect(vê([p])).toBe(false);
+    const topo = montarMenuLateral({ ...base, roles: ["admin"] })[0].items.filter((i) => i.show);
+    expect(topo.map((i) => [i.to, i.label])).toEqual([
+      ["/dashboard", "Início"],
+      ["/minha-imobiliaria", "Minha imobiliária"],
+    ]);
+  });
+
   it("Minha carreira só aparece com o módulo de captação e para os perfis de Captações exclusivas", () => {
     const base = {
       platformAdmin: true,
@@ -295,13 +327,48 @@ describe("menu lateral agrupado", () => {
       itensVisiveis(montarMenuLateral({ ...base, roles, carreiraVisible })).includes(
         "/minha-carreira",
       );
-    for (const p of ["corretor", "gestor", "team_leader", "admin", "super_admin"]) {
+    for (const p of ["corretor", "gestor", "team_leader"]) {
       expect(vê([p], true)).toBe(true);
       expect(vê([p], false)).toBe(false);
       expect(vê([p])).toBe(false);
     }
+    // Dono e admin deixam de ver Minha carreira (t_f7f1b3e4), mesmo quando também vendem (corretor/gestor/TL).
+    for (const p of ["admin", "super_admin"]) {
+      expect(vê([p], true)).toBe(false);
+      for (const q of ["corretor", "gestor", "team_leader"]) expect(vê([p, q], true)).toBe(false);
+    }
     for (const p of ["juridico", "financeiro", "lancamento", "staff"])
       expect(vê([p], true)).toBe(false);
+  });
+
+  it("Minha imobiliária (t_f7f1b3e4): só dono e admin, logo abaixo do Início, sem depender de módulo", () => {
+    const base = {
+      platformAdmin: false,
+      exclusiveVisible: false,
+      roomVisible: false,
+      feedbackVisible: false,
+    };
+    const vê = (roles: string[]) =>
+      itensVisiveis(montarMenuLateral({ ...base, roles })).includes("/minha-imobiliaria");
+    for (const p of ["admin", "super_admin"]) {
+      expect(vê([p])).toBe(true);
+      expect(vê([p, "corretor"])).toBe(true);
+    }
+    for (const p of [
+      "corretor",
+      "gestor",
+      "team_leader",
+      "juridico",
+      "financeiro",
+      "lancamento",
+      "staff",
+    ])
+      expect(vê([p])).toBe(false);
+    const topo = montarMenuLateral({ ...base, roles: ["admin"] })[0].items.filter((i) => i.show);
+    expect(topo.map((i) => [i.to, i.label])).toEqual([
+      ["/dashboard", "Início"],
+      ["/minha-imobiliaria", "Minha imobiliária"],
+    ]);
   });
 
   it('"Entrar como" da plataforma esconde os 3 itens da plataforma e a Ficha dos colaboradores (t_722085c6, t_618b64bc)', () => {
