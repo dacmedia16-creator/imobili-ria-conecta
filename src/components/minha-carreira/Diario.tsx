@@ -43,7 +43,12 @@ const db = supabase as unknown as SupabaseClient;
 
 const dataBR = (iso: string) => iso.split("-").reverse().join("/");
 
-type PlanoSemana = { respostas: Respostas | null; padrao: TaxasFunil | null };
+type PlanoSemana = {
+  respostas: Respostas | null;
+  padrao: TaxasFunil | null;
+  /** Plano assinado (t_850a0d39): a cópia ms.* fica a da assinatura (o banco recusa regravar). */
+  assinado?: boolean;
+};
 
 /** Taxas padrão do funil da imobiliária (as mesmas que o plano usa na calc()). */
 export async function lerTaxasPadrao(): Promise<TaxasFunil | null> {
@@ -64,16 +69,17 @@ export async function lerPlano(userId: string): Promise<PlanoSemana> {
   const [p, padrao] = await Promise.all([
     planoDb
       .from("carreira_plano")
-      .select("respostas")
+      .select("respostas,assinado_corretor_em")
       .eq("user_id", userId)
       .eq("ano", ANO_PLANO)
       .maybeSingle(),
     lerTaxasPadrao(),
   ]);
+  const linha = p.data as { respostas?: Respostas; assinado_corretor_em?: string | null } | null;
   return {
-    respostas: ((p.data as { respostas?: Respostas } | null)?.respostas ??
-      null) as Respostas | null,
+    respostas: (linha?.respostas ?? null) as Respostas | null,
     padrao,
+    assinado: !!linha?.assinado_corretor_em,
   };
 }
 
@@ -103,7 +109,8 @@ export function Diario({ userId, extraSemana }: { userId: string; extraSemana?: 
     setPlano(p);
     // Guarda no plano a cópia das metas (campos ms.*) para o team leader, que não lê o plano.
     const metas = metasDoPlano(p.respostas, p.padrao);
-    const dif = p.respostas ? snapshotMudou(p.respostas, metas) : {};
+    // Plano assinado: não regrava (o banco recusaria e a cópia da assinatura é a que vale).
+    const dif = p.respostas && !p.assinado ? snapshotMudou(p.respostas, metas) : {};
     if (Object.keys(dif).length)
       void planoDb.rpc("carreira_plano_salvar", { _ano: ANO_PLANO, _campos: dif });
   }, [userId]);

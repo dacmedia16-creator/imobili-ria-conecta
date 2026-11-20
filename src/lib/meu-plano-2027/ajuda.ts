@@ -121,7 +121,7 @@ export const AJUDA = {
   },
   "p32.vgc": {
     nome: "Metas de VGC",
-    t: "Como calcular: transações = captação + venda; VGC = transações × comissão média por transação.",
+    t: "Como calcular: transações = captação + venda; VGC = transações × comissão média por transação. Com o plano assinado, estes números ficam travados até o gestor reabrir.",
     fonte: "Book pág. 31 (PDF 32)",
   },
   "p11.acoes": {
@@ -215,7 +215,7 @@ export const AJUDA = {
   },
   "p45.corretor": {
     nome: "Compromissos do corretor",
-    t: "Escreva o seu nome e até 3 compromissos que você assume neste plano.",
+    t: "Escreva o seu nome e até 3 compromissos que você assume neste plano. Depois de assinar, o plano fica só para leitura (o acompanhamento continua livre); para mudar, peça ao seu gestor para reabrir.",
     fonte: "texto nosso (o book só traz “Eu, ___, me comprometo a: 01 02 03”)",
   },
   "p45.broker": {
