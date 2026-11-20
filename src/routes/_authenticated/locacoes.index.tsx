@@ -22,6 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState, KpiTile, ListSkeleton, PageHeader, Pill } from "@/components/visual/base";
 import { AConfirmar } from "@/components/locacao/LocacaoDetalhe";
+import { LocacaoConsultarImovel } from "@/components/locacao/LocacaoConsultarImovel";
 import { LocacaoFinanceiro } from "@/components/locacao/LocacaoFinanceiro";
 import { LocacaoRegras } from "@/components/locacao/LocacaoRegras";
 import { LocacaoModelosContrato } from "@/components/locacao/LocacaoModelosContrato";
@@ -227,6 +228,7 @@ function LocacoesPage() {
           </select>
         </div>
       )}
+      {!soFinanceiro && <LocacaoConsultarImovel />}
       <Tabs value={atual} onValueChange={(v) => setAba(v as Aba)}>
         <TabsList className="flex h-auto flex-wrap">
           {!soFinanceiro && (
