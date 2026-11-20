@@ -19,7 +19,9 @@ import {
   type CanalIa,
 } from "./leads-ia-canal";
 import { aquecerUmaRodada, canalDoChip, type DepsAquecer } from "./leads-aquecer";
+import { aplicarModoEquipe } from "./leads-ia-equipe";
 import {
+  imoveisSegurosPiloto,
   argsBusca,
   argsNome,
   type FiltroNome,
@@ -32,6 +34,7 @@ import {
   type FiltroBusca,
   finalizarResposta,
   proximaResposta,
+  regiaoDaConversa,
   respostaMidia,
   respostaAutomatica,
   type ContextoIa,
@@ -298,6 +301,8 @@ export type DepsRetorno = {
   aceiteResultado?: (respostaId: string, ok: boolean) => Promise<unknown>;
   /** t_99359490: lead_config.ia_permuta_fluxo da imobiliária. Opcional; erro = desligada. */
   permutaFluxo?: (orgId: string) => Promise<boolean>;
+  /** t_45d0f5aa: lead_config.ia_modo_equipe (Piloto C2S: sem prometer corretor/visita/prazo). Erro = desligada. */
+  modoEquipe?: (orgId: string) => Promise<boolean>;
   /**
    * t_a2cae373: por qual chip saem as mensagens do lead (lead_aquecer_chip_do_lead). Lead retomado pelo aquecimento
    * nunca sai pelo chip de atendimento, e o chip do aquecimento só envia para esses leads. Sem ela = atendimento.
@@ -327,6 +332,16 @@ export async function permutaFluxoDb(db: SupabaseClient, orgId: string): Promise
     .eq("organization_id", orgId)
     .maybeSingle();
   return !error && (data as { ia_permuta_fluxo?: boolean } | null)?.ia_permuta_fluxo === true;
+}
+
+/** t_45d0f5aa: chave lead_config.ia_modo_equipe. Coluna ausente (migration não aplicada) ou erro = desligada. */
+export async function modoEquipeDb(db: SupabaseClient, orgId: string): Promise<boolean> {
+  const { data, error } = await db
+    .from("lead_config")
+    .select("ia_modo_equipe")
+    .eq("organization_id", orgId)
+    .maybeSingle();
+  return !error && (data as { ia_modo_equipe?: boolean } | null)?.ia_modo_equipe === true;
 }
 
 const json = (status: number, r: string) =>
@@ -518,6 +533,8 @@ export async function responderEEnviar(banco: RespostaBanco, msg: MensagemZion, 
     const permutaFluxo = deps.permutaFluxo
       ? await deps.permutaFluxo(banco.organization_id!).catch(() => false)
       : false;
+    // Leitura única da chave; sem coluna/migration ou erro, tudo segue como antes (inclusive ZZ).
+    const modoEquipe = deps.modoEquipe ? await deps.modoEquipe(banco.organization_id!).catch(() => false) : false;
     const ctx: ContextoIa = { ...c, dados: c.dados ?? {}, permuta_fluxo: permutaFluxo };
     const escolha: EscolhaModelo = {
       provedor: banco.ia_modelo_provedor === "openrouter" ? "openrouter" : "gemini",
@@ -525,8 +542,10 @@ export async function responderEEnviar(banco: RespostaBanco, msg: MensagemZion, 
     };
     const usos: UsoModelo[] = [];
     let semResposta = false;
+    const seguro = (r: ResultadoParecidos | null, negocio: "venda" | "locacao") =>
+      modoEquipe && r ? { ...r, itens: imoveisSegurosPiloto(r.itens, negocio) } : r;
     const buscarParecidos = deps.buscarParecidos
-      ? (f: FiltroParecido) => deps.buscarParecidos!(c.conversa_id, f)
+      ? async (f: FiltroParecido) => seguro(await deps.buscarParecidos!(c.conversa_id, f), f.negocio)
       : undefined;
     // t_37cf21e3: histórico lido 1 vez; as falas do cliente que chegaram juntas (sem resposta) dizem de qual busca ele fala.
     const historico =
@@ -546,12 +565,20 @@ export async function responderEEnviar(banco: RespostaBanco, msg: MensagemZion, 
                 : undefined,
               buscarParecidos,
               buscarImoveis: deps.buscarImoveis
-                ? (f) => deps.buscarImoveis!(c.conversa_id, f)
+                ? async (f) => seguro(await deps.buscarImoveis!(c.conversa_id, f), f.negocio)
                 : undefined,
               buscarCaracteristica: deps.buscarCaracteristica
-                ? (f) => deps.buscarCaracteristica!(c.conversa_id, f)
+                ? async (f) => {
+                    const r = await deps.buscarCaracteristica!(c.conversa_id, f);
+                    return modoEquipe && r ? {
+                      itens: imoveisSegurosPiloto(r.itens, f.negocio),
+                      proximo: r.proximo ? imoveisSegurosPiloto([r.proximo], f.negocio)[0] ?? null : null,
+                    } : r;
+                  }
                 : undefined,
               falasAntes: falasSemResposta(historico, msg.texto),
+              regiaoConversa: modoEquipe ? regiaoDaConversa(historico) : null,
+              pedidoSeguro: modoEquipe,
             },
           );
     // t_7b59589c: com a chave da imobiliária ligada, o modelo escreve; o roteiro acima é o plano B.
@@ -587,6 +614,9 @@ export async function responderEEnviar(banco: RespostaBanco, msg: MensagemZion, 
         historico.filter((f) => f.autor === "ia").map((f) => f.texto),
         ctx,
       );
+    // t_45d0f5aa: modo equipe (só com a chave da imobiliária): sem corretor, visita marcada nem prazo.
+    if (banco.tipo !== "midia" && !semResposta && modoEquipe)
+      r = aplicarModoEquipe(r, msg.texto);
     for (const u of usos)
       await deps.registrarUso(banco.organization_id!, c.conversa_id, u).catch(() => undefined);
     // _resposta_falha: o banco só diz "encaminhei" se gravou o registro e o aviso (t_fc4d9b27).
@@ -1104,6 +1134,7 @@ export async function depsReais(request: Request): Promise<DepsRetorno> {
     aceiteResultado: async (respostaId, ok) =>
       await db.rpc("lead_aceite_whats_resultado", { _id: respostaId, _ok: ok }),
     permutaFluxo: (orgId) => permutaFluxoDb(db, orgId),
+    modoEquipe: (orgId) => modoEquipeDb(db, orgId),
     chipDoLead: (leadId) => chipDoLeadDb(db, leadId),
     env: process.env as Record<string, string | undefined>,
     emSegundoPlano: typeof wu === "function" ? (p) => wu.call(request, p) : undefined,
