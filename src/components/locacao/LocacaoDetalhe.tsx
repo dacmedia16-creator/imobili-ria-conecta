@@ -48,6 +48,7 @@ import {
   type LocacaoDetalhe as Detalhe,
 } from "@/lib/locacao";
 import { LocacaoArquivoAcoes } from "@/components/locacao/LocacaoArquivoAcoes";
+import { LocacaoDocumentosFinais } from "@/components/locacao/LocacaoDocumentosFinais";
 import {
   contextoLocacao,
   contratosAcao,
@@ -321,6 +322,14 @@ export function LocacaoDetalhe({ id }: { id: string }) {
             <LocacaoAnexosGarantia
               d={d}
               editavel={souCorretor || tenho("contratos") || tenho("vistoria")}
+              recarregar={carregar}
+            />
+          )}
+          {atual >= etapaIndex("assinatura") && (
+            <LocacaoDocumentosFinais
+              d={d}
+              contratos={d.situacao === "ativa" && tenho("contratos")}
+              vistoria={d.situacao === "ativa" && tenho("vistoria")}
               recarregar={carregar}
             />
           )}
@@ -810,7 +819,11 @@ function Assinatura({ d, busy, rodar, contratos }: P & { contratos: boolean }) {
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={busy}
+                        disabled={
+                          busy ||
+                          (k === "loc" && !d.finaisTem.contrato_locacao) ||
+                          (k === "vist" && !d.finaisTem.laudo)
+                        }
                         onClick={() =>
                           void rodar(
                             () => contratosAcao(d.id, "marcar_assinado", { documento: k }),
@@ -828,6 +841,20 @@ function Assinatura({ d, busy, rodar, contratos }: P & { contratos: boolean }) {
           </tbody>
         </table>
       </div>
+      {contratos &&
+        a.enviadoEm &&
+        (!d.finaisTem.contrato_locacao || (a.vistJunto && !d.finaisTem.laudo)) && (
+          <p className="text-xs text-amber-700 dark:text-amber-300">
+            Para marcar como assinado, primeiro anexe{" "}
+            {[
+              !d.finaisTem.contrato_locacao ? "o contrato de locação" : "",
+              a.vistJunto && !d.finaisTem.laudo ? "o laudo de vistoria" : "",
+            ]
+              .filter(Boolean)
+              .join(" e ")}{" "}
+            em Documentos finais, acima.
+          </p>
+        )}
       {a.enviadoEm && (
         <p className="text-xs text-muted-foreground">Envio registrado em {dataBr(a.enviadoEm)}.</p>
       )}
@@ -928,11 +955,20 @@ function PosAssinatura({
                 p.laudoEm ? (
                   <span className="text-xs">{dataBr(p.laudoEm)}</span>
                 ) : (
-                  btn("laudo_assinado", "Laudo registrado", !p.vistoriaPedida && !p.vistJunto)
+                  btn(
+                    "laudo_assinado",
+                    "Laudo registrado",
+                    (!p.vistoriaPedida && !p.vistJunto) || !d.finaisTem.laudo,
+                  )
                 )
               }
             >
               Laudo enviado p/ assinatura e assinado{p.vistJunto ? " (foi junto do contrato)" : ""}
+              {vistoria && !p.laudoEm && !d.finaisTem.laudo && (
+                <span className="block text-xs text-amber-700 dark:text-amber-300">
+                  Anexe o PDF do laudo assinado em Documentos finais para registrar.
+                </span>
+              )}
             </Item>
             <Item
               ok={true}

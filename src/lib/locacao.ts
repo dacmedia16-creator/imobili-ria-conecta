@@ -306,6 +306,26 @@ export type LocacaoDetalhe = Locacao & {
     enviadoEm: string;
   }[];
   apolicePendente: boolean;
+  finaisPode: boolean;
+  finaisTem: { contrato_locacao: boolean; contrato_adm: boolean; laudo: boolean };
+  finaisTel: { locatario: boolean; proprietario: boolean } | null;
+  finais: {
+    id: string;
+    tipo: "contrato_locacao" | "contrato_adm" | "laudo";
+    nomeArquivo: string;
+    enviadoEm: string;
+    enviadoPorNome: string | null;
+    envios: {
+      id: string;
+      destinatario: string;
+      origem: string;
+      status: string;
+      erro: string | null;
+      telefoneFinal: string | null;
+      criadoEm: string;
+      solicitadoPorNome: string | null;
+    }[];
+  }[];
 };
 const LEITURAS = new Set(["pendente", "ok", "falhou", "sem_leitura"]);
 
@@ -582,6 +602,45 @@ export function lerDetalhe(raw: unknown): LocacaoDetalhe {
       };
     }),
     apolicePendente: b(o.apolice_pendente),
+    finaisPode: b(o.finais_pode),
+    finaisTem: {
+      contrato_locacao: b(obj(o.finais_tem).contrato_locacao),
+      contrato_adm: b(obj(o.finais_tem).contrato_adm),
+      laudo: b(obj(o.finais_tem).laudo),
+    },
+    finaisTel: o.finais_tel
+      ? {
+          locatario: b(obj(o.finais_tel).locatario),
+          proprietario: b(obj(o.finais_tel).proprietario),
+        }
+      : null,
+    finais: arr(o.finais)
+      .map((raw) => {
+        const f = obj(raw);
+        const t = s(f.tipo);
+        return {
+          id: s(f.id),
+          tipo: (t === "laudo" || t === "contrato_adm" ? t : "contrato_locacao") as
+            "laudo" | "contrato_adm" | "contrato_locacao",
+          nomeArquivo: s(f.nome_arquivo),
+          enviadoEm: s(f.enviado_em),
+          enviadoPorNome: sn(f.enviado_por_nome),
+          envios: arr(f.envios).map((rawEnvio) => {
+            const e = obj(rawEnvio);
+            return {
+              id: s(e.id),
+              destinatario: s(e.destinatario),
+              origem: s(e.origem),
+              status: s(e.status),
+              erro: sn(e.erro),
+              telefoneFinal: sn(e.telefone_final),
+              criadoEm: s(e.criado_em),
+              solicitadoPorNome: sn(e.solicitado_por_nome),
+            };
+          }),
+        };
+      })
+      .filter((f) => f.id),
     documentos: arr(o.documentos).map((d) => {
       const x = obj(d);
       return {

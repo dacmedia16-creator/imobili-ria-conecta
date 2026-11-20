@@ -239,10 +239,14 @@ export async function lerDocumentoIa(documentoId: string) {
  * Na minuta, `paraBaixar` devolve o link já como anexo, com o nome do arquivo limpo pelo servidor.
  */
 export async function linkArquivoLocacao(
-  tipo: "documento" | "anexo" | "minuta",
+  tipo: "documento" | "anexo" | "minuta" | "final",
   id: string,
   paraBaixar = false,
 ): Promise<string> {
+  if (tipo === "final") {
+    const { linkFinalLocacao } = await import("@/lib/locacao-finais.functions");
+    return (await linkFinalLocacao({ data: { documentoId: id, baixar: paraBaixar } })).url;
+  }
   const { linkDocumentoLocacao, linkAnexoLocacao, linkMinutaLocacao } =
     await import("@/lib/locacao.functions");
   const { url } =
