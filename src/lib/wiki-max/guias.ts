@@ -178,7 +178,8 @@ export const GUIAS: WikiGuia[] = [
     onde: "ADM MAX → Menu → <b>Minha carreira</b> (logo abaixo de Início)",
     passos: [
       "<b>O que fazer hoje:</b> as suas pendências do dia.",
-      "<b>Meu mês:</b> escolha <b>Mês</b> ou <b>Ano</b>, preencha as metas de Comissão, VGV, Vendas e Captações e clique em <b>Salvar minha meta</b>.",
+      "<b>Meu painel de metas 2027:</b> a meta vem do seu Meu Plano 2027 assinado. Veja a barra do ano e a do mês, quanto falta no mês e por semana e as vendas e captações que já entraram sozinhas.",
+      "<b>Minhas anotações:</b> escreva o que fez, o próximo passo e a data dele. Não mexe na meta.",
       "<b>Meu dinheiro:</b> as suas comissões no mês, no ano ou em todo o período.",
       "<b>Conquistas:</b> Clube RE/MAX, Ranking e Meus destaques no Mural.",
       "<b>Diário de atividades:</b> registre cada <b>Ligação</b>, <b>Visita</b> ou <b>ACM</b> que você fez.",

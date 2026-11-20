@@ -312,9 +312,10 @@ describe("chave do módulo: desligado = tela exatamente como hoje", () => {
     // Desligado: extras = [] → a lista e o vazio ficam como antes.
     expect(carreira).toContain("pendencias.length === 0 && gestao.extras.length === 0");
   });
-  it("Meu dinheiro, Meu mês e Conquistas continuam chamados do mesmo jeito", () => {
+  it("Meu dinheiro, painel de metas (no lugar do Meu mês) e Conquistas continuam chamados", () => {
     expect(carreira).toContain("{userId ? <MeuDinheiro userId={userId} /> : null}");
-    expect(carreira).toContain("{userId ? <MeuMes userId={userId} /> : null}");
+    expect(carreira).toContain("{userId ? <PainelMetasCorretor userId={userId} /> : null}");
+    expect(carreira).not.toContain("<MeuMes");
     expect(carreira).toContain("{userId ? <Conquistas userId={userId} /> : null}");
   });
 });
@@ -406,7 +407,9 @@ describe("farol no Painel da Equipe", () => {
   it("demais rótulos curtos do farol continuam iguais (não herdam o nowrap do jan/2027)", () => {
     render(createElement(FarolEquipe, { dados, gestao: gestao(), hoje: HOJE }));
     const [ana, bia] = screen.getAllByTestId("farol-linha");
-    expect(ana.querySelector('[data-sinal="sem_vender"]')!.textContent).toMatch(/dias|Ainda não vendeu/);
+    expect(ana.querySelector('[data-sinal="sem_vender"]')!.textContent).toMatch(
+      /dias|Ainda não vendeu/,
+    );
     expect(bia.querySelector('[data-sinal="atividade"]')!.textContent).toBe("sem plano");
     expect(bia.querySelector('[data-sinal="captacoes"]')!.textContent).toBe("sem plano");
     for (const el of [ana, bia]) {

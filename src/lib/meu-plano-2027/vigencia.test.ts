@@ -99,9 +99,10 @@ describe("assinatura grava a meta anual de 2027 (substitui a manual)", () => {
   it("não grava minhas_metas de 2026", () => {
     const src = readFileSync("src/components/minha-carreira/meu-plano/usePlano.ts", "utf8");
     expect(src).not.toMatch(/make_date\(2026/);
-    const mes = readFileSync("src/components/minha-carreira/MeuMes.tsx", "utf8");
-    expect(mes).toContain("TEXTO_MES_TRAVADO");
-    expect(mes).toContain("metaMesDoPlanoAssinado");
+    // t_2fa76ce2: o "Meu mês" (que gravava minhas_metas) saiu; o painel novo só lê o plano assinado.
+    const painel = readFileSync("src/components/minha-carreira/PainelMetasCorretor.tsx", "utf8");
+    expect(painel).toContain("montarPainelCorretor");
+    expect(painel).not.toContain("minhas_metas");
   });
 });
 

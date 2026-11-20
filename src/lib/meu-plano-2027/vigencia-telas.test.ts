@@ -4,7 +4,8 @@
  * data simulada (vi.setSystemTime), sem tocar produção:
  * - Sua semana antes de 01/01/2027: feito + aviso, sem barra de meta; a partir de 2027: feito x meta.
  * - V1/V2/visita com comprador continuam disponíveis antes da vigência.
- * - Meu mês em 2027: travado para quem tem plano assinado; livre sem plano; 2026 e módulo desligado iguais.
+ * O "Meu mês" saiu (t_2fa76ce2): o painel novo do corretor tem os próprios testes em
+ * src/lib/metas-2027/painel-corretor-tela.test.ts.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
@@ -44,7 +45,6 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ hasAny: () => false }) }));
 
-import { MeuMes } from "@/components/minha-carreira/MeuMes";
 import { Diario } from "@/components/minha-carreira/Diario";
 
 const ANA: Respostas = {
@@ -145,56 +145,5 @@ describe("Sua semana (Diário) e a vigência de 01/01/2027", () => {
     await waitFor(() => expect(screen.queryByText("Registrar")).toBeTruthy());
     expect(screen.queryByTestId("sua-semana")).toBeNull();
     expect(screen.queryByTestId("aviso-vigencia")).toBeNull();
-  });
-});
-
-describe("Meu mês: meta do mês em 2027 vem do plano assinado", () => {
-  it("2027 com plano assinado: campo travado, meta do plano e aviso", async () => {
-    data("2027-03-10");
-    tabelas.carreira_plano = assinado;
-    render(createElement(MeuMes, { userId: "u1" }));
-    const aviso = await screen.findByTestId("aviso-meta-plano");
-    expect(aviso.textContent).toContain("vem do Meu Plano 2027 — para mudar, ajuste o plano");
-    expect(screen.getByTestId("meu-mes").textContent).toMatch(/R\$\s?49\.000/);
-    expect(screen.queryByText("Atualizar minha meta")).toBeNull();
-    expect(screen.queryByText("Salvar minha meta")).toBeNull();
-  });
-
-  it("2027 sem plano assinado: continua digitando como hoje", async () => {
-    data("2027-03-10");
-    tabelas.carreira_plano = { respostas: ANA, assinado_corretor_em: null };
-    render(createElement(MeuMes, { userId: "u1" }));
-    await screen.findByText("Salvar minha meta");
-    expect(screen.queryByTestId("aviso-meta-plano")).toBeNull();
-  });
-
-  it("2026: nada muda, mesmo com plano assinado (não lê o plano)", async () => {
-    data("2026-11-18");
-    tabelas.carreira_plano = assinado;
-    tabelas.minhas_metas = [
-      {
-        id: "m26",
-        periodo: "mes",
-        inicio: "2026-11-01",
-        meta_comissao: 12000,
-        meta_vgv: null,
-        meta_vendas: 2,
-        meta_captacoes: 3,
-      },
-    ];
-    render(createElement(MeuMes, { userId: "u1" }));
-    await screen.findByText("Atualizar minha meta");
-    expect(screen.getByTestId("meu-mes").textContent).toMatch(/R\$\s?12\.000/);
-    expect(screen.queryByTestId("aviso-meta-plano")).toBeNull();
-    expect(rpc.mock.calls.map((c) => c[0])).not.toContain("meu_plano_2027_enabled");
-  });
-
-  it("2027 com módulo desligado: campo livre", async () => {
-    data("2027-03-10");
-    moduloOn = false;
-    tabelas.carreira_plano = assinado;
-    render(createElement(MeuMes, { userId: "u1" }));
-    await screen.findByText("Salvar minha meta");
-    expect(screen.queryByTestId("aviso-meta-plano")).toBeNull();
   });
 });
