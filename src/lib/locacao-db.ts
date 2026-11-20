@@ -40,6 +40,9 @@ export async function guardLocacaoRoute() {
 export const contextoLocacao = () => rpc<unknown>("locacao_contexto");
 export const listarLocacoes = () => rpc<unknown[]>("locacao_lista");
 export const detalheLocacao = (id: string) => rpc<unknown>("locacao_detalhe", { _id: id });
+/** "Consultar imóvel" (t_241e03a9): status + corretor por código/endereço, só da imobiliária atual. */
+export const consultarImovelLocacao = (termo: string) =>
+  rpc<unknown[]>("locacao_consultar_imovel", { _termo: termo });
 /** Abre a locação já com o tipo do imóvel (t_8f09d406): condomínio, casa de rua ou comercial. */
 export const criarLocacao = (imovelTipo: ImovelTipo | null = null) =>
   rpc<{ id: string }>("locacao_criar", { _imovel_tipo: imovelTipo });
