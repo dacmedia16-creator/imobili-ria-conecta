@@ -169,3 +169,70 @@ export const linkDocumentoLocacao = createServerFn({ method: "POST" })
     if (e2 || !signed?.signedUrl) throw new Error("Documento indisponível.");
     return { url: signed.signedUrl };
   });
+
+/**
+ * Pacote para a administradora do condomínio (t_40cff7e4): 1) o banco confere quem pode (corretor da locação, gerência
+ * ou gestora), ficha e RGs completos e devolve os dados; 2) o servidor lê os RGs do bucket privado e monta um único PDF;
+ * 3) o banco registra quem baixou e quando. Nada é enviado por e-mail: o PDF volta só para quem clicou.
+ */
+export const baixarPacoteAdministradora = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => z.object({ locacaoId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const user = context.supabase as unknown as SupabaseClient;
+    const { data: prep, error } = await user.rpc("locacao_pacote_preparar", {
+      _id: data.locacaoId,
+    });
+    if (error) throw new Error(error.message);
+    const { lerMoradoresRpc } = await import("@/lib/locacao-moradores");
+    const { montarPacotePdf, nomeArquivoPacote, tipoArquivo } =
+      await import("@/lib/locacao-pacote-pdf");
+    const { hojeSaoPaulo } = await import("@/lib/hoje-sao-paulo");
+    const p = (prep ?? {}) as Record<string, unknown>;
+    const s = (v: unknown) => (typeof v === "string" ? v : "");
+    const loc = (p.locatario ?? {}) as Record<string, unknown>;
+    const rgs = (Array.isArray(p.rgs) ? p.rgs : []) as { item?: unknown; path?: unknown }[];
+    const sb = await admin();
+    const arquivos = [];
+    for (const r of rgs) {
+      const path = s(r.path);
+      const prefixo = `${data.locacaoId}/`;
+      // Defesa extra: só arquivo desta locação (o caminho é <org>/<locação>/<uuid>.<ext>).
+      if (!path || path.split("/")[1] + "/" !== prefixo)
+        throw new Error("Cópia do RG indisponível.");
+      const { data: blob, error: e2 } = await sb.storage.from(BUCKET).download(path);
+      if (e2 || !blob) throw new Error("Cópia do RG indisponível.");
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      arquivos.push({ item: s(r.item), bytes, tipo: tipoArquivo(bytes) });
+    }
+    const { data: perfil } = await sb
+      .from("profiles")
+      .select("nome")
+      .eq("id", context.userId)
+      .maybeSingle();
+    const pdf = await montarPacotePdf(
+      {
+        codigo: s(p.codigo) || "LOC",
+        locatario: {
+          nome: s(loc.nome),
+          cpf: s(loc.cpf),
+          nascimento: s(loc.nascimento),
+          email: s(loc.email),
+          telefone: s(loc.telefone),
+        },
+        moradores: lerMoradoresRpc({ pessoas: p.moradores }).pessoas,
+        endereco: s(p.endereco),
+        unidade: s(p.unidade) || null,
+        entrada: s(p.entrada) || null,
+      },
+      arquivos,
+      hojeSaoPaulo(),
+      s((perfil as { nome?: unknown } | null)?.nome) || "usuário do ADM MAX",
+    );
+    const { error: e3 } = await user.rpc("locacao_pacote_registrar", { _id: data.locacaoId });
+    if (e3) throw new Error(e3.message);
+    return {
+      nome: nomeArquivoPacote(s(p.codigo) || "LOC"),
+      base64: Buffer.from(pdf).toString("base64"),
+    };
+  });
