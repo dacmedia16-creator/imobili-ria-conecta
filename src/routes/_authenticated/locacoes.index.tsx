@@ -38,6 +38,7 @@ import {
   enderecoCompleto,
   equipeTexto,
   valoresParaComissao,
+  TEXTO_SEM_ADMINISTRACAO,
   dataPagamento,
   diasParado,
   etapaLabel,
@@ -542,7 +543,7 @@ function Comissao({ itens, ctx }: { itens: Locacao[]; ctx: ContextoLocacao }) {
                         {v.lancado && <div className="text-xs text-muted-foreground">lançado</div>}
                       </td>
                       <td>
-                        {v.taxaAdm}% → {r.pct}%
+                        {v.semAdministracao ? "Sem adm." : `${v.taxaAdm}%`} → {r.pct}%
                       </td>
                       <td>
                         <b>{brl(r.corretor)}</b>
@@ -582,10 +583,15 @@ function Comissao({ itens, ctx }: { itens: Locacao[]; ctx: ContextoLocacao }) {
                 </tr>
                 <tr>
                   <td>Taxa de administração negociada</td>
-                  <td>{s.v.taxaAdm}%</td>
+                  <td>{s.v.semAdministracao ? TEXTO_SEM_ADMINISTRACAO : `${s.v.taxaAdm}%`}</td>
                 </tr>
                 <tr>
-                  <td>% do 1º aluguel (tabela da imobiliária)</td>
+                  <td>
+                    % do 1º aluguel{" "}
+                    {s.v.semAdministracao
+                      ? "(sem administração: 1 aluguel)"
+                      : "(tabela da imobiliária)"}
+                  </td>
                   <td>{s.r.pct}%</td>
                 </tr>
                 {s.v.parceria && ctx.config.parceriaDividePorDois && (

@@ -34,6 +34,8 @@ export type LocacaoBase = {
   endereco: string;
   aluguel: number;
   taxaAdm: number;
+  /** Só intermediação (t_ec2962bd): a montagem sai sem a parte de administração (repasse e taxa). */
+  semAdministracao?: boolean;
   tipo: string;
   garantia: string;
   ficha: {
@@ -231,11 +233,27 @@ export const CAMPOS: Record<
   assinaturas: { label: "Bloco adicional de assinaturas", passo: 4 },
 };
 
+/** Campos da parte de administração (repasse e taxa): somem e ficam vazios na locação sem administração. */
+export const CAMPOS_ADMINISTRACAO = [
+  "deduzir_taxa_irrf",
+  "repasse_tipo",
+  "repasse_taxa",
+  "repasse_fixo",
+  "repasse_dias_uteis",
+  "repasse_garantido",
+  "tarifa_doc_ted",
+] as const;
+export const campoDaAdministracao = (key: string) =>
+  (CAMPOS_ADMINISTRACAO as readonly string[]).includes(key);
+
 export function camposIniciais(base: LocacaoBase, m: Montagem): Record<string, string> {
   const c = Object.fromEntries(Object.entries(CAMPOS).map(([k, v]) => [k, v.padrao ?? ""]));
   const d = Object.fromEntries(
     Object.keys(CAMPOS_DOCUMENTO).map((key) => [`d_${key}`, m.contrato[key] ?? ""]),
   );
+  const semAdm = base.semAdministracao
+    ? Object.fromEntries(CAMPOS_ADMINISTRACAO.map((k) => [k, ""]))
+    : {};
   return {
     ...c,
     ...d,
@@ -249,6 +267,7 @@ export function camposIniciais(base: LocacaoBase, m: Montagem): Record<string, s
     repasse_taxa: String(base.taxaAdm),
     local: `${m.administradora.cidade ?? ""}/${m.administradora.uf ?? ""}`,
     ...m.campos,
+    ...semAdm,
   };
 }
 export function dadosContrato(m: Montagem, c: Record<string, string>): Record<string, string> {

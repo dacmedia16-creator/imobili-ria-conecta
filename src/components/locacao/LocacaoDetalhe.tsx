@@ -41,6 +41,7 @@ import {
   valoresParaComissao,
   lerContexto,
   lerDetalhe,
+  textoAdministracao,
   textoParado,
   titularidadePendente,
   tomParado,
@@ -404,7 +405,7 @@ function DecisaoGestora({ d, ctx, busy, rodar }: P) {
           <br />
           Aluguel {brl(d.aluguel)} · Cond. {brl(d.condominio)} · IPTU {brl(d.iptu)}
           <br />
-          Garantia: <b>{GARANTIA_LABEL[d.garantia]}</b> · Taxa adm. {d.taxaAdm}%
+          Garantia: <b>{GARANTIA_LABEL[d.garantia]}</b> · {textoAdministracao(d)}
           {d.parceria ? " · com parceria" : ""}
           {d.ficha.garantiaOutra ? ` · outra: ${d.ficha.garantiaOutra}` : ""}
         </div>
@@ -1195,7 +1196,10 @@ function ComissaoResumo({ d, ctx, souCorretor, busy, rodar }: P & { souCorretor:
     lan?.lancado && reaisNumero(lan.valores.aluguel)
       ? {
           aluguel: reaisNumero(lan.valores.aluguel) ?? 0,
-          taxaAdm: Number(lan.valores.taxaAdm.replace(",", ".")) || 0,
+          taxaAdm: lan.valores.semAdministracao
+            ? 0
+            : Number(lan.valores.taxaAdm.replace(",", ".")) || 0,
+          semAdministracao: lan.valores.semAdministracao,
           parceria: lan.valores.parceria,
         }
       : null;

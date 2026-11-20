@@ -13,6 +13,7 @@ import {
   CAMPOS_DOCUMENTO,
   PASSOS,
   camposIniciais,
+  campoDaAdministracao,
   dadosContrato,
   faltasMontagem,
   fimPrazo,
@@ -289,8 +290,10 @@ export function LocacaoMontarContrato({
         </div>
       )}
       {passo === 6 && (
-        <p className="text-xs text-muted-foreground">
-          Dados guardados para uso futuro do financeiro. Nenhum repasse será executado aqui.
+        <p className="text-xs text-muted-foreground" data-testid="montagem-repasse-aviso">
+          {d.semAdministracao
+            ? "Sem administração (intermediação: 1 aluguel): não há repasse mensal nem taxa de administração."
+            : "Dados guardados para uso futuro do financeiro. Nenhum repasse será executado aqui."}
         </p>
       )}
       <div className="grid gap-3 sm:grid-cols-2">
@@ -320,6 +323,7 @@ export function LocacaoMontarContrato({
         {Object.entries(CAMPOS)
           .filter(([key, cfg]) => {
             if (cfg.passo !== passo) return false;
+            if (d.semAdministracao && campoDaAdministracao(key)) return false;
             if (
               (key === "fia_imovel_endereco" || key.startsWith("fia_")) &&
               d.garantia !== "fiador"

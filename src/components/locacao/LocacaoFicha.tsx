@@ -128,7 +128,9 @@ export function FichaAbertura({ d, ctx, busy, rodar, editavel, aConfirmar, aviso
     aluguel: reais(d.aluguel, false),
     condominio: reais(d.condominio, preSalva),
     iptu: reais(d.iptu, preSalva),
-    taxaAdm: String(d.taxaAdm),
+    // Sem administração a taxa gravada é 0; se voltar para "com", a tela sugere 10%.
+    taxaAdm: d.semAdministracao ? "10" : String(d.taxaAdm),
+    semAdministracao: d.semAdministracao,
     parceria: d.parceria,
     captadorId: d.captadorId ?? "",
     metragem: d.ficha.metragem ? String(d.ficha.metragem) : "",
@@ -195,7 +197,9 @@ export function FichaAbertura({ d, ctx, busy, rodar, editavel, aConfirmar, aviso
     aluguel: reaisNumero(f.aluguel) ?? 0,
     condominio: reaisNumero(f.condominio) ?? 0,
     iptu: reaisNumero(f.iptu) ?? 0,
-    taxa_adm: numDec(f.taxaAdm),
+    // t_ec2962bd: sem administração grava taxa 0 explícita (o banco também força).
+    sem_administracao: f.semAdministracao,
+    taxa_adm: f.semAdministracao ? 0 : numDec(f.taxaAdm),
     parceria: f.parceria,
     captador_id: f.captadorId || null,
     ficha: fichaParaBanco(fichaAtual),
@@ -610,21 +614,46 @@ export function FichaAbertura({ d, ctx, busy, rodar, editavel, aConfirmar, aviso
                 </select>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="pre-taxa">Taxa de administração</Label>
+                <Label htmlFor="pre-administracao">Administração</Label>
                 <select
-                  id="pre-taxa"
+                  id="pre-administracao"
                   className={SELECT}
                   disabled={!editavel}
-                  value={f.taxaAdm}
-                  onChange={(e) => set("taxaAdm", e.target.value)}
+                  value={f.semAdministracao ? "sem" : "com"}
+                  onChange={(e) => set("semAdministracao", e.target.value === "sem")}
                 >
-                  {taxas.map((t) => (
-                    <option key={t} value={String(t)}>
-                      {t}% → corretor recebe {pctPorTaxa(t, ctx.config.tabelaTaxa)}% do 1º aluguel
-                    </option>
-                  ))}
+                  <option value="com">Com administração</option>
+                  <option value="sem">Sem administração</option>
                 </select>
               </div>
+              {f.semAdministracao ? (
+                <div className="space-y-1">
+                  <Label>Intermediação</Label>
+                  <p
+                    className="flex min-h-9 items-center rounded-md border bg-muted/40 px-3 text-sm"
+                    data-testid="pre-sem-administracao"
+                  >
+                    Casa recebe 1 aluguel (100% do 1º aluguel). Sem taxa nem repasse mensal.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <Label htmlFor="pre-taxa">Taxa de administração</Label>
+                  <select
+                    id="pre-taxa"
+                    className={SELECT}
+                    disabled={!editavel}
+                    value={f.taxaAdm}
+                    onChange={(e) => set("taxaAdm", e.target.value)}
+                  >
+                    {taxas.map((t) => (
+                      <option key={t} value={String(t)}>
+                        {t}% → corretor recebe {pctPorTaxa(t, ctx.config.tabelaTaxa)}% do 1º aluguel
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="space-y-1">
                 <Label htmlFor="pre-parceria">Tem parceria (outra imobiliária/corretor)?</Label>
                 <select
