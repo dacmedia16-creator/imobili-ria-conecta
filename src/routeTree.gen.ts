@@ -42,6 +42,7 @@ import { Route as AuthenticatedOportunidadesRouteImport } from './routes/_authen
 import { Route as AuthenticatedPainelEquipeRouteImport } from './routes/_authenticated/painel-equipe'
 import { Route as AuthenticatedPainelLeadsRouteImport } from './routes/_authenticated/painel-leads'
 import { Route as AuthenticatedPainelMetasRouteImport } from './routes/_authenticated/painel-metas'
+import { Route as AuthenticatedPainelMetasImobiliariaRouteImport } from './routes/_authenticated/painel-metas-imobiliaria'
 import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated/perfil'
 import { Route as AuthenticatedProducaoPorPessoaRouteImport } from './routes/_authenticated/producao-por-pessoa'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
@@ -265,6 +266,12 @@ const AuthenticatedPainelMetasRoute =
   AuthenticatedPainelMetasRouteImport.update({
     id: '/painel-metas',
     path: '/painel-metas',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedPainelMetasImobiliariaRoute =
+  AuthenticatedPainelMetasImobiliariaRouteImport.update({
+    id: '/painel-metas-imobiliaria',
+    path: '/painel-metas-imobiliaria',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedPerfilRoute = AuthenticatedPerfilRouteImport.update({
@@ -552,6 +559,7 @@ export interface FileRoutesByFullPath {
   '/painel-equipe': typeof AuthenticatedPainelEquipeRoute
   '/painel-leads': typeof AuthenticatedPainelLeadsRoute
   '/painel-metas': typeof AuthenticatedPainelMetasRoute
+  '/painel-metas-imobiliaria': typeof AuthenticatedPainelMetasImobiliariaRoute
   '/perfil': typeof AuthenticatedPerfilRoute
   '/producao-por-pessoa': typeof AuthenticatedProducaoPorPessoaRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
@@ -631,6 +639,7 @@ export interface FileRoutesByTo {
   '/painel-equipe': typeof AuthenticatedPainelEquipeRoute
   '/painel-leads': typeof AuthenticatedPainelLeadsRoute
   '/painel-metas': typeof AuthenticatedPainelMetasRoute
+  '/painel-metas-imobiliaria': typeof AuthenticatedPainelMetasImobiliariaRoute
   '/perfil': typeof AuthenticatedPerfilRoute
   '/producao-por-pessoa': typeof AuthenticatedProducaoPorPessoaRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
@@ -712,6 +721,7 @@ export interface FileRoutesById {
   '/_authenticated/painel-equipe': typeof AuthenticatedPainelEquipeRoute
   '/_authenticated/painel-leads': typeof AuthenticatedPainelLeadsRoute
   '/_authenticated/painel-metas': typeof AuthenticatedPainelMetasRoute
+  '/_authenticated/painel-metas-imobiliaria': typeof AuthenticatedPainelMetasImobiliariaRoute
   '/_authenticated/perfil': typeof AuthenticatedPerfilRoute
   '/_authenticated/producao-por-pessoa': typeof AuthenticatedProducaoPorPessoaRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
@@ -793,6 +803,7 @@ export interface FileRouteTypes {
     | '/painel-equipe'
     | '/painel-leads'
     | '/painel-metas'
+    | '/painel-metas-imobiliaria'
     | '/perfil'
     | '/producao-por-pessoa'
     | '/relatorios'
@@ -872,6 +883,7 @@ export interface FileRouteTypes {
     | '/painel-equipe'
     | '/painel-leads'
     | '/painel-metas'
+    | '/painel-metas-imobiliaria'
     | '/perfil'
     | '/producao-por-pessoa'
     | '/relatorios'
@@ -952,6 +964,7 @@ export interface FileRouteTypes {
     | '/_authenticated/painel-equipe'
     | '/_authenticated/painel-leads'
     | '/_authenticated/painel-metas'
+    | '/_authenticated/painel-metas-imobiliaria'
     | '/_authenticated/perfil'
     | '/_authenticated/producao-por-pessoa'
     | '/_authenticated/relatorios'
@@ -1256,6 +1269,13 @@ declare module '@tanstack/react-router' {
       path: '/painel-metas'
       fullPath: '/painel-metas'
       preLoaderRoute: typeof AuthenticatedPainelMetasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/painel-metas-imobiliaria': {
+      id: '/_authenticated/painel-metas-imobiliaria'
+      path: '/painel-metas-imobiliaria'
+      fullPath: '/painel-metas-imobiliaria'
+      preLoaderRoute: typeof AuthenticatedPainelMetasImobiliariaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/perfil': {
@@ -1601,6 +1621,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedPainelEquipeRoute: typeof AuthenticatedPainelEquipeRoute
   AuthenticatedPainelLeadsRoute: typeof AuthenticatedPainelLeadsRoute
   AuthenticatedPainelMetasRoute: typeof AuthenticatedPainelMetasRoute
+  AuthenticatedPainelMetasImobiliariaRoute: typeof AuthenticatedPainelMetasImobiliariaRoute
   AuthenticatedPerfilRoute: typeof AuthenticatedPerfilRoute
   AuthenticatedProducaoPorPessoaRoute: typeof AuthenticatedProducaoPorPessoaRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
@@ -1660,6 +1681,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedPainelEquipeRoute: AuthenticatedPainelEquipeRoute,
   AuthenticatedPainelLeadsRoute: AuthenticatedPainelLeadsRoute,
   AuthenticatedPainelMetasRoute: AuthenticatedPainelMetasRoute,
+  AuthenticatedPainelMetasImobiliariaRoute:
+    AuthenticatedPainelMetasImobiliariaRoute,
   AuthenticatedPerfilRoute: AuthenticatedPerfilRoute,
   AuthenticatedProducaoPorPessoaRoute: AuthenticatedProducaoPorPessoaRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,

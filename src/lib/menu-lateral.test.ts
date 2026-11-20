@@ -42,6 +42,8 @@ function menuAnterior(ctx: MenuContexto): Set<string> {
     ["/painel-equipe", podeAcessarPainelEquipe(roles)],
     // Metas 2027 · Equipes (t_863b7590): item novo, mesmos papéis do Painel da Equipe.
     ["/painel-metas", podeAcessarPainelEquipe(roles)],
+    // Metas 2027 · Imobiliária (t_69d29df6): item novo, só gestor e administrador.
+    ["/painel-metas-imobiliaria", hasAny(["gestor", "admin", "super_admin"])],
     ["/equipe", hasAny(["gestor", "team_leader", "admin", "super_admin"])],
     // Ficha dos colaboradores (t_618b64bc): item novo, só staff e administração.
     ["/ficha-colaboradores", hasAny(["staff", "admin", "super_admin"])],

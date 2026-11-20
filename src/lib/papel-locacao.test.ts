@@ -57,6 +57,7 @@ describe("destinoLocacao (guarda de rota)", () => {
       "/visao-executiva",
       "/painel-equipe",
       "/painel-metas",
+      "/painel-metas-imobiliaria",
       "/financeiro",
       "/relatorios",
       "/comissoes-a-receber",

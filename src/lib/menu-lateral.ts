@@ -40,12 +40,14 @@ import {
   KeyRound,
   GalleryHorizontal,
   Target,
+  Goal,
 } from "lucide-react";
 import { podeAtenderLeads, podeVerPainelLeads } from "@/lib/leads";
 import { podeAcessarCentralFinanceira } from "@/lib/financeiro-dashboard-calc";
 import { podeVerOcorrenciasConcluidas } from "@/lib/ocorrencias-concluidas";
 import { podeAcessarVendasPorRegiao } from "@/lib/vendas-por-regiao";
 import { podeAcessarPainelEquipe } from "@/lib/painel-equipe-calc";
+import { podeAcessarPainelImobiliaria } from "@/lib/metas-2027/acesso";
 import { ehSoFotografo } from "@/lib/fotografo";
 import { ehSoLocacao } from "@/lib/papel-locacao";
 
@@ -211,6 +213,13 @@ export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
           icon: Target,
           // Painel de metas 2027 (t_863b7590): mesmos papéis do Painel da Equipe; a RPC restringe o TL à equipe dele.
           show: podeAcessarPainelEquipe(roles),
+        },
+        {
+          to: "/painel-metas-imobiliaria",
+          label: "Metas 2027 · Imobiliária",
+          icon: Goal,
+          // Painel da imobiliária (t_69d29df6): só gestor e administrador; a bruta só sai do banco para eles.
+          show: podeAcessarPainelImobiliaria(roles),
         },
         {
           to: "/visao-executiva",
