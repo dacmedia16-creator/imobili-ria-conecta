@@ -32,6 +32,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ListSkeleton, Pill, type Tom } from "@/components/visual/base";
 import { lerTaxasPadrao } from "@/components/minha-carreira/Diario";
+import type { ChaveExplicacao } from "@/lib/metas-2027/explicacoes";
+import { InfoDica, RotuloInfo } from "./InfoDica";
+import { ContextoInfo } from "./contexto-info";
 
 // Painéis de metas 2027 — ETAPA 4 (cartão t_69d29df6, Denis 20/11): painel da IMOBILIÁRIA (broker/admin).
 // Tela NOVA: não altera o Painel da Equipe, o Farol nem os relatórios financeiros. A tela não faz conta: tudo sai
@@ -166,12 +169,14 @@ export function PainelMetasImobiliaria() {
         ) : !dados ? (
           <ListSkeleton />
         ) : (
-          <Conteudo
-            p={dados.painel}
-            direcaoBruta={dados.direcaoBruta}
-            ehAdmin={ehAdmin}
-            recarregar={carregar}
-          />
+          <ContextoInfo.Provider value={{ ano: dados.painel.base.anoDados, anoPlano: ANO_PLANO }}>
+            <Conteudo
+              p={dados.painel}
+              direcaoBruta={dados.direcaoBruta}
+              ehAdmin={ehAdmin}
+              recarregar={carregar}
+            />
+          </ContextoInfo.Provider>
         )}
       </CardContent>
     </Card>
@@ -211,14 +216,18 @@ function Conteudo({
       <TopoMetas p={p} direcaoBruta={direcaoBruta} ehAdmin={ehAdmin} recarregar={recarregar} />
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <Bloco titulo="Realizado no ano (comissão dos corretores)" testid="realizado">
+        <Bloco
+          titulo="Realizado no ano (comissão dos corretores)"
+          info="imob_realizado"
+          testid="realizado"
+        >
           <p className="text-2xl font-bold">{brl(c.realAno)}</p>
           <BarraMeta feito={c.realAno} alvo={c.metaAno} esperado={antes ? null : c.esperado} />
           <p className="text-xs text-muted-foreground">
             {pct(c.pctAno)} da meta oficial · {pct(p.pctDirecao)} da meta da direção
           </p>
         </Bloco>
-        <Bloco titulo="Ritmo esperado até hoje" testid="ritmo">
+        <Bloco titulo="Ritmo esperado até hoje" info="imob_ritmo" testid="ritmo">
           {antes || c.diferenca == null ? (
             <p className="text-sm text-muted-foreground">
               {antes ? `Começa em jan/${ANO_PLANO}.` : "Sem plano assinado para medir o ritmo."}
@@ -237,7 +246,7 @@ function Conteudo({
             </>
           )}
         </Bloco>
-        <Bloco titulo="Cobertura de planos assinados" testid="cobertura">
+        <Bloco titulo="Cobertura de planos assinados" info="imob_cobertura" testid="cobertura">
           <p className="text-2xl font-bold">
             {p.total.cobertura.assinados} de {p.total.cobertura.elegiveis}{" "}
             <span className="text-sm font-normal text-muted-foreground">
@@ -256,15 +265,22 @@ function Conteudo({
       <Indicadores p={p} />
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <Ranking titulo="Ranking por equipe" linhas={p.rankingEquipes} testid="ranking-equipes" />
+        <Ranking
+          titulo="Ranking por equipe"
+          info="imob_ranking_equipes"
+          linhas={p.rankingEquipes}
+          testid="ranking-equipes"
+        />
         <Ranking
           titulo="Ranking por corretor"
+          info="imob_ranking_corretores"
           linhas={p.rankingCorretores}
           testid="ranking-corretores"
         />
       </div>
       <p className="text-xs text-muted-foreground">
         Farol: 🟢 ≥100% do esperado até hoje · 🟡 80–99% · 🔴 abaixo de 80% · ⚪ sem plano assinado.
+        <InfoDica chave="imob_farol" />
       </p>
     </div>
   );
@@ -272,16 +288,20 @@ function Conteudo({
 
 function Bloco({
   titulo,
+  info,
   testid,
   children,
 }: {
   titulo: string;
+  info: ChaveExplicacao;
   testid?: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="min-w-0 space-y-2 break-words rounded-lg border p-3" data-testid={testid}>
-      <p className="text-xs font-semibold text-muted-foreground">{titulo}</p>
+      <p className="text-xs font-semibold text-muted-foreground">
+        <RotuloInfo chave={info}>{titulo}</RotuloInfo>
+      </p>
       {children}
     </div>
   );
@@ -325,7 +345,9 @@ function TopoMetas({
     <div className="space-y-3 rounded-lg border bg-muted/30 p-3" data-testid="topo-metas">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="min-w-0">
-          <p className="text-xs font-semibold text-muted-foreground">Meta da direção {ANO_PLANO}</p>
+          <p className="text-xs font-semibold text-muted-foreground">
+            <RotuloInfo chave="imob_meta_direcao">Meta da direção {ANO_PLANO}</RotuloInfo>
+          </p>
           <p className="text-2xl font-bold" data-testid="meta-direcao">
             {brlOuTraco(p.direcao?.comissao)}
           </p>
@@ -333,7 +355,7 @@ function TopoMetas({
         </div>
         <div className="min-w-0">
           <p className="text-xs font-semibold text-muted-foreground">
-            Soma dos planos ASSINADOS (oficial)
+            <RotuloInfo chave="imob_soma_assinados">Soma dos planos ASSINADOS (oficial)</RotuloInfo>
           </p>
           <p className="text-2xl font-bold" data-testid="soma-assinados">
             {brlOuTraco(cc.somaAssinados)}
@@ -344,7 +366,7 @@ function TopoMetas({
         </div>
         <div className="min-w-0">
           <p className="text-xs font-semibold text-muted-foreground">
-            Em preenchimento (não conta)
+            <RotuloInfo chave="imob_preenchimento">Em preenchimento (não conta)</RotuloInfo>
           </p>
           <p className="text-2xl font-bold text-muted-foreground" data-testid="soma-preenchimento">
             {brlOuTraco(p.preenchimento.comissao)}
@@ -369,6 +391,7 @@ function TopoMetas({
           {cc.diferenca >= 0
             ? `✅ Os planos assinados passam a meta da direção em ${brl(cc.diferenca)} (${pct(cc.pct)}).`
             : `⚠️ Faltam ${brl(-cc.diferenca)} nos planos assinados para chegar na meta da direção (${pct(cc.pct)}).`}
+          <InfoDica chave="imob_diferenca" />
         </p>
       )}
 
@@ -376,7 +399,9 @@ function TopoMetas({
         <table className="w-full min-w-[19rem] text-xs" data-testid="tabela-direcao">
           <thead className="text-muted-foreground">
             <tr>
-              <th className="py-1 text-left font-medium">Indicador do ano</th>
+              <th className="py-1 text-left font-medium">
+                <RotuloInfo chave="imob_tabela_direcao">Indicador do ano</RotuloInfo>
+              </th>
               <th className="py-1 text-right font-medium">Direção</th>
               <th className="py-1 text-right font-medium">Assinados</th>
               <th className="py-1 text-right font-medium">Diferença</th>
@@ -565,7 +590,11 @@ function Grafico({ p }: { p: PainelImobiliaria }) {
   const mx = Math.max(1, ...p.meses.map((m) => Math.max(m.meta ?? 0, m.realizado))) * 1.1;
   const H = 140;
   return (
-    <Bloco titulo="Mês a mês — meta (planos assinados) × realizado" testid="grafico">
+    <Bloco
+      titulo="Mês a mês — meta (planos assinados) × realizado"
+      info="imob_grafico"
+      testid="grafico"
+    >
       <div
         className="grid h-[164px] grid-cols-12 items-end gap-1"
         role="img"
@@ -618,13 +647,21 @@ function Indicadores({ p }: { p: PainelImobiliaria }) {
   const q = p.comissao;
   const e = p.estoque;
   return (
-    <Bloco titulo={`Indicadores de ${p.base.anoDados}`} testid="indicadores">
+    <div className="min-w-0 space-y-2 break-words rounded-lg border p-3" data-testid="indicadores">
+      <p className="text-xs font-semibold text-muted-foreground">
+        Indicadores de {p.base.anoDados}
+      </p>
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-        <Mini titulo="VGV" valor={brl(r.vgv ?? 0)} />
-        <Mini titulo="Vendas (lados)" valor={inteiro(r.vendas ?? 0)} />
-        <Mini titulo="Captações" valor={r.captacoes == null ? "–" : inteiro(r.captacoes)} />
+        <Mini titulo="VGV" info="imob_vgv" valor={brl(r.vgv ?? 0)} />
+        <Mini titulo="Vendas (lados)" info="imob_vendas" valor={inteiro(r.vendas ?? 0)} />
+        <Mini
+          titulo="Captações"
+          info="imob_captacoes"
+          valor={r.captacoes == null ? "–" : inteiro(r.captacoes)}
+        />
         <Mini
           titulo="Estoque hoje"
+          info="imob_estoque"
           valor={e?.exclusivas_ativas == null ? "–" : `${inteiro(e.exclusivas_ativas)} exclusivas`}
           sub={
             e
@@ -649,12 +686,29 @@ function Indicadores({ p }: { p: PainelImobiliaria }) {
             Comissão de {p.base.anoDados}: bruta → imobiliária → descontos → corretores
           </p>
           <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-            <Mini titulo={`Bruta (${q.vendas} vendas)`} valor={brl(q.bruta + q.premio)} />
-            <Mini titulo="(−) Imobiliária" valor={brl(q.imobiliaria)} />
-            <Mini titulo="(−) Gestores/TL" valor={brl(q.lideres)} />
-            <Mini titulo="(−) Indicador" valor={brl(q.indicador)} />
-            <Mini titulo="(−) Parceria e extras" valor={brl(q.parceria + q.extras)} />
-            <Mini titulo="= Líquido dos corretores" valor={brl(q.corretores)} destaque />
+            <Mini
+              titulo={`Bruta (${q.vendas} vendas)`}
+              info="imob_quebra_bruta"
+              valor={brl(q.bruta + q.premio)}
+            />
+            <Mini
+              titulo="(−) Imobiliária"
+              info="imob_quebra_imobiliaria"
+              valor={brl(q.imobiliaria)}
+            />
+            <Mini titulo="(−) Gestores/TL" info="imob_quebra_lideres" valor={brl(q.lideres)} />
+            <Mini titulo="(−) Indicador" info="imob_quebra_indicador" valor={brl(q.indicador)} />
+            <Mini
+              titulo="(−) Parceria e extras"
+              info="imob_quebra_parceria"
+              valor={brl(q.parceria + q.extras)}
+            />
+            <Mini
+              titulo="= Líquido dos corretores"
+              info="imob_quebra_corretores"
+              valor={brl(q.corretores)}
+              destaque
+            />
           </div>
           {q.premio > 0 ? (
             <p className="text-xs text-muted-foreground">
@@ -673,17 +727,19 @@ function Indicadores({ p }: { p: PainelImobiliaria }) {
           </p>
         </div>
       ) : null}
-    </Bloco>
+    </div>
   );
 }
 
 function Mini({
   titulo,
+  info,
   valor,
   sub,
   destaque,
 }: {
   titulo: string;
+  info: ChaveExplicacao;
   valor: string;
   sub?: string | null;
   destaque?: boolean;
@@ -692,7 +748,9 @@ function Mini({
     <div
       className={`min-w-0 rounded-md border p-2 ${destaque ? "bg-emerald-50 dark:bg-emerald-950/30" : "bg-background"}`}
     >
-      <p className="text-[11px] text-muted-foreground">{titulo}</p>
+      <p className="text-[11px] text-muted-foreground">
+        <RotuloInfo chave={info}>{titulo}</RotuloInfo>
+      </p>
       <p className="break-words font-semibold">{valor}</p>
       {sub ? <p className="text-[11px] text-muted-foreground">{sub}</p> : null}
     </div>
@@ -703,15 +761,17 @@ function Mini({
 
 function Ranking({
   titulo,
+  info,
   linhas,
   testid,
 }: {
   titulo: string;
+  info: ChaveExplicacao;
   linhas: LinhaRanking[];
   testid: string;
 }) {
   return (
-    <Bloco titulo={titulo} testid={testid}>
+    <Bloco titulo={titulo} info={info} testid={testid}>
       {linhas.length === 0 ? (
         <p className="text-sm text-muted-foreground">Ninguém para mostrar ainda.</p>
       ) : (

@@ -147,6 +147,18 @@ describe("Painel de metas do corretor (substitui o Meu mês)", () => {
     );
     expect(screen.getByTestId("farol-meta").textContent).toContain("🔴");
     expect(screen.getByTestId("barras-menores").textContent).toContain("Captações no ano3");
+    // Ícone "i" em cada número (t_065a0ff9).
+    for (const k of [
+      "corretor_farol",
+      "corretor_barra_ano",
+      "corretor_ritmo",
+      "corretor_barra_mes",
+      "corretor_falta_mes",
+      "corretor_vendas_ano",
+      "corretor_captacoes_ano",
+      "corretor_vgv_ano",
+    ])
+      expect(screen.getByTestId(`info-${k}`).getAttribute("aria-label"), k).toMatch(/^O que é: /);
   });
 
   it("lista de cumpridas com data e imóvel; comissão mostra só a parte dele e o descontado dele", async () => {

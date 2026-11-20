@@ -192,6 +192,22 @@ describe("Painel de metas 2027 · Equipes", () => {
     expect(screen.getByTestId("grupo-total").textContent).toMatch(
       /Plano vale a partir de jan\/2027/,
     );
+    // Ícone "i" (t_065a0ff9): antes de 2027, a comissão é de 2026 e o "i" diz isso.
+    const azul = screen.getByTestId("grupo-t1");
+    for (const k of [
+      "equipe_farol",
+      "equipe_meta_assinados",
+      "equipe_comissao_ano",
+      "equipe_vendas",
+      "equipe_captacoes",
+      "equipe_vgv",
+      "equipe_planos_assinados",
+    ])
+      expect(within(azul).getByTestId(`info-${k}`), k).toBeTruthy();
+    fireEvent.click(within(azul).getByRole("button", { name: "O que é: Comissão em 2026" }));
+    expect((await screen.findByTestId("info-balao")).textContent).toMatch(
+      /TODAS as pessoas.*ainda não é o realizado da meta 2027/,
+    );
     expect(rpc).toHaveBeenCalledWith("metas_equipe_realizado", {
       _inicio: "2026-01-01",
       _fim: "2026-12-31",
