@@ -52,6 +52,14 @@ export const definirImovelTipo = (id: string, tipo: ImovelTipo) =>
 export const lerLancamento = (id: string) => rpc<unknown>("locacao_lancamento_ler", { _id: id });
 export const salvarLancamento = (id: string, dados: Record<string, string | null>) =>
   rpc<{ ok: boolean; novo: boolean }>("locacao_lancamento_salvar", { _id: id, _dados: dados });
+/** Dados de pagamento do parceiro (t_756c1c63): só Financeiro da locação e gestão; os demais recebem {pode:false}. */
+export const lerPagamentoParceiro = (id: string) =>
+  rpc<unknown>("locacao_parceiro_pag_ler", { _id: id });
+export const salvarPagamentoParceiro = (
+  id: string,
+  dados: Record<string, string | boolean | null>,
+) => rpc<{ ok: boolean; novo: boolean }>("locacao_parceiro_pag_salvar", { _id: id, _dados: dados });
+export const parceirosPagar = () => rpc<unknown>("locacao_parceiros_pagar");
 /** Pessoas ativas da imobiliária para o campo "corretor captador" (t_28e583e2). */
 export const corretoresLocacao = () => rpc<unknown[]>("locacao_corretores");
 export const salvarPreAnalise = (id: string, dados: Record<string, unknown>) =>

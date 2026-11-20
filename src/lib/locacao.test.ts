@@ -79,7 +79,7 @@ describe("comissão (taxa → % do 1º aluguel)", () => {
       parceiro: 0,
     });
   });
-  it("parceria: aluguel ÷ 2 × % para cada lado (a confirmar)", () => {
+  it("parceria: casa = aluguel ÷ 2 × %; parceiro = metade de 1 aluguel (t_45d1a6eb)", () => {
     const r = calcularComissao({ aluguel: 3000, taxaAdm: 8, parceria: true }, CONFIG_PADRAO);
     expect(r).toMatchObject({
       pct: 40,
@@ -87,7 +87,7 @@ describe("comissão (taxa → % do 1º aluguel)", () => {
       totalLado: 600,
       coordenador: 60,
       corretor: 540,
-      parceiro: 600,
+      parceiro: 1500,
     });
   });
   it("regras configuráveis: coordenador pago à parte, sem coordenador na parceria, parceria sem dividir", () => {
@@ -102,7 +102,7 @@ describe("comissão (taxa → % do 1º aluguel)", () => {
     const cfg3 = { ...CONFIG_PADRAO, parceriaDividePorDois: false };
     expect(calcularComissao({ aluguel: 2000, taxaAdm: 10, parceria: true }, cfg3)).toMatchObject({
       base: 2000,
-      parceiro: 0,
+      parceiro: 1000, // parceiro sempre ½ aluguel, independente da regra da casa
     });
   });
   it("data de pagamento: 1–15 → dia 8 do mês seguinte; 16–31 → dia 23; virada do ano", () => {

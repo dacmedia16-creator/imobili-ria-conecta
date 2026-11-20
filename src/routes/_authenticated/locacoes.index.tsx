@@ -515,7 +515,7 @@ function Comissao({ itens, ctx }: { itens: Locacao[]; ctx: ContextoLocacao }) {
                     Coord. <AConfirmar />
                   </th>
                   <th>
-                    Parceria <AConfirmar />
+                    Parceiro (½ aluguel)
                   </th>
                   <th>
                     Pagamento <AConfirmar />
@@ -626,7 +626,7 @@ function Comissao({ itens, ctx }: { itens: Locacao[]; ctx: ContextoLocacao }) {
                 {s.v.parceria && (
                   <tr>
                     <td>
-                      Parceiro (outra metade) <AConfirmar />
+                      Parceiro (metade de 1 aluguel)
                     </td>
                     <td>{brl(s.r.parceiro)}</td>
                   </tr>
