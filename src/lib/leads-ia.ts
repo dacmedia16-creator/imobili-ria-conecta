@@ -391,6 +391,11 @@ export type OpcoesRoteiro = {
   /** t_37cf21e3: mensagens do cliente que chegaram juntas, antes desta e ainda sem resposta (\"sobre a casa q eu to
    * vendo para mim\" + \"vc tem mais opções?\"). Só para saber de qual busca o cliente está falando. */
   falasAntes?: string[];
+  /** t_45d0f5aa: bairro/região que o cliente respondeu quando a Nicole perguntou a região (\"Horto/Caguaçu, São
+   * Bento\"). Vale para a busca por característica quando ele não disser o bairro na mesma fala. */
+  regiaoConversa?: string | null;
+  /** Chave da imobiliária: aplicar proteção de pedido só no piloto, sem mudar respostas da ZZ. */
+  pedidoSeguro?: boolean;
 };
 
 export const norm = (s: string) =>
@@ -1402,6 +1407,23 @@ export function argsBusca(conversaId: string, f: FiltroBusca) {
   };
 }
 
+/** Valor suspeito no XML do piloto: apartamento/casa de venda com preço de aluguel não vira oferta. */
+export const VENDA_RESIDENCIAL_MIN = 50000;
+const RESIDENCIAL = /^(apartamento|casa|cobertura|studio|sobrado|kitnet|flat|loft)/;
+export function precoVendaPlausivel(p: Pick<ImovelParecido, "preco" | "tipo">): boolean {
+  if (!p.preco || !p.tipo || !RESIDENCIAL.test(norm(p.tipo))) return true;
+  const v = Number(p.preco.replace(/[^\d,]/g, "").replace(",", "."));
+  return Number.isFinite(v) && v >= VENDA_RESIDENCIAL_MIN;
+}
+/** Só no piloto: também omite "bairro" quando o XML repetiu o nome da cidade. */
+export function imoveisSegurosPiloto(itens: ImovelParecido[], negocio: NegocioParecido = "venda"): ImovelParecido[] {
+  return itens.filter((p) => negocio === "locacao" || precoVendaPlausivel(p)).map((p) =>
+    p.bairro && p.cidade && norm(p.bairro) === norm(p.cidade)
+      ? { ...p, bairro: undefined, mesmo_bairro: undefined }
+      : p,
+  );
+}
+
 /** Só aceita do banco as chaves conhecidas, como texto curto (nada inesperado chega ao cliente). */
 export function normalizarParecidos(data: unknown): ResultadoParecidos | null {
   if (!data || typeof data !== "object") return null;
@@ -1634,6 +1656,29 @@ export function textoCaracteristica(f: FiltroCaracteristica): string {
   if (f.vagas !== undefined) p.push(plural(String(f.vagas), "vaga", "vagas"));
   if (f.area !== undefined) p.push(`pelo menos ${f.area} m²`);
   return juntar(p);
+}
+
+/** t_45d0f5aa: o imóvel tem exatamente os quartos/suítes pedidos? (\"2 quartos\" e o imóvel tem 2). */
+export function contagemExata(p: Pick<ImovelParecido, "quartos" | "suites">, f: FiltroCaracteristica): boolean {
+  const n = (s?: string) => (s && /^\d+$/.test(s.trim()) ? Number(s) : -1);
+  return (f.quartos === undefined || n(p.quartos) === f.quartos) && (f.suites === undefined || n(p.suites) === f.suites);
+}
+/** t_45d0f5aa: \"Horto/caguaçu, são bento\" -> [\"Horto\", \"caguaçu\", \"são bento\"] (no máximo 3 bairros). */
+export function partesRegiao(regiao: string | null | undefined): string[] {
+  if (!regiao || /\b(tanto faz|qualquer|indiferente|nao sei)\b/.test(norm(regiao))) return [];
+  return [...new Set(regiao.split(/\s*(?:\/|,|;|\+|\be\b|\bou\b)\s*/i).map((x) => x.trim()).filter((x) => norm(x).length >= 3))].slice(0, 3);
+}
+/** t_45d0f5aa: a resposta do cliente à pergunta da região (\"E qual região ou bairro você está procurando?\"). */
+export function regiaoDaConversa(h: Array<{ autor: string; texto: string }>): string | null {
+  const PERG = /\b(qual|quais|que)\s+(regiao|bairro|regioes|bairros)\b|\b(regiao|bairro) (voce|vc) (prefere|procura|busca|quer)\b/;
+  for (let i = h.length - 2; i >= 0; i--) {
+    if (h[i].autor !== "ia" || !/\?/.test(h[i].texto) || !PERG.test(norm(h[i].texto))) continue;
+    const r = h.slice(i + 1).find((m) => m.autor === "cliente")?.texto?.trim();
+    // Resposta com número (\"2 quartos\") ou sim/não não é bairro.
+    if (!r || /\d/.test(r) || r.length > 60 || /^(sim|nao|n|s|ok)\b/.test(norm(r))) return null;
+    return r;
+  }
+  return null;
 }
 
 /** Um passo abaixo do pedido (\"3 suítes\" -> \"2 suítes\"), para oferecer quando não há nada. */
@@ -2391,30 +2436,70 @@ export async function proximaResposta(
       dados.interesse = true;
       if (f.finalidade && !dados.finalidade) dados.finalidade = f.finalidade;
       const fxv = valorFaixa(dados.faixa ?? "");
-      const ref = negocio() === "locacao" ? ficha?.aluguel_valor : ficha?.preco_valor;
+      const referenciaRuim = op.pedidoSeguro && negocio() === "venda" &&
+        ficha?.preco && !precoVendaPlausivel({ preco: ficha.preco, tipo: ficha.tipo });
+      // Não usar R$ 9.500 do XML (suspeito de aluguel) como faixa de compra para procurar venda.
+      const ref = referenciaRuim ? null : negocio() === "locacao" ? ficha?.aluguel_valor : ficha?.preco_valor;
       const pmin = fxv?.min ?? (fxv?.max ? null : ref ? Math.round(ref * 0.85) : null);
       const pmax = fxv?.max ?? (ref ? Math.round(ref * 1.15) : null);
       const ja = [...(dados.ofertados_carac ?? []), ...(dados.parecidos ?? [])];
       const filtroB = { ...f, negocio: negocio(), preco_min: pmin, preco_max: pmax, cidade: ficha?.cidade ?? null, excluir: ja, limite: 3 };
       // Sem tipo dito pelo cliente: primeiro o mesmo tipo do imóvel dele na faixa; se não houver, qualquer tipo.
-      const doTipo = !f.tipo && ficha?.tipo ? await buscaCarac({ ...filtroB, tipo: ficha.tipo }).catch(() => null) : null;
-      const res = doTipo?.itens.length ? doTipo : await buscaCarac(filtroB).catch(() => null);
+      const buscarB = async (fb: FiltroCaracteristicaBusca) => {
+        const doTipo = !f.tipo && ficha?.tipo ? await buscaCarac({ ...fb, tipo: ficha.tipo }).catch(() => null) : null;
+        // No piloto, 3 quartos não podem ocultar o 2-quartos de outro tipo na segunda busca.
+        const serve = (r: ResultadoCaracteristica | null) =>
+          r?.itens.some((i) => atendeCaracteristica(i, f) && contagemExata(i, f));
+        return doTipo?.itens.length && (!op.pedidoSeguro || serve(doTipo))
+          ? doTipo : await buscaCarac(fb).catch(() => null);
+      };
+      // t_45d0f5aa: a região que o cliente já disse (\"Horto/Caguaçu, São Bento\") vale para a busca; antes a busca
+      // ia para a cidade toda e mostrava o mais barato. Nada lá: diz isso e só então mostra outro bairro.
+      if (op.pedidoSeguro && !f.bairro && !dados.regiao && op.regiaoConversa)
+        dados.regiao = curto(op.regiaoConversa, 60);
+      const bairros = op.pedidoSeguro && !f.bairro ? partesRegiao(dados.regiao) : [];
+      let foraRegiaoCarac: string | undefined;
+      let res: ResultadoCaracteristica | null = null;
+      if (bairros.length) {
+        const achados: ImovelParecido[] = [];
+        for (const b of bairros) {
+          const r1 = await buscarB({ ...filtroB, bairro: b });
+          if (r1) achados.push(...r1.itens.filter((i) => !achados.some((a) => a.codigo === i.codigo)));
+          res = res ?? r1;
+        }
+        if (achados.length) res = { itens: achados, proximo: null };
+        else {
+          res = await buscarB(filtroB);
+          if (res?.itens.length) foraRegiaoCarac = dados.regiao;
+        }
+      } else res = await buscarB(filtroB);
       const pedidoTxt = textoCaracteristica(f);
+      if (!res && op.pedidoSeguro) {
+        dados.pendentes = [...new Set([...(dados.pendentes ?? []), `buscar imóvel com ${pedidoTxt}`])].slice(0, 12);
+        return { ...continuar(`Não consegui conferir opções com ${pedidoTxt} agora. Vou passar seu pedido para a equipe.`), fixo: true };
+      }
       if (!res) {
         dados.pendentes = [...new Set([...(dados.pendentes ?? []), `quer imóvel com ${pedidoTxt}`])].slice(0, 12);
         dados.convite_aberto = "opcoes";
         return continuar(`Vou procurar opções com ${pedidoTxt} e já te mando por aqui. Enquanto isso, quer marcar uma visita nessa?`);
       }
       const itens = res.itens
-        .filter((i) => !ja.includes(i.codigo) && atendeCaracteristica(i, f))
+        .filter((i) => !ja.includes(i.codigo) && atendeCaracteristica(i, f) &&
+          (!op.pedidoSeguro || contagemExata(i, f)))
         .sort((a, b) => Number(b.tipo === ficha?.tipo) - Number(a.tipo === ficha?.tipo));
       const p = itens[0];
-      if (p) {
+      if (p && !(op.pedidoSeguro && foraRegiaoCarac)) {
         dados.ofertados_carac = [...(dados.ofertados_carac ?? []), p.codigo].slice(0, 6);
         dados.parecidos = [...new Set([...(dados.parecidos ?? []), p.codigo])].slice(0, MAX_PARECIDOS);
         dados.parecido_atual = p;
         dados.convite_visita = true;
         return { ...continuar(textoCaracOferta(p, f, dados.ofertados_carac.length)), busca: { pedido: pedidoTxt, itens, fora_faixa: false } };
+      }
+      if (op.pedidoSeguro) {
+        // A RPC retorna apenas as primeiras opções, não prova ausência no catálogo inteiro.
+        dados.pendentes = [...new Set([...(dados.pendentes ?? []), `buscar imóvel com ${pedidoTxt}${dados.regiao ? ` em ${dados.regiao}` : ""}`])].slice(0, 12);
+        dados.convite_aberto = "opcoes";
+        return { ...continuar(`Não encontrei uma opção que corresponda exatamente a ${pedidoTxt}${dados.regiao ? ` em ${dados.regiao}` : ""} agora. Vou passar seu pedido para a equipe.`), fixo: true };
       }
       const jaCarac = (dados.ofertados_carac ?? []).length;
       const prox = res.proximo && !ja.includes(res.proximo.codigo) && atendeCaracteristica(res.proximo, f) ? res.proximo : null;

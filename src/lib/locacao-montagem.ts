@@ -40,6 +40,8 @@ export type LocacaoBase = {
     imovelId: string;
     /** Bloco/apto (t_8f09d406): entra no endereço do imóvel do contrato. */
     complemento?: string;
+    /** "Cláusulas adicionais e tratativas" da ficha (t_a0736d87): pré-preenche clausulas_adicionais. */
+    observacoes?: string;
     locatarioEndereco?: string;
     proprietario?: { nome: string };
     locatarioPessoa?: "pf" | "pj";
@@ -236,7 +238,7 @@ export function camposIniciais(base: LocacaoBase, m: Montagem): Record<string, s
   const d = Object.fromEntries(
     Object.keys(CAMPOS_DOCUMENTO).map((key) => [`d_${key}`, m.contrato[key] ?? ""]),
   );
-  return {
+  const r: Record<string, string> = {
     ...c,
     ...d,
     numero: base.codigo,
@@ -250,6 +252,11 @@ export function camposIniciais(base: LocacaoBase, m: Montagem): Record<string, s
     local: `${m.administradora.cidade ?? ""}/${m.administradora.uf ?? ""}`,
     ...m.campos,
   };
+  // t_a0736d87: as cláusulas combinadas na ficha chegam ao setor de contratos só quando o campo está vazio; o que já
+  // foi digitado/salvo na montagem nunca é trocado e continua editável.
+  const obs = (base.ficha.observacoes ?? "").trim();
+  if (obs && !(r.clausulas_adicionais ?? "").trim()) r.clausulas_adicionais = obs;
+  return r;
 }
 export function dadosContrato(m: Montagem, c: Record<string, string>): Record<string, string> {
   return {

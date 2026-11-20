@@ -41,7 +41,7 @@ export function LocacaoArquivoAcoes({
   id,
   nome,
 }: {
-  tipo: "documento" | "anexo" | "minuta";
+  tipo: "documento" | "anexo" | "minuta" | "final";
   id: string;
   nome: string;
 }) {
@@ -54,7 +54,8 @@ export function LocacaoArquivoAcoes({
   const word = ehWord(nome);
   // A minuta já vem do servidor como anexo, com o nome limpo; os outros ganham `download=` aqui.
   const baixarArquivo = async () => {
-    if (tipo === "minuta") return clicarLink(await linkArquivoLocacao(tipo, id, true));
+    if (tipo === "minuta" || tipo === "final")
+      return clicarLink(await linkArquivoLocacao(tipo, id, true));
     baixar(await linkArquivoLocacao(tipo, id), nome);
   };
 

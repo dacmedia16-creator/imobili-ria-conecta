@@ -388,7 +388,10 @@ export function FichaAbertura({ d, ctx, busy, rodar, editavel, aConfirmar, aviso
             </div>
             {imovelTipo === "condominio" && (
               <p className="text-xs text-muted-foreground">
-                Condomínio: a CND do condomínio aparece na Documentação como opcional (não trava).
+                Condomínio: a Documentação pede o boleto do condomínio (obrigatório) e a CND do
+                condomínio (opcional). Se água ou gás vêm na taxa, marque lá &quot;Água incluída no
+                condomínio&quot; / &quot;Gás incluído no condomínio&quot;: não pede código, conta
+                nem boleto.
               </p>
             )}
           </div>
@@ -739,18 +742,20 @@ export function FichaAbertura({ d, ctx, busy, rodar, editavel, aConfirmar, aviso
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Observações e tratativas</CardTitle>
+              <CardTitle className="text-sm">
+                Cláusulas adicionais e tratativas (para o contrato)
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <Label htmlFor="fi-obs" className="sr-only">
-                Observações e tratativas
+                Cláusulas adicionais e tratativas (para o contrato)
               </Label>
               <Textarea
                 id="fi-obs"
                 disabled={!editavel}
                 maxLength={2000}
                 rows={4}
-                placeholder="Isenção, descontos, acordos entre as partes…"
+                placeholder="Ex.: 30 meses com isenção de multa após 12 meses, descontos, acordos entre as partes…"
                 value={fi.observacoes}
                 onChange={(e) => setFicha("observacoes", e.target.value)}
               />
