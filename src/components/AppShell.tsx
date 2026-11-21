@@ -38,6 +38,7 @@ import { opportunitiesEnabled } from "@/lib/oportunidades-module";
 import { leadsEnabled } from "@/lib/leads-db";
 import { crmEnabled } from "@/lib/crm-db";
 import { locacaoEnabled } from "@/lib/locacao-db";
+import { meuPlanoEnabled } from "@/lib/meu-plano-2027/modulo";
 import { telaDaRota } from "@/lib/ajuda-max-locacao";
 import { AjudaMaxLocacao } from "@/components/locacao/AjudaMaxLocacao";
 import { achievementsEnabled } from "@/lib/mural-module";
@@ -331,6 +332,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [leadsVisible, setLeadsVisible] = useState(false);
   const [crmVisible, setCrmVisible] = useState(false);
   const [locacaoVisible, setLocacaoVisible] = useState(false);
+  const [meuPlanoVisible, setMeuPlanoVisible] = useState(false);
   // Módulos já lidos: o tour só monta os passos com o menu completo.
   const [modulosProntos, setModulosProntos] = useState(false);
   const [agencyBrand, setAgencyBrand] = useState<AgencyBrand | null>(null);
@@ -368,6 +370,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       }),
       locacaoEnabled().then((enabled) => {
         if (alive) setLocacaoVisible(enabled);
+      }),
+      meuPlanoEnabled().then((enabled) => {
+        if (alive) setMeuPlanoVisible(enabled);
       }),
     ]).then(() => {
       if (alive) setModulosProntos(true);
@@ -466,6 +471,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     fotosVisible,
     carreiraVisible: exclusiveVisible,
     locacaoVisible,
+    meuPlanoVisible,
     inPlatformContext: Boolean(platformContext),
   });
   const unread = useUnreadNotifications();

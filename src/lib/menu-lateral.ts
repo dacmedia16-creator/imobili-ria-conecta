@@ -42,6 +42,7 @@ import {
   Target,
   Goal,
   Warehouse,
+  ClipboardList,
 } from "lucide-react";
 import { podeAtenderLeads, podeVerPainelLeads } from "@/lib/leads";
 import { podeAcessarCentralFinanceira } from "@/lib/financeiro-dashboard-calc";
@@ -52,6 +53,7 @@ import { podeAcessarPainelImobiliaria } from "@/lib/metas-2027/acesso";
 import { podeVerMinhaCarreira, podeVerMinhaImobiliaria } from "@/lib/minha-imobiliaria/acesso";
 import { ehSoFotografo } from "@/lib/fotografo";
 import { ehSoLocacao } from "@/lib/papel-locacao";
+import { ehBroker, ehLider } from "@/lib/meu-plano-2027/modulo";
 
 // Menu lateral agrupado (maquete aprovada por Denis em 12/10/2026, card t_7f4f77c8).
 // Só organiza e muda ícones: cada condição `show` é a MESMA que existia no AppShell antes
@@ -88,6 +90,8 @@ export type MenuContexto = {
   carreiraVisible?: boolean;
   /** Módulo Locação (t_74426f94) ligado na imobiliária (opcional: ausente = desligado). */
   locacaoVisible?: boolean;
+  /** Módulo "Meu Plano 2027" (meu_plano_2027, t_889fb3c1) ligado (opcional: ausente = desligado). */
+  meuPlanoVisible?: boolean;
   /** Dono da plataforma dentro de uma imobiliária ("Entrar como", faixa laranja): esconde os
    * itens da plataforma; a volta é pelo "Sair" da faixa (card t_722085c6). Ausente = fora. */
   inPlatformContext?: boolean;
@@ -228,6 +232,16 @@ export function montarMenuLateral(ctx: MenuContexto): NavGroup[] {
           icon: Goal,
           // Painel da imobiliária (t_69d29df6): só gestor e administrador; a bruta só sai do banco para eles.
           show: podeAcessarPainelImobiliaria(roles),
+        },
+        {
+          to: "/minha-carreira/plano",
+          search: { v: "equipe" },
+          label: "Planos 2027 · Preenchimento",
+          icon: ClipboardList,
+          // Lista dos planos 2027 com % de preenchimento (t_889fb3c1): o admin/dono perdeu o acesso quando
+          // "Minha carreira" saiu do menu dele. Mesma regra do botão do cartão: módulo ligado e broker ou TL.
+          // A RPC carreira_plano_equipe repete a regra (TL vê só a própria equipe).
+          show: ctx.meuPlanoVisible === true && (ehBroker(roles) || ehLider(roles)),
         },
         {
           to: "/visao-executiva",
