@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Parte 2/3 do "Sem administração" (migration 20261215130000: modelos "só intermediação" + recebível de intermediação)
-# numa ÚNICA transação revertida (homologação ou clone, NUNCA produção). Aplica as bases que faltarem e a 20261215120000,
-# tira a impressão digital, aplica a 20261215130000, confere modelos e recebível, desfaz e confere que voltou igual.
+# Parte 2/3 do "Sem administração" (migration 20261217130000: modelos "só intermediação" + recebível de intermediação)
+# numa ÚNICA transação revertida (homologação ou clone, NUNCA produção). Aplica as bases que faltarem e a 20261217120000,
+# tira a impressão digital, aplica a 20261217130000, confere modelos e recebível, desfaz e confere que voltou igual.
 # Uso: PGCONN="<conninfo da homologação>" bash supabase/tests/run-locacao-intermediacao.sh
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 PGCONN="${PGCONN:?defina PGCONN (homologação ou clone, nunca produção)}"
 case "$PGCONN" in *xvvymgurpchhlmbpjbgc*) echo "PRODUCAO RECUSADA"; exit 1;; esac
-V=20261215130000
+V=20261217130000
 MIG="$ROOT/supabase/migrations/${V}_locacao_intermediacao_financeiro.sql"
 RB="$ROOT/supabase/rollback/${V}_locacao_intermediacao_financeiro.sql"
 strip() { grep -v -E '^(BEGIN|COMMIT|ROLLBACK);\s*$' "$1"; }
@@ -35,8 +35,8 @@ BASES=(
     tem=$(psql "$PGCONN" -X -At -c "$q")
     if [ "$tem" != "t" ]; then for m in $migs; do strip "$ROOT/supabase/migrations/$m.sql"; echo "\\echo [base $m]"; done; fi
   done
-  strip "$ROOT/supabase/migrations/20261215120000_locacao_sem_administracao.sql"
-  echo "\\echo [base 20261215120000]"
+  strip "$ROOT/supabase/migrations/20261217120000_locacao_sem_administracao.sql"
+  echo "\\echo [base 20261217120000]"
   echo "$FP"
   strip "$MIG"
   echo "\\echo [migration ok]"

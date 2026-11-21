@@ -1,4 +1,4 @@
--- Suíte da migration 20261215120000 (Locação "Sem administração", t_ec2962bd). Roda DENTRO de transação revertida
+-- Suíte da migration 20261217120000 (Locação "Sem administração", t_ec2962bd). Roda DENTRO de transação revertida
 -- (run-locacao-sem-administracao.sh), na homologação, só com dados fictícios. Pessoas da homologação (Agência A):
 -- c2 = QA A Corretor Dois (corretor), con = QA A Dono Plataforma (contratos + vistoria = Fernanda), b1 = Agência B.
 CREATE TEMP TABLE r(ok bool, msg text);

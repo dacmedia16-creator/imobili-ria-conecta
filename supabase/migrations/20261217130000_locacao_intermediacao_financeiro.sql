@@ -1,5 +1,5 @@
 -- Parte 2: recebível único de intermediação na entrega das chaves, sem contrato de administração.
--- Depende da migration 20261215120000 (parte 1). Rollback: supabase/rollback/20261215130000_locacao_intermediacao_financeiro.sql
+-- Depende da migration 20261217120000 (parte 1). Rollback: supabase/rollback/20261217130000_locacao_intermediacao_financeiro.sql
 BEGIN;
 SELECT set_config('lock_timeout', '5s', true);
 

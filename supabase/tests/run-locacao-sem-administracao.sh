@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Locação "Sem administração" (migration 20261215120000, t_ec2962bd) numa ÚNICA transação revertida (homologação ou
+# Locação "Sem administração" (migration 20261217120000, t_ec2962bd) numa ÚNICA transação revertida (homologação ou
 # clone, NUNCA produção). Aplica as bases da Locação que faltarem, tira a impressão digital, aplica a migration, roda a
 # suíte nova e, como regressão, a suíte da reunião 16/11 (lançamento) com a migration aplicada; desfaz a migration e
 # confere que o esquema voltou EXATAMENTE ao estado anterior e que as 5 funções voltaram ao texto de produção (md5).
@@ -11,7 +11,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 PGCONN="${PGCONN:?defina PGCONN (homologação ou clone, nunca produção)}"
 case "$PGCONN" in *xvvymgurpchhlmbpjbgc*) echo "PRODUCAO RECUSADA"; exit 1;; esac
-V=20261215120000
+V=20261217120000
 MIG="${MIG:-$ROOT/supabase/migrations/${V}_locacao_sem_administracao.sql}"
 RB="$ROOT/supabase/rollback/${V}_locacao_sem_administracao.sql"
 strip() { grep -v -E '^(BEGIN|COMMIT|ROLLBACK);\s*$' "$1"; }

@@ -30,10 +30,10 @@ import {
 } from "@/components/locacao/LocacaoLancamento";
 
 const MIG = readFileSync(
-  "supabase/migrations/20261215120000_locacao_sem_administracao.sql",
+  "supabase/migrations/20261217120000_locacao_sem_administracao.sql",
   "utf8",
 );
-const RB = readFileSync("supabase/rollback/20261215120000_locacao_sem_administracao.sql", "utf8");
+const RB = readFileSync("supabase/rollback/20261217120000_locacao_sem_administracao.sql", "utf8");
 
 describe("comissão sem administração (1 aluguel, mesma divisão)", () => {
   it("R$ 2.000 com administração 10% → 50% = R$ 1.000; coord. R$ 100; corretor R$ 900", () => {
