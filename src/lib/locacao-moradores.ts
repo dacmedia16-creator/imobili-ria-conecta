@@ -1,4 +1,4 @@
-// Ficha de moradores da locação (t_40cff7e4, migration 20261215120000). Regras puras, espelho do banco:
+// Ficha de moradores da locação (t_40cff7e4, migration 20261216120000). Regras puras, espelho do banco:
 // - maior de 18 (data civil de hoje em São Paulo) → item obrigatório "Cópia do RG — <nome>" no checklist do locatário;
 // - o contrato continua recebendo "Nome — CPF xxx", um por linha (mesmo texto de antes, gerado da ficha);
 // - e-mail e telefone obrigatórios para maiores de 18 (a administradora do condomínio cadastra), opcionais para menores.
@@ -44,9 +44,17 @@ export function moradorAdulto(nascimento: string, hoje: string): boolean {
 export const itemRgMorador = (nome: string) => `Cópia do RG — ${nome.trim()}`;
 export const ehItemRgMorador = (item: string) => item.startsWith("Cópia do RG — ");
 
+/** CPF sempre com máscara 000.000.000-00 (sem 11 dígitos, devolve como veio). Espelho de locacao_cpf_mascara. */
+export function mascaraCpf(v: string): string {
+  const d = v.replace(/\D/g, "");
+  return d.length === 11
+    ? `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`
+    : v.trim();
+}
+
 /** Texto que vai para o contrato (campo "moradores"). Espelho de locacao_moradores_texto. */
 export function textoMoradores(pessoas: Morador[]): string {
-  return pessoas.map((p) => `${p.nome.trim()} — CPF ${p.cpf.trim()}`).join("\n");
+  return pessoas.map((p) => `${p.nome.trim()} — CPF ${mascaraCpf(p.cpf)}`).join("\n");
 }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -88,6 +96,9 @@ export function lerMoradoresRpc(raw: unknown): {
   ficha: boolean;
   obrigatoria: boolean;
   pessoas: Morador[];
+  /** Data usada para contar os 18 anos (hoje na Documentação; congelada depois). Vazio = hoje. */
+  referencia: string;
+  congelada: boolean;
   downloads: { em: string; por: string | null }[];
 } {
   const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
@@ -107,5 +118,13 @@ export function lerMoradoresRpc(raw: unknown): {
     const d = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
     return { em: s(d.em), por: typeof d.por === "string" ? d.por : null };
   });
-  return { ficha: o.ficha === true, obrigatoria: o.obrigatoria === true, pessoas, downloads };
+  const ref = s(o.referencia);
+  return {
+    ficha: o.ficha === true,
+    obrigatoria: o.obrigatoria === true,
+    pessoas,
+    referencia: /^\d{4}-\d{2}-\d{2}$/.test(ref) ? ref : "",
+    congelada: o.congelada === true,
+    downloads,
+  };
 }

@@ -185,7 +185,7 @@ export const baixarPacoteAdministradora = createServerFn({ method: "POST" })
     });
     if (error) throw new Error(error.message);
     const { lerMoradoresRpc } = await import("@/lib/locacao-moradores");
-    const { montarPacotePdf, nomeArquivoPacote, tipoArquivo } =
+    const { montarPacotePdf, nomeArquivoPacote, tipoArquivo, PACOTE_MAX_BYTES } =
       await import("@/lib/locacao-pacote-pdf");
     const { hojeSaoPaulo } = await import("@/lib/hoje-sao-paulo");
     const p = (prep ?? {}) as Record<string, unknown>;
@@ -194,6 +194,7 @@ export const baixarPacoteAdministradora = createServerFn({ method: "POST" })
     const rgs = (Array.isArray(p.rgs) ? p.rgs : []) as { item?: unknown; path?: unknown }[];
     const sb = await admin();
     const arquivos = [];
+    let total = 0;
     for (const r of rgs) {
       const path = s(r.path);
       const prefixo = `${data.locacaoId}/`;
@@ -203,6 +204,12 @@ export const baixarPacoteAdministradora = createServerFn({ method: "POST" })
       const { data: blob, error: e2 } = await sb.storage.from(BUCKET).download(path);
       if (e2 || !blob) throw new Error("Cópia do RG indisponível.");
       const bytes = new Uint8Array(await blob.arrayBuffer());
+      // Teto de tamanho: evita estourar memória do servidor e um PDF grande demais para mandar à administradora.
+      total += bytes.byteLength;
+      if (total > PACOTE_MAX_BYTES)
+        throw new Error(
+          "Pacote grande demais (cópias de RG somam mais de 25 MB). Reenvie as cópias em tamanho menor.",
+        );
       arquivos.push({ item: s(r.item), bytes, tipo: tipoArquivo(bytes) });
     }
     const { data: perfil } = await sb
@@ -224,6 +231,7 @@ export const baixarPacoteAdministradora = createServerFn({ method: "POST" })
         endereco: s(p.endereco),
         unidade: s(p.unidade) || null,
         entrada: s(p.entrada) || null,
+        referencia: s(p.referencia),
       },
       arquivos,
       hojeSaoPaulo(),

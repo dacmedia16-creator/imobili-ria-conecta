@@ -1,4 +1,4 @@
--- Suíte da migration 20261215120000 (ficha de moradores + pacote para a administradora, t_40cff7e4). Roda DENTRO de
+-- Suíte da migration 20261216120000 (ficha de moradores + pacote para a administradora, t_40cff7e4). Roda DENTRO de
 -- transação revertida (run-locacao-moradores-pacote.sh), na homologação, só com dados fictícios. Pessoas (Agência A):
 -- c2 = QA A Corretor Dois (corretor da locação), a1 = UE Corretor (outro corretor), con = QA A Dono Plataforma (vistoria),
 -- ges = QA A Corretor Tres (gestora da locação), adm = QA A Admin; b1/admB = Agência B.
@@ -173,6 +173,12 @@ SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_moradores_salvar(%L,
   jsonb_build_object('id', '6f1b7c1e-0000-4000-8000-000000000001', 'nome', 'Ana Fictícia Renomeada', 'cpf', '529.982.247-25',
     'nascimento', '1990-01-01', 'email', 'ana@exemplo.com', 'telefone', '(15) 99999-0000'))::text)) LIKE '22023%Remova a cópia do RG%',
   'com RG anexado, trocar o nome ou tirar o morador exige remover o RG antes');
+SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_moradores_salvar(%L, %L)', pg_temp.id('N'), jsonb_build_array(
+  jsonb_build_object('id', '6f1b7c1e-0000-4000-8000-000000000001', 'nome', 'Ana Fictícia', 'cpf', '390.533.447-05',
+    'nascimento', '1990-01-01', 'email', 'ana@exemplo.com', 'telefone', '(15) 99999-0000'),
+  jsonb_build_object('id', '6f1b7c1e-0000-4000-8000-000000000002', 'nome', 'Bia Fictícia', 'cpf', '111.444.777-35',
+    'nascimento', '2016-04-04', 'email', '', 'telefone', ''))::text)) LIKE '22023%Remova a cópia do RG%CPF%',
+  'com RG anexado, trocar o CPF do morador exige remover o RG antes');
 
 -- 5) Acesso: só corretor da locação + gestão; isolamento entre imobiliárias --------------------------------------------
 SELECT pg_temp.as_user(pg_temp.id('a1')::text);
@@ -191,6 +197,24 @@ SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_moradores_ler(%L)', 
   'vistoria (vê a locação, não é gestão): não lê a ficha');
 SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_pacote_registrar(%L)', pg_temp.id('N'))) LIKE '42501%',
   'vistoria: não registra download');
+-- Quem vê a locação mas não é da gestão (vistoria/contratos/financeiro/líder): nada do RG dos moradores aparece.
+SELECT pg_temp.put('det_con', public.locacao_detalhe(pg_temp.id('N')));
+SELECT pg_temp.ok(pg_temp.j('det_con') IS NOT NULL
+  AND position('Cópia do RG' IN (pg_temp.j('det_con')->'checklist')::text) = 0
+  AND position('Cópia do RG' IN (pg_temp.j('det_con')->'faltando')::text) = 0
+  AND position('Cópia do RG' IN (pg_temp.j('det_con')->'partes')::text) = 0
+  AND position('Cópia do RG' IN (pg_temp.j('det_con')->'documentos')::text) = 0
+  AND position('Cópia do RG' IN (pg_temp.j('det_con')->'eventos')::text) = 0
+  AND position('rg-ana' IN pg_temp.j('det_con')::text) = 0
+  AND jsonb_array_length(pg_temp.j('det_con')->'partes') > 0,
+  'vistoria abre a locação, mas checklist, pendências, documentos e histórico não mostram o RG dos moradores');
+SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_documento_ver(%L)', pg_temp.j('doc')->>'id')) LIKE '42501%',
+  'vistoria: não abre o RG do morador (link assinado recusado)');
+SELECT pg_temp.as_user(pg_temp.id('c2')::text);
+SELECT pg_temp.ok(position('Cópia do RG — Ana Fictícia' IN (public.locacao_detalhe(pg_temp.id('N'))->'documentos')::text) > 0
+  AND (public.locacao_detalhe(pg_temp.id('N'))->>'moradores_com_ficha')::boolean,
+  'corretor da locação vê o RG do morador na lista de documentos');
+SELECT pg_temp.as_user(pg_temp.id('con')::text);
 SELECT pg_temp.as_user(pg_temp.id('ges')::text);
 SELECT pg_temp.ok(jsonb_array_length(public.locacao_moradores_ler(pg_temp.id('N'))->'pessoas') = 2, 'gestora da locação lê a ficha');
 SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_moradores_salvar(%L, ''[]'')', pg_temp.id('N'))) LIKE '42501%',
@@ -248,11 +272,34 @@ SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_pacote_preparar(%L)'
   'pacote recusado enquanto falta RG obrigatório');
 -- Sem RG, agora pode tirar a Ana; ficando só a menor, nada de RG é exigido.
 SELECT public.locacao_moradores_salvar(pg_temp.id('N'), jsonb_build_array(
-  jsonb_build_object('id', '6f1b7c1e-0000-4000-8000-000000000002', 'nome', 'Bia Fictícia', 'cpf', '111.444.777-35',
+  jsonb_build_object('id', '6f1b7c1e-0000-4000-8000-000000000002', 'nome', 'Bia Fictícia', 'cpf', '11144477735',
     'nascimento', '2016-04-04', 'email', '', 'telefone', '')));
 RESET ROLE;
 SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM unnest(pg_temp.checklist('N')) x WHERE x LIKE 'Cópia do RG — %')
-  AND pg_temp.moradores_txt('N') = 'Bia Fictícia — CPF 111.444.777-35', 'só menor: nenhum RG exigido e contrato atualizado');
+  AND pg_temp.moradores_txt('N') = 'Bia Fictícia — CPF 111.444.777-35',
+  'só menor: nenhum RG exigido e contrato atualizado (CPF digitado sem pontos vai com máscara)');
+
+-- 6b) Idade congelada ao sair da Documentação -------------------------------------------------------------------------
+-- Morador que faz 18 HOJE; a data ficou congelada ONTEM (saiu da Documentação ontem): não exige RG nem trava a minuta.
+WITH s AS (INSERT INTO public.locacoes (organization_id, corretor_id, etapa, aluguel, taxa_adm, endereco, garantia, imovel_tipo)
+  VALUES (pg_temp.id('orgA'), pg_temp.id('c2'), 'documentacao', 2200, 10, 'Rua Fictícia Idade, 7', 'caucao', 'condominio') RETURNING id)
+INSERT INTO ids SELECT 'I', id FROM s;
+INSERT INTO public.locacao_moradores (locacao_id, organization_id, pessoas) VALUES (pg_temp.id('I'), pg_temp.id('orgA'),
+  jsonb_build_array(jsonb_build_object('id', '6f1b7c1e-0000-4000-8000-0000000000a1', 'nome', 'Caio Fictício', 'cpf', '529.982.247-25',
+    'nascimento', to_char((now() AT TIME ZONE 'America/Sao_Paulo')::date - interval '18 years', 'YYYY-MM-DD'),
+    'email', 'caio@exemplo.com', 'telefone', '15999990002')));
+SELECT pg_temp.ok('Cópia do RG — Caio Fictício' = ANY (pg_temp.checklist('I')), 'na Documentação a idade conta pela data de hoje');
+UPDATE public.locacoes SET etapa = 'minuta' WHERE id = pg_temp.id('I');
+SELECT pg_temp.ok((SELECT referencia FROM public.locacao_moradores WHERE locacao_id = pg_temp.id('I'))
+  = (now() AT TIME ZONE 'America/Sao_Paulo')::date, 'ao sair da Documentação a data de referência é congelada');
+UPDATE public.locacao_moradores SET referencia = referencia - 1 WHERE locacao_id = pg_temp.id('I');
+SELECT pg_temp.ok(NOT ('Cópia do RG — Caio Fictício' = ANY (pg_temp.checklist('I')))
+  AND NOT ('Cópia do RG — Caio Fictício' = ANY (pg_temp.faltando('I'))),
+  'congelada ontem: aniversário de 18 anos hoje não cria pendência nem trava a minuta');
+UPDATE public.locacoes SET etapa = 'documentacao' WHERE id = pg_temp.id('I');
+SELECT pg_temp.ok((SELECT referencia FROM public.locacao_moradores WHERE locacao_id = pg_temp.id('I')) IS NULL
+  AND 'Cópia do RG — Caio Fictício' = ANY (pg_temp.checklist('I')),
+  'devolvida à Documentação: a idade volta a contar pela data de hoje');
 
 -- 7) Etapa: ficha só na Documentação -----------------------------------------------------------------------------------
 UPDATE public.locacoes SET etapa = 'conferencia' WHERE id = pg_temp.id('N');

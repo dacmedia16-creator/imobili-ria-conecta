@@ -315,6 +315,8 @@ export type LocacaoDetalhe = Locacao & {
     enviadoEm: string;
   }[];
   apolicePendente: boolean;
+  /** t_40cff7e4: locação antiga que já ganhou ficha de moradores (o campo de texto do contrato trava). */
+  moradoresComFicha: boolean;
   finaisPode: boolean;
   finaisTem: { contrato_locacao: boolean; contrato_adm: boolean; laudo: boolean };
   finaisTel: { locatario: boolean; proprietario: boolean } | null;
@@ -617,6 +619,7 @@ export function lerDetalhe(raw: unknown): LocacaoDetalhe {
       };
     }),
     apolicePendente: b(o.apolice_pendente),
+    moradoresComFicha: b(o.moradores_com_ficha),
     finaisPode: b(o.finais_pode),
     finaisTem: {
       contrato_locacao: b(obj(o.finais_tem).contrato_locacao),

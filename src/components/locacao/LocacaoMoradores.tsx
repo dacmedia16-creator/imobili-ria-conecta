@@ -63,6 +63,8 @@ export function LocacaoMoradores({
   const [salvas, setSalvas] = useState<Morador[]>([]);
   const [ficha, setFicha] = useState(false);
   const [obrigatoria, setObrigatoria] = useState(true);
+  // Data para contar os 18 anos: hoje na Documentação; congelada pelo banco quando a locação sai dela.
+  const [referencia, setReferencia] = useState("");
   const [downloads, setDownloads] = useState<{ em: string; por: string | null }[]>([]);
   const [erro, setErro] = useState("");
   const [salvando, setSalvando] = useState(false);
@@ -74,6 +76,7 @@ export function LocacaoMoradores({
     setSalvas(r.pessoas);
     setFicha(r.ficha);
     setObrigatoria(r.obrigatoria);
+    setReferencia(r.congelada ? r.referencia : "");
     setDownloads(r.downloads);
     setErro("");
   };
@@ -86,6 +89,7 @@ export function LocacaoMoradores({
         setSalvas(r.pessoas);
         setFicha(r.ficha);
         setObrigatoria(r.obrigatoria);
+        setReferencia(r.congelada ? r.referencia : "");
         setDownloads(r.downloads);
       })
       .catch((e) => vivo && setErro(errorMessage(e, "Ficha de moradores indisponível.")));
@@ -137,10 +141,10 @@ export function LocacaoMoradores({
     }
   };
 
+  const ref = referencia || hoje;
   const rgsPendentes = salvas.filter(
     (p) =>
-      moradorAdulto(p.nascimento, hoje) &&
-      !documentos.some((d) => d.item === itemRgMorador(p.nome)),
+      moradorAdulto(p.nascimento, ref) && !documentos.some((d) => d.item === itemRgMorador(p.nome)),
   );
 
   return (
@@ -173,7 +177,7 @@ export function LocacaoMoradores({
           </p>
         )}
         {lista.map((p, i) => {
-          const adulto = moradorAdulto(p.nascimento, hoje);
+          const adulto = moradorAdulto(p.nascimento, ref);
           const anexado = documentos.some((d) => d.item === itemRgMorador(p.nome));
           return (
             <div key={p.id} className="space-y-2 rounded-md border p-3" data-testid="morador-bloco">

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Ficha de moradores + pacote para a administradora (migration 20261215120000, t_40cff7e4) numa ÚNICA transação revertida
+# Ficha de moradores + pacote para a administradora (migration 20261216120000, t_40cff7e4) numa ÚNICA transação revertida
 # (homologação ou clone, NUNCA produção). Aplica as bases da Locação que faltarem, tira a impressão digital, aplica a
-# migration, roda a suíte, desfaz a migration e confere que o esquema voltou EXATAMENTE ao estado anterior e que as 3
+# migration, roda a suíte, desfaz a migration e confere que o esquema voltou EXATAMENTE ao estado anterior e que as 5
 # funções redefinidas voltaram ao texto de produção (md5 lido em 20/11/2026). Por fim ROLLBACK: nada fica gravado.
 # Uso: PGCONN="<conninfo da homologação>" bash supabase/tests/run-locacao-moradores-pacote.sh
 #      MIG=<outra migration> para o controle negativo (a suíte tem de falhar).
@@ -10,7 +10,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 PGCONN="${PGCONN:?defina PGCONN (homologação ou clone, nunca produção)}"
 case "$PGCONN" in *xvvymgurpchhlmbpjbgc*) echo "PRODUCAO RECUSADA"; exit 1;; esac
-V=20261215120000
+V=20261216120000
 MIG="${MIG:-$ROOT/supabase/migrations/${V}_locacao_moradores_pacote.sql}"
 RB="$ROOT/supabase/rollback/${V}_locacao_moradores_pacote.sql"
 strip() { grep -v -E '^(BEGIN|COMMIT|ROLLBACK);\s*$' "$1"; }
@@ -26,11 +26,11 @@ FP="SELECT 'FP=' || md5(coalesce((SELECT string_agg(x, ',' ORDER BY x) FROM (
   UNION ALL SELECT 'loc:'||id||':'||md5(row(l.*)::text) FROM public.locacoes l
   UNION ALL SELECT 'doc:'||id||':'||md5(row(d.*)::text) FROM public.locacao_documentos d
   UNION ALL SELECT 'ct:'||locacao_id||':'||md5(row(c.*)::text) FROM public.locacao_contrato_dados c) s),''));"
-# md5 (pg_get_functiondef) das 3 funções em PRODUÇÃO, lidas em 20/11/2026 antes da migration (só leitura).
-PROD="locacao_checklist_l=96213c8934e8c038355e67d3c4607bbd locacao_contrato_salvar=7d5bc9dabf3f84668af507e2f208460e locacao_partes_json=e5e9cd6702b5e3c599e67d3b0598fa16"
+# md5 (pg_get_functiondef) das 5 funções em PRODUÇÃO (com o lote 2), lidas em 20/11/2026 antes da migration (só leitura).
+PROD="locacao_checklist_l=96213c8934e8c038355e67d3c4607bbd locacao_contrato_salvar=7d5bc9dabf3f84668af507e2f208460e locacao_detalhe=1fc86ce791397970277ee7815b90a99f locacao_documento_ver=a4fa42b81a431bcd09b3a4daaf906872 locacao_partes_json=e5e9cd6702b5e3c599e67d3b0598fa16"
 MD5="SELECT 'MD5 ' || CASE WHEN string_agg(p.proname || '=' || md5(pg_get_functiondef(p.oid)), ' ' ORDER BY p.proname) = '$PROD'
   THEN 'igual a produção' ELSE 'DIFERENTE de produção: ' || string_agg(p.proname || '=' || md5(pg_get_functiondef(p.oid)), ' ' ORDER BY p.proname) END
-  FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname IN ('locacao_checklist_l', 'locacao_partes_json', 'locacao_contrato_salvar');"
+  FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname IN ('locacao_checklist_l', 'locacao_partes_json', 'locacao_contrato_salvar', 'locacao_detalhe', 'locacao_documento_ver');"
 BASES=(
   "fn:public.so_locacao_ativo(uuid)|20261122120100_papel_locacao"
   "public.locacao_pre_links|20261124120000_locacao_cliente_preenche 20261124130000_locacao_pre_aprovacao"
@@ -40,6 +40,8 @@ BASES=(
   "public.locacao_lancamentos|20261201150000_locacao_reuniao_16_11"
   "fn:public.locacao_tem_gas(public.locacoes)|20261211120000_locacao_boletos_condominio_gas"
   "fn:public.locacao_consultar_imovel(text)|20261211130000_locacao_consultar_imovel"
+  "fn:public.locacao_contas_condominio(public.locacoes)|20261211150000_locacao_agua_gas_condominio"
+  "public.locacao_docs_finais|20261214130000_locacao_documentos_finais"
 )
 {
   echo "BEGIN;"

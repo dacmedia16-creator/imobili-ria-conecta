@@ -212,9 +212,12 @@ export function DadosContrato({
                       <Textarea
                         id={id}
                         // t_40cff7e4: locação nova — o texto sai da "Ficha dos moradores" (acima), não se digita aqui.
-                        disabled={!editavel || (c.k === "moradores" && d.moradoresFicha)}
+                        disabled={
+                          !editavel ||
+                          (c.k === "moradores" && (d.moradoresFicha || d.moradoresComFicha))
+                        }
                         title={
-                          c.k === "moradores" && d.moradoresFicha
+                          c.k === "moradores" && (d.moradoresFicha || d.moradoresComFicha)
                             ? "Gerado da Ficha dos moradores"
                             : undefined
                         }
