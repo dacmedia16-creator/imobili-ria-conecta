@@ -1,0 +1,64 @@
+# CI do ADM MAX (t_afb2ffe8). Roda sozinho no GitHub, em segundo plano, a cada push e PR.
+# Não publica nada, não usa segredos e não bloqueia o deploy:safe (que continua sendo o portão de produção).
+# Custo: repositório público + runner padrão (ubuntu-latest) = gratuito, sem limite de minutos.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Push novo na mesma branch/PR cancela a rodada anterior (economiza fila, nada fica esperando).
+concurrency:
+  group: ci-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  testes-e-build:
+    name: Testes + build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      # Os testes do PDF da Locação leem o texto com o pdftotext (pacote poppler-utils), que a VPS já tem.
+      - name: Instalar pdftotext
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends poppler-utils
+      - run: npm ci --prefer-offline --no-audit --no-fund
+      - name: Testes (vitest)
+        run: npm test
+      - name: Build
+        run: npm run build
+
+  lint:
+    name: Lint (só arquivos alterados, informativo)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # O repositório ainda tem avisos antigos de lint; aqui só aparecem os dos arquivos mexidos,
+    # e o resultado é informativo (não deixa o PR vermelho).
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --prefer-offline --no-audit --no-fund
+      - name: ESLint nos arquivos alterados
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE_SHA" ] || ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then BASE_SHA="HEAD~1"; fi
+          ARQS=$(git diff --name-only --diff-filter=ACMR "$BASE_SHA" HEAD -- '*.ts' '*.tsx' | grep -v '^supabase/functions/' || true)
+          if [ -z "$ARQS" ]; then echo "Nenhum arquivo .ts/.tsx alterado."; exit 0; fi
+          echo "$ARQS"
+          echo "$ARQS" | xargs npx eslint --no-warn-ignored

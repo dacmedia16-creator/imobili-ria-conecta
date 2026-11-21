@@ -12,3 +12,10 @@
 ## Glossário do negócio
 
 Antes de mudar regras ou telas, leia docs/GLOSSARIO.md e use esses termos.
+
+## Correção de erro: teste primeiro
+
+Em toda correção de erro, escreva ANTES um teste vitest que reproduz o erro e falha. Depois corrija e mostre o
+mesmo teste passando. Exceção: erro puramente visual ou de texto (cor, espaço, rótulo, ortografia): basta o print
+antes/depois. Na entrega, cite o nome do teste e o resultado "falhou antes / passa depois". Detalhes em
+docs/QUALIDADE.md.

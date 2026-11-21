@@ -7,6 +7,12 @@ EXPECTED_WORKER="imobili-ria-conecta"
 PRODUCTION_URL="https://app.somosunihub.com.br"
 CHECK_ONLY=false
 
+# Conferência logada pós-publicação (t_afb2ffe8). A configuração fica FORA do repositório (sem segredos aqui):
+# um arquivo com SMOKE_SESSAO_CRIAR, SMOKE_SESSAO_ENCERRAR e PLAYWRIGHT_DIR. SMOKE_LOGADO=pular desliga.
+SMOKE_ENV_FILE="${SMOKE_ENV_FILE:-/root/.config/max/deploy-smoke.env}"
+SMOKE_LOGADO="${SMOKE_LOGADO:-auto}"
+SMOKE_SESSAO_ARQ=""
+
 if [[ "${1:-}" == "--check-only" ]]; then
   CHECK_ONLY=true
 elif [[ $# -gt 0 ]]; then
@@ -61,6 +67,30 @@ if [[ "${CHECK_ONLY}" == true ]]; then
   exit 0
 fi
 
+encerrar_sessao_smoke() {
+  if [[ -n "${SMOKE_SESSAO_ARQ}" && -f "${SMOKE_SESSAO_ARQ}" ]]; then
+    ${SMOKE_SESSAO_ENCERRAR} "${SMOKE_SESSAO_ARQ}" >/dev/null 2>&1 || echo "Aviso: não consegui encerrar a sessão de teste." >&2
+  fi
+}
+trap encerrar_sessao_smoke EXIT
+
+SMOKE_ATIVO=false
+if [[ "${SMOKE_LOGADO}" != "pular" && -f "${SMOKE_ENV_FILE}" ]]; then
+  # shellcheck disable=SC1090
+  source "${SMOKE_ENV_FILE}"
+  SMOKE_SESSAO_ARQ="$(mktemp "${TMPDIR:-/tmp}/deploy-smoke-sessao.XXXXXX")"
+  chmod 600 "${SMOKE_SESSAO_ARQ}"
+  echo "Preparando a conta de teste para a conferência logada (antes de publicar)"
+  # Uma 2ª tentativa cobre a falha passageira conhecida do Auth (verify 403).
+  ${SMOKE_SESSAO_CRIAR} "${SMOKE_SESSAO_ARQ}" >/dev/null || ${SMOKE_SESSAO_CRIAR} "${SMOKE_SESSAO_ARQ}" >/dev/null \
+    || fail "não consegui entrar com a conta de teste (nada foi publicado). Tente de novo ou use SMOKE_LOGADO=pular."
+  SMOKE_ATIVO=true
+elif [[ "${SMOKE_LOGADO}" == "pular" ]]; then
+  echo "Aviso: conferência logada desligada por SMOKE_LOGADO=pular." >&2
+else
+  echo "Aviso: ${SMOKE_ENV_FILE} não existe; só a validação pública será feita." >&2
+fi
+
 echo "[8/8] Publicando commit ${LOCAL_HEAD}"
 PREVIOUS_VERSION="$(npx wrangler deployments status --json 2>/dev/null | node -e '
 let input=""; process.stdin.on("data", d => input += d); process.stdin.on("end", () => {
@@ -81,7 +111,14 @@ smoke_test() {
     && curl --noproxy '*' --fail --silent --show-error --location --max-time 30 "${PRODUCTION_URL}/especialistas" >/dev/null
 }
 
-if ! smoke_test; then
+smoke_logado() {
+  [[ "${SMOKE_ATIVO}" == true ]] || return 0
+  echo "Conferindo telas principais logado com a conta de teste"
+  SESSAO="${SMOKE_SESSAO_ARQ}" BASE_URL="${PRODUCTION_URL}" PLAYWRIGHT_DIR="${PLAYWRIGHT_DIR}" \
+    OUT_DIR="${PROJECT_DIR}/.deploy/smoke-falhas" node scripts/smoke-telas-logado.mjs
+}
+
+if ! smoke_test || ! smoke_logado; then
   echo "A validação de produção falhou." >&2
   if [[ -n "${PREVIOUS_VERSION}" ]]; then
     echo "Revertendo automaticamente para ${PREVIOUS_VERSION}." >&2
