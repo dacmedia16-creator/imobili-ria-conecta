@@ -16,6 +16,9 @@ dist-ssr
 .nitro
 *.local
 
+# Prints de falha da conferência logada do deploy:safe (t_afb2ffe8)
+.deploy/smoke-falhas/
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars

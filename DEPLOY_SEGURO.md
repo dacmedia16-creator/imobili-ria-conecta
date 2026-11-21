@@ -22,6 +22,6 @@ O processo bloqueia a publicação quando:
 - o código local não é exatamente o mesmo commit de `origin/main`;
 - testes, build ou verificações críticas falham.
 
-Depois do deploy, as páginas pública inicial e de especialistas são verificadas. Se a validação falhar e a versão anterior puder ser identificada, o Worker é revertido automaticamente.
+Depois do deploy, as páginas pública inicial e de especialistas são verificadas. Em seguida, se existir `/root/.config/max/deploy-smoke.env`, as telas principais (Início, Vendas, Captações, Metas, Locação, Financeiro) são abertas logado com a conta de teste (`scripts/smoke-telas-logado.mjs`, só leitura). Se qualquer validação falhar e a versão anterior puder ser identificada, o Worker é revertido automaticamente. Detalhes e como desligar numa emergência (`SMOKE_LOGADO=pular`): `docs/QUALIDADE.md`.
 
 Não use `npm run deploy`, `npm run deploy:prebuilt`, `nitro deploy` ou `wrangler deploy` diretamente em produção. O comando `deploy:prebuilt` é interno do fluxo seguro e pressupõe que os gates anteriores já passaram.
