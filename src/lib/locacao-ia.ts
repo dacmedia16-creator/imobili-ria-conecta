@@ -18,8 +18,6 @@ const semAcento = (t: string) =>
 
 /** Tipo do documento a partir do nome do item do checklist (a lista é editável por imobiliária). */
 export function tipoDoItem(item: string): TipoDocLocacao {
-  // t_40cff7e4: RG dos moradores vai só para o pacote da administradora; a IA não lê (não é locatário/fiador/dono).
-  if (item.startsWith("Cópia do RG — ")) return "outro";
   const t = semAcento(item);
   if (/certidao|casamento/.test(t)) return "certidao";
   if (/matricula/.test(t)) return "matricula";

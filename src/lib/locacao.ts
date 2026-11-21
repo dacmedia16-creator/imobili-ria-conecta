@@ -161,8 +161,6 @@ export type Locacao = {
   iptu: number;
   taxaAdm: number;
   parceria: boolean;
-  /** t_40cff7e4: locação nova = moradores só pela ficha individual; antiga (false) segue com o texto livre. */
-  moradoresFicha: boolean;
   /** Valores lançados pela Fernanda (só vem na lista; t_8f09d406 item 6). */
   lancamento: LancamentoResumo | null;
   minuta: {
@@ -315,8 +313,6 @@ export type LocacaoDetalhe = Locacao & {
     enviadoEm: string;
   }[];
   apolicePendente: boolean;
-  /** t_40cff7e4: locação antiga que já ganhou ficha de moradores (o campo de texto do contrato trava). */
-  moradoresComFicha: boolean;
   finaisPode: boolean;
   finaisTem: { contrato_locacao: boolean; contrato_adm: boolean; laudo: boolean };
   finaisTel: { locatario: boolean; proprietario: boolean } | null;
@@ -469,7 +465,6 @@ export function lerLocacao(raw: unknown): Locacao {
     iptu: n(o.iptu),
     taxaAdm: n(o.taxa_adm) || 10,
     parceria: b(o.parceria),
-    moradoresFicha: b(o.moradores_ficha),
     minuta: {
       estado: s(m.estado),
       externa: b(m.externa),
@@ -619,7 +614,6 @@ export function lerDetalhe(raw: unknown): LocacaoDetalhe {
       };
     }),
     apolicePendente: b(o.apolice_pendente),
-    moradoresComFicha: b(o.moradores_com_ficha),
     finaisPode: b(o.finais_pode),
     finaisTem: {
       contrato_locacao: b(obj(o.finais_tem).contrato_locacao),

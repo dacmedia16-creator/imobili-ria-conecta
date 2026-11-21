@@ -279,29 +279,6 @@ export async function linkArquivoLocacao(
   return url;
 }
 
-/** Ficha de moradores (t_40cff7e4): só corretor da locação, gerência e gestora leem; só o corretor grava. */
-export async function lerMoradores(id: string) {
-  const { lerMoradoresRpc } = await import("@/lib/locacao-moradores");
-  return lerMoradoresRpc(await rpc<unknown>("locacao_moradores_ler", { _id: id }));
-}
-export const salvarMoradores = (id: string, pessoas: unknown[]) =>
-  rpc<{ ok: boolean; rgs: string[] }>("locacao_moradores_salvar", { _id: id, _pessoas: pessoas });
-
-/** Pacote para a administradora: o servidor monta o PDF, o banco registra quem baixou; o navegador só salva o arquivo. */
-export async function baixarPacote(locacaoId: string): Promise<void> {
-  const { baixarPacoteAdministradora } = await import("@/lib/locacao.functions");
-  const { nome, base64 } = await baixarPacoteAdministradora({ data: { locacaoId } });
-  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-  const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = nome;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 30_000);
-}
-
 export async function abrirDocumento(documentoId: string): Promise<void> {
   // Abre a aba ainda no clique (senão o navegador bloqueia como pop-up) e só depois põe a URL assinada.
   const aba = window.open("", "_blank");

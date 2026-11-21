@@ -270,14 +270,6 @@ Quando o código e este glossário divergirem, vale o código; corrija o glossá
 - Código: `locacao_docs_finais`, `locacao_docs_finais_envios`, `src/lib/locacao-finais*.ts`, `LocacaoDocumentosFinais.tsx`; trava do envio aos clientes `LOCACAO_DOCS_FINAIS_WHATSAPP` (separada de `LOCACAO_AVISOS_WHATSAPP`).
 - Evite: "minuta" (é a versão antes da assinatura).
 
-**Ficha dos moradores** — Cadastro de cada morador da locação (nome, CPF, nascimento, e-mail, telefone), na etapa Documentação. Morador com 18 anos ou mais gera o documento obrigatório "Cópia do RG — <nome>". O contrato recebe só nome e CPF. (Denis, 20/11)
-- Código: tabela `locacao_moradores`, RPCs `locacao_moradores_ler/salvar`, `src/lib/locacao-moradores.ts`.
-- Evite: "inquilinos" (o locatário é quem assina; morador é quem vai morar).
-
-**Pacote para a administradora** — PDF único para o condomínio cadastrar os moradores: locatário, moradores, cópias dos RGs, endereço/unidade e data de entrada. Só imóvel de condomínio; só o corretor da locação e a gestão baixam; o corretor envia por conta própria (o sistema não envia). Cada download fica registrado.
-- Código: `locacao_pacote_preparar/registrar`, tabela `locacao_pacote_downloads`, `src/lib/locacao-pacote-pdf.ts`.
-- Evite: "kit condomínio", "dossiê".
-
 ## 9. Atendimento e outros
 
 **Lead** — Contato de interessado vindo de portal/formulário.
