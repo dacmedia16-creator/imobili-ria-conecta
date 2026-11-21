@@ -8,6 +8,7 @@
 //  * cond: só entra quando a montagem pede (hoje: isenção da multa após o 12º mês);
 //  * adaptado: texto comercial derivado do residencial pelo sistema (conferir com o jurídico).
 import padrao from "./locacao-modelos-padrao.json";
+import intermediacao from "./locacao-modelos-intermediacao.json";
 
 export type ParagrafoModelo = {
   id: string;
@@ -17,7 +18,7 @@ export type ParagrafoModelo = {
   cond?: "isencao_multa";
   adaptado?: boolean;
 };
-export type ChaveModelo =
+export type ChaveModeloBase =
   | "fiador"
   | "caucao_dinheiro"
   | "caucao_imovel"
@@ -26,6 +27,9 @@ export type ChaveModelo =
   | "seguro_tokio"
   | "seguro_almada"
   | "loft";
+export type ChaveModelo = ChaveModeloBase | `${ChaveModeloBase}_intermediacao`;
+export const chaveBaseModelo = (chave: ChaveModelo): ChaveModeloBase =>
+  chave.replace(/_intermediacao$/, "") as ChaveModeloBase;
 export type ModeloContrato = {
   chave: ChaveModelo;
   titulo: string;
@@ -43,7 +47,7 @@ export type ModeloContrato = {
   autor?: string | null;
 };
 
-export const CHAVES_MODELO: ChaveModelo[] = [
+export const CHAVES_MODELO: ChaveModeloBase[] = [
   "fiador",
   "caucao_dinheiro",
   "caucao_imovel",
@@ -53,6 +57,11 @@ export const CHAVES_MODELO: ChaveModelo[] = [
   "seguro_almada",
   "loft",
 ];
+
+export const CHAVES_INTERMEDIACAO: ChaveModelo[] = CHAVES_MODELO.map(
+  (chave) => `${chave}_intermediacao` as const,
+);
+export const CHAVES_TODAS: ChaveModelo[] = [...CHAVES_MODELO, ...CHAVES_INTERMEDIACAO];
 
 /** Qual modelo serve para qual garantia da locação. Espelho de public.locacao_modelo_garantia_ok. */
 export const MODELOS_DA_GARANTIA: Record<string, ChaveModelo[]> = {
@@ -129,7 +138,7 @@ export function blocosObrigatorios(chave: string): string[] {
     "OBJETO",
     "PRAZO",
     "ASSINATURAS",
-    ...(chave === "fiador" ? ["FIADOR"] : []),
+    ...(chave === "fiador" || chave === "fiador_intermediacao" ? ["FIADOR"] : []),
   ];
 }
 
@@ -223,7 +232,7 @@ export function lerParagrafos(raw: unknown): ParagrafoModelo[] {
 export function lerModelo(raw: unknown): ModeloContrato | null {
   const o = obj(raw);
   const chave = o.chave as ChaveModelo;
-  if (!CHAVES_MODELO.includes(chave)) return null;
+  if (!CHAVES_TODAS.includes(chave)) return null;
   return {
     chave,
     titulo: typeof o.titulo === "string" ? o.titulo : chave,
@@ -242,7 +251,8 @@ export function lerModelo(raw: unknown): ModeloContrato | null {
 
 /** Padrão do sistema (mesmo texto que a migration grava com organization_id NULL). */
 export function modeloPadrao(chave: ChaveModelo): ModeloContrato {
-  const m = (padrao as { modelos: Record<string, unknown>[] }).modelos.find(
+  const fonte = chave.endsWith("_intermediacao") ? intermediacao : padrao;
+  const m = (fonte as { modelos: Record<string, unknown>[] }).modelos.find(
     (x) => x.chave === chave,
   );
   const lido = lerModelo({ ...m, versao: 0, padrao: true });

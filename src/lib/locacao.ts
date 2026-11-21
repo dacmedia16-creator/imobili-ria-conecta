@@ -160,6 +160,8 @@ export type Locacao = {
   condominio: number;
   iptu: number;
   taxaAdm: number;
+  /** Só intermediação (t_ec2962bd): taxa 0, casa cobra 1 aluguel, sem contrato no Financeiro. */
+  semAdministracao: boolean;
   parceria: boolean;
   /** t_40cff7e4: locação nova = moradores só pela ficha individual; antiga (false) segue com o texto livre. */
   moradoresFicha: boolean;
@@ -467,7 +469,9 @@ export function lerLocacao(raw: unknown): Locacao {
     aluguel: n(o.aluguel),
     condominio: n(o.condominio),
     iptu: n(o.iptu),
-    taxaAdm: n(o.taxa_adm) || 10,
+    // Sem administração a taxa é 0 de propósito; o "|| 10" vale só para locação com administração (legado).
+    taxaAdm: b(o.sem_administracao) ? 0 : n(o.taxa_adm) || 10,
+    semAdministracao: b(o.sem_administracao),
     parceria: b(o.parceria),
     moradoresFicha: b(o.moradores_ficha),
     minuta: {
@@ -516,6 +520,7 @@ export function lerLocacao(raw: unknown): Locacao {
 export type LancamentoResumo = {
   aluguel: number;
   taxaAdm: number;
+  semAdministracao: boolean;
   parceria: "nenhuma" | "remax" | "externa";
 };
 
@@ -523,10 +528,11 @@ export function lerLancamentoResumo(raw: unknown): LancamentoResumo | null {
   if (!raw || typeof raw !== "object") return null;
   const x = obj(raw);
   const aluguel = n(x.aluguel);
-  const taxaAdm = n(x.taxa_adm);
-  if (!(aluguel > 0) || !(taxaAdm > 0)) return null;
+  const semAdministracao = b(x.sem_administracao);
+  const taxaAdm = semAdministracao ? 0 : n(x.taxa_adm);
+  if (!(aluguel > 0) || !(semAdministracao || taxaAdm > 0)) return null;
   const p = x.parceria === "remax" || x.parceria === "externa" ? x.parceria : "nenhuma";
-  return { aluguel, taxaAdm, parceria: p };
+  return { aluguel, taxaAdm, semAdministracao, parceria: p };
 }
 
 /**
@@ -538,18 +544,39 @@ export function lerLancamentoResumo(raw: unknown): LancamentoResumo | null {
 export const LANCAMENTO_SUBSTITUI_VALORES = true;
 
 export function valoresParaComissao(
-  l: Pick<Locacao, "aluguel" | "taxaAdm" | "parceria" | "lancamento">,
-): { aluguel: number; taxaAdm: number; parceria: boolean; lancado: boolean } {
+  l: Pick<Locacao, "aluguel" | "taxaAdm" | "parceria" | "lancamento"> & {
+    semAdministracao?: boolean;
+  },
+): {
+  aluguel: number;
+  taxaAdm: number;
+  semAdministracao: boolean;
+  parceria: boolean;
+  lancado: boolean;
+} {
   const x = l.lancamento;
   if (!x || !LANCAMENTO_SUBSTITUI_VALORES) {
-    return { aluguel: l.aluguel, taxaAdm: l.taxaAdm, parceria: l.parceria, lancado: false };
+    return {
+      aluguel: l.aluguel,
+      taxaAdm: l.taxaAdm,
+      semAdministracao: !!l.semAdministracao,
+      parceria: l.parceria,
+      lancado: false,
+    };
   }
   return {
     aluguel: x.aluguel,
     taxaAdm: x.taxaAdm,
+    semAdministracao: x.semAdministracao,
     parceria: x.parceria !== "nenhuma",
     lancado: true,
   };
+}
+
+/** Texto curto da administração para fichas e listas (t_ec2962bd). */
+export const TEXTO_SEM_ADMINISTRACAO = "Sem administração (intermediação: 1 aluguel)";
+export function textoAdministracao(x: { semAdministracao?: boolean; taxaAdm: number }): string {
+  return x.semAdministracao ? TEXTO_SEM_ADMINISTRACAO : `Taxa adm. ${x.taxaAdm}%`;
 }
 
 /** Endereço com complemento (bloco/apto), para listas e contrato. */
@@ -805,11 +832,15 @@ export type CalculoComissao = {
   parceiro: number;
 };
 
+/** Sem administração a casa cobra 1 aluguel de intermediação: 100% do 1º aluguel (decisão de Denis, 20/11). */
+export const PCT_SEM_ADMINISTRACAO = 100;
+
 export function calcularComissao(
-  l: Pick<Locacao, "aluguel" | "taxaAdm" | "parceria">,
+  l: Pick<Locacao, "aluguel" | "taxaAdm" | "parceria"> & { semAdministracao?: boolean },
   cfg: ConfigLocacao,
 ): CalculoComissao {
-  const pct = pctPorTaxa(l.taxaAdm, cfg.tabelaTaxa);
+  // Mesma divisão (coordenador, corretor, parceria ÷ 2); só muda a base % do lado da casa.
+  const pct = l.semAdministracao ? PCT_SEM_ADMINISTRACAO : pctPorTaxa(l.taxaAdm, cfg.tabelaTaxa);
   const divide = l.parceria && cfg.parceriaDividePorDois;
   const base = divide ? l.aluguel / 2 : l.aluguel;
   const totalLado = centavos((base * pct) / 100);

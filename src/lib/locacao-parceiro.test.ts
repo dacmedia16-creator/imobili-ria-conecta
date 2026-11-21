@@ -36,6 +36,7 @@ const base: LancamentoValores = {
   parceriaUnidade: "",
   parceriaCorretor: "Corretor Parceiro",
   parceriaImobiliaria: "Imob Parceira",
+  semAdministracao: false,
   parceriaLado: "",
   parceriaCreci: " 12345-F ",
   observacao: "",

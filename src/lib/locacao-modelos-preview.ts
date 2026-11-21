@@ -5,12 +5,13 @@ import {
   type LocacaoBase,
   type Montagem,
 } from "./locacao-montagem";
-import { type ModeloContrato } from "./locacao-modelos";
+import { chaveBaseModelo, type ModeloContrato } from "./locacao-modelos";
 
 export function textoTesteModelo(
   modelo: ModeloContrato,
   tipo: "residencial" | "comercial",
 ): string[] {
+  const chave = chaveBaseModelo(modelo.chave);
   const dados = {
     prop_nome: "LOCADORA FICTÍCIA",
     prop_cpf: "CPF FICTÍCIO",
@@ -43,7 +44,7 @@ export function textoTesteModelo(
     inicio: "2027-01-01",
     prazo_meses: "30",
     dia_vencimento: "10",
-    cau_tipo: modelo.chave === "caucao_imovel" ? "imovel" : "dinheiro",
+    cau_tipo: chave === "caucao_imovel" ? "imovel" : "dinheiro",
     cau_valor: "3000",
     cau_meses: "1",
     cau_forma: "depósito fictício",
@@ -58,23 +59,24 @@ export function textoTesteModelo(
     cauc_imovel_descricao: "imóvel fictício",
     cauc_imovel_matricula: "MATRÍCULA FICTÍCIA",
     cauc_imovel_cartorio: "CARTÓRIO FICTÍCIO",
-    seg_seguradora: modelo.chave.startsWith("seguro_") ? modelo.chave.slice(7) : "",
+    seg_seguradora: chave.startsWith("seguro_") ? chave.slice(7) : "",
     seg_apolice: "",
     loft_numero: "REFERÊNCIA FICTÍCIA",
   };
   const garantia =
-    modelo.chave === "fiador"
+    chave === "fiador"
       ? "fiador"
-      : modelo.chave === "loft"
+      : chave === "loft"
         ? "loft"
-        : modelo.chave.startsWith("seguro_")
+        : chave.startsWith("seguro_")
           ? "seguro_fianca"
           : "caucao";
   const base: LocacaoBase = {
     codigo: "CONTRATO-FICTÍCIO",
     endereco: "Rua Fictícia, 99",
     aluguel: 3000,
-    taxaAdm: 10,
+    taxaAdm: modelo.chave.endsWith("_intermediacao") ? 0 : 10,
+    semAdministracao: modelo.chave.endsWith("_intermediacao"),
     tipo,
     garantia,
     ficha: { imovelId: "IMÓVEL FICTÍCIO", proprietario: { nome: dados.prop_nome } },

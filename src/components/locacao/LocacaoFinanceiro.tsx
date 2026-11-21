@@ -48,6 +48,7 @@ import {
   extratoFin,
   gerarCobrancasFin,
   painelFin,
+  receberIntermediacaoFin,
   removerDescontoFin,
   repasseFeitoFin,
   salvarConfigFin,
@@ -237,6 +238,11 @@ function Painel({
 }) {
   const t = resumoPainel(p.cobrancas, p.atrasadasAntes);
   const [gerando, setGerando] = useState(false);
+  const [baixando, setBaixando] = useState<string | null>(null);
+  const intermMes = p.intermediacoes.filter((i) => i.vencimento.slice(0, 7) === p.competencia.slice(0, 7));
+  const intermPendente = intermMes.filter((i) => i.status === "aberta");
+  const intermRecebida = p.intermediacoes.filter((i) => i.status === "recebida" && i.recebidaEm?.slice(0, 7) === p.competencia.slice(0, 7));
+  const soma = (xs: typeof intermMes) => xs.reduce((total, i) => total + i.valor, 0);
   const aCompletar = p.contratos.filter((c) => c.situacao === "a_completar");
   const pendRepasse = p.cobrancas.filter((c) => c.status === "paga" && !c.repasse);
   const atrasadas = [...p.atrasadasAntes, ...p.cobrancas.filter((c) => c.situacao === "atraso")];
@@ -254,6 +260,18 @@ function Painel({
     } finally {
       setGerando(false);
     }
+  };
+
+  const receber = async (id: string, valor: number) => {
+    if (!window.confirm(`Confirmar recebimento de intermediação de ${brl(valor)} em ${dataBr(p.hoje)}?`)) return;
+    setBaixando(id);
+    try {
+      await receberIntermediacaoFin(id, p.hoje);
+      toast.success("Intermediação marcada como recebida.");
+      await onMudou();
+    } catch (e) {
+      toast.error(errorMessage(e, "Não foi possível registrar o recebimento."));
+    } finally { setBaixando(null); }
   };
 
   return (
@@ -355,6 +373,8 @@ function Painel({
                 <Linha t="Taxas da imobiliária (sobre o já recebido)" v={brl(t.taxasImobiliaria)} />
                 <Linha t="Repasses já feitos" v={brl(t.repassesFeitos)} />
                 <Linha t="Repasses pendentes" v={brl(t.repassesPendentes)} />
+                <Linha t="Intermediações a receber (vencimento no mês)" v={brl(soma(intermPendente))} />
+                <Linha t="Intermediações recebidas no mês" v={brl(soma(intermRecebida))} />
                 <Linha
                   t="Inadimplência do mês (atraso ÷ cobrado)"
                   v={`${t.inadimplenciaPct.toFixed(1).replace(".", ",")}%`}
@@ -365,6 +385,24 @@ function Painel({
         </Card>
       </div>
 
+      <Card data-testid="fin-intermediacoes">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Intermediações — primeiro aluguel</CardTitle>
+          <p className="text-xs text-muted-foreground">Receita da imobiliária em locações sem administração; sem cobrança mensal, taxa de administração ou repasse.</p>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          {!p.intermediacoes.length && <p className="text-muted-foreground">Nenhuma intermediação lançada.</p>}
+          {p.intermediacoes.map((i) => (
+            <div key={i.locacaoId} className="flex flex-wrap items-center gap-2 border-b py-2">
+              <b>{i.codigo}</b><span>{i.endereco}</span><span>· {brl(i.valor)}</span>
+              <span>· {i.status === "recebida" ? `Recebida em ${dataBr(i.recebidaEm)}` : `A receber desde ${dataBr(i.vencimento)}`}</span>
+              <span className="flex-1" />
+              {i.status === "aberta" && <Button size="sm" variant="outline" disabled={baixando !== null}
+                onClick={() => void receber(i.locacaoId, i.valor)}>Registrar recebimento</Button>}
+            </div>
+          ))}
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">

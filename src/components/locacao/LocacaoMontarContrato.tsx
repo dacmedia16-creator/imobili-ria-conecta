@@ -13,6 +13,7 @@ import {
   CAMPOS_DOCUMENTO,
   PASSOS,
   camposIniciais,
+  campoDaAdministracao,
   dadosContrato,
   faltasMontagem,
   fimPrazo,
@@ -25,7 +26,7 @@ import {
   type LocacaoBase,
   type Montagem,
 } from "@/lib/locacao-montagem";
-import { modelosDaGarantia } from "@/lib/locacao-modelos";
+import { chaveBaseModelo, modelosDaGarantia } from "@/lib/locacao-modelos";
 import { linhasPessoas, parseSexos } from "@/lib/locacao-concordancia";
 
 export function LocacaoMontarContrato({
@@ -179,7 +180,7 @@ export function LocacaoMontarContrato({
             necessária.
           </p>
         )}
-        {modelo?.chave === "seguro_porto" && (
+        {modelo && chaveBaseModelo(modelo.chave) === "seguro_porto" && (
           <p className="text-xs text-amber-700">
             Porto Seguro: o texto original usa IGP-M. Confirmar com Larissa antes de enviar.
           </p>
@@ -289,8 +290,10 @@ export function LocacaoMontarContrato({
         </div>
       )}
       {passo === 6 && (
-        <p className="text-xs text-muted-foreground">
-          Dados guardados para uso futuro do financeiro. Nenhum repasse será executado aqui.
+        <p className="text-xs text-muted-foreground" data-testid="montagem-repasse-aviso">
+          {d.semAdministracao
+            ? "Sem administração (intermediação: 1 aluguel): não há repasse mensal nem taxa de administração."
+            : "Dados guardados para uso futuro do financeiro. Nenhum repasse será executado aqui."}
         </p>
       )}
       <div className="grid gap-3 sm:grid-cols-2">
@@ -320,6 +323,7 @@ export function LocacaoMontarContrato({
         {Object.entries(CAMPOS)
           .filter(([key, cfg]) => {
             if (cfg.passo !== passo) return false;
+            if (d.semAdministracao && campoDaAdministracao(key)) return false;
             if (
               (key === "fia_imovel_endereco" || key.startsWith("fia_")) &&
               d.garantia !== "fiador"

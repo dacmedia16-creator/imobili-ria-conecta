@@ -209,12 +209,24 @@ describe("item 6 — lançamento da Fernanda na comissão", () => {
       parceria: false,
       lancamento: null,
     });
-    expect(v).toEqual({ aluguel: 2000, taxaAdm: 10, parceria: false, lancado: false });
+    expect(v).toEqual({
+      aluguel: 2000,
+      taxaAdm: 10,
+      semAdministracao: false,
+      parceria: false,
+      lancado: false,
+    });
   });
   it("com lançamento: valores lançados substituem; parceria RE/MAX divide 50/50", () => {
     const lancamento = lerLancamentoResumo({ aluguel: 3000, taxa_adm: 8, parceria: "remax" });
     const v = valoresParaComissao({ aluguel: 2000, taxaAdm: 10, parceria: false, lancamento });
-    expect(v).toEqual({ aluguel: 3000, taxaAdm: 8, parceria: true, lancado: true });
+    expect(v).toEqual({
+      aluguel: 3000,
+      taxaAdm: 8,
+      semAdministracao: false,
+      parceria: true,
+      lancado: true,
+    });
     const r = calcularComissao(v, cfg);
     expect(r.base).toBe(1500);
     expect(r.parceiro).toBe(1500); // parceiro = metade de 1 aluguel (t_45d1a6eb)
@@ -231,6 +243,7 @@ describe("item 6 — lançamento da Fernanda na comissão", () => {
       teamLeaderId: "",
       aluguel: "2.500,00",
       taxaAdm: "10",
+      semAdministracao: false,
       parceria: "remax",
       parceriaUnidade: "",
       parceriaCorretor: "",

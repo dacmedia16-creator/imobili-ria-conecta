@@ -32,6 +32,8 @@ export type LancamentoValores = {
   teamLeaderId: string;
   aluguel: string;
   taxaAdm: string;
+  /** Só intermediação (t_ec2962bd): sem taxa; casa recebe 1 aluguel. */
+  semAdministracao: boolean;
   parceria: Parceria;
   parceriaUnidade: string;
   parceriaCorretor: string;
@@ -72,7 +74,9 @@ export function lerLancamentoCompleto(raw: unknown): LancamentoLido {
       gestorId: t(v.gestor_id),
       teamLeaderId: t(v.team_leader_id),
       aluguel: Number.isFinite(aluguel) && aluguel > 0 ? reaisParaTela(aluguel) : "",
-      taxaAdm: t(v.taxa_adm),
+      // Sem administração a taxa gravada é 0; se a Fernanda voltar para "com", a tela sugere 10.
+      taxaAdm: v.sem_administracao === true ? "10" : t(v.taxa_adm),
+      semAdministracao: v.sem_administracao === true,
       parceria: p,
       parceriaUnidade: t(v.parceria_unidade),
       parceriaCorretor: t(v.parceria_corretor),
@@ -95,7 +99,7 @@ export function lerLancamentoCompleto(raw: unknown): LancamentoLido {
  * O que vai ao banco. Igual às regras do banco: parceria RE/MAX pede unidade e corretor; externa, a imobiliária; as duas
  * pedem o lado do parceiro. Lado "captador" = o captador é o parceiro, então não vai captador da casa.
  */
-export function lancamentoParaBanco(v: LancamentoValores): Record<string, string | null> {
+export function lancamentoParaBanco(v: LancamentoValores): Record<string, string | boolean | null> {
   const s = (x: string) => (x.trim() === "" ? null : x.trim());
   return {
     captador_id: v.parceria !== "nenhuma" && v.parceriaLado === "captador" ? null : s(v.captadorId),
@@ -103,7 +107,8 @@ export function lancamentoParaBanco(v: LancamentoValores): Record<string, string
     gestor_id: s(v.gestorId),
     team_leader_id: s(v.teamLeaderId),
     aluguel: reaisNumero(v.aluguel) === null ? null : String(reaisNumero(v.aluguel)),
-    taxa_adm: s(v.taxaAdm.replace(",", ".")),
+    taxa_adm: v.semAdministracao ? null : s(v.taxaAdm.replace(",", ".")),
+    sem_administracao: v.semAdministracao,
     parceria: v.parceria,
     parceria_unidade: v.parceria === "remax" ? s(v.parceriaUnidade) : null,
     parceria_corretor: v.parceria !== "nenhuma" ? s(v.parceriaCorretor) : null,
@@ -119,7 +124,7 @@ export function faltasLancamento(v: LancamentoValores): string[] {
   const alu = reaisNumero(v.aluguel);
   if (alu === null || !(alu > 0)) f.push("aluguel");
   const tx = Number(v.taxaAdm.replace(",", "."));
-  if (!(tx > 0) || tx > 30) f.push("taxa de administração");
+  if (!v.semAdministracao && (!(tx > 0) || tx > 30)) f.push("taxa de administração");
   if (v.parceria === "remax") {
     if (v.parceriaUnidade.trim().length < 2) f.push("unidade RE/MAX parceira");
     if (v.parceriaCorretor.trim().length < 2) f.push("corretor parceiro");
@@ -284,7 +289,21 @@ export function LocacaoLancamento({ id, onSalvo }: { id: string; onSalvo?: () =>
           {pessoaSel("gestorId", "Gestor", dados.nomes.gestor)}
           {pessoaSel("teamLeaderId", "Team Leader", dados.nomes.teamLeader)}
           {texto("aluguel", "Aluguel (R$)", { inputMode: "decimal", placeholder: "0,00" })}
-          {texto("taxaAdm", "Taxa de administração (%)", { inputMode: "decimal" })}
+          <div className="space-y-1">
+            <Label htmlFor="lan-administracao">Administração</Label>
+            <select
+              id="lan-administracao"
+              className={SELECT}
+              disabled={!editar}
+              value={v.semAdministracao ? "sem" : "com"}
+              onChange={(e) => set("semAdministracao", e.target.value === "sem")}
+            >
+              <option value="com">Com administração</option>
+              <option value="sem">Sem administração (1 aluguel)</option>
+            </select>
+          </div>
+          {!v.semAdministracao &&
+            texto("taxaAdm", "Taxa de administração (%)", { inputMode: "decimal" })}
           <div className="space-y-1">
             <Label htmlFor="lan-parceria">Parceria</Label>
             <select

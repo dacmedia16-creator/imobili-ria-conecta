@@ -1,6 +1,7 @@
 import clausulas from "./locacao-clausulas.json";
 import {
   SEGURADORAS,
+  chaveBaseModelo,
   lerModelo,
   modelosDaGarantia,
   type ChaveModelo,
@@ -34,6 +35,8 @@ export type LocacaoBase = {
   endereco: string;
   aluguel: number;
   taxaAdm: number;
+  /** Só intermediação (t_ec2962bd): a montagem sai sem a parte de administração (repasse e taxa). */
+  semAdministracao?: boolean;
   tipo: string;
   garantia: string;
   ficha: {
@@ -233,11 +236,27 @@ export const CAMPOS: Record<
   assinaturas: { label: "Bloco adicional de assinaturas", passo: 4 },
 };
 
+/** Campos da parte de administração (repasse e taxa): somem e ficam vazios na locação sem administração. */
+export const CAMPOS_ADMINISTRACAO = [
+  "deduzir_taxa_irrf",
+  "repasse_tipo",
+  "repasse_taxa",
+  "repasse_fixo",
+  "repasse_dias_uteis",
+  "repasse_garantido",
+  "tarifa_doc_ted",
+] as const;
+export const campoDaAdministracao = (key: string) =>
+  (CAMPOS_ADMINISTRACAO as readonly string[]).includes(key);
+
 export function camposIniciais(base: LocacaoBase, m: Montagem): Record<string, string> {
   const c = Object.fromEntries(Object.entries(CAMPOS).map(([k, v]) => [k, v.padrao ?? ""]));
   const d = Object.fromEntries(
     Object.keys(CAMPOS_DOCUMENTO).map((key) => [`d_${key}`, m.contrato[key] ?? ""]),
   );
+  const semAdm = base.semAdministracao
+    ? Object.fromEntries(CAMPOS_ADMINISTRACAO.map((k) => [k, ""]))
+    : {};
   const r: Record<string, string> = {
     ...c,
     ...d,
@@ -251,6 +270,7 @@ export function camposIniciais(base: LocacaoBase, m: Montagem): Record<string, s
     repasse_taxa: String(base.taxaAdm),
     local: `${m.administradora.cidade ?? ""}/${m.administradora.uf ?? ""}`,
     ...m.campos,
+    ...semAdm,
   };
   // t_a0736d87: as cláusulas combinadas na ficha chegam ao setor de contratos só quando o campo está vazio; o que já
   // foi digitado/salvo na montagem nunca é trocado e continua editável.
@@ -396,8 +416,9 @@ export function modeloDaMontagem(
   m: Montagem,
   c: Record<string, string>,
 ): ModeloContrato | null {
-  const chave = chaveModeloLocacao(base, dadosContrato(m, c));
-  if (!chave || !modelosDaGarantia(base.garantia).includes(chave)) return null;
+  const chaveBase = chaveModeloLocacao(base, dadosContrato(m, c));
+  if (!chaveBase || !modelosDaGarantia(base.garantia).includes(chaveBase)) return null;
+  const chave = base.semAdministracao ? `${chaveBase}_intermediacao` as ChaveModelo : chaveBase;
   // Não confundir um padrão embarcado com a versão vigente da imobiliária: o banco decide qual vale.
   return lerModelo(m.modelos?.[chave]);
 }
@@ -528,6 +549,7 @@ export function textoContrato(base: LocacaoBase, m: Montagem, c: Record<string, 
     if (!modelo) throw new Error("Modelo de contrato não disponível para esta garantia.");
     return montarTextoModelo(base, m, c, modelo);
   }
+  if (base.semAdministracao) throw new Error("Modelo só intermediação não carregado; recarregue a montagem.");
   if (base.tipo !== "residencial" || base.garantia !== "fiador" || faltas.length)
     throw new Error(`Contrato incompleto: ${faltas.join(", ")}`);
   const v = dadosContrato(m, c);
@@ -610,8 +632,12 @@ export function montarTextoModelo(
   c: Record<string, string>,
   modelo: ModeloContrato,
 ): string[] {
-  if (!modelosDaGarantia(base.garantia).includes(modelo.chave))
+  const chaveBase = chaveBaseModelo(modelo.chave);
+  if (!modelosDaGarantia(base.garantia).includes(chaveBase))
     throw new Error("Modelo de garantia diferente da locação.");
+  // Só intermediação (t_f76e8b36): o modelo certo é o da modalidade da locação.
+  if (Boolean(base.semAdministracao) !== modelo.chave.endsWith("_intermediacao"))
+    throw new Error("Modelo de contrato diferente da modalidade (com/sem administração).");
   const v = dadosContrato(m, c);
   const aluguel = Number(c.aluguel);
   const valor = (n: number) =>
@@ -668,7 +694,7 @@ export function montarTextoModelo(
     v.loc_nome,
     v.loc_cpf,
     ...(c.locatarios_adicionais ? [c.locatarios_adicionais] : []),
-    ...(modelo.chave === "fiador"
+    ...(chaveBase === "fiador"
       ? [
           `${tFiador}:`,
           v.fia_nome,
@@ -676,10 +702,11 @@ export function montarTextoModelo(
           ...(v.fia_conj_nome ? [v.fia_conj_nome, v.fia_conj_cpf] : []),
         ]
       : []),
-    ...(modelo.chave === "caucao_imovel" ? ["CAUCIONANTE:", v.cauc_nome, v.cauc_cpf] : []),
-    "ADMINISTRADORA:",
-    m.administradora.nome,
-    docLabel("CNPJ", m.administradora.cnpj),
+    ...(chaveBase === "caucao_imovel" ? ["CAUCIONANTE:", v.cauc_nome, v.cauc_cpf] : []),
+    // Só intermediação: sem a parte ADMINISTRADORA, também na assinatura.
+    ...(base.semAdministracao
+      ? []
+      : ["ADMINISTRADORA:", m.administradora.nome, docLabel("CNPJ", m.administradora.cnpj)]),
     ...(c.assinaturas ? [c.assinaturas] : []),
   ];
   const blocos: Record<string, string[]> = {

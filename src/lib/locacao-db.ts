@@ -50,7 +50,7 @@ export const definirImovelTipo = (id: string, tipo: ImovelTipo) =>
   rpc<{ ok: boolean; tipo: string }>("locacao_imovel_tipo_definir", { _id: id, _tipo: tipo });
 /** Lançamento para comissão (Fernanda, papel vistoria; t_8f09d406 item 6). */
 export const lerLancamento = (id: string) => rpc<unknown>("locacao_lancamento_ler", { _id: id });
-export const salvarLancamento = (id: string, dados: Record<string, string | null>) =>
+export const salvarLancamento = (id: string, dados: Record<string, string | boolean | null>) =>
   rpc<{ ok: boolean; novo: boolean }>("locacao_lancamento_salvar", { _id: id, _dados: dados });
 /** Dados de pagamento do parceiro (t_756c1c63): só Financeiro da locação e gestão; os demais recebem {pode:false}. */
 export const lerPagamentoParceiro = (id: string) =>
