@@ -4,6 +4,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { LocacaoLinks, type StatusLink } from "./LocacaoLinks";
 import { LocacaoArquivoAcoes } from "./LocacaoArquivoAcoes";
+import { LocacaoMoradores } from "./LocacaoMoradores";
 import { podeEnviarLinks } from "@/lib/locacao-links";
 import { toast } from "sonner";
 import {
@@ -210,7 +211,16 @@ export function DadosContrato({
                     ) : c.tipo === "longo" ? (
                       <Textarea
                         id={id}
-                        disabled={!editavel}
+                        // t_40cff7e4: locação nova — o texto sai da "Ficha dos moradores" (acima), não se digita aqui.
+                        disabled={
+                          !editavel ||
+                          (c.k === "moradores" && (d.moradoresFicha || d.moradoresComFicha))
+                        }
+                        title={
+                          c.k === "moradores" && (d.moradoresFicha || d.moradoresComFicha)
+                            ? "Gerado da Ficha dos moradores"
+                            : undefined
+                        }
                         value={v}
                         rows={3}
                         onChange={(e) => onChange?.(c.k, e.target.value)}
@@ -514,6 +524,19 @@ export function LocacaoDocumentacao({ d, ctx, busy, rodar, recarregar, editavel,
               {prazoPadraoMeses(d.tipo)} meses) e pode ser alterado.
             </>,
           )}
+        {/* Ficha completa só para o corretor da locação, gerência e gestora (o banco confere de novo). */}
+        {(d.corretorId === ctx.usuarioId || ctx.gerencia || ctx.papeis.includes("gestora")) && (
+          <div className="mb-3">
+            <LocacaoMoradores
+              id={d.id}
+              editavel={editavel}
+              condominio={d.imovelTipo === "condominio"}
+              documentos={d.documentos}
+              textoAntigo={base.valores.moradores ?? ""}
+              recarregar={recarregar}
+            />
+          </div>
+        )}
         <DadosContrato
           d={d}
           editavel={editavel}
