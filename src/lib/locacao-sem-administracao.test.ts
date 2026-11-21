@@ -142,6 +142,8 @@ describe("lançamento da Fernanda aceita sem administração", () => {
     parceriaUnidade: "",
     parceriaCorretor: "",
     parceriaImobiliaria: "",
+    parceriaLado: "",
+    parceriaCreci: "",
     observacao: "",
   };
   it("não cobra a taxa e manda a flag ao banco", () => {
@@ -237,6 +239,32 @@ describe("modelo só intermediação (parte 2, t_f76e8b36)", () => {
     const bytes = await gerarPdfContrato(texto, fonte, { negrito, logo });
     expect(bytes.byteLength).toBeGreaterThan(10000);
     if (process.env.EXEMPLO_PDF_PATH) writeFileSync(process.env.EXEMPLO_PDF_PATH, bytes);
+  });
+  it("parte 3 (t_1574da63): pagamento direto ao LOCADOR e fiador p008/p010 de volta sem a ADMINISTRADORA", () => {
+    const junto = textoTesteModelo(modeloPadrao("fiador_intermediacao"), "residencial").join("\n");
+    expect(junto).toMatch(
+      /^Cláusula 4º - O pagamento dos aluguéis e encargos locatícios será feito diretamente à LOCADORA, na forma e na conta indicadas por escrito pela LOCADORA\.$/m,
+    );
+    expect(junto).toContain("respondendo até a efetiva devolução das chaves à LOCADORA, observados");
+    expect(junto).toContain("MATRÍCULA FICTÍCIA");
+    expect(junto).toContain("compromete-se a comunicar por escrito à LOCADORA eventual alienação");
+  });
+  it("os 8 modelos têm exatamente 1 texto novo (pag_locador) e nenhuma menção editável à administradora", () => {
+    for (const chave of [
+      "fiador",
+      "caucao_dinheiro",
+      "caucao_imovel",
+      "seguro_porto",
+      "seguro_pottencial",
+      "seguro_tokio",
+      "seguro_almada",
+      "loft",
+    ] as const) {
+      const m = modeloPadrao(`${chave}_intermediacao`);
+      expect(m.paragrafos.filter((p) => p.id === "pag_locador")).toHaveLength(1);
+      const editaveis = m.paragrafos.filter((p) => !p.trava).map((p) => p.t);
+      expect(editaveis.join("\n")).not.toMatch(/ADMINISTRADORA|boleto|repasse|imobili/i);
+    }
   });
 });
 

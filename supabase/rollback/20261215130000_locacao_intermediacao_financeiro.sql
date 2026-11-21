@@ -19,7 +19,7 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
 DECLARE _cfg public.locacao_fin_config := public.locacao_fin_cfg(_l.organization_id); _id uuid;
 BEGIN
   IF _l.chave_em IS NULL OR _l.aluguel IS NULL THEN RETURN NULL; END IF;
-  -- t_ec2962bd: sem administração não gera contrato mensal; o recebível de intermediação é registrado na entrega da chave.
+  -- t_ec2962bd: locação só de intermediação (sem administração) não entra no Financeiro.
   IF _l.sem_administracao THEN RETURN NULL; END IF;
   INSERT INTO public.locacao_contratos (organization_id, locacao_id, endereco, inquilino_nome, garantia, aluguel, taxa_adm,
     condominio, iptu, dia_vencimento, inicio, proximo_reajuste, indice)

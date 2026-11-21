@@ -107,6 +107,9 @@ export type Titularidade = Record<
   { aplica: boolean; protocolo: string | null }
 >;
 
+/** Água/gás incluídos no condomínio (t_778e6bef), calculado pelo banco a partir dos dados do contrato. */
+export type ContasCondominio = { agua: boolean; gas: boolean };
+
 /** Tipo do imóvel escolhido ao abrir a locação (t_8f09d406, item 2). */
 export type ImovelTipo = "condominio" | "casa" | "comercial";
 export const IMOVEL_TIPO_LABEL: Record<ImovelTipo, string> = {
@@ -182,6 +185,8 @@ export type Locacao = {
   };
   pos: {
     vistoriaPedida: string | null;
+    /** t_c3ea1b18: vistoria agendada (data/hora ISO, vistoriador e se o corretor acompanha). */
+    vistoriaAgenda: VistoriaAgenda | null;
     laudoEm: string | null;
     contestacaoEm: string | null;
     seguroEm: string | null;
@@ -192,6 +197,8 @@ export type Locacao = {
     vistJunto: boolean;
     tit: Titularidade;
   };
+  /** t_778e6bef: água/gás incluídos no condomínio (sem titularidade, sem aviso de protocolo). */
+  contasCondominio: ContasCondominio;
   chaveEm: string | null;
   /** Ficha de abertura (t_28e583e2): o resto do formulário cadastral da locação. */
   ficha: FichaLocacao;
@@ -308,6 +315,26 @@ export type LocacaoDetalhe = Locacao & {
     enviadoEm: string;
   }[];
   apolicePendente: boolean;
+  finaisPode: boolean;
+  finaisTem: { contrato_locacao: boolean; contrato_adm: boolean; laudo: boolean };
+  finaisTel: { locatario: boolean; proprietario: boolean } | null;
+  finais: {
+    id: string;
+    tipo: "contrato_locacao" | "contrato_adm" | "laudo";
+    nomeArquivo: string;
+    enviadoEm: string;
+    enviadoPorNome: string | null;
+    envios: {
+      id: string;
+      destinatario: string;
+      origem: string;
+      status: string;
+      erro: string | null;
+      telefoneFinal: string | null;
+      criadoEm: string;
+      solicitadoPorNome: string | null;
+    }[];
+  }[];
 };
 const LEITURAS = new Set(["pendente", "ok", "falhou", "sem_leitura"]);
 
@@ -461,6 +488,7 @@ export function lerLocacao(raw: unknown): Locacao {
     },
     pos: {
       vistoriaPedida: sn(p.vistoria_pedida),
+      vistoriaAgenda: lerVistoriaAgenda(p.vistoria_agenda),
       laudoEm: sn(p.laudo_em),
       contestacaoEm: sn(p.contestacao_em),
       seguroEm: sn(p.seguro_em),
@@ -470,6 +498,10 @@ export function lerLocacao(raw: unknown): Locacao {
       mudanca: sn(p.mudanca),
       vistJunto: b(p.vist_junto),
       tit: lerTit(p.tit),
+    },
+    contasCondominio: {
+      agua: b(obj(o.contas_condominio).agua),
+      gas: b(obj(o.contas_condominio).gas),
     },
     chaveEm: sn(o.chave_em),
     ficha: lerFicha(o.ficha),
@@ -609,6 +641,45 @@ export function lerDetalhe(raw: unknown): LocacaoDetalhe {
       };
     }),
     apolicePendente: b(o.apolice_pendente),
+    finaisPode: b(o.finais_pode),
+    finaisTem: {
+      contrato_locacao: b(obj(o.finais_tem).contrato_locacao),
+      contrato_adm: b(obj(o.finais_tem).contrato_adm),
+      laudo: b(obj(o.finais_tem).laudo),
+    },
+    finaisTel: o.finais_tel
+      ? {
+          locatario: b(obj(o.finais_tel).locatario),
+          proprietario: b(obj(o.finais_tel).proprietario),
+        }
+      : null,
+    finais: arr(o.finais)
+      .map((raw) => {
+        const f = obj(raw);
+        const t = s(f.tipo);
+        return {
+          id: s(f.id),
+          tipo: (t === "laudo" || t === "contrato_adm" ? t : "contrato_locacao") as
+            "laudo" | "contrato_adm" | "contrato_locacao",
+          nomeArquivo: s(f.nome_arquivo),
+          enviadoEm: s(f.enviado_em),
+          enviadoPorNome: sn(f.enviado_por_nome),
+          envios: arr(f.envios).map((rawEnvio) => {
+            const e = obj(rawEnvio);
+            return {
+              id: s(e.id),
+              destinatario: s(e.destinatario),
+              origem: s(e.origem),
+              status: s(e.status),
+              erro: sn(e.erro),
+              telefoneFinal: sn(e.telefone_final),
+              criadoEm: s(e.criado_em),
+              solicitadoPorNome: sn(e.solicitado_por_nome),
+            };
+          }),
+        };
+      })
+      .filter((f) => f.id),
     documentos: arr(o.documentos).map((d) => {
       const x = obj(d);
       return {
@@ -770,7 +841,8 @@ export function calcularComissao(
   const temCoord = !l.parceria || cfg.coordenadorNaParceria;
   const coordenador = temCoord ? centavos((totalLado * cfg.pctCoordenador) / 100) : 0;
   const corretor = cfg.coordenadorSaiDoCorretor ? centavos(totalLado - coordenador) : totalLado;
-  const parceiro = divide ? centavos(((l.aluguel / 2) * pct) / 100) : 0;
+  // Parceiro: sempre metade de 1 aluguel, sem administração e sem a tabela da taxa (Denis, 20/11; t_45d1a6eb).
+  const parceiro = l.parceria ? centavos(l.aluguel / 2) : 0;
   return { pct, base: centavos(base), totalLado, coordenador, corretor, parceiro };
 }
 
@@ -784,11 +856,20 @@ export function dataPagamento(chaveEm: string | null, cfg: ConfigLocacao): strin
   return `${ano}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
 }
 
-/** Serviços aplicáveis sem protocolo. Vazio = titularidade ok. Só ALERTA (não bloqueia a comissão). */
-export function titularidadePendente(tit: Titularidade): string[] {
-  return SERVICOS.filter((x) => tit[x.key].aplica && !tit[x.key].protocolo).map((x) =>
-    x.key.toUpperCase(),
-  );
+/** t_778e6bef: água (SAAE) e gás marcados como incluídos no condomínio não têm troca de titularidade. */
+export function incluidaNoCondominio(
+  servico: "cpfl" | "saae" | "gas",
+  contas: ContasCondominio | undefined,
+): boolean {
+  return (servico === "saae" && !!contas?.agua) || (servico === "gas" && !!contas?.gas);
+}
+
+/** Serviços aplicáveis sem protocolo. Vazio = titularidade ok. Só ALERTA (não bloqueia a comissão).
+ * Conta incluída no condomínio (t_778e6bef) não se aplica e não gera o aviso. */
+export function titularidadePendente(tit: Titularidade, contas?: ContasCondominio): string[] {
+  return SERVICOS.filter(
+    (x) => tit[x.key].aplica && !tit[x.key].protocolo && !incluidaNoCondominio(x.key, contas),
+  ).map((x) => x.key.toUpperCase());
 }
 
 // ----------------------------------------------------------------------------------------------------------------
@@ -959,6 +1040,53 @@ export function faltasPreAprovacao(x: {
 
 export function brl(v: number): string {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+/** t_c3ea1b18: vistoria agendada (gravada em pos.vistoria_agenda pela RPC locacao_vistoria_agendar). */
+export type VistoriaAgenda = { em: string; vistoriador: string; acompanha: boolean };
+
+export function lerVistoriaAgenda(v: unknown): VistoriaAgenda | null {
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  const em = sn(o.em);
+  if (!em || Number.isNaN(Date.parse(em))) return null;
+  return { em, vistoriador: s(o.vistoriador), acompanha: b(o.acompanha) };
+}
+
+const FORMATO_AGENDA_SP = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: "America/Sao_Paulo",
+  weekday: "short",
+  day: "2-digit",
+  month: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+/** "sex., 21/11, 14:00" no horário de Brasília (mesma referência dos lembretes do banco). */
+export function quandoVistoria(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "—" : FORMATO_AGENDA_SP.format(d);
+}
+
+/** Valor do campo datetime-local ("YYYY-MM-DDTHH:MM") em Brasília, para reabrir o agendamento na tela. */
+export function agendaParaCampo(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(d)
+      .map((x) => [x.type, x.value]),
+  );
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
 }
 
 export function dataBr(iso: string | null | undefined): string {

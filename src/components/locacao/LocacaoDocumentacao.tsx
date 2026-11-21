@@ -34,12 +34,16 @@ import { prazoPadraoMeses } from "@/lib/locacao";
 import {
   CAMPOS_CONTRATO,
   CAMPOS_NAO_POSSUI,
+  camposIncluidoCondominio,
   ESTADOS_CIVIS,
+  INCLUIDO_CONDOMINIO,
   NAO_POSSUI,
+  ROTULO_INCLUIDO_CONDOMINIO,
   SECOES,
   alteracoes,
   casado,
   faltasContrato,
+  incluidoCondominio,
   lerContrato,
   naoPossui,
   valorOk,
@@ -150,6 +154,8 @@ export function DadosContrato({
   onChange?: (k: string, v: string) => void;
 }) {
   const fiador = d.garantia === "fiador";
+  // t_778e6bef: as opções "incluída no condomínio" só existem para imóvel de condomínio.
+  const comIncluido = new Set(camposIncluidoCondominio(d.imovelTipo));
   const secoes = SECOES.filter((s) => !s.soFiador || fiador).filter(
     (s) =>
       (s.key !== "proprietario_conj" || casado(valores.prop_estado_civil)) &&
@@ -213,7 +219,11 @@ export function DadosContrato({
                     ) : (
                       <Input
                         id={id}
-                        disabled={!editavel || (CAMPOS_NAO_POSSUI.has(c.k) && naoPossui(v))}
+                        disabled={
+                          !editavel ||
+                          (CAMPOS_NAO_POSSUI.has(c.k) && naoPossui(v)) ||
+                          (comIncluido.has(c.k) && incluidoCondominio(v))
+                        }
                         value={v}
                         type={c.tipo === "data" ? "date" : "text"}
                         inputMode={c.tipo === "numero" ? "numeric" : undefined}
@@ -232,6 +242,26 @@ export function DadosContrato({
                           onChange={(e) => onChange?.(c.k, e.target.checked ? NAO_POSSUI : "")}
                         />
                         Não possui
+                      </label>
+                    )}
+                    {comIncluido.has(c.k) && (
+                      // t_778e6bef: conta incluída no condomínio — não pede código, conta nem boleto.
+                      <label className="ml-3 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <input
+                          type="checkbox"
+                          data-testid={`incluido-condominio-${c.k}`}
+                          disabled={!editavel}
+                          checked={incluidoCondominio(v)}
+                          onChange={(e) =>
+                            onChange?.(
+                              c.k,
+                              e.target.checked
+                                ? INCLUIDO_CONDOMINIO[c.k as keyof typeof INCLUIDO_CONDOMINIO]
+                                : "",
+                            )
+                          }
+                        />
+                        {ROTULO_INCLUIDO_CONDOMINIO[c.k as keyof typeof ROTULO_INCLUIDO_CONDOMINIO]}
                       </label>
                     )}
                   </div>

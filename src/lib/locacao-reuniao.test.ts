@@ -33,6 +33,14 @@ import {
 
 const MIG = readFileSync("supabase/migrations/20261201150000_locacao_reuniao_16_11.sql", "utf8");
 const RB = readFileSync("supabase/rollback/20261201150000_locacao_reuniao_16_11.sql", "utf8");
+const BOL = readFileSync(
+  "supabase/migrations/20261211120000_locacao_boletos_condominio_gas.sql",
+  "utf8",
+);
+const BOL_RB = readFileSync(
+  "supabase/rollback/20261211120000_locacao_boletos_condominio_gas.sql",
+  "utf8",
+);
 
 describe("item 2 — tipo do imóvel", () => {
   it("três tipos, iguais aos do banco", () => {
@@ -65,6 +73,47 @@ describe("item 2 — tipo do imóvel", () => {
   it("condomínio: CND opcional (não trava) e só para condomínio", () => {
     expect(MIG).toContain("ARRAY['CND do condomínio (opcional)']");
     expect(MIG).toContain("AND (v.ordem <> 4 OR _l.imovel_tipo = 'condominio')");
+  });
+  // t_a0736d87: boleto do condomínio (obrigatório) e boleto do gás só quando há código de gás.
+  // Suíte do banco: supabase/tests/locacao-boletos.sql (run-locacao-boletos.sh).
+  it("boletos: condomínio obrigatório só em condomínio; gás só com código de gás", () => {
+    expect(BOL).toContain("ARRAY['Boleto do condomínio', 'CND do condomínio (opcional)']");
+    expect(BOL).toContain("AND (v.ordem <> 4 OR _l.imovel_tipo = 'condominio')");
+    expect(BOL).toContain("AND (v.ordem <> 5 OR public.locacao_tem_gas(_l))");
+    expect(BOL).toContain("IF _grupo = 'gas' THEN RETURN ARRAY['Boleto do gás']; END IF;");
+    // O boleto não leva "(opcional)": trava o envio. A CND continua opcional.
+    expect("Boleto do condomínio").not.toMatch(/\(opcional\)\s*$/);
+  });
+  it("sinal de gás: vazio, 'não possui'/'sem' e 'cobrado no condomínio' não pedem boleto", () => {
+    const re =
+      /SELECT coalesce\(s\.v <> '' AND s\.v !~\* '(.+?)' AND s\.v !~\* '(.+?)', false\)/.exec(BOL);
+    expect(re).not.toBeNull();
+    const nega = new RegExp(re![1].replace("[[:space:]]", "\\s"), "i");
+    const condo = new RegExp(re![2], "i");
+    const temGas = (v: string) => v.trim() !== "" && !nega.test(v.trim()) && !condo.test(v.trim());
+    expect(temGas("123456")).toBe(true);
+    expect(temGas("Comgás 0012345")).toBe(true);
+    for (const v of [
+      "",
+      "   ",
+      "não possui",
+      "Não tem",
+      "nao possui",
+      "sem gás",
+      "cobrado no condomínio",
+    ])
+      expect(temGas(v)).toBe(false);
+  });
+  it("rollback devolve o texto exato da 20261201150000 e apaga a função nova", () => {
+    const fn = (sql: string, nome: string) =>
+      new RegExp(
+        `CREATE OR REPLACE FUNCTION public\\.${nome}\\([\\s\\S]*?\\n(\\$\\$;|END \\$\\$;)\\n`,
+      ).exec(sql)?.[0];
+    for (const nome of ["locacao_partes", "locacao_docs_grupo"]) {
+      expect(fn(BOL_RB, nome)).toBeTruthy();
+      expect(fn(BOL_RB, nome)).toBe(fn(MIG, nome));
+    }
+    expect(BOL_RB).toContain("DROP FUNCTION public.locacao_tem_gas(public.locacoes);");
   });
 });
 
@@ -180,7 +229,7 @@ describe("item 6 — lançamento da Fernanda na comissão", () => {
     });
     const r = calcularComissao(v, cfg);
     expect(r.base).toBe(1500);
-    expect(r.parceiro).toBe(600);
+    expect(r.parceiro).toBe(1500); // parceiro = metade de 1 aluguel (t_45d1a6eb)
   });
   it("lançamento inválido é ignorado", () => {
     expect(lerLancamentoResumo(null)).toBeNull();
@@ -199,6 +248,8 @@ describe("item 6 — lançamento da Fernanda na comissão", () => {
       parceriaUnidade: "",
       parceriaCorretor: "",
       parceriaImobiliaria: "sobra",
+      parceriaLado: "locatario",
+      parceriaCreci: "",
       observacao: "",
     };
     expect(faltasLancamento(v)).toEqual(["unidade RE/MAX parceira", "corretor parceiro"]);
@@ -270,8 +321,14 @@ describe("item 7 — aviso de WhatsApp", () => {
     const iTrava = FN.indexOf("avisosLocacaoLigados(process.env.LOCACAO_AVISOS_WHATSAPP)");
     expect(iTrava).toBeGreaterThan(0);
     // A trava vem antes de reservar a fila e antes de ler a chave do ZionTalk: nada muda de "pendente".
-    expect(iTrava).toBeLessThan(FN.indexOf("locacao_avisos_reservar"));
     expect(iTrava).toBeLessThan(FN.indexOf("process.env.ZIONTALK_API_KEY"));
+    expect(iTrava).toBeLessThan(FN.indexOf("enviarFilaLocacao(data.locacaoId"));
+    // t_c3ea1b18: o envio passou para locacao-avisos.server.ts, que confere a trava de novo antes de reservar.
+    const SV = readFileSync("src/lib/locacao-avisos.server.ts", "utf8");
+    const iTravaSv = SV.indexOf("avisosLocacaoLigados(deps.env.LOCACAO_AVISOS_WHATSAPP)");
+    expect(iTravaSv).toBeGreaterThan(0);
+    expect(iTravaSv).toBeLessThan(SV.indexOf('"locacao_avisos_reservar"'));
+    expect(iTravaSv).toBeLessThan(SV.indexOf("deps.env.ZIONTALK_API_KEY"));
   });
 });
 

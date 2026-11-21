@@ -43,13 +43,17 @@ import {
   lerDetalhe,
   textoAdministracao,
   textoParado,
+  incluidaNoCondominio,
   titularidadePendente,
   tomParado,
   type ContextoLocacao,
   type LocacaoDetalhe as Detalhe,
 } from "@/lib/locacao";
 import { LocacaoArquivoAcoes } from "@/components/locacao/LocacaoArquivoAcoes";
+import { LocacaoDocumentosFinais } from "@/components/locacao/LocacaoDocumentosFinais";
+import { VistoriaAgendaItem } from "@/components/locacao/LocacaoVistoriaAgenda";
 import {
+  agendarVistoria,
   contextoLocacao,
   contratosAcao,
   corretorMinuta,
@@ -325,6 +329,14 @@ export function LocacaoDetalhe({ id }: { id: string }) {
               recarregar={carregar}
             />
           )}
+          {atual >= etapaIndex("assinatura") && (
+            <LocacaoDocumentosFinais
+              d={d}
+              contratos={d.situacao === "ativa" && tenho("contratos")}
+              vistoria={d.situacao === "ativa" && tenho("vistoria")}
+              recarregar={carregar}
+            />
+          )}
           <LocacaoStepper
             etapa={d.etapa}
             devolvida={d.devolvida}
@@ -433,7 +445,7 @@ function DecisaoGestora({ d, ctx, busy, rodar }: P) {
             {d.ficha.observacoes && (
               <>
                 <br />
-                <b>Observações:</b> {d.ficha.observacoes}
+                <b>Cláusulas adicionais e tratativas:</b> {d.ficha.observacoes}
               </>
             )}
           </div>
@@ -811,7 +823,11 @@ function Assinatura({ d, busy, rodar, contratos }: P & { contratos: boolean }) {
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={busy}
+                        disabled={
+                          busy ||
+                          (k === "loc" && !d.finaisTem.contrato_locacao) ||
+                          (k === "vist" && !d.finaisTem.laudo)
+                        }
                         onClick={() =>
                           void rodar(
                             () => contratosAcao(d.id, "marcar_assinado", { documento: k }),
@@ -829,6 +845,20 @@ function Assinatura({ d, busy, rodar, contratos }: P & { contratos: boolean }) {
           </tbody>
         </table>
       </div>
+      {contratos &&
+        a.enviadoEm &&
+        (!d.finaisTem.contrato_locacao || (a.vistJunto && !d.finaisTem.laudo)) && (
+          <p className="text-xs text-amber-700 dark:text-amber-300">
+            Para marcar como assinado, primeiro anexe{" "}
+            {[
+              !d.finaisTem.contrato_locacao ? "o contrato de locação" : "",
+              a.vistJunto && !d.finaisTem.laudo ? "o laudo de vistoria" : "",
+            ]
+              .filter(Boolean)
+              .join(" e ")}{" "}
+            em Documentos finais, acima.
+          </p>
+        )}
       {a.enviadoEm && (
         <p className="text-xs text-muted-foreground">Envio registrado em {dataBr(a.enviadoEm)}.</p>
       )}
@@ -911,6 +941,18 @@ function PosAssinatura({
             <CardTitle className="text-sm">Vistoria</CardTitle>
           </CardHeader>
           <CardContent>
+            <VistoriaAgendaItem
+              agenda={p.vistoriaAgenda}
+              podeAgendar={vistoria}
+              laudoRegistrado={!!p.laudoEm}
+              busy={busy}
+              agendar={(x) =>
+                void rodar(
+                  () => agendarVistoria(d.id, x.quando, x.vistoriador, x.acompanha),
+                  p.vistoriaAgenda ? "Vistoria reagendada" : "Vistoria agendada",
+                )
+              }
+            />
             <Item
               ok={!!p.vistoriaPedida}
               extra={
@@ -929,11 +971,20 @@ function PosAssinatura({
                 p.laudoEm ? (
                   <span className="text-xs">{dataBr(p.laudoEm)}</span>
                 ) : (
-                  btn("laudo_assinado", "Laudo registrado", !p.vistoriaPedida && !p.vistJunto)
+                  btn(
+                    "laudo_assinado",
+                    "Laudo registrado",
+                    (!p.vistoriaPedida && !p.vistJunto) || !d.finaisTem.laudo,
+                  )
                 )
               }
             >
               Laudo enviado p/ assinatura e assinado{p.vistJunto ? " (foi junto do contrato)" : ""}
+              {vistoria && !p.laudoEm && !d.finaisTem.laudo && (
+                <span className="block text-xs text-amber-700 dark:text-amber-300">
+                  Anexe o PDF do laudo assinado em Documentos finais para registrar.
+                </span>
+              )}
             </Item>
             <Item
               ok={true}
@@ -1054,6 +1105,21 @@ function PosAssinatura({
           <CardContent className="space-y-2">
             {SERVICOS.map((s) => {
               const t = p.tit[s.key];
+              // t_778e6bef: conta incluída no condomínio não tem troca de titularidade.
+              if (incluidaNoCondominio(s.key, d.contasCondominio))
+                return (
+                  <div
+                    key={s.key}
+                    className="flex flex-wrap items-center gap-2 text-sm"
+                    data-testid={`tit-condominio-${s.key}`}
+                  >
+                    <span aria-hidden>➖</span>
+                    <span className="w-28">{s.label}</span>
+                    <span className="text-xs text-muted-foreground">
+                      não se aplica (incluída no condomínio)
+                    </span>
+                  </div>
+                );
               return (
                 <div key={s.key} className="flex flex-wrap items-center gap-2 text-sm">
                   <span aria-hidden>{!t.aplica ? "➖" : t.protocolo ? "✅" : "⚠️"}</span>
@@ -1204,7 +1270,7 @@ function ComissaoResumo({ d, ctx, souCorretor, busy, rodar }: P & { souCorretor:
         }
       : null;
   const r = calcularComissao(valoresParaComissao({ ...d, lancamento }), ctx.config);
-  const pend = titularidadePendente(d.pos.tit);
+  const pend = titularidadePendente(d.pos.tit, d.contasCondominio);
   return (
     <div className="space-y-2">
       <Aviso tom="green">

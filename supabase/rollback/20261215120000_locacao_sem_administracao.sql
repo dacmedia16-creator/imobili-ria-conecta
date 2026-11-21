@@ -57,12 +57,8 @@ EXCEPTION WHEN invalid_text_representation OR numeric_value_out_of_range OR chec
   RAISE EXCEPTION 'Valor inválido na pré-análise' USING ERRCODE = '22023';
 END $function$;
 
-CREATE OR REPLACE FUNCTION public.locacao_lancamento_ler(_id uuid)
- RETURNS jsonb
- LANGUAGE plpgsql
- STABLE SECURITY DEFINER
- SET search_path TO ''
-AS $function$
+CREATE OR REPLACE FUNCTION public.locacao_lancamento_ler(_id uuid) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO '' AS $$
 DECLARE _org uuid := public.locacao_ctx(); _l public.locacoes; _x public.locacao_lancamentos;
 BEGIN
   SELECT * INTO _l FROM public.locacoes WHERE id = _id AND organization_id = _org;
@@ -77,7 +73,9 @@ BEGIN
     'valores', CASE WHEN _x.locacao_id IS NOT NULL THEN jsonb_build_object(
         'captador_id', _x.captador_id, 'locador', _x.locador, 'gestor_id', _x.gestor_id, 'team_leader_id', _x.team_leader_id,
         'aluguel', _x.aluguel, 'taxa_adm', _x.taxa_adm, 'parceria', _x.parceria, 'parceria_unidade', _x.parceria_unidade,
-        'parceria_corretor', _x.parceria_corretor, 'parceria_imobiliaria', _x.parceria_imobiliaria, 'observacao', _x.observacao)
+        'parceria_corretor', _x.parceria_corretor, 'parceria_imobiliaria', _x.parceria_imobiliaria, 'observacao', _x.observacao,
+        -- t_756c1c63: lado do parceiro e CRECI (não sensíveis; dados de pagamento ficam em locacao_parceiro_pag_ler).
+        'parceria_lado', _x.parceria_lado, 'parceria_creci', _x.parceria_creci)
       ELSE jsonb_build_object(
         'captador_id', _l.captador_id, 'locador', nullif(btrim(coalesce(_l.ficha#>>'{proprietario,nome}', '')), ''),
         'gestor_id', _l.equipe_gestor_id, 'team_leader_id', _l.equipe_tl_id, 'aluguel', _l.aluguel, 'taxa_adm', _l.taxa_adm,
@@ -88,22 +86,19 @@ BEGIN
       'team_leader', (SELECT p.nome FROM public.profiles p WHERE p.id = coalesce(_x.team_leader_id, CASE WHEN _x.locacao_id IS NULL THEN _l.equipe_tl_id END))),
     'lancado_por_nome', (SELECT p.nome FROM public.profiles p WHERE p.id = coalesce(_x.atualizado_por, _x.lancado_por)),
     'atualizado_em', _x.atualizado_em);
-END $function$;
+END $$;
 
-CREATE OR REPLACE FUNCTION public.locacao_lancamento_salvar(_id uuid, _dados jsonb)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO ''
-AS $function$
+CREATE OR REPLACE FUNCTION public.locacao_lancamento_salvar(_id uuid, _dados jsonb) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
 DECLARE _l public.locacoes := public.locacao_pega(_id); _d jsonb := coalesce(_dados, '{}'::jsonb);
   _cap uuid; _ge uuid; _tl uuid; _alu numeric; _tx numeric; _par text; _uni text; _pco text; _pim text; _loc text; _obs text;
-  _novo boolean; _k text;
+  _lado text; _creci text; _novo boolean; _k text; _ant public.locacao_lancamentos;
 BEGIN
   PERFORM public.locacao_exige(_l, ARRAY['pos_assinatura', 'chaves', 'comissao'], 'vistoria');
   IF jsonb_typeof(_d) <> 'object' OR EXISTS (SELECT 1 FROM jsonb_each(_d) e WHERE e.key NOT IN
      ('captador_id', 'locador', 'gestor_id', 'team_leader_id', 'aluguel', 'taxa_adm', 'parceria', 'parceria_unidade',
-      'parceria_corretor', 'parceria_imobiliaria', 'observacao') OR jsonb_typeof(e.value) NOT IN ('string', 'number', 'null')) THEN
+      'parceria_corretor', 'parceria_imobiliaria', 'observacao', 'parceria_lado', 'parceria_creci')
+      OR jsonb_typeof(e.value) NOT IN ('string', 'number', 'null')) THEN
     RAISE EXCEPTION 'Campos inválidos' USING ERRCODE = '22023';
   END IF;
   FOREACH _k IN ARRAY ARRAY['captador_id', 'gestor_id', 'team_leader_id'] LOOP
@@ -117,6 +112,7 @@ BEGIN
   _loc := nullif(btrim(coalesce(_d->>'locador', '')), ''); _obs := nullif(btrim(coalesce(_d->>'observacao', '')), '');
   _uni := nullif(btrim(coalesce(_d->>'parceria_unidade', '')), ''); _pco := nullif(btrim(coalesce(_d->>'parceria_corretor', '')), '');
   _pim := nullif(btrim(coalesce(_d->>'parceria_imobiliaria', '')), '');
+  _lado := nullif(btrim(coalesce(_d->>'parceria_lado', '')), ''); _creci := nullif(btrim(coalesce(_d->>'parceria_creci', '')), '');
   IF _alu IS NULL OR _alu <= 0 THEN RAISE EXCEPTION 'Informe o aluguel.' USING ERRCODE = '22023'; END IF;
   IF _tx IS NULL OR _tx <= 0 OR _tx > 30 THEN RAISE EXCEPTION 'Informe a taxa de administração (até 30%%).' USING ERRCODE = '22023'; END IF;
   IF _par NOT IN ('nenhuma', 'remax', 'externa') THEN RAISE EXCEPTION 'Parceria inválida.' USING ERRCODE = '22023'; END IF;
@@ -126,24 +122,46 @@ BEGIN
   IF _par = 'externa' AND length(coalesce(_pim, '')) < 2 THEN
     RAISE EXCEPTION 'Parceria externa: informe a imobiliária parceira.' USING ERRCODE = '22023';
   END IF;
-  IF _par <> 'remax' THEN _uni := NULL; _pco := NULL; END IF;
+  -- t_756c1c63: em parceria, um lado é da casa e o outro do parceiro (no máximo 1 lado externo).
+  IF _par <> 'nenhuma' AND (_lado IS NULL OR _lado NOT IN ('captador', 'locatario')) THEN
+    RAISE EXCEPTION 'Parceria: informe qual lado é do parceiro (captador ou corretor do locatário).' USING ERRCODE = '22023';
+  END IF;
+  IF _par = 'nenhuma' THEN _lado := NULL; _creci := NULL; END IF;
+  -- Lado do proprietário com o parceiro: o captador não é da casa.
+  IF _lado = 'captador' THEN _cap := NULL; END IF;
+  IF _par = 'nenhuma' THEN _pco := NULL; END IF;
+  IF _par <> 'remax' THEN _uni := NULL; END IF;
   IF _par <> 'externa' THEN _pim := NULL; END IF;
-  _novo := NOT EXISTS (SELECT 1 FROM public.locacao_lancamentos WHERE locacao_id = _id);
+  SELECT * INTO _ant FROM public.locacao_lancamentos WHERE locacao_id = _id;
+  _novo := _ant.locacao_id IS NULL;
   INSERT INTO public.locacao_lancamentos AS x (locacao_id, organization_id, captador_id, locador, gestor_id, team_leader_id, aluguel,
-    taxa_adm, parceria, parceria_unidade, parceria_corretor, parceria_imobiliaria, observacao, lancado_por, atualizado_por)
-  VALUES (_id, _l.organization_id, _cap, _loc, _ge, _tl, _alu, _tx, _par, _uni, _pco, _pim, _obs, auth.uid(), auth.uid())
+    taxa_adm, parceria, parceria_unidade, parceria_corretor, parceria_imobiliaria, observacao, parceria_lado, parceria_creci,
+    lancado_por, atualizado_por)
+  VALUES (_id, _l.organization_id, _cap, _loc, _ge, _tl, _alu, _tx, _par, _uni, _pco, _pim, _obs, _lado, _creci, auth.uid(), auth.uid())
   ON CONFLICT (locacao_id) DO UPDATE SET captador_id = EXCLUDED.captador_id, locador = EXCLUDED.locador,
     gestor_id = EXCLUDED.gestor_id, team_leader_id = EXCLUDED.team_leader_id, aluguel = EXCLUDED.aluguel, taxa_adm = EXCLUDED.taxa_adm,
     parceria = EXCLUDED.parceria, parceria_unidade = EXCLUDED.parceria_unidade, parceria_corretor = EXCLUDED.parceria_corretor,
     parceria_imobiliaria = EXCLUDED.parceria_imobiliaria, observacao = EXCLUDED.observacao,
+    parceria_lado = EXCLUDED.parceria_lado, parceria_creci = EXCLUDED.parceria_creci,
     atualizado_por = auth.uid(), atualizado_em = now();
+  -- Sem parceria não há a quem pagar (LGPD); se o parceiro mudou (tipo, imobiliária/unidade, corretor ou lado), os dados
+  -- antigos não valem mais: apaga para o Financeiro não pagar a pessoa errada. Histórico sem os dados.
+  IF NOT _novo AND (_par = 'nenhuma' OR _ant.parceria IS DISTINCT FROM _par OR _ant.parceria_imobiliaria IS DISTINCT FROM _pim
+     OR _ant.parceria_unidade IS DISTINCT FROM _uni OR _ant.parceria_corretor IS DISTINCT FROM _pco
+     OR _ant.parceria_lado IS DISTINCT FROM _lado) THEN
+    DELETE FROM public.locacao_parceiro_pagamento WHERE locacao_id = _id;
+    IF FOUND THEN
+      PERFORM public.locacao_evento(_l, 'vistoria', 'Dados de pagamento do parceiro removidos (parceria alterada no lançamento)');
+    END IF;
+  END IF;
   PERFORM public.locacao_evento(_l, 'vistoria', 'Lançamento para comissão ' || CASE WHEN _novo THEN 'registrado' ELSE 'atualizado' END
     || ': aluguel ' || public.locacao_fin_brl(_alu) || ', taxa ' || trim(to_char(_tx, 'FM990.99')) || '%, parceria '
-    || CASE _par WHEN 'nenhuma' THEN 'nenhuma' WHEN 'remax' THEN 'RE/MAX (' || _uni || ')' ELSE 'externa (' || _pim || ')' END);
+    || CASE _par WHEN 'nenhuma' THEN 'nenhuma' WHEN 'remax' THEN 'RE/MAX (' || _uni || ')' ELSE 'externa (' || _pim || ')' END
+    || CASE _lado WHEN 'captador' THEN ', lado do parceiro: captador' WHEN 'locatario' THEN ', lado do parceiro: locatário' ELSE '' END);
   RETURN jsonb_build_object('ok', true, 'novo', _novo);
 EXCEPTION WHEN invalid_text_representation OR numeric_value_out_of_range OR check_violation THEN
   RAISE EXCEPTION 'Valor inválido no lançamento' USING ERRCODE = '22023';
-END $function$;
+END $$;
 
 CREATE OR REPLACE FUNCTION public.locacao_lista()
  RETURNS jsonb

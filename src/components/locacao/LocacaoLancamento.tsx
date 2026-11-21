@@ -12,6 +12,8 @@ import { Pill } from "@/components/visual/base";
 import { errorMessage } from "@/lib/errors";
 import { brl, reaisNumero, reaisParaTela } from "@/lib/locacao";
 import { corretoresLocacao, lerLancamento, salvarLancamento } from "@/lib/locacao-db";
+import { PARCERIA_LADO_LABEL, ladoValido, type ParceriaLado } from "@/lib/locacao-parceiro";
+import { LocacaoParceiroPagamento } from "@/components/locacao/LocacaoParceiroPagamento";
 
 const SELECT =
   "h-9 w-full rounded-md border border-input bg-background px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60";
@@ -36,6 +38,9 @@ export type LancamentoValores = {
   parceriaUnidade: string;
   parceriaCorretor: string;
   parceriaImobiliaria: string;
+  /** t_756c1c63: qual lado é do parceiro (o outro é da casa). */
+  parceriaLado: ParceriaLado | "";
+  parceriaCreci: string;
   observacao: string;
 };
 
@@ -76,6 +81,8 @@ export function lerLancamentoCompleto(raw: unknown): LancamentoLido {
       parceriaUnidade: t(v.parceria_unidade),
       parceriaCorretor: t(v.parceria_corretor),
       parceriaImobiliaria: t(v.parceria_imobiliaria),
+      parceriaLado: ladoValido(v.parceria_lado),
+      parceriaCreci: t(v.parceria_creci),
       observacao: t(v.observacao),
     },
     nomes: {
@@ -88,11 +95,14 @@ export function lerLancamentoCompleto(raw: unknown): LancamentoLido {
   };
 }
 
-/** O que vai ao banco. Igual às regras do banco: parceria RE/MAX pede unidade e corretor; externa, a imobiliária. */
+/**
+ * O que vai ao banco. Igual às regras do banco: parceria RE/MAX pede unidade e corretor; externa, a imobiliária; as duas
+ * pedem o lado do parceiro. Lado "captador" = o captador é o parceiro, então não vai captador da casa.
+ */
 export function lancamentoParaBanco(v: LancamentoValores): Record<string, string | boolean | null> {
   const s = (x: string) => (x.trim() === "" ? null : x.trim());
   return {
-    captador_id: s(v.captadorId),
+    captador_id: v.parceria !== "nenhuma" && v.parceriaLado === "captador" ? null : s(v.captadorId),
     locador: s(v.locador),
     gestor_id: s(v.gestorId),
     team_leader_id: s(v.teamLeaderId),
@@ -101,8 +111,10 @@ export function lancamentoParaBanco(v: LancamentoValores): Record<string, string
     sem_administracao: v.semAdministracao,
     parceria: v.parceria,
     parceria_unidade: v.parceria === "remax" ? s(v.parceriaUnidade) : null,
-    parceria_corretor: v.parceria === "remax" ? s(v.parceriaCorretor) : null,
+    parceria_corretor: v.parceria !== "nenhuma" ? s(v.parceriaCorretor) : null,
     parceria_imobiliaria: v.parceria === "externa" ? s(v.parceriaImobiliaria) : null,
+    parceria_lado: v.parceria !== "nenhuma" ? v.parceriaLado || null : null,
+    parceria_creci: v.parceria !== "nenhuma" ? s(v.parceriaCreci) : null,
     observacao: s(v.observacao),
   };
 }
@@ -120,6 +132,7 @@ export function faltasLancamento(v: LancamentoValores): string[] {
   if (v.parceria === "externa" && v.parceriaImobiliaria.trim().length < 2) {
     f.push("imobiliária parceira");
   }
+  if (v.parceria !== "nenhuma" && !v.parceriaLado) f.push("lado do parceiro");
   return f;
 }
 
@@ -173,6 +186,7 @@ export function LocacaoLancamento({ id, onSalvo }: { id: string; onSalvo?: () =>
   const set = <K extends keyof LancamentoValores>(k: K, x: LancamentoValores[K]) =>
     setV((a) => (a ? { ...a, [k]: x } : a));
   const faltas = faltasLancamento(v);
+  const ladoParceiroCaptador = v.parceria !== "nenhuma" && v.parceriaLado === "captador";
 
   // Pessoa do lançamento que não está na lista (ex.: inativa): mostra pelo nome lido.
   const opcoes = (atual: string, nome: string | null) =>
@@ -261,7 +275,16 @@ export function LocacaoLancamento({ id, onSalvo }: { id: string; onSalvo?: () =>
           </p>
         )}
         <div className="grid gap-3 sm:grid-cols-3">
-          {pessoaSel("captadorId", "Corretor captador", dados.nomes.captador)}
+          {ladoParceiroCaptador ? (
+            <div className="space-y-1">
+              <Label>Corretor captador</Label>
+              <p className="flex h-9 items-center rounded-md border bg-muted/40 px-3 text-sm">
+                Parceiro (lado do proprietário)
+              </p>
+            </div>
+          ) : (
+            pessoaSel("captadorId", "Corretor captador", dados.nomes.captador)
+          )}
           {texto("locador", "Locador (proprietário)", { maxLength: 200 })}
           {pessoaSel("gestorId", "Gestor", dados.nomes.gestor)}
           {pessoaSel("teamLeaderId", "Team Leader", dados.nomes.teamLeader)}
@@ -302,7 +325,36 @@ export function LocacaoLancamento({ id, onSalvo }: { id: string; onSalvo?: () =>
             texto("parceriaCorretor", "Corretor parceiro", { maxLength: 200 })}
           {v.parceria === "externa" &&
             texto("parceriaImobiliaria", "Imobiliária parceira", { maxLength: 200 })}
+          {v.parceria === "externa" &&
+            texto("parceriaCorretor", "Corretor parceiro", { maxLength: 200 })}
+          {v.parceria !== "nenhuma" && (
+            <div className="space-y-1">
+              <Label htmlFor="lan-parceriaLado">Qual lado é do parceiro?</Label>
+              <select
+                id="lan-parceriaLado"
+                className={SELECT}
+                disabled={!editar}
+                value={v.parceriaLado}
+                onChange={(e) => set("parceriaLado", e.target.value as ParceriaLado | "")}
+              >
+                <option value="">—</option>
+                {(Object.keys(PARCERIA_LADO_LABEL) as ParceriaLado[]).map((l) => (
+                  <option key={l} value={l}>
+                    {PARCERIA_LADO_LABEL[l]}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {v.parceria !== "nenhuma" &&
+            texto("parceriaCreci", "CRECI do corretor parceiro", { maxLength: 30 })}
         </div>
+        {v.parceria !== "nenhuma" && (
+          <p className="text-xs text-muted-foreground">
+            Na parceria, um lado é da casa e o outro do parceiro. Os dados de pagamento do parceiro
+            (CPF/CNPJ, PIX, banco) ficam com o Financeiro da locação e a gestão.
+          </p>
+        )}
         <div className="space-y-1">
           <Label htmlFor="lan-observacao">Observação</Label>
           <Textarea
@@ -334,6 +386,9 @@ export function LocacaoLancamento({ id, onSalvo }: { id: string; onSalvo?: () =>
               ? ` Valor lançado: ${brl(reaisNumero(v.aluguel) ?? 0)}.`
               : ""}
           </p>
+        )}
+        {dados.lancado && dados.valores.parceria !== "nenhuma" && (
+          <LocacaoParceiroPagamento id={id} />
         )}
       </CardContent>
     </Card>

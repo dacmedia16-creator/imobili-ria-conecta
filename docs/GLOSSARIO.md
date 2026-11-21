@@ -260,8 +260,15 @@ Quando o código e este glossário divergirem, vale o código; corrija o glossá
 **Garantia (locatícia)** — Forma de garantia do aluguel: seguro-fiança, caução, fiador, Loft, título de capitalização, outras.
 - Código: `src/lib/locacao.ts`.
 
+**Parceria na locação** — Locação feita com outra RE/MAX ou imobiliária externa. Um lado é sempre da casa e o outro do parceiro (no máximo 1 lado externo): **Captador (lado do proprietário)** ou **Corretor do locatário**. O pagamento do parceiro vai para a imobiliária (CNPJ) ou direto ao corretor (CPF). (Denis, 20/11)
+- Código: `locacao_lancamentos.parceria_lado`; dados de pagamento em `locacao_parceiro_pagamento` (só Financeiro da locação e gestão; RPCs `locacao_parceiro_pag_*`).
+
 **Repasse** — Valor do aluguel repassado ao proprietário depois dos descontos.
 - Código: `locacao_repasses`.
+
+**Documentos finais** — PDFs ASSINADOS da locação (contrato de locação, contrato de administração e laudo de vistoria) guardados no sistema, com ver/baixar e reenvio ao locatário/proprietário pelo WhatsApp. Só o corretor daquela locação, gestora, contratos, vistoria e a gerência veem.
+- Código: `locacao_docs_finais`, `locacao_docs_finais_envios`, `src/lib/locacao-finais*.ts`, `LocacaoDocumentosFinais.tsx`; trava do envio aos clientes `LOCACAO_DOCS_FINAIS_WHATSAPP` (separada de `LOCACAO_AVISOS_WHATSAPP`).
+- Evite: "minuta" (é a versão antes da assinatura).
 
 ## 9. Atendimento e outros
 

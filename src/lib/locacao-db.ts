@@ -40,6 +40,9 @@ export async function guardLocacaoRoute() {
 export const contextoLocacao = () => rpc<unknown>("locacao_contexto");
 export const listarLocacoes = () => rpc<unknown[]>("locacao_lista");
 export const detalheLocacao = (id: string) => rpc<unknown>("locacao_detalhe", { _id: id });
+/** "Consultar imóvel" (t_241e03a9): status + corretor por código/endereço, só da imobiliária atual. */
+export const consultarImovelLocacao = (termo: string) =>
+  rpc<unknown[]>("locacao_consultar_imovel", { _termo: termo });
 /** Abre a locação já com o tipo do imóvel (t_8f09d406): condomínio, casa de rua ou comercial. */
 export const criarLocacao = (imovelTipo: ImovelTipo | null = null) =>
   rpc<{ id: string }>("locacao_criar", { _imovel_tipo: imovelTipo });
@@ -49,6 +52,14 @@ export const definirImovelTipo = (id: string, tipo: ImovelTipo) =>
 export const lerLancamento = (id: string) => rpc<unknown>("locacao_lancamento_ler", { _id: id });
 export const salvarLancamento = (id: string, dados: Record<string, string | boolean | null>) =>
   rpc<{ ok: boolean; novo: boolean }>("locacao_lancamento_salvar", { _id: id, _dados: dados });
+/** Dados de pagamento do parceiro (t_756c1c63): só Financeiro da locação e gestão; os demais recebem {pode:false}. */
+export const lerPagamentoParceiro = (id: string) =>
+  rpc<unknown>("locacao_parceiro_pag_ler", { _id: id });
+export const salvarPagamentoParceiro = (
+  id: string,
+  dados: Record<string, string | boolean | null>,
+) => rpc<{ ok: boolean; novo: boolean }>("locacao_parceiro_pag_salvar", { _id: id, _dados: dados });
+export const parceirosPagar = () => rpc<unknown>("locacao_parceiros_pagar");
 /** Pessoas ativas da imobiliária para o campo "corretor captador" (t_28e583e2). */
 export const corretoresLocacao = () => rpc<unknown[]>("locacao_corretores");
 export const salvarPreAnalise = (id: string, dados: Record<string, unknown>) =>
@@ -72,6 +83,19 @@ export const salvarMontagem = (id: string, dados: Record<string, string>) =>
   rpc<{ ok: boolean }>("locacao_montagem_salvar", { _id: id, _dados: dados });
 export const corretorMinuta = (id: string, acao: string, texto: string | null = null) =>
   rpc<unknown>("locacao_corretor_minuta", { _id: id, _acao: acao, _texto: texto });
+/** t_c3ea1b18: agenda/reagenda a vistoria. `quando` = "YYYY-MM-DDTHH:MM" no horário de Brasília. */
+export const agendarVistoria = (
+  id: string,
+  quando: string,
+  vistoriador: string,
+  acompanha: boolean,
+) =>
+  rpc<{ ok: boolean; em: string }>("locacao_vistoria_agendar", {
+    _id: id,
+    _quando: quando,
+    _vistoriador: vistoriador,
+    _acompanha: acompanha,
+  });
 export const posAcao = (id: string, acao: string, dados: Record<string, unknown> = {}) =>
   rpc<{ ok: boolean; etapa: string; alerta?: boolean }>("locacao_pos_acao", {
     _id: id,
@@ -236,10 +260,14 @@ export async function lerDocumentoIa(documentoId: string) {
  * Na minuta, `paraBaixar` devolve o link já como anexo, com o nome do arquivo limpo pelo servidor.
  */
 export async function linkArquivoLocacao(
-  tipo: "documento" | "anexo" | "minuta",
+  tipo: "documento" | "anexo" | "minuta" | "final",
   id: string,
   paraBaixar = false,
 ): Promise<string> {
+  if (tipo === "final") {
+    const { linkFinalLocacao } = await import("@/lib/locacao-finais.functions");
+    return (await linkFinalLocacao({ data: { documentoId: id, baixar: paraBaixar } })).url;
+  }
   const { linkDocumentoLocacao, linkAnexoLocacao, linkMinutaLocacao } =
     await import("@/lib/locacao.functions");
   const { url } =

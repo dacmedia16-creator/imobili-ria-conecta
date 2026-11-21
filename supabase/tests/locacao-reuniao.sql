@@ -285,7 +285,8 @@ SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_lancamento_salvar(%L
   'captador de outra imobiliária recusado');
 SELECT pg_temp.ok((public.locacao_lancamento_salvar(pg_temp.id('C'), jsonb_build_object('captador_id', pg_temp.id('a1'), 'locador', 'Proprietária Fictícia',
   'gestor_id', pg_temp.id('gQA'), 'team_leader_id', pg_temp.id('tl'), 'aluguel', '2450.50', 'taxa_adm', '8',
-  'parceria', 'externa', 'parceria_imobiliaria', 'Imobiliária Parceira (fictícia)'))->>'novo')::boolean, 'lançamento registrado');
+  'parceria', 'externa', 'parceria_imobiliaria', 'Imobiliária Parceira (fictícia)',
+  'parceria_lado', 'locatario'))->>'novo')::boolean, 'lançamento registrado'); -- lado do parceiro: exigido desde o #371
 SELECT pg_temp.put('lan2', public.locacao_lancamento_salvar(pg_temp.id('C'), '{"aluguel":"2450.50","taxa_adm":"9"}'));
 SELECT pg_temp.ok(NOT (pg_temp.j('lan2')->>'novo')::boolean
   AND (public.locacao_lancamento_ler(pg_temp.id('C'))->'valores'->>'taxa_adm')::numeric = 9, 'corrigir: atualiza o mesmo lançamento');

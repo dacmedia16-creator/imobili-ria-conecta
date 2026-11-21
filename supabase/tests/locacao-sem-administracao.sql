@@ -132,6 +132,28 @@ RESET ROLE;
 SELECT pg_temp.ok((SELECT count(*) FROM public.locacao_eventos WHERE locacao_id = pg_temp.id('S')
    AND descricao LIKE '%sem administração (intermediação: 1 aluguel)%') >= 1, 'histórico registra "sem administração"');
 
+-- 3b) Junção com o PR #371 (t_1574da63): sem administração + parceria mantém lado/CRECI e parceiro = aluguel ÷ 2 ----------
+INSERT INTO ids VALUES ('fin', '5745cbff-22b6-4a28-a515-dd6706504b8b');
+INSERT INTO public.locacao_papeis (organization_id, user_id, papel) VALUES (pg_temp.id('orgA'), pg_temp.id('fin'), 'financeiro')
+ON CONFLICT DO NOTHING;
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.as_user(pg_temp.id('con')::text);
+SELECT pg_temp.ok(pg_temp.err(format('SELECT public.locacao_lancamento_salvar(%L, %L)', pg_temp.id('S'),
+  '{"aluguel":"2000","sem_administracao":true,"parceria":"externa","parceria_imobiliaria":"Imob Parceira (fictícia)"}')) LIKE '22023%lado%',
+  'sem administração com parceria continua exigindo o lado do parceiro (#371)');
+SELECT public.locacao_lancamento_salvar(pg_temp.id('S'), '{"aluguel":"2000","sem_administracao":true,"parceria":"externa",
+  "parceria_imobiliaria":"Imob Parceira (fictícia)","parceria_corretor":"Corretor Parceiro (fictício)","parceria_lado":"locatario","parceria_creci":"1-F"}');
+SELECT pg_temp.ok((SELECT sem_administracao AND taxa_adm = 0 AND parceria_lado = 'locatario' AND parceria_creci = '1-F' FROM pg_temp.lan('S')) IS TRUE
+  AND public.locacao_lancamento_ler(pg_temp.id('S'))->'valores'->>'parceria_lado' = 'locatario'
+  AND (public.locacao_lancamento_ler(pg_temp.id('S'))->'valores'->>'sem_administracao')::boolean,
+  'lançamento sem administração grava e lê lado/CRECI do parceiro');
+SELECT pg_temp.as_user(pg_temp.id('fin')::text);
+SELECT pg_temp.ok((SELECT (i->>'valor_parceiro')::numeric FROM jsonb_array_elements(public.locacao_parceiros_pagar()->'itens') i
+   WHERE (i->>'id')::uuid = pg_temp.id('S')) = 1000, 'sem administração: parceiro recebe aluguel ÷ 2 (R$ 1.000 de R$ 2.000)');
+SELECT pg_temp.as_user(pg_temp.id('con')::text);
+SELECT public.locacao_lancamento_salvar(pg_temp.id('S'), '{"aluguel":"2000","sem_administracao":true}');
+RESET ROLE;
+
 -- 4) Financeiro: sem administração não gera contrato (cobrança/repasse/taxa) -------------------------------------------
 SELECT pg_temp.as_user('');
 UPDATE public.locacoes SET etapa = 'chaves', chave_em = (now() AT TIME ZONE 'America/Sao_Paulo')::date

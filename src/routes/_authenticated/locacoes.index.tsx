@@ -22,6 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState, KpiTile, ListSkeleton, PageHeader, Pill } from "@/components/visual/base";
 import { AConfirmar } from "@/components/locacao/LocacaoDetalhe";
+import { LocacaoConsultarImovel } from "@/components/locacao/LocacaoConsultarImovel";
 import { LocacaoFinanceiro } from "@/components/locacao/LocacaoFinanceiro";
 import { LocacaoRegras } from "@/components/locacao/LocacaoRegras";
 import { LocacaoModelosContrato } from "@/components/locacao/LocacaoModelosContrato";
@@ -190,8 +191,8 @@ function LocacoesPage() {
           <DialogHeader>
             <DialogTitle>Nova locação — qual o tipo do imóvel?</DialogTitle>
             <DialogDescription>
-              Condomínio pede a CND do condomínio (opcional). Comercial já vem com prazo de 36
-              meses. Dá para trocar depois, ainda na pré-análise.
+              Condomínio pede o boleto do condomínio e a CND (opcional). Comercial já vem com prazo
+              de 36 meses. Dá para trocar depois, ainda na pré-análise.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-2">
@@ -228,6 +229,7 @@ function LocacoesPage() {
           </select>
         </div>
       )}
+      {!soFinanceiro && <LocacaoConsultarImovel />}
       <Tabs value={atual} onValueChange={(v) => setAba(v as Aba)}>
         <TabsList className="flex h-auto flex-wrap">
           {!soFinanceiro && (
@@ -427,7 +429,9 @@ function Fila({ titulo, itens, pos }: { titulo: string; itens: Locacao[]; pos?: 
                             ? "vistoria pedida"
                             : "vistoria pendente"}{" "}
                         · {l.pos.seguroEm ? "seguro ✅" : "seguro ⬜"} ·{" "}
-                        {titularidadePendente(l.pos.tit).length ? "⚠️ protocolo" : "✅"}
+                        {titularidadePendente(l.pos.tit, l.contasCondominio).length
+                          ? "⚠️ protocolo"
+                          : "✅"}
                       </>
                     ) : (
                       <>
@@ -512,7 +516,7 @@ function Comissao({ itens, ctx }: { itens: Locacao[]; ctx: ContextoLocacao }) {
                     Coord. <AConfirmar />
                   </th>
                   <th>
-                    Parceria <AConfirmar />
+                    Parceiro (½ aluguel)
                   </th>
                   <th>
                     Pagamento <AConfirmar />
@@ -522,7 +526,7 @@ function Comissao({ itens, ctx }: { itens: Locacao[]; ctx: ContextoLocacao }) {
               </thead>
               <tbody>
                 {linhas.map(({ l, v, r }) => {
-                  const pend = titularidadePendente(l.pos.tit);
+                  const pend = titularidadePendente(l.pos.tit, l.contasCondominio);
                   return (
                     <tr
                       key={l.id}
@@ -628,7 +632,7 @@ function Comissao({ itens, ctx }: { itens: Locacao[]; ctx: ContextoLocacao }) {
                 {s.v.parceria && (
                   <tr>
                     <td>
-                      Parceiro (outra metade) <AConfirmar />
+                      Parceiro (metade de 1 aluguel)
                     </td>
                     <td>{brl(s.r.parceiro)}</td>
                   </tr>
@@ -641,11 +645,11 @@ function Comissao({ itens, ctx }: { itens: Locacao[]; ctx: ContextoLocacao }) {
                 </tr>
               </tbody>
             </table>
-            {titularidadePendente(s.l.pos.tit).length > 0 && (
+            {titularidadePendente(s.l.pos.tit, s.l.contasCondominio).length > 0 && (
               <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
                 ⚠️ <b>Alerta (não bloqueia):</b> troca de titularidade sem protocolo de{" "}
-                {titularidadePendente(s.l.pos.tit).join(", ")}. A comissão segue normalmente; o
-                aviso fica para o corretor e a gestora.
+                {titularidadePendente(s.l.pos.tit, s.l.contasCondominio).join(", ")}. A comissão
+                segue normalmente; o aviso fica para o corretor e a gestora.
               </p>
             )}
             <p className="mt-2 text-xs text-muted-foreground">

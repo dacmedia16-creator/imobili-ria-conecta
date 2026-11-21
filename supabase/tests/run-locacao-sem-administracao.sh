@@ -26,8 +26,8 @@ FP="SELECT 'FP=' || md5(coalesce((SELECT string_agg(x, ',' ORDER BY x) FROM (
   UNION ALL SELECT 'loc:'||id||':'||md5(row(l.*)::text) FROM public.locacoes l
   UNION ALL SELECT 'lan:'||locacao_id||':'||md5(row(x.*)::text) FROM public.locacao_lancamentos x
   UNION ALL SELECT 'ct:'||id||':'||md5(row(t.*)::text) FROM public.locacao_contratos t) s),''));"
-# md5 das 5 funções em produção (pg_get_functiondef), lidas em 20/11/2026 antes da migration (só leitura).
-PROD="locacao_fin_criar_contrato=8356476d3d208d05fee433c3e74d37fa locacao_lancamento_ler=90f4c7f1a427e174ab4e29fd0b65c355 locacao_lancamento_salvar=cc862a0a89c9ebec85561e2a3cd8022b locacao_lista=c22b4fc15e5e086c6398a7ec5039d8f2 locacao_salvar_pre=984f90ae3655e9598141fabd63424352"
+# md5 das 5 funções em produção (pg_get_functiondef), lidas em 21/11/2026, já com o PR #371 (20261214140000) no ar (só leitura).
+PROD="locacao_fin_criar_contrato=8356476d3d208d05fee433c3e74d37fa locacao_lancamento_ler=23698fe754be4bc32fdc840fa610349b locacao_lancamento_salvar=5ec2cc386e1cbd1e7e15131fc286f4c4 locacao_lista=c22b4fc15e5e086c6398a7ec5039d8f2 locacao_salvar_pre=984f90ae3655e9598141fabd63424352"
 MD5="SELECT 'MD5 ' || CASE WHEN string_agg(p.proname || '=' || md5(pg_get_functiondef(p.oid)), ' ' ORDER BY p.proname) = '$PROD'
   THEN 'igual a produção' ELSE 'DIFERENTE de produção: ' || string_agg(p.proname || '=' || md5(pg_get_functiondef(p.oid)), ' ' ORDER BY p.proname) END
   FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname IN ('locacao_salvar_pre', 'locacao_lancamento_salvar',
@@ -38,6 +38,8 @@ BASES=(
   "public.locacao_config_sf_backup|20261129120000_locacao_seguro_fianca_sem_docs"
   "public.locacao_minutas|20261130120000_locacao_minuta_anexada"
   "public.locacao_lancamentos|20261201150000_locacao_reuniao_16_11"
+  # PR #371 (no ar desde 20/11): lado/CRECI do parceiro; o #370 parte do texto dele em locacao_lancamento_ler/salvar.
+  "public.locacao_parceiro_pagamento|20261214140000_locacao_parceiro_pagamento"
 )
 {
   echo "BEGIN;"

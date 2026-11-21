@@ -1,6 +1,6 @@
 {
-  "versao": 1,
-  "origem": "Derivado dos modelos-base; remoções listadas em docs/locacao-intermediacao-revisao.md",
+  "versao": 2,
+  "origem": "Derivado dos modelos-base; retiradas, ajustes e o único texto novo em docs/locacao-intermediacao-revisao.md",
   "modelos": [
     {
       "chave": "fiador_intermediacao",
@@ -34,8 +34,16 @@
           "t": "[[FIADOR]]"
         },
         {
+          "id": "p008",
+          "t": "PARÁGRAFO 1º: O FIADOR assume a responsabilidade solidária pelo cumprimento das obrigações pecuniárias decorrentes deste contrato, incluindo aluguéis, encargos locatícios, multas e eventuais indenizações por danos ao imóvel, respondendo até a efetiva devolução das chaves ao LOCADOR, observados os limites legais aplicáveis à fiança."
+        },
+        {
           "id": "p009",
           "t": "PARÁGRAFO 2º: O FIADOR declara ter pleno conhecimento das obrigações assumidas neste instrumento, responsabilizando-se solidariamente pelo cumprimento das obrigações locatícias, inclusive reajustes previstos contratualmente e encargos decorrentes da locação, até a efetiva devolução das chaves, observadas as disposições do artigo 39 da Lei nº 8.245/91."
+        },
+        {
+          "id": "p010",
+          "t": "PARÁGRAFO 3º: O FIADOR declara possuir o imóvel matriculado sob [FIADOR_IMOVEL_ENDERECO], imóvel com matrícula nº [FIADOR_MATRICULA], registrado no [FIADOR_CARTORIO], apresentado como elemento de comprovação de sua capacidade econômico-financeira, não constituindo tal declaração caução ou garantia real sobre o referido bem. O FIADOR compromete-se a comunicar por escrito ao LOCADOR eventual alienação ou perda da titularidade do imóvel, para avaliação da necessidade de substituição da garantia, nos termos da legislação vigente."
         },
         {
           "id": "p011",
@@ -109,8 +117,16 @@
           "t": "Cláusula 3º - O atraso no pagamento do aluguel ou de quaisquer encargos locatícios acarretará a incidência de multa moratória de 10% (dez por cento) sobre o valor devido, acrescida de juros de mora de 1% (um por cento) ao mês, calculados proporcionalmente aos dias de atraso, sem prejuízo das demais medidas legais cabíveis."
         },
         {
+          "id": "pag_locador",
+          "t": "Cláusula 4º - O pagamento dos aluguéis e encargos locatícios será feito diretamente ao LOCADOR, na forma e na conta indicadas por escrito pelo LOCADOR."
+        },
+        {
           "id": "p030",
           "t": "Cláusula 6º - O inadimplemento do aluguel ou de quaisquer encargos locatícios na data do vencimento constituirá o LOCATÁRIO em mora, independentemente de notificação, facultando ao LOCADOR adotar as medidas judiciais e extrajudiciais cabíveis, inclusive ação de despejo e cobrança, nos termos da Lei nº 8.245/91, sem prejuízo dos encargos moratórios previstos neste contrato."
+        },
+        {
+          "id": "p031",
+          "t": "Cláusula 7º - O LOCATÁRIO não poderá suspender ou deixar de efetuar o pagamento dos aluguéis e encargos locatícios por iniciativa própria, devendo eventuais divergências ou solicitações relacionadas ao imóvel ser formalizadas perante o LOCADOR, sem prejuízo dos direitos assegurados pela legislação vigente."
         },
         {
           "id": "p032",
@@ -129,6 +145,14 @@
           "t": "O valor do aluguel será reajustado anualmente, respeitado o intervalo mínimo permitido pela legislação vigente, mediante aplicação do índice IPCA (Índice Nacional de Preços ao Consumidor Amplo), ou de outro índice oficial que venha a substituí-lo em caso de sua extinção, observadas as disposições legais aplicáveis."
         },
         {
+          "id": "p036",
+          "t": "Cláusula 10º - O LOCATÁRIO será responsável pelo pagamento do IPTU e das despesas ordinárias de condomínio incidentes sobre o imóvel durante o período de sua posse. Permanecem sob responsabilidade exclusiva do LOCADOR as despesas extraordinárias de condomínio, conforme disposto no artigo 22, inciso X e parágrafo único, da Lei nº 8.245/91."
+        },
+        {
+          "id": "p037",
+          "t": "Cláusula 11º - Caso o LOCATÁRIO receba diretamente carnês, avisos ou documentos referentes aos tributos e encargos de sua responsabilidade, deverá encaminhá-los ao LOCADOR com antecedência suficiente para viabilizar o pagamento dentro do respectivo vencimento, respondendo por eventuais encargos decorrentes de sua omissão ou atraso injustificado."
+        },
+        {
           "id": "p038",
           "t": "DAS CONTAS DE CONSUMO E DA ENTREGA DAS CHAVES:"
         },
@@ -145,6 +169,18 @@
           "t": "DO DESCUMPRIMENTO E DAS PROVIDÊNCIAS ADMINISTRATIVAS:"
         },
         {
+          "id": "p042",
+          "t": "Cláusula 13º - Caso o LOCATÁRIO não consiga realizar a transferência de titularidade das contas de ÁGUA, ENERGIA ELÉTRICA e GÁS antes da retirada das chaves, deverá apresentar ao LOCADOR a devida comprovação das tentativas realizadas e da impossibilidade de efetivação, ficando a retirada das chaves condicionada à autorização expressa do LOCADOR. Uma vez autorizada a retirada das chaves pelo LOCADOR, o LOCATÁRIO deverá apresentar ao LOCADOR, no prazo máximo de 15 (quinze) dias corridos, contados da data da retirada das chaves, os respectivos comprovantes de efetivação da transferência de titularidade das referidas contas."
+        },
+        {
+          "id": "p043",
+          "t": "O não atendimento da obrigação no prazo estabelecido, sem a devida comprovação de impedimento não imputável ao LOCATÁRIO, caracterizará descumprimento contratual e ensejará a aplicação de multa administrativa no valor de R$ 250,00 (duzentos e cinquenta reais)."
+        },
+        {
+          "id": "p044",
+          "t": "Na ausência de comprovação da regularização após o prazo previsto, o LOCADOR poderá, quando tecnicamente possível e mediante os documetnos e autorizações necessárias, adotrar as providências cabíveis perante as respectivas concessionárias para a regularização da titularidade, ficando o LOCATÁRIO responsável pelos eventuais custos, taxas ou encargos decorrentes de tais providências, quando comprovadamente de sua responsabilidade, sem prejuízo da multa prevista nesta cláusula."
+        },
+        {
           "id": "p045",
           "t": "Cláusula 14º - O LOCATÁRIO declara receber, na data da efetiva entrega das chaves, o imóvel descrito no LAUDO DE VISTORIA INICIAL, que integra o presente contrato para todos os fins de direito, comprometendo-se a conservá-lo no mesmo estado de conservação, higiene e funcionamento em que o recebeu, obrigando-se a devolvê-lo, ao término da locação, nas mesmas condições, ressalvado o desgaste natural decorrente do uso normal. Permanecem sob responsabilidade do LOCADOR os vícios ocultos, defeitos estruturais e reparos que comprometam a segurança, estabilidade ou habitabilidade do imóvel, nos termos da legislação vigente. O imóvel tem como finalidade o uso para HABITAÇÃO.",
           "dest": "residencial"
@@ -154,6 +190,10 @@
           "t": "Cláusula 14º - O LOCATÁRIO declara receber, na data da efetiva entrega das chaves, o imóvel descrito no LAUDO DE VISTORIA INICIAL, que integra o presente contrato para todos os fins de direito, comprometendo-se a conservá-lo no mesmo estado de conservação, higiene e funcionamento em que o recebeu, obrigando-se a devolvê-lo, ao término da locação, nas mesmas condições, ressalvado o desgaste natural decorrente do uso normal. Permanecem sob responsabilidade do LOCADOR os vícios ocultos, defeitos estruturais e reparos que comprometam a segurança, estabilidade ou habitabilidade do imóvel, nos termos da legislação vigente. O imóvel tem como finalidade o uso COMERCIAL.",
           "dest": "comercial",
           "adaptado": true
+        },
+        {
+          "id": "p047",
+          "t": "Cláusula 15º - Caso o LOCATÁRIO identifique divergências em relação ao laudo de vistoria inicial, deverá apresentar sua contestação por escrito ao LOCADOR, no prazo de 10 (dez) dias corridos contados da entrega das chaves, preferencialmente acompanhada de fotografias ou outros registros que comprovem as condições apontadas. A ausência de manifestação dentro do prazo será considerada concordância quanto às condições aparentes descritas no laudo, ressalvados os vícios ocultos e defeitos não identificáveis em vistoria ordinária."
         },
         {
           "id": "p048",
@@ -168,6 +208,10 @@
           "t": "Cláusula 18º - O LOCATÁRIO deverá zelar pela conservação dos pisos, azulejos, armários, acessórios e demais itens que integram o imóvel, responsabilizando-se pelos danos que causar por ação, omissão ou uso inadequado, devendo providenciar o reparo ou a substituição dos itens danificados por outros de padrão, qualidade e características equivalentes aos originalmente existentes, ressalvado o desgaste natural decorrente do uso regular."
         },
         {
+          "id": "p051",
+          "t": "Cláusula 19º - Caso algum piso seja danificado e o LOCATÁRIO não encontre o mesmo modelo disponível para compra, ou tenha saído de fabricação, deverá consultar o LOCADOR um outro modelo compatível aceito para substituição de todos os pisos do cômodo, arcando o LOCATÁRIO com todo o custo de material e instalação."
+        },
+        {
           "id": "p052",
           "t": "Cláusula 20º - O LOCATÁRIO deverá verificar a tensão elétrica disponível nos pontos de energia do imóvel antes de conectar seus equipamentos e aparelhos eletrônicos, responsabilizando-se pelos danos decorrentes da utilização inadequada ou incompatível com a tensão disponível, desde que as instalações tenham sido entregues em condições regulares de funcionamento e que as informações disponíveis tenham sido corretamente fornecidas."
         },
@@ -178,6 +222,10 @@
         {
           "id": "p054",
           "t": "Cláusula 22º - Compete ao LOCATÁRIO realizar os reparos e serviços de manutenção decorrentes do uso regular do imóvel, bem como reparar os danos causados por si, seus moradores, visitantes ou terceiros sob sua responsabilidade. Compete ao LOCADOR realizar os reparos relativos a vícios anteriores à locação, problemas estruturais e defeitos que comprometam a segurança, estabilidade ou habitabilidade do imóvel, desde que não decorrentes de ação ou omissão do LOCATÁRIO."
+        },
+        {
+          "id": "p055",
+          "t": "PARÁGRAFO ÚNICO: Identificada a necessidade de reparo de responsabilidade do LOCADOR, o LOCATÁRIO deverá comunicar formalmente o LOCADOR, para que sejam adotadas as providências necessárias. Em situações urgentes, que envolvam risco à segurança ou agravamento de danos ao imóvel, deverá comunicar imediatamente o LOCADOR, permitindo a adoção das medidas emergenciais cabíveis, observadas as disposições legais quanto à responsabilidade pelos custos."
         },
         {
           "id": "p056",
@@ -249,8 +297,16 @@
           "cond": "isencao_multa"
         },
         {
+          "id": "p072",
+          "t": "Cláusula 30º - O LOCATÁRIO assume o formal compromisso de 30 (trinta) dias antes de desocupar o imóvel, notificar por escrito o LOCADOR que, efetuará uma vistoria no mesmo a fim de ficar constatado o estado de conservação do imóvel."
+        },
+        {
           "id": "p073",
           "t": "Cláusula 31º - Antes da devolução das chaves do imóvel ora locado, o LOCATÁRIO se compromete a agendar horário para entregar as chaves do mesmo, bem como, para que seja realizado laudo de vistoria final, o qual será assinado pelo LOCATÁRIO."
+        },
+        {
+          "id": "p074",
+          "t": "Cláusula 32º - Após o término do prazo contratual, caso a locação prossiga por prazo indeterminado, o LOCATÁRIO poderá rescindir o contrato mediante comunicação por escrito ao LOCADOR, com antecedência mínima de 30 (trinta) dias."
         },
         {
           "id": "p075",
@@ -289,6 +345,14 @@
           "t": "Cláusula 38º - Obriga-se o LOCATÁRIO a pagar além do aluguel e encargos estipulados neste contrato, o seguro contra risco de incêndio da estrutura e partes integrantes do imóvel locado, exceto bens pertencentes ao LOCATÁRIO, figurando o LOCADOR como o único beneficiário na respectiva apólice. Para efeitos desta cláusula, estimam as partes o valor da apólice de seguro incêndio em 200x o valor do aluguel, o qual será estipulado para apólice inicial do seguro a ser feito."
         },
         {
+          "id": "p086",
+          "t": "Parágrafo primeiro: O LOCATÁRIO (S), poderá ele mesmo contratar e apresentar a apólice para o LOCADOR, porém, somente serão aceitas apólices que apresentarem seu pagamento integral."
+        },
+        {
+          "id": "p087",
+          "t": "Parágrafo segundo: Quanto a atualização e renovação do seguro, o valor segurado a ser corrigido durante a vigência do presente contrato, deverá comprovar que a apólice em vigor cubra sempre o custo para reconstrução do imóvel, onde caberá ao LOCATARIO providenciar a renovação do seguro na época própria, dando ciência ao LOCADOR."
+        },
+        {
           "id": "p088",
           "t": "Cláusula 39º - O descumprimento da obrigação de contratação ou renovação do seguro contra incêndio, após notificação para regularização, poderá caracterizar infração contratual, sujeitando o LOCATÁRIO às medidas legais e contratuais cabíveis."
         },
@@ -297,8 +361,16 @@
           "t": "Cláusula 40º - Em se tratando de edifício, fica desde já convencionado que não serão aceitas apólices coletivas de condomínio em substituição ao seguro incêndio individual."
         },
         {
+          "id": "p090",
+          "t": "Cláusula 41º - Caso o LOCATÁRIO não apresente a apólice de seguro contratada por sua iniciativa dentro do prazo estabelecido, o LOCADOR poderá providenciar a contratação do seguro, mediante prévia comunicação ao LOCATÁRIO, sendo os respectivos custos de responsabilidade deste, desde que comprovados documentalmente."
+        },
+        {
           "id": "p091",
           "t": "DA OBSERVÂNCIA À LGPD:"
+        },
+        {
+          "id": "p092",
+          "t": "Cláusula 42º - As partes declaram estar cientes de que o LOCADOR poderá coletar, armazenar, utilizar e compartilhar os dados pessoais estritamente necessários à execução deste contrato, ao cumprimento de obrigações legais e regulatórias, bem como à proteção do crédito, observadas as bases legais previstas no artigo 7º, incisos II, V e X, da Lei nº 13.709/2018 (Lei Geral de Proteção de Dados Pessoais – LGPD)."
         },
         {
           "id": "p093",
@@ -318,7 +390,7 @@
         },
         {
           "id": "p097",
-          "t": "2º) Se a purga da mora for judicial, além da atualização monetária, dos juros moratórios e da multa penal, os honorários advocatícios sobre o total do débito (segunda parte da alínea \"d\" do inciso II, do artigo 62, da Lei nº 8.245/91), sendo ainda devidos pelo LOCATÁRIO as despesas judiciais antecipadas pelo LOCADOR e os honorários de condenação, ou sucumbenciais, fixados na sentença sobre o valor da condenação (artigo 20 e parágrafos 2º e 3º do Código de Processo Civil. O(s) LOCATÁRIO(s) autorizam que as eventuais citações, intimações ou notificações sejam feitas por carta registrada ou por qualquer outro meio judicial ou extrajudicial, sendo certo que toda e qualquer comunicação enviada aos endereços eletrônicos de e-mail fornecidos nas qualificações do cadastro prévio será reputada como recebida e possuirá plena validade para todos os fins legais. Se qualquer disposição deste Contrato for considerada inválida, ilegal ou inexequível, a validade, legalidade e exequibilidade das demais disposições contidas neste Contrato não serão afetadas ou prejudicadas, devendo as partes negociar a substituição de quaisquer disposições inválidas, ilegais ou inexequíveis, por disposições válidas, legais e exequíveis, cujos efeitos deverão aproximar-se, tanto quanto possível, dos efeitos legais e econômicos almejados pelas disposições consideradas inválidas, ilegais ou inexequíveis. Qualquer omissão ou tolerância pelas partes na exigência do correto e pontual cumprimento dos termos e condições, específicas ou genéricas, constantes deste Contrato, inclusive quanto ao valor, forma e prazo de pagamento de aluguéis e encargos, ou no exercício de qualquer prerrogativa dele decorrente, não constituirá qualquer tipo de renúncia, desistência, nem afetará o direito de qualquer das Partes de exercê-los a qualquer tempo."
+          "t": "2º) Se a purga da mora for judicial, além da atualização monetária, dos juros moratórios e da multa penal, os honorários advocatícios sobre o total do débito (segunda parte da alínea \"d\" do inciso II, do artigo 62, da Lei nº 8.245/91), sendo ainda devidos pelo LOCATÁRIO as despesas judiciais antecipadas pelo LOCADOR e os honorários de condenação, ou sucumbenciais, fixados na sentença sobre o valor da condenação (artigo 20 e parágrafos 2º e 3º do Código de Processo Civil. O LOCADOR declara ser o legítimo proprietário e/ou possuidor do Imóvel, o qual se encontra livre e desonerado de quaisquer direitos, obrigações e ônus, judiciais e/ou extrajudiciais, que possam comprometer este CONTRATO, assumindo o dever de indenizar e manter o LOCATÁRIO indene de quaisquer responsabilidades decorrentes de medidas que comprometam a sua posse e propriedade sobre o Imóvel. O(s) LOCATÁRIO(s) autorizam que as eventuais citações, intimações ou notificações sejam feitas por carta registrada ou por qualquer outro meio judicial ou extrajudicial, sendo certo que toda e qualquer comunicação enviada aos endereços eletrônicos de e-mail fornecidos nas qualificações do cadastro prévio será reputada como recebida e possuirá plena validade para todos os fins legais. Qualquer alteração nos endereços eletrônicos de e-mail constantes no cadastro prévio realizado deverá ser prontamente comunicada ao LOCADOR por instrumento que comprove a total ciência quanto a aludida mudança. Em se tratando de LOCATÁRIO pessoa jurídica, que seja obrigado ao pagamento de imposto de renda retido na fonte (IRRF) quando do pagamento do aluguel, compromete-se o LOCATÁRIO a apresentar mensalmente ao LOCADOR os comprovantes de recolhimento do IRRF, sob pena de ser responsável por quaisquer valores despendidos pelo LOCADOR perante a Receita Federal do Brasil, mesmo que apurados após a extinção do presente instrumento. Se qualquer disposição deste Contrato for considerada inválida, ilegal ou inexequível, a validade, legalidade e exequibilidade das demais disposições contidas neste Contrato não serão afetadas ou prejudicadas, devendo as partes negociar a substituição de quaisquer disposições inválidas, ilegais ou inexequíveis, por disposições válidas, legais e exequíveis, cujos efeitos deverão aproximar-se, tanto quanto possível, dos efeitos legais e econômicos almejados pelas disposições consideradas inválidas, ilegais ou inexequíveis. Qualquer omissão ou tolerância pelas partes na exigência do correto e pontual cumprimento dos termos e condições, específicas ou genéricas, constantes deste Contrato, inclusive quanto ao valor, forma e prazo de pagamento de aluguéis e encargos, ou no exercício de qualquer prerrogativa dele decorrente, não constituirá qualquer tipo de renúncia, desistência, nem afetará o direito de qualquer das Partes de exercê-los a qualquer tempo."
         },
         {
           "id": "p098",
@@ -368,6 +440,10 @@
         {
           "id": "p008",
           "t": "Cláusula 1º - Ao término do prazo de locação, desde que cumpridas pelo LOCATÁRIO, todas as obrigações decorrentes deste contrato, inclusive, a desocupação do imóvel e a entrega das chaves, sem a existência de quaisquer débitos ou de reparos a serem realizados pelo LOCATÁRIO para com o LOCADOR, convencionam, ainda as partes, que o valor da caução em dinheiro será devolvida, bem como suas correções através do índice da Caderneta de Poupança, em benefício do LOCATÁRIO por ocasião do levantamento da soma respectiva, ao final do vínculo locatário. Para tanto, deverá ser apresentado, documento rescisório da locação, firmado pelo LOCADOR e LOCATÁRIO, com o reconhecimento de firmas das assinaturas ou realizada através de assinatura eletrônica."
+        },
+        {
+          "id": "p009",
+          "t": "Cláusula 2º - Se o LOCATÁRIO, não observar quaisquer das cláusulas do presente contrato de locação, fica, desde já o LOCADOR autorizado a resgatar o caução em dinheiro a qualquer momento, mesmo antes do prazo final do contrato, independente de interpelação judicial ou extrajudicial, a fim de que o valor do resgate quite eventual importância que lhe seja devida em razão de débitos oriundos deste contrato, respeitando a lei do inquilinato."
         },
         {
           "id": "p010",
@@ -425,8 +501,16 @@
           "t": "Cláusula 6º - O atraso no pagamento do aluguel ou de quaisquer encargos locatícios acarretará a incidência de multa moratória de 10% (dez por cento) sobre o valor devido, acrescida de juros de mora de 1% (um por cento) ao mês, calculados proporcionalmente aos dias de atraso, sem prejuízo das demais medidas legais cabíveis."
         },
         {
+          "id": "pag_locador",
+          "t": "Cláusula 7º - O pagamento dos aluguéis e encargos locatícios será feito diretamente ao LOCADOR, na forma e na conta indicadas por escrito pelo LOCADOR."
+        },
+        {
           "id": "p025",
           "t": "Cláusula 9º - O inadimplemento do aluguel ou de quaisquer encargos locatícios na data do vencimento constituirá o LOCATÁRIO em mora, independentemente de notificação, facultando ao LOCADOR adotar as medidas judiciais e extrajudiciais cabíveis, inclusive ação de despejo e cobrança, nos termos da Lei nº 8.245/91, sem prejuízo dos encargos moratórios previstos neste contrato."
+        },
+        {
+          "id": "p026",
+          "t": "Cláusula 10º - O LOCATÁRIO não poderá suspender ou deixar de efetuar o pagamento dos aluguéis e encargos locatícios por iniciativa própria, devendo eventuais divergências ou solicitações relacionadas ao imóvel ser formalizadas perante o LOCADOR, sem prejuízo dos direitos assegurados pela legislação vigente."
         },
         {
           "id": "p027",
@@ -445,6 +529,14 @@
           "t": "O valor do aluguel será reajustado anualmente, respeitado o intervalo mínimo permitido pela legislação vigente, mediante aplicação do índice IPCA (Índice Nacional de Preços ao Consumidor Amplo), ou de outro índice oficial que venha a substituí-lo em caso de sua extinção, observadas as disposições legais aplicáveis."
         },
         {
+          "id": "p031",
+          "t": "Cláusula 13º - O LOCATÁRIO será responsável pelo pagamento do IPTU e das despesas ordinárias de condomínio incidentes sobre o imóvel durante o período de sua posse. Permanecem sob responsabilidade exclusiva do LOCADOR as despesas extraordinárias de condomínio, conforme disposto no artigo 22, inciso X e parágrafo único, da Lei nº 8.245/91."
+        },
+        {
+          "id": "p032",
+          "t": "Cláusula 14º - Caso o LOCATÁRIO receba diretamente carnês, avisos ou documentos referentes aos tributos e encargos de sua responsabilidade, deverá encaminhá-los ao LOCADOR com antecedência suficiente para viabilizar o pagamento dentro do respectivo vencimento, respondendo por eventuais encargos decorrentes de sua omissão ou atraso injustificado."
+        },
+        {
           "id": "p033",
           "t": "DAS CONTAS DE CONSUMO E DA ENTREGA DAS CHAVES:"
         },
@@ -459,6 +551,18 @@
         {
           "id": "p036",
           "t": "DO DESCUMPRIMENTO E DAS PROVIDÊNCIAS ADMINISTRATIVAS:"
+        },
+        {
+          "id": "p037",
+          "t": "Cláusula 16º – Caso o LOCATÁRIO não consiga realizar a transferência de titularidade das contas de ENERGIA ELÉTRICA e GÁS antes da retirada das chaves, deverá apresentar ao LOCADOR a devida comprovação das tentativas realizadas e da impossibilidade de efetivação, ficando a retirada das chaves condicionada à autorização expressa do LOCADOR. Uma vez autorizada a retirada das chaves pelo LOCADOR, o LOCATÁRIO deverá apresentar ao LOCADOR, no prazo máximo de 15 (quinze) dias corridos, contados da data da retirada das chaves, os respectivos comprovantes de efetivação da transferência de titularidade das referidas contas."
+        },
+        {
+          "id": "p038",
+          "t": "O não atendimento da obrigação no prazo estabelecido, sem a devida comprovação de impedimento não imputável ao LOCATÁRIO, caracterizará descumprimento contratual e ensejará a aplicação de multa administrativa no valor de R$ 250,00 (duzentos e cinquenta reais)."
+        },
+        {
+          "id": "p039",
+          "t": "Na ausência de comprovação da regularização após o prazo previsto, o LOCADOR poderá, quando tecnicamente possível e mediante os documetnos e autorizações necessárias, adotrar as providências cabíveis perante as respectivas concessionárias para a regularização da titularidade, ficando o LOCATÁRIO responsável pelos eventuais custos, taxas ou encargos decorrentes de tais providências, quando comprovadamente de sua responsabilidade, sem prejuízo da multa prevista nesta cláusula."
         },
         {
           "id": "p040",
@@ -476,6 +580,10 @@
           "adaptado": true
         },
         {
+          "id": "p043",
+          "t": "Cláusula 18º - Caso o LOCATÁRIO identifique divergências em relação ao laudo de vistoria inicial, deverá apresentar sua contestação por escrito ao LOCADOR, no prazo de 10 (dez) dias corridos contados da entrega das chaves, preferencialmente acompanhada de fotografias ou outros registros que comprovem as condições apontadas. A ausência de manifestação dentro do prazo será considerada concordância quanto às condições aparentes descritas no laudo, ressalvados os vícios ocultos e defeitos não identificáveis em vistoria ordinária."
+        },
+        {
           "id": "p044",
           "t": "Cláusula 19º - Fica permitido ao LOCATÁRIO realizar pequenos furos nas paredes do imóvel para a fixação de quadros, espelhos, suportes e objetos similares, desde que não comprometam a estrutura, as instalações hidráulicas ou elétricas. Fica expressamente vedada a realização de furos em azulejos, revestimentos cerâmicos e áreas impermeabilizadas, salvo mediante autorização prévia e por escrito do LOCADOR. Ao término da locação, o LOCATÁRIO deverá providenciar a adequada reparação dos furos realizados nas paredes, recompondo a pintura e o acabamento quando necessário, restituindo o imóvel nas condições em que o recebeu, ressalvado o desgaste natural decorrente do uso regular."
         },
@@ -488,6 +596,10 @@
           "t": "Cláusula 21º - O LOCATÁRIO deverá zelar pela conservação dos pisos, azulejos, armários, acessórios e demais itens que integram o imóvel, responsabilizando-se pelos danos que causar por ação, omissão ou uso inadequado, devendo providenciar o reparo ou a substituição dos itens danificados por outros de padrão, qualidade e características equivalentes aos originalmente existentes, ressalvado o desgaste natural decorrente do uso regular."
         },
         {
+          "id": "p047",
+          "t": "Cláusula 22º - Caso algum piso seja danificado e o LOCATÁRIO não encontre o mesmo modelo disponível para compra, ou tenha saído de fabricação, deverá consultar o LOCADOR um outro modelo compatível aceito para substituição de todos os pisos do cômodo, arcando o LOCATÁRIO com todo o custo de material e instalação."
+        },
+        {
           "id": "p048",
           "t": "Cláusula 23º - O LOCATÁRIO deverá verificar a tensão elétrica disponível nos pontos de energia do imóvel antes de conectar seus equipamentos e aparelhos eletrônicos, responsabilizando-se pelos danos decorrentes da utilização inadequada ou incompatível com a tensão disponível, desde que as instalações tenham sido entregues em condições regulares de funcionamento e que as informações disponíveis tenham sido corretamente fornecidas."
         },
@@ -498,6 +610,10 @@
         {
           "id": "p050",
           "t": "Cláusula 25º - Compete ao LOCATÁRIO realizar os reparos e serviços de manutenção decorrentes do uso regular do imóvel, bem como reparar os danos causados por si, seus moradores, visitantes ou terceiros sob sua responsabilidade. Compete ao LOCADOR realizar os reparos relativos a vícios anteriores à locação, problemas estruturais e defeitos que comprometam a segurança, estabilidade ou habitabilidade do imóvel, desde que não decorrentes de ação ou omissão do LOCATÁRIO."
+        },
+        {
+          "id": "p051",
+          "t": "PARÁGRAFO ÚNICO: Identificada a necessidade de reparo de responsabilidade do LOCADOR, o LOCATÁRIO deverá comunicar formalmente o LOCADOR, para que sejam adotadas as providências necessárias. Em situações urgentes, que envolvam risco à segurança ou agravamento de danos ao imóvel, deverá comunicar imediatamente o LOCADOR, permitindo a adoção das medidas emergenciais cabíveis, observadas as disposições legais quanto à responsabilidade pelos custos."
         },
         {
           "id": "p052",
@@ -569,8 +685,16 @@
           "cond": "isencao_multa"
         },
         {
+          "id": "p068",
+          "t": "Cláusula 33º - O LOCATÁRIO assume o formal compromisso de 30 (trinta) dias antes de desocupar o imóvel, notificar por escrito o LOCADOR que, efetuará uma vistoria no mesmo a fim de ficar constatado o estado de conservação do imóvel."
+        },
+        {
           "id": "p069",
           "t": "Cláusula 34º - Antes da devolução das chaves do imóvel ora locado, o LOCATÁRIO se compromete a agendar horário para entregar as chaves do mesmo, bem como, para que seja realizado laudo de vistoria final, o qual será assinado pelo LOCATÁRIO."
+        },
+        {
+          "id": "p070",
+          "t": "Cláusula 35º - Após o término do prazo contratual, caso a locação prossiga por prazo indeterminado, o LOCATÁRIO poderá rescindir o contrato mediante comunicação por escrito ao LOCADOR, com antecedência mínima de 30 (trinta) dias."
         },
         {
           "id": "p071",
@@ -605,6 +729,14 @@
           "t": "Cláusula 41º - Obriga-se o LOCATÁRIO a pagar além do aluguel e encargos estipulados neste contrato, o seguro contra risco de incêndio da estrutura e partes integrantes do imóvel locado, exceto bens pertencentes ao LOCATÁRIO, figurando o LOCADOR como o único beneficiário na respectiva apólice. Para efeitos desta cláusula, estimam as partes o valor da apólice de seguro incêndio em 200x o valor do aluguel, o qual será estipulado para apólice inicial do seguro a ser feito."
         },
         {
+          "id": "p081",
+          "t": "Parágrafo primeiro: O LOCATÁRIO (S), poderá ele mesmo contratar e apresentar a apólice para o LOCADOR, porém, somente serão aceitas apólices que apresentarem seu pagamento integral."
+        },
+        {
+          "id": "p082",
+          "t": "Parágrafo segundo: Quanto a atualização e renovação do seguro, o valor segurado a ser corrigido durante a vigência do presente contrato, deverá comprovar que a apólice em vigor cubra sempre o custo para reconstrução do imóvel, onde caberá ao LOCATARIO providenciar a renovação do seguro na época própria, dando ciência ao LOCADOR."
+        },
+        {
           "id": "p083",
           "t": "Cláusula 42º - O descumprimento da obrigação de contratação ou renovação do seguro contra incêndio, após notificação para regularização, poderá caracterizar infração contratual, sujeitando o LOCATÁRIO às medidas legais e contratuais cabíveis."
         },
@@ -613,8 +745,16 @@
           "t": "Cláusula 43º - Em se tratando de edifício, fica desde já convencionado que não serão aceitas apólices coletivas de condomínio em substituição ao seguro incêndio individual."
         },
         {
+          "id": "p085",
+          "t": "Cláusula 44º - Caso o LOCATÁRIO não apresente a apólice de seguro contratada por sua iniciativa dentro do prazo estabelecido, o LOCADOR poderá providenciar a contratação do seguro, mediante prévia comunicação ao LOCATÁRIO, sendo os respectivos custos de responsabilidade deste, desde que comprovados documentalmente."
+        },
+        {
           "id": "p086",
           "t": "DA OBSERVÂNCIA À LGPD:"
+        },
+        {
+          "id": "p087",
+          "t": "Cláusula 45º - As partes declaram estar cientes de que o LOCADOR poderá coletar, armazenar, utilizar e compartilhar os dados pessoais estritamente necessários à execução deste contrato, ao cumprimento de obrigações legais e regulatórias, bem como à proteção do crédito, observadas as bases legais previstas no artigo 7º, incisos II, V e X, da Lei nº 13.709/2018 (Lei Geral de Proteção de Dados Pessoais – LGPD)."
         },
         {
           "id": "p088",
@@ -634,7 +774,7 @@
         },
         {
           "id": "p092",
-          "t": "2º) Se a purga da mora for judicial, além da atualização monetária, dos juros moratórios e da multa penal, os honorários advocatícios sobre o total do débito (segunda parte da alínea \"d\" do inciso II, do artigo 62, da Lei nº 8.245/91), sendo ainda devidos pelo LOCATÁRIO as despesas judiciais antecipadas pelo LOCADOR e os honorários de condenação, ou sucumbenciais, fixados na sentença sobre o valor da condenação (artigo 20 e parágrafos 2º e 3º do Código de Processo Civil. O(s) LOCATÁRIO(s) autorizam que as eventuais citações, intimações ou notificações sejam feitas por carta registrada ou por qualquer outro meio judicial ou extrajudicial, sendo certo que toda e qualquer comunicação enviada aos endereços eletrônicos de e-mail fornecidos nas qualificações do cadastro prévio será reputada como recebida e possuirá plena validade para todos os fins legais. Se qualquer disposição deste Contrato for considerada inválida, ilegal ou inexequível, a validade, legalidade e exequibilidade das demais disposições contidas neste Contrato não serão afetadas ou prejudicadas, devendo as partes negociar a substituição de quaisquer disposições inválidas, ilegais ou inexequíveis, por disposições válidas, legais e exequíveis, cujos efeitos deverão aproximar-se, tanto quanto possível, dos efeitos legais e econômicos almejados pelas disposições consideradas inválidas, ilegais ou inexequíveis. Qualquer omissão ou tolerância pelas partes na exigência do correto e pontual cumprimento dos termos e condições, específicas ou genéricas, constantes deste Contrato, inclusive quanto ao valor, forma e prazo de pagamento de aluguéis e encargos, ou no exercício de qualquer prerrogativa dele decorrente, não constituirá qualquer tipo de renúncia, desistência, nem afetará o direito de qualquer das Partes de exercê-los a qualquer tempo."
+          "t": "2º) Se a purga da mora for judicial, além da atualização monetária, dos juros moratórios e da multa penal, os honorários advocatícios sobre o total do débito (segunda parte da alínea \"d\" do inciso II, do artigo 62, da Lei nº 8.245/91), sendo ainda devidos pelo LOCATÁRIO as despesas judiciais antecipadas pelo LOCADOR e os honorários de condenação, ou sucumbenciais, fixados na sentença sobre o valor da condenação (artigo 20 e parágrafos 2º e 3º do Código de Processo Civil. O LOCADOR declara ser o legítimo proprietário e/ou possuidor do Imóvel, o qual se encontra livre e desonerado de quaisquer direitos, obrigações e ônus, judiciais e/ou extrajudiciais, que possam comprometer este CONTRATO, assumindo o dever de indenizar e manter o LOCATÁRIO indene de quaisquer responsabilidades decorrentes de medidas que comprometam a sua posse e propriedade sobre o Imóvel. O(s) LOCATÁRIO(s) autorizam que as eventuais citações, intimações ou notificações sejam feitas por carta registrada ou por qualquer outro meio judicial ou extrajudicial, sendo certo que toda e qualquer comunicação enviada aos endereços eletrônicos de e-mail fornecidos nas qualificações do cadastro prévio será reputada como recebida e possuirá plena validade para todos os fins legais. Qualquer alteração nos endereços eletrônicos de e-mail constantes no cadastro prévio realizado deverá ser prontamente comunicada ao LOCADOR por instrumento que comprove a total ciência quanto a aludida mudança. Em se tratando de LOCATÁRIO pessoa jurídica, que seja obrigado ao pagamento de imposto de renda retido na fonte (IRRF) quando do pagamento do aluguel, compromete-se o LOCATÁRIO a apresentar mensalmente ao LOCADOR os comprovantes de recolhimento do IRRF, sob pena de ser responsável por quaisquer valores despendidos pelo LOCADOR perante a Receita Federal do Brasil, mesmo que apurados após a extinção do presente instrumento. Se qualquer disposição deste Contrato for considerada inválida, ilegal ou inexequível, a validade, legalidade e exequibilidade das demais disposições contidas neste Contrato não serão afetadas ou prejudicadas, devendo as partes negociar a substituição de quaisquer disposições inválidas, ilegais ou inexequíveis, por disposições válidas, legais e exequíveis, cujos efeitos deverão aproximar-se, tanto quanto possível, dos efeitos legais e econômicos almejados pelas disposições consideradas inválidas, ilegais ou inexequíveis. Qualquer omissão ou tolerância pelas partes na exigência do correto e pontual cumprimento dos termos e condições, específicas ou genéricas, constantes deste Contrato, inclusive quanto ao valor, forma e prazo de pagamento de aluguéis e encargos, ou no exercício de qualquer prerrogativa dele decorrente, não constituirá qualquer tipo de renúncia, desistência, nem afetará o direito de qualquer das Partes de exercê-los a qualquer tempo."
         },
         {
           "id": "p093",
@@ -684,6 +824,10 @@
         {
           "id": "p008",
           "t": "Parágrafo segundo: A CAUCIONANTE autoriza expressamente o registro e averbação deste contrato junto ao Cartório de Imóveis competente, bem como o caucionamento do imóvel descrito na cláusula acima, através do presente contrato, em favor da locação do imóvel situado na [IMOVEL_ENDERECO] inclusive requerendo a LOCADORA, perante o cartório competente a averbação de tal garantia na matrícula do imóvel."
+        },
+        {
+          "id": "p009",
+          "t": "Parágrafo terceiro: Conforme livremente pactuado entre as partes todas as despesas com a Referida averbação são de exclusiva responsabilidade da CAUCIONANTE, podendo a proprietária efetuar o pagamento e emitir juntamente com o valor do locatício a cobrança da referida averbação"
         },
         {
           "id": "p010",
@@ -737,6 +881,10 @@
           "t": "Cláusula 3º - O aluguel mensal deve ser pago juntamente com os demais encargos, em moeda corrente nacional, em seu vencimento, ficando em caso contrário acrescidos de multa de 10% (dez por cento) do seu valor, mais juros de 1% (um por cento) ao mês, mais a correção monetária prevista em lei, a título de penalidade contratual, sem prejuízo da exigibilidade das demais correções estipuladas."
         },
         {
+          "id": "pag_locador",
+          "t": "Cláusula 4º - O pagamento dos aluguéis e encargos locatícios será feito diretamente ao LOCADOR, na forma e na conta indicadas por escrito pelo LOCADOR."
+        },
+        {
           "id": "p024",
           "t": "Cláusula 6º - O inadimplemento do aluguel ou de quaisquer encargos locatícios na data do vencimento constituirá o LOCATÁRIO em mora, facultando ao LOCADOR promover as medidas judiciais e extrajudiciais cabíveis, inclusive ação de despejo e cobrança, nos termos da Lei nº 8.245/91, sem prejuízo da incidência da multa, juros, correção monetária, honorários advocatícios e demais penalidades previstas neste contrato."
         },
@@ -767,6 +915,10 @@
         {
           "id": "p031",
           "t": "As partes de comum acordo estabelecem o índice IPCA (Índice Nacional de Preços ao Consumidor Amplo), para a correção do aluguel, que será aplicado de acordo com a periodicidade acima. Havendo a extinção do mesmo, por determinação legal, as partes elegerão seu substituto imediatamente após a eventual extinção."
+        },
+        {
+          "id": "p033",
+          "t": "Cláusula 11º - No caso dos carnês e/ou avisos dos tributos citados na cláusula acima serem entregues diretamente ao LOCATÁRIO (S), este deverá encaminhá-los ao LOCADOR, antes do vencimento dos títulos no prazo de até 5 (cinco) dias úteis, sob pena de responderem pelas multas do atraso."
         },
         {
           "id": "p034",
@@ -810,6 +962,10 @@
         {
           "id": "p043",
           "t": "Cláusula 18º - Os pisos, azulejos, armários modulados, ou qualquer item de acabamento do imóvel ora locado por parte do LOCATÁRIO, deverá ser entregue nas mesmas condições recebidas, ou seja, caso danifique algum desses itens, o mesmo deverá ser substituído pelo mesmo modelo, tamanho, marca e nas mesmas cores e qualidade que foi entregue."
+        },
+        {
+          "id": "p044",
+          "t": "Cláusula 19º - Caso algum piso seja danificado e o LOCATÁRIO não encontre o mesmo modelo disponível para compra, ou tenha saído de fabricação, deverá consultar o LOCADOR um outro modelo compatível aceito para substituição de todos os pisos e em todos os ambientes que o integram, arcando o LOCATÁRIO com todo o custo de material e instalação."
         },
         {
           "id": "p045",
@@ -860,8 +1016,16 @@
           "t": "Parágrafo segundo: Fica estipulada a multa contratual compensatória proporcional de 03 (três) vezes o valor do aluguel vigente da época da eventual infração, em benefício ao LOCADOR, sem prejuízo da exigibilidade das obrigações assumidas por este instrumento, podendo o LOCADOR, se assim lhe convier, considerar ao mesmo tempo rescindido o presente contrato de locação, independentemente de qualquer formalidade."
         },
         {
+          "id": "p057",
+          "t": "Cláusula 29º - O LOCATÁRIO assume o formal compromisso de 30 (trinta) dias antes de desocupar o imóvel, notificar por escrito o LOCADOR que, efetuará uma vistoria no mesmo a fim de ficar constatado o estado de conservação do imóvel."
+        },
+        {
           "id": "p058",
           "t": "Cláusula 30º - Antes da devolução das chaves do imóvel ora locado, o LOCATÁRIO se compromete a agendar horário para entregar as chaves do mesmo, bem como, para que seja realizado laudo de vistoria final, o qual será assinado pelo LOCATÁRIO."
+        },
+        {
+          "id": "p059",
+          "t": "Cláusula 31º - Decorrido o PRAZO DA LOCAÇÃO e estando a locação vigorando por prazo indeterminado, o LOCATÁRIO poderá rescindir o contrato de locação mediante notificação por escrito ao LOCADOR, com antecedência de 30 (trinta) dias da devolução das chaves."
         },
         {
           "id": "p060",
@@ -896,6 +1060,14 @@
           "t": "Cláusula 37º - Obriga-se o LOCATÁRIO a pagar além do aluguel e encargos estipulados neste contrato, o seguro contra risco de incêndio da parte perecível do imóvel locado, exceto bens pertencentes ao LOCATÁRIO, figurando o LOCADOR como o único beneficiário na respectiva apólice. Para efeitos desta cláusula, estimam as partes o valor da apólice de seguro incêndio em 200x o valor do aluguel, o qual será estipulado para apólice inicial do seguro a ser feito."
         },
         {
+          "id": "p070",
+          "t": "Parágrafo primeiro: O LOCATÁRIO (S), poderá ele mesmo contratar e apresentar a apólice para o LOCADOR, porém, somente serão aceitas apólices que apresentarem seu pagamento integral."
+        },
+        {
+          "id": "p071",
+          "t": "Parágrafo segundo: Quanto a atualização e renovação do seguro, o valor segurado a ser corrigido durante a vigência do presente contrato, deverá comprovar que a apólice em vigor cubra sempre o custo para reconstrução do imóvel, onde caberá ao LOCATARIO providenciar a renovação do seguro na época própria, dando ciência ao LOCADOR."
+        },
+        {
           "id": "p072",
           "t": "Cláusula 38º - A falta do pagamento do seguro por parte do LOCATÁRIO, constituirá infração passível de rescisão do presente instrumento, independente da incidência da multa infracional prevista em contrato."
         },
@@ -904,8 +1076,16 @@
           "t": "Cláusula 39º - Tratando-se de unidade integrante de condomínio edilício, não será aceita a apólice coletiva contratada pelo condomínio em substituição ao seguro contra incêndio previsto na CLÁUSULA 37º, permanecendo o LOCATÁRIO obrigado ao cumprimento integral da obrigação contratual."
         },
         {
+          "id": "p074",
+          "t": "Cláusula 40º - Caso o LOCATÁRIO não apresente sua apólice contratada de forma particular ao LOCADOR, ficará o LOCADOR automaticamente autorizado a contratar uma empresa Seguradora de sua preferência e lançar seus valores à vista na primeira parcela de cobrança de aluguel."
+        },
+        {
           "id": "p075",
           "t": "DA OBSERVÂNCIA À LGPD:"
+        },
+        {
+          "id": "p076",
+          "t": "Cláusula 41º - As partes declaram expresso consentimento que o LOCADOR irá coletar, tratar e compartilhar os dados necessários ao cumprimento do contrato, nos termos do art. 7°, inciso V da Lei Geral de Proteção de Dados, bem como os dados necessários para o cumprimento de obrigações legais, nos termos do art. 7°, inciso II da LGPD e os dados, se necessários para proteção de crédito, conforme autorizado, também pelo art. 7° inciso V da LGPD."
         },
         {
           "id": "p078",
@@ -921,7 +1101,7 @@
         },
         {
           "id": "p081",
-          "t": "2º) Se a purga da mora for judicial, além da atualização monetária, dos juros moratórios e da multa penal, os honorários advocatícios sobre o total do débito (segunda parte da alínea \"d\" do inciso II, do artigo 62, da Lei nº 8.245/91), sendo ainda devidos pelo LOCATÁRIO as despesas judiciais antecipadas pelo LOCADOR e os honorários de condenação, ou sucumbenciais, fixados na sentença sobre o valor da condenação (artigo 20 e parágrafos 2º e 3º do Código de Processo Civil. O(s) LOCATÁRIO(s) autorizam que as eventuais citações, intimações ou notificações sejam feitas por carta registrada ou por qualquer outro meio judicial ou extrajudicial, sendo certo que toda e qualquer comunicação enviada aos endereços eletrônicos de e-mail fornecidos nas qualificações do cadastro prévio será reputada como recebida e possuirá plena validade para todos os fins legais. Se qualquer disposição deste Contrato for considerada inválida, ilegal ou inexequível, a validade, legalidade e exequibilidade das demais disposições contidas neste Contrato não serão afetadas ou prejudicadas, devendo as partes negociar a substituição de quaisquer disposições inválidas, ilegais ou inexequíveis, por disposições válidas, legais e exequíveis, cujos efeitos deverão aproximar-se, tanto quanto possível, dos efeitos legais e econômicos almejados pelas disposições consideradas inválidas, ilegais ou inexequíveis. Qualquer omissão ou tolerância pelas partes na exigência do correto e pontual cumprimento dos termos e condições, específicas ou genéricas, constantes deste Contrato, inclusive quanto ao valor, forma e prazo de pagamento de aluguéis e encargos, ou no exercício de qualquer prerrogativa dele decorrente, não constituirá qualquer tipo de renúncia, desistência, nem afetará o direito de qualquer das Partes de exercê-los a qualquer tempo."
+          "t": "2º) Se a purga da mora for judicial, além da atualização monetária, dos juros moratórios e da multa penal, os honorários advocatícios sobre o total do débito (segunda parte da alínea \"d\" do inciso II, do artigo 62, da Lei nº 8.245/91), sendo ainda devidos pelo LOCATÁRIO as despesas judiciais antecipadas pelo LOCADOR e os honorários de condenação, ou sucumbenciais, fixados na sentença sobre o valor da condenação (artigo 20 e parágrafos 2º e 3º do Código de Processo Civil. O LOCADOR declara ser o legítimo proprietário e/ou possuidor do Imóvel, o qual se encontra livre e desonerado de quaisquer direitos, obrigações e ônus, judiciais e/ou extrajudiciais, que possam comprometer este CONTRATO, assumindo o dever de indenizar e manter o LOCATÁRIO indene de quaisquer responsabilidades decorrentes de medidas que comprometam a sua posse e propriedade sobre o Imóvel. O(s) LOCATÁRIO(s) autorizam que as eventuais citações, intimações ou notificações sejam feitas por carta registrada ou por qualquer outro meio judicial ou extrajudicial, sendo certo que toda e qualquer comunicação enviada aos endereços eletrônicos de e-mail fornecidos nas qualificações do cadastro prévio será reputada como recebida e possuirá plena validade para todos os fins legais. Qualquer alteração nos endereços eletrônicos de e-mail constantes no cadastro prévio realizado deverá ser prontamente comunicada ao LOCADOR por instrumento que comprove a total ciência quanto a aludida mudança. Em se tratando de LOCATÁRIO pessoa jurídica, que seja obrigado ao pagamento de imposto de renda retido na fonte (IRRF) quando do pagamento do aluguel, compromete-se o LOCATÁRIO a apresentar mensalmente ao LOCADOR os comprovantes de recolhimento do IRRF, sob pena de ser responsável por quaisquer valores despendidos pelo LOCADOR perante a Receita Federal do Brasil, mesmo que apurados após a extinção do presente instrumento. Se qualquer disposição deste Contrato for considerada inválida, ilegal ou inexequível, a validade, legalidade e exequibilidade das demais disposições contidas neste Contrato não serão afetadas ou prejudicadas, devendo as partes negociar a substituição de quaisquer disposições inválidas, ilegais ou inexequíveis, por disposições válidas, legais e exequíveis, cujos efeitos deverão aproximar-se, tanto quanto possível, dos efeitos legais e econômicos almejados pelas disposições consideradas inválidas, ilegais ou inexequíveis. Qualquer omissão ou tolerância pelas partes na exigência do correto e pontual cumprimento dos termos e condições, específicas ou genéricas, constantes deste Contrato, inclusive quanto ao valor, forma e prazo de pagamento de aluguéis e encargos, ou no exercício de qualquer prerrogativa dele decorrente, não constituirá qualquer tipo de renúncia, desistência, nem afetará o direito de qualquer das Partes de exercê-los a qualquer tempo."
         },
         {
           "id": "p082",
@@ -1131,6 +1311,10 @@
           "t": "Cláusula 3º - O aluguel mensal deve ser pago juntamente com os demais encargos, em moeda corrente nacional, em seu vencimento, ficando em caso contrário acrescidos de multa de 10% (dez por cento) do seu valor, mais juros de 1% (um por cento) ao mês, mais a correção monetária prevista em lei, a título de penalidade contratual, sem prejuízo da exigibilidade das demais correções estipuladas."
         },
         {
+          "id": "pag_locador",
+          "t": "Cláusula 4º - O pagamento dos aluguéis e encargos locatícios será feito diretamente ao LOCADOR, na forma e na conta indicadas por escrito pelo LOCADOR."
+        },
+        {
           "id": "p044",
           "t": "Cláusula 6º - Além das penalidades previstas na CLÁUSULA 3º, a falta de pagamento do aluguel na data estipulada poderá acarretar a rescisão do presente contrato, após 15 (quinze) dias da data do vencimento, ficando o LOCATÁRIO(S) responsável pela multa prevista na CLÁUSULA 28º - Parágrafo segundo do presente contrato, pelas despesas processuais e honorários advocatícios."
         },
@@ -1161,6 +1345,10 @@
         {
           "id": "p051",
           "t": "As partes de comum acordo estabelecem o índice IGPM (Índice Geral de Preço de Mercado), para a correção do aluguel, que será aplicado de acordo com a periodicidade acima. Havendo a extinção do mesmo, por determinação legal, as partes elegerão seu substituto imediatamente após a eventual extinção."
+        },
+        {
+          "id": "p053",
+          "t": "Cláusula 11º - No caso dos carnês e/ou avisos dos tributos citados na cláusula acima serem entregues diretamente ao LOCATÁRIO (S), este deverá encaminhá-los ao LOCADOR, antes do vencimento dos títulos no prazo de até 5 (cinco) dias úteis, sob pena de responderem pelas multas do atraso."
         },
         {
           "id": "p054",
@@ -1204,6 +1392,10 @@
         {
           "id": "p063",
           "t": "Cláusula 18º - Os pisos, azulejos, armários modulados, ou qualquer item de acabamento do imóvel ora locado por parte do LOCATÁRIO, deverá ser entregue nas mesmas condições recebidas, ou seja, caso danifique algum desses itens, o mesmo deverá ser substituído pelo mesmo modelo, tamanho, marca e nas mesmas cores e qualidade que foi entregue."
+        },
+        {
+          "id": "p064",
+          "t": "Cláusula 19º - Caso algum piso seja danificado e o LOCATÁRIO não encontre o mesmo modelo disponível para compra, ou tenha saído de fabricação, deverá consultar o LOCADOR um outro modelo compatível aceito para substituição de todos os pisos e em todos os ambientes que o integram, arcando o LOCATÁRIO com todo o custo de material e instalação."
         },
         {
           "id": "p065",
@@ -1254,8 +1446,16 @@
           "t": "Parágrafo segundo: Fica estipulada a multa contratual não compensatória proporcional de 03 (três) vezes o valor do aluguel vigente da época da eventual infração, em benefício ao LOCADOR, sem prejuízo da exigibilidade das p e r da s e da n o s , a l é m d a s obrigações assumidas por este instrumento, podendo o LOCADOR, se assim lhe convier, considerar ao mesmo tempo rescindido o presente contrato de locação, independentemente de qualquer formalidade."
         },
         {
+          "id": "p077",
+          "t": "Cláusula 29º - O LOCATÁRIO assume o formal compromisso de 30 (trinta) dias antes de desocupar o imóvel, notificar por escrito o LOCADOR que, efetuará uma vistoria no mesmo a fim de ficar constatado o estado de conservação do imóvel."
+        },
+        {
           "id": "p078",
           "t": "Cláusula 30º - Antes da devolução das chaves do imóvel ora locado, o LOCATÁRIO se compromete a agendar horário para entregar as chaves do mesmo, bem como, para que seja realizado laudo de vistoria final, o qual será assinado pelo LOCATÁRIO."
+        },
+        {
+          "id": "p079",
+          "t": "Cláusula 31º - Decorrido o PRAZO DA LOCAÇÃO e estando a locação vigorando por prazo indeterminado, o LOCATÁRIO poderá rescindir o contrato de locação mediante notificação por escrito ao LOCADOR, com antecedência de 30 (trinta) dias da devolução das chaves."
         },
         {
           "id": "p080",
@@ -1290,6 +1490,14 @@
           "t": "Cláusula 37º - Obriga-se o LOCATÁRIO a pagar além do aluguel e encargos estipulados neste contrato, o seguro contra risco de incêndio da parte perecível do imóvel locado, exceto bens pertencentes ao LOCATÁRIO, figurando o LOCADOR como o único beneficiário na respectiva apólice. Para efeitos desta cláusula, estimam as partes o valor da apólice de seguro incêndio em 200x o valor do aluguel, o qual será estipulado para apólice inicial do seguro a ser feito."
         },
         {
+          "id": "p090",
+          "t": "Parágrafo primeiro: O LOCATÁRIO (S), poderá ele mesmo contratar e apresentar a apólice para o LOCADOR, porém, somente serão aceitas apólices que apresentarem seu pagamento integral."
+        },
+        {
+          "id": "p091",
+          "t": "Parágrafo segundo: Quanto a atualização e renovação do seguro, o valor segurado a ser corrigido durante a vigência do presente contrato, deverá comprovar que a apólice em vigor cubra sempre o custo para reconstrução do imóvel, onde caberá ao LOCATARIO providenciar a renovação do seguro na época própria, dando ciência ao LOCADOR."
+        },
+        {
           "id": "p092",
           "t": "Cláusula 38º - A falta do pagamento do seguro por parte do LOCATÁRIO, constituirá infração passível de rescisão do presente instrumento, independente da incidência da multa infracional prevista em contrato."
         },
@@ -1298,8 +1506,16 @@
           "t": "Cláusula 39º - Em se tratando de edifício, fica desde já convencionado que não serão aceitas apólices coletivas de condomínio em substituição ao seguro mencionado na CLÁUSULA 38º."
         },
         {
+          "id": "p094",
+          "t": "Cláusula 40º - Caso o LOCATÁRIO não apresente sua apólice contratada de forma particular ao LOCADOR, ficará o LOCADOR automaticamente autorizado a contratar uma empresa Seguradora de sua preferência e lançar seus valores à vista na primeira parcela de cobrança de aluguel."
+        },
+        {
           "id": "p095",
           "t": "DA OBSERVÂNCIA À LGPD:"
+        },
+        {
+          "id": "p096",
+          "t": "Cláusula 41º - As partes declaram expresso consentimento que o LOCADOR irá coletar, tratar e compartilhar os dados necessários ao cumprimento do contrato, nos termos do art. 7°, inciso V da Lei Geral de Proteção de Dados, bem como os dados necessários para o cumprimento de obrigações legais, nos termos do art. 7°, inciso II da LGPD e os dados, se necessários para proteção de crédito, conforme autorizado, também pelo art. 7° inciso V da LGPD."
         },
         {
           "id": "p098",
@@ -1315,7 +1531,7 @@
         },
         {
           "id": "p101",
-          "t": "2º) Se a purga da mora for judicial, além da atualização monetária, dos juros moratórios e da multa penal, os honorários advocatícios sobre o total do débito (segunda parte da alínea \"d\" do inciso II, do artigo 62, da Lei nº 8.245/91), sendo ainda devidos pelo LOCATÁRIO as despesas judiciais antecipadas pelo LOCADOR e os honorários de condenação, ou sucumbenciais, fixados na sentença sobre o valor da condenação (artigo 20 e parágrafos 2º e 3º do Código de Processo Civil. O(s) LOCATÁRIO(s) autorizam que as eventuais citações, intimações ou notificações sejam feitas por carta registrada ou por qualquer outro meio judicial ou extrajudicial, sendo certo que toda e qualquer comunicação enviada aos endereços eletrônicos de e-mail fornecidos nas qualificações do cadastro prévio será reputada como recebida e possuirá plena validade para todos os fins legais. Se qualquer disposição deste Contrato for considerada inválida, ilegal ou inexequível, a validade, legalidade e exequibilidade das demais disposições contidas neste Contrato não serão afetadas ou prejudicadas, devendo as partes negociar a substituição de quaisquer disposições inválidas, ilegais ou inexequíveis, por disposições válidas, legais e exequíveis, cujos efeitos deverão aproximar-se, tanto quanto possível, dos efeitos legais e econômicos almejados pelas disposições consideradas inválidas, ilegais ou inexequíveis. Qualquer omissão ou tolerância pelas partes na exigência do correto e pontual cumprimento dos termos e condições, específicas ou genéricas, constantes deste Contrato, inclusive quanto ao valor, forma e prazo de pagamento de aluguéis e encargos, ou no exercício de qualquer prerrogativa dele decorrente, não constituirá qualquer tipo de renúncia, desistência, nem afetará o direito de qualquer das Partes de exercê-los a qualquer tempo."
+          "t": "2º) Se a purga da mora for judicial, além da atualização monetária, dos juros moratórios e da multa penal, os honorários advocatícios sobre o total do débito (segunda parte da alínea \"d\" do inciso II, do artigo 62, da Lei nº 8.245/91), sendo ainda devidos pelo LOCATÁRIO as despesas judiciais antecipadas pelo LOCADOR e os honorários de condenação, ou sucumbenciais, fixados na sentença sobre o valor da condenação (artigo 20 e parágrafos 2º e 3º do Código de Processo Civil. O LOCADOR declara ser o legítimo proprietário e/ou possuidor do Imóvel, o qual se encontra livre e desonerado de quaisquer direitos, obrigações e ônus, judiciais e/ou extrajudiciais, que possam comprometer este CONTRATO, assumindo o dever de indenizar e manter o LOCATÁRIO indene de quaisquer responsabilidades decorrentes de medidas que comprometam a sua posse e propriedade sobre o Imóvel. O(s) LOCATÁRIO(s) autorizam que as eventuais citações, intimações ou notificações sejam feitas por carta registrada ou por qualquer outro meio judicial ou extrajudicial, sendo certo que toda e qualquer comunicação enviada aos endereços eletrônicos de e-mail fornecidos nas qualificações do cadastro prévio será reputada como recebida e possuirá plena validade para todos os fins legais. Qualquer alteração nos endereços eletrônicos de e-mail constantes no cadastro prévio realizado deverá ser prontamente comunicada ao LOCADOR por instrumento que comprove a total ciência quanto a aludida mudança. Se qualquer disposição deste Contrato for considerada inválida, ilegal ou inexequível, a validade, legalidade e exequibilidade das demais disposições contidas neste Contrato não serão afetadas ou prejudicadas, devendo as partes negociar a substituição de quaisquer disposições inválidas, ilegais ou inexequíveis, por disposições válidas, legais e exequíveis, cujos efeitos deverão aproximar-se, tanto quanto possível, dos efeitos legais e econômicos almejados pelas disposições consideradas inválidas, ilegais ou inexequíveis. Qualquer omissão ou tolerância pelas partes na exigência do correto e pontual cumprimento dos termos e condições, específicas ou genéricas, constantes deste Contrato, inclusive quanto ao valor, forma e prazo de pagamento de aluguéis e encargos, ou no exercício de qualquer prerrogativa dele decorrente, não constituirá qualquer tipo de renúncia, desistência, nem afetará o direito de qualquer das Partes de exercê-los a qualquer tempo."
         },
         {
           "id": "p102",
@@ -1465,8 +1681,16 @@
           "t": "Cláusula 3º - O atraso no pagamento do aluguel ou de quaisquer encargos locatícios acarretará a incidência de multa moratória de 10% (dez por cento) sobre o valor devido, acrescida de juros de mora de 1% (um por cento) ao mês, calculados proporcionalmente aos dias de atraso, sem prejuízo das demais medidas legais cabíveis."
         },
         {
+          "id": "pag_locador",
+          "t": "Cláusula 4º - O pagamento dos aluguéis e encargos locatícios será feito diretamente ao LOCADOR, na forma e na conta indicadas por escrito pelo LOCADOR."
+        },
+        {
           "id": "p034",
           "t": "Cláusula 6º - O inadimplemento do aluguel ou de quaisquer encargos locatícios na data do vencimento constituirá o LOCATÁRIO em mora, independentemente de notificação, facultando ao LOCADOR adotar as medidas judiciais e extrajudiciais cabíveis, inclusive ação de despejo e cobrança, nos termos da Lei nº 8.245/91, sem prejuízo dos encargos moratórios previstos neste contrato."
+        },
+        {
+          "id": "p035",
+          "t": "Cláusula 7º - O LOCATÁRIO não poderá suspender ou deixar de efetuar o pagamento dos aluguéis e encargos locatícios por iniciativa própria, devendo eventuais divergências ou solicitações relacionadas ao imóvel ser formalizadas perante o LOCADOR, sem prejuízo dos direitos assegurados pela legislação vigente."
         },
         {
           "id": "p036",
@@ -1485,6 +1709,14 @@
           "t": "O valor do aluguel será reajustado anualmente, respeitado o intervalo mínimo permitido pela legislação vigente, mediante aplicação do índice IPCA (Índice Nacional de Preços ao Consumidor Amplo), ou de outro índice oficial que venha a substituí-lo em caso de sua extinção, observadas as disposições legais aplicáveis."
         },
         {
+          "id": "p040",
+          "t": "Cláusula 10º - O LOCATÁRIO será responsável pelo pagamento do IPTU e das despesas ordinárias de condomínio incidentes sobre o imóvel durante o período de sua posse. Permanecem sob responsabilidade exclusiva do LOCADOR as despesas extraordinárias de condomínio, conforme disposto no artigo 22, inciso X e parágrafo único, da Lei nº 8.245/91."
+        },
+        {
+          "id": "p041",
+          "t": "Cláusula 11º - Caso o LOCATÁRIO receba diretamente carnês, avisos ou documentos referentes aos tributos e encargos de sua responsabilidade, deverá encaminhá-los ao LOCADOR com antecedência suficiente para viabilizar o pagamento dentro do respectivo vencimento, respondendo por eventuais encargos decorrentes de sua omissão ou atraso injustificado."
+        },
+        {
           "id": "p042",
           "t": "DAS CONTAS DE CONSUMO E DA ENTREGA DAS CHAVES:"
         },
@@ -1501,6 +1733,18 @@
           "t": "DO DESCUMPRIMENTO E DAS PROVIDÊNCIAS ADMINISTRATIVAS:"
         },
         {
+          "id": "p046",
+          "t": "Cláusula 13º - Caso o LOCATÁRIO não consiga realizar a transferência de titularidade das contas de ÁGUA, ENERGIA ELÉTRICA e GÁS antes da retirada das chaves, deverá apresentar ao LOCADOR a devida comprovação das tentativas realizadas e da impossibilidade de efetivação, ficando a retirada das chaves condicionada à autorização expressa do LOCADOR. Uma vez autorizada a retirada das chaves pelo LOCADOR, o LOCATÁRIO deverá apresentar ao LOCADOR, no prazo máximo de 15 (quinze) dias corridos, contados da data da retirada das chaves, os respectivos comprovantes de efetivação da transferência de titularidade das referidas contas."
+        },
+        {
+          "id": "p047",
+          "t": "O não atendimento da obrigação no prazo estabelecido, sem a devida comprovação de impedimento não imputável ao LOCATÁRIO, caracterizará descumprimento contratual e ensejará a aplicação de multa administrativa no valor de R$ 250,00 (duzentos e cinquenta reais)."
+        },
+        {
+          "id": "p048",
+          "t": "Na ausência de comprovação da regularização após o prazo previsto, o LOCADOR poderá, quando tecnicamente possível e mediante os documetnos e autorizações necessárias, adotrar as providências cabíveis perante as respectivas concessionárias para a regularização da titularidade, ficando o LOCATÁRIO responsável pelos eventuais custos, taxas ou encargos decorrentes de tais providências, quando comprovadamente de sua responsabilidade, sem prejuízo da multa prevista nesta cláusula."
+        },
+        {
           "id": "p049",
           "t": "Cláusula 14º - O LOCATÁRIO declara receber, na data da efetiva entrega das chaves, o imóvel descrito no LAUDO DE VISTORIA INICIAL, que integra o presente contrato para todos os fins de direito, comprometendo-se a conservá-lo no mesmo estado de conservação, higiene e funcionamento em que o recebeu, obrigando-se a devolvê-lo, ao término da locação, nas mesmas condições, ressalvado o desgaste natural decorrente do uso normal. Permanecem sob responsabilidade do LOCADOR os vícios ocultos, defeitos estruturais e reparos que comprometam a segurança, estabilidade ou habitabilidade do imóvel, nos termos da legislação vigente. O imóvel tem como finalidade o uso para HABITAÇÃO.",
           "dest": "residencial"
@@ -1510,6 +1754,10 @@
           "t": "Cláusula 14º - O LOCATÁRIO declara receber, na data da efetiva entrega das chaves, o imóvel descrito no LAUDO DE VISTORIA INICIAL, que integra o presente contrato para todos os fins de direito, comprometendo-se a conservá-lo no mesmo estado de conservação, higiene e funcionamento em que o recebeu, obrigando-se a devolvê-lo, ao término da locação, nas mesmas condições, ressalvado o desgaste natural decorrente do uso normal. Permanecem sob responsabilidade do LOCADOR os vícios ocultos, defeitos estruturais e reparos que comprometam a segurança, estabilidade ou habitabilidade do imóvel, nos termos da legislação vigente. O imóvel tem como finalidade o uso COMERCIAL.",
           "dest": "comercial",
           "adaptado": true
+        },
+        {
+          "id": "p051",
+          "t": "Cláusula 15º - Caso o LOCATÁRIO identifique divergências em relação ao laudo de vistoria inicial, deverá apresentar sua contestação por escrito ao LOCADOR, no prazo de 10 (dez) dias corridos contados da entrega das chaves, preferencialmente acompanhada de fotografias ou outros registros que comprovem as condições apontadas. A ausência de manifestação dentro do prazo será considerada concordância quanto às condições aparentes descritas no laudo, ressalvados os vícios ocultos e defeitos não identificáveis em vistoria ordinária."
         },
         {
           "id": "p052",
@@ -1524,6 +1772,10 @@
           "t": "Cláusula 18º - O LOCATÁRIO deverá zelar pela conservação dos pisos, azulejos, armários, acessórios e demais itens que integram o imóvel, responsabilizando-se pelos danos que causar por ação, omissão ou uso inadequado, devendo providenciar o reparo ou a substituição dos itens danificados por outros de padrão, qualidade e características equivalentes aos originalmente existentes, ressalvado o desgaste natural decorrente do uso regular."
         },
         {
+          "id": "p055",
+          "t": "Cláusula 19º - Caso algum piso seja danificado e o LOCATÁRIO não encontre o mesmo modelo disponível para compra, ou tenha saído de fabricação, deverá consultar o LOCADOR um outro modelo compatível aceito para substituição de todos os pisos do cômodo, arcando o LOCATÁRIO com todo o custo de material e instalação."
+        },
+        {
           "id": "p056",
           "t": "Cláusula 20º - O LOCATÁRIO deverá verificar a tensão elétrica disponível nos pontos de energia do imóvel antes de conectar seus equipamentos e aparelhos eletrônicos, responsabilizando-se pelos danos decorrentes da utilização inadequada ou incompatível com a tensão disponível, desde que as instalações tenham sido entregues em condições regulares de funcionamento e que as informações disponíveis tenham sido corretamente fornecidas."
         },
@@ -1534,6 +1786,10 @@
         {
           "id": "p058",
           "t": "Cláusula 22º - Compete ao LOCATÁRIO realizar os reparos e serviços de manutenção decorrentes do uso regular do imóvel, bem como reparar os danos causados por si, seus moradores, visitantes ou terceiros sob sua responsabilidade. Compete ao LOCADOR realizar os reparos relativos a vícios anteriores à locação, problemas estruturais e defeitos que comprometam a segurança, estabilidade ou habitabilidade do imóvel, desde que não decorrentes de ação ou omissão do LOCATÁRIO."
+        },
+        {
+          "id": "p059",
+          "t": "PARÁGRAFO ÚNICO: Identificada a necessidade de reparo de responsabilidade do LOCADOR, o LOCATÁRIO deverá comunicar formalmente o LOCADOR, para que sejam adotadas as providências necessárias. Em situações urgentes, que envolvam risco à segurança ou agravamento de danos ao imóvel, deverá comunicar imediatamente o LOCADOR, permitindo a adoção das medidas emergenciais cabíveis, observadas as disposições legais quanto à responsabilidade pelos custos."
         },
         {
           "id": "p060",
@@ -1605,8 +1861,16 @@
           "cond": "isencao_multa"
         },
         {
+          "id": "p076",
+          "t": "Cláusula 30º - O LOCATÁRIO assume o formal compromisso de 30 (trinta) dias antes de desocupar o imóvel, notificar por escrito o LOCADOR que, efetuará uma vistoria no mesmo a fim de ficar constatado o estado de conservação do imóvel."
+        },
+        {
           "id": "p077",
           "t": "Cláusula 31º - Antes da devolução das chaves do imóvel ora locado, o LOCATÁRIO se compromete a agendar horário para entregar as chaves do mesmo, bem como, para que seja realizado laudo de vistoria final, o qual será assinado pelo LOCATÁRIO."
+        },
+        {
+          "id": "p078",
+          "t": "Cláusula 32º - Após o término do prazo contratual, caso a locação prossiga por prazo indeterminado, o LOCATÁRIO poderá rescindir o contrato mediante comunicação por escrito ao LOCADOR, com antecedência mínima de 30 (trinta) dias."
         },
         {
           "id": "p079",
@@ -1645,6 +1909,14 @@
           "t": "Cláusula 38º - Obriga-se o LOCATÁRIO a pagar além do aluguel e encargos estipulados neste contrato, o seguro contra risco de incêndio da estrutura e partes integrantes do imóvel locado, exceto bens pertencentes ao LOCATÁRIO, figurando o LOCADOR como o único beneficiário na respectiva apólice. Para efeitos desta cláusula, estimam as partes o valor da apólice de seguro incêndio em 200x o valor do aluguel, o qual será estipulado para apólice inicial do seguro a ser feito."
         },
         {
+          "id": "p090",
+          "t": "Parágrafo primeiro: O LOCATÁRIO (S), poderá ele mesmo contratar e apresentar a apólice para o LOCADOR, porém, somente serão aceitas apólices que apresentarem seu pagamento integral."
+        },
+        {
+          "id": "p091",
+          "t": "Parágrafo segundo: Quanto a atualização e renovação do seguro, o valor segurado a ser corrigido durante a vigência do presente contrato, deverá comprovar que a apólice em vigor cubra sempre o custo para reconstrução do imóvel, onde caberá ao LOCATARIO providenciar a renovação do seguro na época própria, dando ciência ao LOCADOR."
+        },
+        {
           "id": "p092",
           "t": "Cláusula 39º - O descumprimento da obrigação de contratação ou renovação do seguro contra incêndio, após notificação para regularização, poderá caracterizar infração contratual, sujeitando o LOCATÁRIO às medidas legais e contratuais cabíveis."
         },
@@ -1653,8 +1925,16 @@
           "t": "Cláusula 40º - Em se tratando de edifício, fica desde já convencionado que não serão aceitas apólices coletivas de condomínio em substituição ao seguro incêndio individual."
         },
         {
+          "id": "p094",
+          "t": "Cláusula 41º - Caso o LOCATÁRIO não apresente a apólice de seguro contratada por sua iniciativa dentro do prazo estabelecido, o LOCADOR poderá providenciar a contratação do seguro, mediante prévia comunicação ao LOCATÁRIO, sendo os respectivos custos de responsabilidade deste, desde que comprovados documentalmente."
+        },
+        {
           "id": "p095",
           "t": "DA OBSERVÂNCIA À LGPD:"
+        },
+        {
+          "id": "p096",
+          "t": "Cláusula 42º - As partes declaram estar cientes de que o LOCADOR poderá coletar, armazenar, utilizar e compartilhar os dados pessoais estritamente necessários à execução deste contrato, ao cumprimento de obrigações legais e regulatórias, bem como à proteção do crédito, observadas as bases legais previstas no artigo 7º, incisos II, V e X, da Lei nº 13.709/2018 (Lei Geral de Proteção de Dados Pessoais – LGPD)."
         },
         {
           "id": "p097",
@@ -1674,7 +1954,7 @@
         },
         {
           "id": "p101",
-          "t": "2º) Se a purga da mora for judicial, além da atualização monetária, dos juros moratórios e da multa penal, os honorários advocatícios sobre o total do débito (segunda parte da alínea \"d\" do inciso II, do artigo 62, da Lei nº 8.245/91), sendo ainda devidos pelo LOCATÁRIO as despesas judiciais antecipadas pelo LOCADOR e os honorários de condenação, ou sucumbenciais, fixados na sentença sobre o valor da condenação (artigo 20 e parágrafos 2º e 3º do Código de Processo Civil. O(s) LOCATÁRIO(s) autorizam que as eventuais citações, intimações ou notificações sejam feitas por carta registrada ou por qualquer outro meio judicial ou extrajudicial, sendo certo que toda e qualquer comunicação enviada aos endereços eletrônicos de e-mail fornecidos nas qualificações do cadastro prévio será reputada como recebida e possuirá plena validade para todos os fins legais. Se qualquer disposição deste Contrato for considerada inválida, ilegal ou inexequível, a validade, legalidade e exequibilidade das demais disposições contidas neste Contrato não serão afetadas ou prejudicadas, devendo as partes negociar a substituição de quaisquer disposições inválidas, ilegais ou inexequíveis, por disposições válidas, legais e exequíveis, cujos efeitos deverão aproximar-se, tanto quanto possível, dos efeitos legais e econômicos almejados pelas disposições consideradas inválidas, ilegais ou inexequíveis. Qualquer omissão ou tolerância pelas partes na exigência do correto e pontual cumprimento dos termos e condições, específicas ou genéricas, constantes deste Contrato, inclusive quanto ao valor, forma e prazo de pagamento de aluguéis e encargos, ou no exercício de qualquer prerrogativa dele decorrente, não constituirá qualquer tipo de renúncia, desistência, nem afetará o direito de qualquer das Partes de exercê-los a qualquer tempo."
+          "t": "2º) Se a purga da mora for judicial, além da atualização monetária, dos juros moratórios e da multa penal, os honorários advocatícios sobre o total do débito (segunda parte da alínea \"d\" do inciso II, do artigo 62, da Lei nº 8.245/91), sendo ainda devidos pelo LOCATÁRIO as despesas judiciais antecipadas pelo LOCADOR e os honorários de condenação, ou sucumbenciais, fixados na sentença sobre o valor da condenação (artigo 20 e parágrafos 2º e 3º do Código de Processo Civil. O LOCADOR declara ser o legítimo proprietário e/ou possuidor do Imóvel, o qual se encontra livre e desonerado de quaisquer direitos, obrigações e ônus, judiciais e/ou extrajudiciais, que possam comprometer este CONTRATO, assumindo o dever de indenizar e manter o LOCATÁRIO indene de quaisquer responsabilidades decorrentes de medidas que comprometam a sua posse e propriedade sobre o Imóvel. O(s) LOCATÁRIO(s) autorizam que as eventuais citações, intimações ou notificações sejam feitas por carta registrada ou por qualquer outro meio judicial ou extrajudicial, sendo certo que toda e qualquer comunicação enviada aos endereços eletrônicos de e-mail fornecidos nas qualificações do cadastro prévio será reputada como recebida e possuirá plena validade para todos os fins legais. Qualquer alteração nos endereços eletrônicos de e-mail constantes no cadastro prévio realizado deverá ser prontamente comunicada ao LOCADOR por instrumento que comprove a total ciência quanto a aludida mudança. Em se tratando de LOCATÁRIO pessoa jurídica, que seja obrigado ao pagamento de imposto de renda retido na fonte (IRRF) quando do pagamento do aluguel, compromete-se o LOCATÁRIO a apresentar mensalmente ao LOCADOR os comprovantes de recolhimento do IRRF, sob pena de ser responsável por quaisquer valores despendidos pelo LOCADOR perante a Receita Federal do Brasil, mesmo que apurados após a extinção do presente instrumento. Se qualquer disposição deste Contrato for considerada inválida, ilegal ou inexequível, a validade, legalidade e exequibilidade das demais disposições contidas neste Contrato não serão afetadas ou prejudicadas, devendo as partes negociar a substituição de quaisquer disposições inválidas, ilegais ou inexequíveis, por disposições válidas, legais e exequíveis, cujos efeitos deverão aproximar-se, tanto quanto possível, dos efeitos legais e econômicos almejados pelas disposições consideradas inválidas, ilegais ou inexequíveis. Qualquer omissão ou tolerância pelas partes na exigência do correto e pontual cumprimento dos termos e condições, específicas ou genéricas, constantes deste Contrato, inclusive quanto ao valor, forma e prazo de pagamento de aluguéis e encargos, ou no exercício de qualquer prerrogativa dele decorrente, não constituirá qualquer tipo de renúncia, desistência, nem afetará o direito de qualquer das Partes de exercê-los a qualquer tempo."
         },
         {
           "id": "p102",
@@ -1790,6 +2070,10 @@
           "t": "Cláusula 3º - O aluguel mensal deve ser pago juntamente com os demais encargos, em moeda corrente nacional, em seu vencimento, ficando em caso contrário acrescidos de multa de 10% (dez por cento) do seu valor, mais juros de 1% (um por cento) ao mês, mais a correção monetária prevista em lei, a título de penalidade contratual, sem prejuízo da exigibilidade das demais correções estipuladas."
         },
         {
+          "id": "pag_locador",
+          "t": "Cláusula 4º - O pagamento dos aluguéis e encargos locatícios será feito diretamente ao LOCADOR, na forma e na conta indicadas por escrito pelo LOCADOR."
+        },
+        {
           "id": "p025",
           "t": "Cláusula 6º - Além das penalidades previstas na CLÁUSULA 3º, a falta de pagamento do aluguel na data estipulada poderá acarretar a rescisão do presente contrato, após 15 (quinze) dias da data do vencimento, ficando o LOCATÁRIO(S) responsável pela multa prevista na CLÁUSULA 28º - Parágrafo segundo do presente contrato, pelas despesas processuais e honorários advocatícios."
         },
@@ -1822,6 +2106,10 @@
           "t": "As partes de comum acordo estabelecem o índice IPCA (Índice Nacional de Preços ao Consumidor Amplo), para a correção do aluguel, que será aplicado de acordo com a periodicidade acima. Havendo a extinção do mesmo, por determinação legal, as partes elegerão seu substituto imediatamente após a eventual extinção."
         },
         {
+          "id": "p034",
+          "t": "Cláusula 11º - No caso dos carnês e/ou avisos dos tributos citados na cláusula acima serem entregues diretamente ao LOCATÁRIO (S), este deverá encaminhá-los ao LOCADOR, antes do vencimento dos títulos no prazo de até 5 (cinco) dias úteis, sob pena de responderem pelas multas do atraso."
+        },
+        {
           "id": "p035",
           "t": "DAS CONTAS DE CONSUMO E DA ENTREGA DAS CHAVES:"
         },
@@ -1836,6 +2124,18 @@
         {
           "id": "p038",
           "t": "DO DESCUMPRIMENTO E DAS PROVIDÊNCIAS ADMINISTRATIVAS:"
+        },
+        {
+          "id": "p039",
+          "t": "Cláusula 13º – Caso o LOCATÁRIO não consiga realizar a transferência de titularidade das contas de Á GUA, ENERGIA ELÉTRICA e GÁS antes da retirada das chaves, deverá apresentar ao LOCADOR a devida comprovação das tentativas realizadas e da impossibilidade de efetivação, ficando a retirada das chaves condicionada à autorização expressa do LOCADOR. Uma vez autorizada a retirada das chaves pelo LOCADOR, o LOCATÁRIO deverá apresentar ao LOCADOR, no prazo máximo de 15 (quinze) dias corridos, contados da data da retirada das chaves, os respectivos comprovantes de efetivação da transferência de titularidade das referidas contas."
+        },
+        {
+          "id": "p040",
+          "t": "Cláusula 14º - O não atendimento da obrigação no prazo estabelecido, sem a devida comprovação de impedimento não imputável ao LOCATÁRIO, caracterizará descumprimento contratual e ensejará a aplicação de multa administrativa no valor de R$ 250,00 (duzentos e cinquenta reais)."
+        },
+        {
+          "id": "p041",
+          "t": "Na ausência de comprovação de regularização após o prazo previsto, o LOCADOR poderá, quando tecnicamente possível e mediante os documentos e autorizaçãoes necessários, adorar as providências cabíveis perante as respectivas concessionárias para a regularização da titularidade, ficando o LOCATÁRIO responsável pelos eventuais custos, taxas ou encargos decorrentes de tais providências, quando comprovadamente de sua responsabilidade, sem prejuízo da multa prevista nesta cláusula."
         },
         {
           "id": "p042",
@@ -1863,6 +2163,10 @@
         {
           "id": "p047",
           "t": "Cláusula 19º - Os pisos, azulejos, armários modulados, ou qualquer item de acabamento do imóvel ora locado por parte do LOCATÁRIO, deverá ser entregue nas mesmas condições recebidas, ou seja, caso danifique algum desses itens, o mesmo deverá ser substituído pelo mesmo modelo, tamanho, marca e nas mesmas cores e qualidade que foi entregue."
+        },
+        {
+          "id": "p048",
+          "t": "Cláusula 20º - Caso algum piso seja danificado e o LOCATÁRIO não encontre o mesmo modelo disponível para compra, ou tenha saído de fabricação, deverá consultar o LOCADOR um outro modelo compatível aceito para substituição de todos os pisos e em todos os ambientes que o integram, arcando o LOCATÁRIO com todo o custo de material e instalação."
         },
         {
           "id": "p049",
@@ -1913,8 +2217,16 @@
           "t": "Parágrafo segundo: Fica estipulada a multa contratual compensatória proporcional de 03 (três) vezes o valor do aluguel vigente da época da eventual infração, em benefício ao LOCADOR, sem prejuízo da exigibilidade das obrigações assumidas por este instrumento, podendo o LOCADOR, se assim lhe convier, considerar ao mesmo tempo rescindido o presente contrato de locação, independentemente de qualquer formalidade."
         },
         {
+          "id": "p061",
+          "t": "Cláusula 30º - O LOCATÁRIO assume o formal compromisso de 30 (trinta) dias antes de desocupar o imóvel, notificar por escrito o LOCADOR que, efetuará uma vistoria no mesmo a fim de ficar constatado o estado de conservação do imóvel."
+        },
+        {
           "id": "p062",
           "t": "Cláusula 31º - Antes da devolução das chaves do imóvel ora locado, o LOCATÁRIO se compromete a agendar horário para entregar as chaves do mesmo, bem como, para que seja realizado laudo de vistoria final, o qual será assinado pelo LOCATÁRIO."
+        },
+        {
+          "id": "p063",
+          "t": "Cláusula 32º - Decorrido o PRAZO DA LOCAÇÃO e estando a locação vigorando por prazo indeterminado, o LOCATÁRIO poderá rescindir o contrato de locação mediante notificação por escrito ao LOCADOR, com antecedência de 30 (trinta) dias da devolução das chaves."
         },
         {
           "id": "p064",
@@ -1949,6 +2261,14 @@
           "t": "Cláusula 38º - Obriga-se o LOCATÁRIO a pagar além do aluguel e encargos estipulados neste contrato, o seguro contra risco de incêndio da parte perecível do imóvel locado, exceto bens pertencentes ao LOCATÁRIO, figurando o LOCADOR como o único beneficiário na respectiva apólice. Para efeitos desta cláusula, estimam as partes o valor da apólice de seguro incêndio em 200x o valor do aluguel, o qual será estipulado para apólice inicial do seguro a ser feito."
         },
         {
+          "id": "p074",
+          "t": "Parágrafo primeiro: O LOCATÁRIO (S), poderá ele mesmo contratar e apresentar a apólice para o LOCADOR, porém, somente serão aceitas apólices que apresentarem seu pagamento integral."
+        },
+        {
+          "id": "p075",
+          "t": "Parágrafo segundo: Quanto a atualização e renovação do seguro, o valor segurado a ser corrigido durante a vigência do presente contrato, deverá comprovar que a apólice em vigor cubra sempre o custo para reconstrução do imóvel, onde caberá ao LOCATARIO providenciar a renovação do seguro na época própria, dando ciência ao LOCADOR."
+        },
+        {
           "id": "p076",
           "t": "Cláusula 39º - A falta do pagamento do seguro por parte do LOCATÁRIO, constituirá infração passível de rescisão do presente instrumento, independente da incidência da multa infracional prevista em contrato."
         },
@@ -1957,8 +2277,16 @@
           "t": "Cláusula 40º - Em se tratando de edifício, fica desde já convencionado que não serão aceitas apólices coletivas de condomínio em substituição ao seguro mencionado na CLÁUSULA 38º."
         },
         {
+          "id": "p078",
+          "t": "Cláusula 41º - Caso o LOCATÁRIO não apresente sua apólice contratada de forma particular ao LOCADOR, ficará o LOCADOR automaticamente autorizado a contratar uma empresa Seguradora de sua preferência e lançar seus valores à vista na primeira parcela de cobrança de aluguel."
+        },
+        {
           "id": "p079",
           "t": "DA OBSERVÂNCIA À LGPD:"
+        },
+        {
+          "id": "p080",
+          "t": "Cláusula 42º - As partes declaram expresso consentimento que o LOCADOR irá coletar, tratar e compartilhar os dados necessários ao cumprimento do contrato, nos termos do art. 7°, inciso V da Lei Geral de Proteção de Dados, bem como os dados necessários para o cumprimento de obrigações legais, nos termos do art. 7°, inciso II da LGPD e os dados, se necessários para proteção de crédito, conforme autorizado, também pelo art. 7° inciso V da LGPD."
         },
         {
           "id": "p082",
@@ -1974,7 +2302,7 @@
         },
         {
           "id": "p085",
-          "t": "2º) Se a purga da mora for judicial, além da atualização monetária, dos juros moratórios e da multa penal, os honorários advocatícios sobre o total do débito (segunda parte da alínea \"d\" do inciso II, do artigo 62, da Lei nº 8.245/91), sendo ainda devidos pelo LOCATÁRIO as despesas judiciais antecipadas pelo LOCADOR e os honorários de condenação, ou sucumbenciais, fixados na sentença sobre o valor da condenação (artigo 20 e parágrafos 2º e 3º do Código de Processo Civil. O(s) LOCATÁRIO(s) autorizam que as eventuais citações, intimações ou notificações sejam feitas por carta registrada ou por qualquer outro meio judicial ou extrajudicial, sendo certo que toda e qualquer comunicação enviada aos endereços eletrônicos de e-mail fornecidos nas qualificações do cadastro prévio será reputada como recebida e possuirá plena validade para todos os fins legais. Se qualquer disposição deste Contrato for considerada inválida, ilegal ou inexequível, a validade, legalidade e exequibilidade das demais disposições contidas neste Contrato não serão afetadas ou prejudicadas, devendo as partes negociar a substituição de quaisquer disposições inválidas, ilegais ou inexequíveis, por disposições válidas, legais e exequíveis, cujos efeitos deverão aproximar-se, tanto quanto possível, dos efeitos legais e econômicos almejados pelas disposições consideradas inválidas, ilegais ou inexequíveis. Qualquer omissão ou tolerância pelas partes na exigência do correto e pontual cumprimento dos termos e condições, específicas ou genéricas, constantes deste Contrato, inclusive quanto ao valor, forma e prazo de pagamento de aluguéis e encargos, ou no exercício de qualquer prerrogativa dele decorrente, não constituirá qualquer tipo de renúncia, desistência, nem afetará o direito de qualquer das Partes de exercê-los a qualquer tempo."
+          "t": "2º) Se a purga da mora for judicial, além da atualização monetária, dos juros moratórios e da multa penal, os honorários advocatícios sobre o total do débito (segunda parte da alínea \"d\" do inciso II, do artigo 62, da Lei nº 8.245/91), sendo ainda devidos pelo LOCATÁRIO as despesas judiciais antecipadas pelo LOCADOR e os honorários de condenação, ou sucumbenciais, fixados na sentença sobre o valor da condenação (artigo 20 e parágrafos 2º e 3º do Código de Processo Civil. O LOCADOR declara ser o legítimo proprietário e/ou possuidor do Imóvel, o qual se encontra livre e desonerado de quaisquer direitos, obrigações e ônus, judiciais e/ou extrajudiciais, que possam comprometer este CONTRATO, assumindo o dever de indenizar e manter o LOCATÁRIO indene de quaisquer responsabilidades decorrentes de medidas que comprometam a sua posse e propriedade sobre o Imóvel. O(s) LOCATÁRIO(s) autorizam que as eventuais citações, intimações ou notificações sejam feitas por carta registrada ou por qualquer outro meio judicial ou extrajudicial, sendo certo que toda e qualquer comunicação enviada aos endereços eletrônicos de e-mail fornecidos nas qualificações do cadastro prévio será reputada como recebida e possuirá plena validade para todos os fins legais. Qualquer alteração nos endereços eletrônicos de e-mail constantes no cadastro prévio realizado deverá ser prontamente comunicada ao LOCADOR por instrumento que comprove a total ciência quanto a aludida mudança. Em se tratando de LOCATÁRIO pessoa jurídica, que seja obrigado ao pagamento de imposto de renda retido na fonte (IRRF) quando do pagamento do aluguel, compromete-se o LOCATÁRIO a apresentar mensalmente ao LOCADOR os comprovantes de recolhimento do IRRF, sob pena de ser responsável por quaisquer valores despendidos pelo LOCADOR perante a Receita Federal do Brasil, mesmo que apurados após a extinção do presente instrumento. Se qualquer disposição deste Contrato for considerada inválida, ilegal ou inexequível, a validade, legalidade e exequibilidade das demais disposições contidas neste Contrato não serão afetadas ou prejudicadas, devendo as partes negociar a substituição de quaisquer disposições inválidas, ilegais ou inexequíveis, por disposições válidas, legais e exequíveis, cujos efeitos deverão aproximar-se, tanto quanto possível, dos efeitos legais e econômicos almejados pelas disposições consideradas inválidas, ilegais ou inexequíveis. Qualquer omissão ou tolerância pelas partes na exigência do correto e pontual cumprimento dos termos e condições, específicas ou genéricas, constantes deste Contrato, inclusive quanto ao valor, forma e prazo de pagamento de aluguéis e encargos, ou no exercício de qualquer prerrogativa dele decorrente, não constituirá qualquer tipo de renúncia, desistência, nem afetará o direito de qualquer das Partes de exercê-los a qualquer tempo."
         },
         {
           "id": "p086",
@@ -2070,6 +2398,10 @@
           "t": "Cláusula 3º - O aluguel mensal deve ser pago juntamente com os demais encargos, em moeda corrente nacional, em seu vencimento, ficando em caso contrário acrescidos de multa de 10% (dez por cento) do seu valor, mais juros de 1% (um por cento) ao mês, mais a correção monetária prevista em lei, a título de penalidade contratual, sem prejuízo da exigibilidade das demais correções estipuladas."
         },
         {
+          "id": "pag_locador",
+          "t": "Cláusula 4º - O pagamento dos aluguéis e encargos locatícios será feito diretamente ao LOCADOR, na forma e na conta indicadas por escrito pelo LOCADOR."
+        },
+        {
           "id": "p022",
           "t": "Cláusula 6º - Além das penalidades previstas na CLÁUSULA 3º, a falta de pagamento do aluguel na data estipulada poderá acarretar a rescisão do presente contrato, após 15 (quinze) dias da data do vencimento, ficando o LOCATÁRIO(S) responsável pela multa prevista na CLÁUSULA 28º - Parágrafo segundo do presente contrato, pelas despesas processuais e honorários advocatícios."
         },
@@ -2100,6 +2432,10 @@
         {
           "id": "p029",
           "t": "As partes de comum acordo estabelecem o índice IPCA (Índice Nacional de Preços ao Consumidor Amplo), para a correção do aluguel, que será aplicado de acordo com a periodicidade acima. Havendo a extinção do mesmo, por determinação legal, as partes elegerão seu substituto imediatamente após a eventual extinção."
+        },
+        {
+          "id": "p031",
+          "t": "Cláusula 11º - No caso dos carnês e/ou avisos dos tributos citados na cláusula acima serem entregues diretamente ao LOCATÁRIO (S), este deverá encaminhá-los ao LOCADOR, antes do vencimento dos títulos no prazo de até 5 (cinco) dias úteis, sob pena de responderem pelas multas do atraso."
         },
         {
           "id": "p032",
@@ -2143,6 +2479,10 @@
         {
           "id": "p041",
           "t": "Cláusula 18º - Os pisos, azulejos, armários modulados, ou qualquer item de acabamento do imóvel ora locado por parte do LOCATÁRIO, deverá ser entregue nas mesmas condições recebidas, ou seja, caso danifique algum desses itens, o mesmo deverá ser substituído pelo mesmo modelo, tamanho, marca e nas mesmas cores e qualidade que foi entregue."
+        },
+        {
+          "id": "p042",
+          "t": "Cláusula 19º - Caso algum piso seja danificado e o LOCATÁRIO não encontre o mesmo modelo disponível para compra, ou tenha saído de fabricação, deverá consultar o LOCADOR um outro modelo compatível aceito para substituição de todos os pisos e em todos os ambientes que o integram, arcando o LOCATÁRIO com todo o custo de material e instalação."
         },
         {
           "id": "p043",
@@ -2193,8 +2533,16 @@
           "t": "Parágrafo segundo: Fica estipulada a multa contratual compensatória proporcional de 03 (três) vezes o valor do aluguel vigente da época da eventual infração, em benefício ao LOCADOR, sem prejuízo da exigibilidade das obrigações assumidas por este instrumento, podendo o LOCADOR, se assim lhe convier, considerar ao mesmo tempo rescindido o presente contrato de locação, independentemente de qualquer formalidade."
         },
         {
+          "id": "p055",
+          "t": "Cláusula 29º - O LOCATÁRIO assume o formal compromisso de 30 (trinta) dias antes de desocupar o imóvel, notificar por escrito o LOCADOR que, efetuará uma vistoria no mesmo a fim de ficar constatado o estado de conservação do imóvel."
+        },
+        {
           "id": "p056",
           "t": "Cláusula 30º - Antes da devolução das chaves do imóvel ora locado, o LOCATÁRIO se compromete a agendar horário para entregar as chaves do mesmo, bem como, para que seja realizado laudo de vistoria final, o qual será assinado pelo LOCATÁRIO."
+        },
+        {
+          "id": "p057",
+          "t": "Cláusula 31º - Decorrido o PRAZO DA LOCAÇÃO e estando a locação vigorando por prazo indeterminado, o LOCATÁRIO poderá rescindir o contrato de locação mediante notificação por escrito ao LOCADOR, com antecedência de 30 (trinta) dias da devolução das chaves."
         },
         {
           "id": "p058",
@@ -2229,6 +2577,14 @@
           "t": "Cláusula 37º - Obriga-se o LOCATÁRIO a pagar além do aluguel e encargos estipulados neste contrato, o seguro contra risco de incêndio da parte perecível do imóvel locado, exceto bens pertencentes ao LOCATÁRIO, figurando o LOCADOR como o único beneficiário na respectiva apólice. Para efeitos desta cláusula, estimam as partes o valor da apólice de seguro incêndio em 200x o valor do aluguel, o qual será estipulado para apólice inicial do seguro a ser feito."
         },
         {
+          "id": "p068",
+          "t": "Parágrafo primeiro: O LOCATÁRIO (S), poderá ele mesmo contratar e apresentar a apólice para o LOCADOR, porém, somente serão aceitas apólices que apresentarem seu pagamento integral."
+        },
+        {
+          "id": "p069",
+          "t": "Parágrafo segundo: Quanto a atualização e renovação do seguro, o valor segurado a ser corrigido durante a vigência do presente contrato, deverá comprovar que a apólice em vigor cubra sempre o custo para reconstrução do imóvel, onde caberá ao LOCATARIO providenciar a renovação do seguro na época própria, dando ciência ao LOCADOR."
+        },
+        {
           "id": "p070",
           "t": "Cláusula 38º - A falta do pagamento do seguro por parte do LOCATÁRIO, constituirá infração passível de rescisão do presente instrumento, independente da incidência da multa infracional prevista em contrato."
         },
@@ -2237,8 +2593,16 @@
           "t": "Cláusula 39º - Em se tratando de edifício, fica desde já convencionado que não serão aceitas apólices coletivas de condomínio em substituição ao seguro mencionado na CLÁUSULA 38º."
         },
         {
+          "id": "p072",
+          "t": "Cláusula 40º - Caso o LOCATÁRIO não apresente sua apólice contratada de forma particular ao LOCADOR, ficará o LOCADOR automaticamente autorizado a contratar uma empresa Seguradora de sua preferência e lançar seus valores à vista na primeira parcela de cobrança de aluguel."
+        },
+        {
           "id": "p073",
           "t": "DA OBSERVÂNCIA À LGPD:"
+        },
+        {
+          "id": "p074",
+          "t": "Cláusula 41º - As partes declaram expresso consentimento que o LOCADOR irá coletar, tratar e compartilhar os dados necessários ao cumprimento do contrato, nos termos do art. 7°, inciso V da Lei Geral de Proteção de Dados, bem como os dados necessários para o cumprimento de obrigações legais, nos termos do art. 7°, inciso II da LGPD e os dados, se necessários para proteção de crédito, conforme autorizado, também pelo art. 7° inciso V da LGPD."
         },
         {
           "id": "p076",
@@ -2254,7 +2618,7 @@
         },
         {
           "id": "p079",
-          "t": "2º) Se a purga da mora for judicial, além da atualização monetária, dos juros moratórios e da multa penal, os honorários advocatícios sobre o total do débito (segunda parte da alínea \"d\" do inciso II, do artigo 62, da Lei nº 8.245/91), sendo ainda devidos pelo LOCATÁRIO as despesas judiciais antecipadas pelo LOCADOR e os honorários de condenação, ou sucumbenciais, fixados na sentença sobre o valor da condenação (artigo 20 e parágrafos 2º e 3º do Código de Processo Civil. O(s) LOCATÁRIO(s) autorizam que as eventuais citações, intimações ou notificações sejam feitas por carta registrada ou por qualquer outro meio judicial ou extrajudicial, sendo certo que toda e qualquer comunicação enviada aos endereços eletrônicos de e-mail fornecidos nas qualificações do cadastro prévio será reputada como recebida e possuirá plena validade para todos os fins legais. Se qualquer disposição deste Contrato for considerada inválida, ilegal ou inexequível, a validade, legalidade e exequibilidade das demais disposições contidas neste Contrato não serão afetadas ou prejudicadas, devendo as partes negociar a substituição de quaisquer disposições inválidas, ilegais ou inexequíveis, por disposições válidas, legais e exequíveis, cujos efeitos deverão aproximar-se, tanto quanto possível, dos efeitos legais e econômicos almejados pelas disposições consideradas inválidas, ilegais ou inexequíveis. Qualquer omissão ou tolerância pelas partes na exigência do correto e pontual cumprimento dos termos e condições, específicas ou genéricas, constantes deste Contrato, inclusive quanto ao valor, forma e prazo de pagamento de aluguéis e encargos, ou no exercício de qualquer prerrogativa dele decorrente, não constituirá qualquer tipo de renúncia, desistência, nem afetará o direito de qualquer das Partes de exercê-los a qualquer tempo."
+          "t": "2º) Se a purga da mora for judicial, além da atualização monetária, dos juros moratórios e da multa penal, os honorários advocatícios sobre o total do débito (segunda parte da alínea \"d\" do inciso II, do artigo 62, da Lei nº 8.245/91), sendo ainda devidos pelo LOCATÁRIO as despesas judiciais antecipadas pelo LOCADOR e os honorários de condenação, ou sucumbenciais, fixados na sentença sobre o valor da condenação (artigo 20 e parágrafos 2º e 3º do Código de Processo Civil. O LOCADOR declara ser o legítimo proprietário e/ou possuidor do Imóvel, o qual se encontra livre e desonerado de quaisquer direitos, obrigações e ônus, judiciais e/ou extrajudiciais, que possam comprometer este CONTRATO, assumindo o dever de indenizar e manter o LOCATÁRIO indene de quaisquer responsabilidades decorrentes de medidas que comprometam a sua posse e propriedade sobre o Imóvel. O(s) LOCATÁRIO(s) autorizam que as eventuais citações, intimações ou notificações sejam feitas por carta registrada ou por qualquer outro meio judicial ou extrajudicial, sendo certo que toda e qualquer comunicação enviada aos endereços eletrônicos de e-mail fornecidos nas qualificações do cadastro prévio será reputada como recebida e possuirá plena validade para todos os fins legais. Qualquer alteração nos endereços eletrônicos de e-mail constantes no cadastro prévio realizado deverá ser prontamente comunicada ao LOCADOR por instrumento que comprove a total ciência quanto a aludida mudança. Em se tratando de LOCATÁRIO pessoa jurídica, que seja obrigado ao pagamento de imposto de renda retido na fonte (IRRF) quando do pagamento do aluguel, compromete-se o LOCATÁRIO a apresentar mensalmente ao LOCADOR os comprovantes de recolhimento do IRRF, sob pena de ser responsável por quaisquer valores despendidos pelo LOCADOR perante a Receita Federal do Brasil, mesmo que apurados após a extinção do presente instrumento. Se qualquer disposição deste Contrato for considerada inválida, ilegal ou inexequível, a validade, legalidade e exequibilidade das demais disposições contidas neste Contrato não serão afetadas ou prejudicadas, devendo as partes negociar a substituição de quaisquer disposições inválidas, ilegais ou inexequíveis, por disposições válidas, legais e exequíveis, cujos efeitos deverão aproximar-se, tanto quanto possível, dos efeitos legais e econômicos almejados pelas disposições consideradas inválidas, ilegais ou inexequíveis. Qualquer omissão ou tolerância pelas partes na exigência do correto e pontual cumprimento dos termos e condições, específicas ou genéricas, constantes deste Contrato, inclusive quanto ao valor, forma e prazo de pagamento de aluguéis e encargos, ou no exercício de qualquer prerrogativa dele decorrente, não constituirá qualquer tipo de renúncia, desistência, nem afetará o direito de qualquer das Partes de exercê-los a qualquer tempo."
         },
         {
           "id": "p080",
@@ -2398,8 +2762,16 @@
           "t": "Cláusula 3º - O atraso no pagamento do aluguel ou de quaisquer encargos locatícios acarretará a incidência de multa moratória de 10% (dez por cento) sobre o valor devido, acrescida de juros de mora de 1% (um por cento) ao mês, calculados proporcionalmente aos dias de atraso, sem prejuízo das demais medidas legais cabíveis."
         },
         {
+          "id": "pag_locador",
+          "t": "Cláusula 4º - O pagamento dos aluguéis e encargos locatícios será feito diretamente ao LOCADOR, na forma e na conta indicadas por escrito pelo LOCADOR."
+        },
+        {
           "id": "p036",
           "t": "Cláusula 6º - O inadimplemento do aluguel ou de quaisquer encargos locatícios na data do vencimento constituirá o LOCATÁRIO em mora, independentemente de notificação, facultando ao LOCADOR adotar as medidas judiciais e extrajudiciais cabíveis, inclusive ação de despejo e cobrança, nos termos da Lei nº 8.245/91, sem prejuízo dos encargos moratórios previstos neste contrato."
+        },
+        {
+          "id": "p037",
+          "t": "Cláusula 7º - O LOCATÁRIO não poderá suspender ou deixar de efetuar o pagamento dos aluguéis e encargos locatícios por iniciativa própria, devendo eventuais divergências ou solicitações relacionadas ao imóvel ser formalizadas perante o LOCADOR, sem prejuízo dos direitos assegurados pela legislação vigente."
         },
         {
           "id": "p038",
@@ -2418,6 +2790,14 @@
           "t": "O valor do aluguel será reajustado anualmente, respeitado o intervalo mínimo permitido pela legislação vigente, mediante aplicação do índice IPCA (Índice Nacional de Preços ao Consumidor Amplo), ou de outro índice oficial que venha a substituí-lo em caso de sua extinção, observadas as disposições legais aplicáveis."
         },
         {
+          "id": "p042",
+          "t": "Cláusula 10º - O LOCATÁRIO será responsável pelo pagamento do IPTU e das despesas ordinárias de condomínio incidentes sobre o imóvel durante o período de sua posse. Permanecem sob responsabilidade exclusiva do LOCADOR as despesas extraordinárias de condomínio, conforme disposto no artigo 22, inciso X e parágrafo único, da Lei nº 8.245/91."
+        },
+        {
+          "id": "p043",
+          "t": "Cláusula 11º - Caso o LOCATÁRIO receba diretamente carnês, avisos ou documentos referentes aos tributos e encargos de sua responsabilidade, deverá encaminhá-los ao LOCADOR com antecedência suficiente para viabilizar o pagamento dentro do respectivo vencimento, respondendo por eventuais encargos decorrentes de sua omissão ou atraso injustificado."
+        },
+        {
           "id": "p044",
           "t": "DAS CONTAS DE CONSUMO E DA ENTREGA DAS CHAVES:"
         },
@@ -2434,6 +2814,18 @@
           "t": "DO DESCUMPRIMENTO E DAS PROVIDÊNCIAS ADMINISTRATIVAS:"
         },
         {
+          "id": "p048",
+          "t": "Cláusula 13º - Caso o LOCATÁRIO não consiga realizar a transferência de titularidade das contas de ÁGUA, ENERGIA ELÉTRICA e GÁS antes da retirada das chaves, deverá apresentar ao LOCADOR a devida comprovação das tentativas realizadas e da impossibilidade de efetivação, ficando a retirada das chaves condicionada à autorização expressa do LOCADOR. Uma vez autorizada a retirada das chaves pelo LOCADOR, o LOCATÁRIO deverá apresentar ao LOCADOR, no prazo máximo de 15 (quinze) dias corridos, contados da data da retirada das chaves, os respectivos comprovantes de efetivação da transferência de titularidade das referidas contas."
+        },
+        {
+          "id": "p049",
+          "t": "O não atendimento da obrigação no prazo estabelecido, sem a devida comprovação de impedimento não imputável ao LOCATÁRIO, caracterizará descumprimento contratual e ensejará a aplicação de multa administrativa no valor de R$ 250,00 (duzentos e cinquenta reais)."
+        },
+        {
+          "id": "p050",
+          "t": "Na ausência de comprovação da regularização após o prazo previsto, o LOCADOR poderá, quando tecnicamente possível e mediante os documetnos e autorizações necessárias, adotrar as providências cabíveis perante as respectivas concessionárias para a regularização da titularidade, ficando o LOCATÁRIO responsável pelos eventuais custos, taxas ou encargos decorrentes de tais providências, quando comprovadamente de sua responsabilidade, sem prejuízo da multa prevista nesta cláusula."
+        },
+        {
           "id": "p051",
           "t": "Cláusula 14º - O LOCATÁRIO declara receber, na data da efetiva entrega das chaves, o imóvel descrito no LAUDO DE VISTORIA INICIAL, que integra o presente contrato para todos os fins de direito, comprometendo-se a conservá-lo no mesmo estado de conservação, higiene e funcionamento em que o recebeu, obrigando-se a devolvê-lo, ao término da locação, nas mesmas condições, ressalvado o desgaste natural decorrente do uso normal. Permanecem sob responsabilidade do LOCADOR os vícios ocultos, defeitos estruturais e reparos que comprometam a segurança, estabilidade ou habitabilidade do imóvel, nos termos da legislação vigente. O imóvel tem como finalidade o uso para HABITAÇÃO.",
           "dest": "residencial"
@@ -2443,6 +2835,10 @@
           "t": "Cláusula 14º - O LOCATÁRIO declara receber, na data da efetiva entrega das chaves, o imóvel descrito no LAUDO DE VISTORIA INICIAL, que integra o presente contrato para todos os fins de direito, comprometendo-se a conservá-lo no mesmo estado de conservação, higiene e funcionamento em que o recebeu, obrigando-se a devolvê-lo, ao término da locação, nas mesmas condições, ressalvado o desgaste natural decorrente do uso normal. Permanecem sob responsabilidade do LOCADOR os vícios ocultos, defeitos estruturais e reparos que comprometam a segurança, estabilidade ou habitabilidade do imóvel, nos termos da legislação vigente. O imóvel tem como finalidade o uso COMERCIAL.",
           "dest": "comercial",
           "adaptado": true
+        },
+        {
+          "id": "p053",
+          "t": "Cláusula 15º - Caso o LOCATÁRIO identifique divergências em relação ao laudo de vistoria inicial, deverá apresentar sua contestação por escrito ao LOCADOR, no prazo de 10 (dez) dias corridos contados da entrega das chaves, preferencialmente acompanhada de fotografias ou outros registros que comprovem as condições apontadas. A ausência de manifestação dentro do prazo será considerada concordância quanto às condições aparentes descritas no laudo, ressalvados os vícios ocultos e defeitos não identificáveis em vistoria ordinária."
         },
         {
           "id": "p054",
@@ -2457,6 +2853,10 @@
           "t": "Cláusula 18º - O LOCATÁRIO deverá zelar pela conservação dos pisos, azulejos, armários, acessórios e demais itens que integram o imóvel, responsabilizando-se pelos danos que causar por ação, omissão ou uso inadequado, devendo providenciar o reparo ou a substituição dos itens danificados por outros de padrão, qualidade e características equivalentes aos originalmente existentes, ressalvado o desgaste natural decorrente do uso regular."
         },
         {
+          "id": "p057",
+          "t": "Cláusula 19º - Caso algum piso seja danificado e o LOCATÁRIO não encontre o mesmo modelo disponível para compra, ou tenha saído de fabricação, deverá consultar o LOCADOR um outro modelo compatível aceito para substituição de todos os pisos do cômodo, arcando o LOCATÁRIO com todo o custo de material e instalação."
+        },
+        {
           "id": "p058",
           "t": "Cláusula 20º - O LOCATÁRIO deverá verificar a tensão elétrica disponível nos pontos de energia do imóvel antes de conectar seus equipamentos e aparelhos eletrônicos, responsabilizando-se pelos danos decorrentes da utilização inadequada ou incompatível com a tensão disponível, desde que as instalações tenham sido entregues em condições regulares de funcionamento e que as informações disponíveis tenham sido corretamente fornecidas."
         },
@@ -2467,6 +2867,10 @@
         {
           "id": "p060",
           "t": "Cláusula 22º - Compete ao LOCATÁRIO realizar os reparos e serviços de manutenção decorrentes do uso regular do imóvel, bem como reparar os danos causados por si, seus moradores, visitantes ou terceiros sob sua responsabilidade. Compete ao LOCADOR realizar os reparos relativos a vícios anteriores à locação, problemas estruturais e defeitos que comprometam a segurança, estabilidade ou habitabilidade do imóvel, desde que não decorrentes de ação ou omissão do LOCATÁRIO."
+        },
+        {
+          "id": "p061",
+          "t": "PARÁGRAFO ÚNICO: Identificada a necessidade de reparo de responsabilidade do LOCADOR, o LOCATÁRIO deverá comunicar formalmente o LOCADOR, para que sejam adotadas as providências necessárias. Em situações urgentes, que envolvam risco à segurança ou agravamento de danos ao imóvel, deverá comunicar imediatamente o LOCADOR, permitindo a adoção das medidas emergenciais cabíveis, observadas as disposições legais quanto à responsabilidade pelos custos."
         },
         {
           "id": "p062",
@@ -2528,8 +2932,16 @@
           "t": "Parágrafo terceiro: Na hipótese de devolução antecipada do imóvel por iniciativa do LOCATÁRIO durante o prazo determinado deste contrato, será devida multa compensatória equivalente a 03 (três) vezes o valor do aluguel vigente, calculada proporcionalmente ao período restante do contrato, conforme o artigo 4º da Lei nº 8.245/91."
         },
         {
+          "id": "p076",
+          "t": "Cláusula 29º - O LOCATÁRIO assume o formal compromisso de 30 (trinta) dias antes de desocupar o imóvel, notificar por escrito o LOCADOR que, efetuará uma vistoria no mesmo a fim de ficar constatado o estado de conservação do imóvel."
+        },
+        {
           "id": "p077",
           "t": "Cláusula 30º - Antes da devolução das chaves do imóvel ora locado, o LOCATÁRIO se compromete a agendar horário para entregar as chaves do mesmo, bem como, para que seja realizado laudo de vistoria final, o qual será assinado pelo LOCATÁRIO."
+        },
+        {
+          "id": "p078",
+          "t": "Cláusula 31º - Após o término do prazo contratual, caso a locação prossiga por prazo indeterminado, o LOCATÁRIO poderá rescindir o contrato mediante comunicação por escrito ao LOCADOR, com antecedência mínima de 30 (trinta) dias."
         },
         {
           "id": "p079",
@@ -2568,6 +2980,14 @@
           "t": "Cláusula 37º - Obriga-se o LOCATÁRIO a pagar além do aluguel e encargos estipulados neste contrato, o seguro contra risco de incêndio da estrutura e partes integrantes do imóvel locado, exceto bens pertencentes ao LOCATÁRIO, figurando o LOCADOR como o único beneficiário na respectiva apólice. Para efeitos desta cláusula, estimam as partes o valor da apólice de seguro incêndio em 200x o valor do aluguel, o qual será estipulado para apólice inicial do seguro a ser feito."
         },
         {
+          "id": "p090",
+          "t": "Parágrafo primeiro: O LOCATÁRIO (S), poderá ele mesmo contratar e apresentar a apólice para o LOCADOR, porém, somente serão aceitas apólices que apresentarem seu pagamento integral."
+        },
+        {
+          "id": "p091",
+          "t": "Parágrafo segundo: Quanto a atualização e renovação do seguro, o valor segurado a ser corrigido durante a vigência do presente contrato, deverá comprovar que a apólice em vigor cubra sempre o custo para reconstrução do imóvel, onde caberá ao LOCATARIO providenciar a renovação do seguro na época própria, dando ciência ao LOCADOR."
+        },
+        {
           "id": "p092",
           "t": "Cláusula 38º - O descumprimento da obrigação de contratação ou renovação do seguro contra incêndio, após notificação para regularização, poderá caracterizar infração contratual, sujeitando o LOCATÁRIO às medidas legais e contratuais cabíveis."
         },
@@ -2576,8 +2996,16 @@
           "t": "Cláusula 39º - Em se tratando de edifício, fica desde já convencionado que não serão aceitas apólices coletivas de condomínio em substituição ao seguro incêndio individual."
         },
         {
+          "id": "p094",
+          "t": "Cláusula 40º - Caso o LOCATÁRIO não apresente a apólice de seguro contratada por sua iniciativa dentro do prazo estabelecido, o LOCADOR poderá providenciar a contratação do seguro, mediante prévia comunicação ao LOCATÁRIO, sendo os respectivos custos de responsabilidade deste, desde que comprovados documentalmente."
+        },
+        {
           "id": "p095",
           "t": "DA OBSERVÂNCIA À LGPD:"
+        },
+        {
+          "id": "p096",
+          "t": "Cláusula 41º - As partes declaram estar cientes de que o LOCADOR poderá coletar, armazenar, utilizar e compartilhar os dados pessoais estritamente necessários à execução deste contrato, ao cumprimento de obrigações legais e regulatórias, bem como à proteção do crédito, observadas as bases legais previstas no artigo 7º, incisos II, V e X, da Lei nº 13.709/2018 (Lei Geral de Proteção de Dados Pessoais – LGPD)."
         },
         {
           "id": "p097",
@@ -2597,7 +3025,7 @@
         },
         {
           "id": "p101",
-          "t": "2º) Se a purga da mora for judicial, além da atualização monetária, dos juros moratórios e da multa penal, os honorários advocatícios sobre o total do débito (segunda parte da alínea \"d\" do inciso II, do artigo 62, da Lei nº 8.245/91), sendo ainda devidos pelo LOCATÁRIO as despesas judiciais antecipadas pelo LOCADOR e os honorários de condenação, ou sucumbenciais, fixados na sentença sobre o valor da condenação (artigo 20 e parágrafos 2º e 3º do Código de Processo Civil. O(s) LOCATÁRIO(s) autorizam que as eventuais citações, intimações ou notificações sejam feitas por carta registrada ou por qualquer outro meio judicial ou extrajudicial, sendo certo que toda e qualquer comunicação enviada aos endereços eletrônicos de e-mail fornecidos nas qualificações do cadastro prévio será reputada como recebida e possuirá plena validade para todos os fins legais. Se qualquer disposição deste Contrato for considerada inválida, ilegal ou inexequível, a validade, legalidade e exequibilidade das demais disposições contidas neste Contrato não serão afetadas ou prejudicadas, devendo as partes negociar a substituição de quaisquer disposições inválidas, ilegais ou inexequíveis, por disposições válidas, legais e exequíveis, cujos efeitos deverão aproximar-se, tanto quanto possível, dos efeitos legais e econômicos almejados pelas disposições consideradas inválidas, ilegais ou inexequíveis. Qualquer omissão ou tolerância pelas partes na exigência do correto e pontual cumprimento dos termos e condições, específicas ou genéricas, constantes deste Contrato, inclusive quanto ao valor, forma e prazo de pagamento de aluguéis e encargos, ou no exercício de qualquer prerrogativa dele decorrente, não constituirá qualquer tipo de renúncia, desistência, nem afetará o direito de qualquer das Partes de exercê-los a qualquer tempo."
+          "t": "2º) Se a purga da mora for judicial, além da atualização monetária, dos juros moratórios e da multa penal, os honorários advocatícios sobre o total do débito (segunda parte da alínea \"d\" do inciso II, do artigo 62, da Lei nº 8.245/91), sendo ainda devidos pelo LOCATÁRIO as despesas judiciais antecipadas pelo LOCADOR e os honorários de condenação, ou sucumbenciais, fixados na sentença sobre o valor da condenação (artigo 20 e parágrafos 2º e 3º do Código de Processo Civil. O LOCADOR declara ser o legítimo proprietário e/ou possuidor do Imóvel, o qual se encontra livre e desonerado de quaisquer direitos, obrigações e ônus, judiciais e/ou extrajudiciais, que possam comprometer este CONTRATO, assumindo o dever de indenizar e manter o LOCATÁRIO indene de quaisquer responsabilidades decorrentes de medidas que comprometam a sua posse e propriedade sobre o Imóvel. O(s) LOCATÁRIO(s) autorizam que as eventuais citações, intimações ou notificações sejam feitas por carta registrada ou por qualquer outro meio judicial ou extrajudicial, sendo certo que toda e qualquer comunicação enviada aos endereços eletrônicos de e-mail fornecidos nas qualificações do cadastro prévio será reputada como recebida e possuirá plena validade para todos os fins legais. Qualquer alteração nos endereços eletrônicos de e-mail constantes no cadastro prévio realizado deverá ser prontamente comunicada ao LOCADOR por instrumento que comprove a total ciência quanto a aludida mudança. Em se tratando de LOCATÁRIO pessoa jurídica, que seja obrigado ao pagamento de imposto de renda retido na fonte (IRRF) quando do pagamento do aluguel, compromete-se o LOCATÁRIO a apresentar mensalmente ao LOCADOR os comprovantes de recolhimento do IRRF, sob pena de ser responsável por quaisquer valores despendidos pelo LOCADOR perante a Receita Federal do Brasil, mesmo que apurados após a extinção do presente instrumento. Se qualquer disposição deste Contrato for considerada inválida, ilegal ou inexequível, a validade, legalidade e exequibilidade das demais disposições contidas neste Contrato não serão afetadas ou prejudicadas, devendo as partes negociar a substituição de quaisquer disposições inválidas, ilegais ou inexequíveis, por disposições válidas, legais e exequíveis, cujos efeitos deverão aproximar-se, tanto quanto possível, dos efeitos legais e econômicos almejados pelas disposições consideradas inválidas, ilegais ou inexequíveis. Qualquer omissão ou tolerância pelas partes na exigência do correto e pontual cumprimento dos termos e condições, específicas ou genéricas, constantes deste Contrato, inclusive quanto ao valor, forma e prazo de pagamento de aluguéis e encargos, ou no exercício de qualquer prerrogativa dele decorrente, não constituirá qualquer tipo de renúncia, desistência, nem afetará o direito de qualquer das Partes de exercê-los a qualquer tempo."
         },
         {
           "id": "p102",
