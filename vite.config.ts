@@ -36,6 +36,20 @@ requirePublicBuildVar("SUPABASE_URL");
 requirePublicBuildVar("SUPABASE_PUBLISHABLE_KEY");
 
 export default defineConfig({
+  vite: {
+    resolve: {
+      // t_7ad0f2d8: no build do Worker (Nitro, cloudflare-module) o `tslib` entrava pela versão CommonJS
+      // (tslib.js, UMD) e o pdf-lib quebrava ao carregar: "Cannot destructure property '__extends' of
+      // '__toESM(...).default' as it is undefined". Apontar para a versão ESM pura (a mesma que o navegador
+      // já usa) resolve no servidor e no navegador. Só o import exato "tslib" (subcaminhos ficam iguais).
+      alias: [
+        {
+          find: /^tslib$/,
+          replacement: fileURLToPath(new URL("./node_modules/tslib/tslib.es6.mjs", import.meta.url)),
+        },
+      ],
+    },
+  },
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
