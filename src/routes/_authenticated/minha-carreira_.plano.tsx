@@ -4,7 +4,7 @@ import { ArrowLeft, Target, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/visual/base";
-import { ehBroker, ehLider, guardMeuPlanoRoute } from "@/lib/meu-plano-2027/modulo";
+import { ehBroker, ehLider, guardMeuPlanoRoute, veImobiliaria } from "@/lib/meu-plano-2027/modulo";
 import { TOTAL_PAGINAS } from "@/lib/meu-plano-2027/book";
 import { tela } from "@/lib/meu-plano-2027/telas";
 import { MeuPlano, type Vista } from "@/components/minha-carreira/meu-plano/MeuPlano";
@@ -47,9 +47,11 @@ function MeuPlanoPage() {
   const { user, roles } = useAuth();
   const busca = Route.useSearch();
   const navigate = useNavigate({ from: "/minha-carreira/plano" });
-  const broker = ehBroker(roles);
-  // Equipe: broker vê a imobiliária; team leader vê só a própria equipe (o banco filtra).
-  const veEquipe = broker || ehLider(roles);
+  // Equipe (decisão de Denis 21/11/2026, t_48670ed3): admin/dono veem a imobiliária; gestor e team leader veem
+  // só a própria equipe (o banco filtra). Gestor segue assinando o pacto como broker (meu_plano_eh_broker).
+  const broker = veImobiliaria(roles);
+  const assina = ehBroker(roles);
+  const veEquipe = assina || ehLider(roles);
 
   const ir = useCallback(
     (v: Vista, replace?: boolean) => {
@@ -112,7 +114,12 @@ function MeuPlanoPage() {
                 : "Planos da sua equipe, somente leitura."
             }
           />
-          <EquipePlano aberto={busca.m ?? null} abrir={abrirMembro} broker={broker} />
+          <EquipePlano
+            aberto={busca.m ?? null}
+            abrir={abrirMembro}
+            broker={broker}
+            assina={assina}
+          />
         </>
       ) : (
         <>

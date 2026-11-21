@@ -22,6 +22,7 @@ vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: "admin-1" }, roles:
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { EquipePlano } from "./Equipe";
+import { ehBroker, ehLider, veImobiliaria } from "@/lib/meu-plano-2027/modulo";
 import { progresso } from "@/lib/meu-plano-2027/telas";
 import type { Respostas } from "@/lib/meu-plano-2027/regras";
 
@@ -81,6 +82,34 @@ describe("lista Planos 2027 · Preenchimento", () => {
     expect(within(lista).getByText("1/2")).toBeTruthy(); // começaram
   });
 
+  it("gestor vê só a própria equipe (t_48670ed3): texto de equipe, não de imobiliária", async () => {
+    rpc.mockResolvedValue({ data: [], error: null });
+    render(
+      createElement(EquipePlano, { aberto: null, abrir: vi.fn(), broker: false, assina: true }),
+    );
+    const lista = await screen.findByTestId("broker-equipe");
+    expect(within(lista).getByText("Ninguém da sua equipe começou o plano ainda.")).toBeTruthy();
+    expect(within(lista).queryByText(/desta imobiliária/)).toBeNull();
+    expect(within(lista).getByText(/só da sua equipe.*você assina o pacto/)).toBeTruthy();
+  });
+
+  it("papéis (t_48670ed3): imobiliária toda só admin/dono; gestor segue assinando; corretor nada", () => {
+    const caso = (roles: string[]) => ({
+      imobiliaria: veImobiliaria(roles),
+      assina: ehBroker(roles),
+      lista: ehBroker(roles) || ehLider(roles),
+    });
+    expect(caso(["admin"])).toEqual({ imobiliaria: true, assina: true, lista: true });
+    expect(caso(["super_admin"])).toEqual({ imobiliaria: true, assina: true, lista: true });
+    expect(caso(["gestor"])).toEqual({ imobiliaria: false, assina: true, lista: true });
+    expect(caso(["team_leader", "corretor"])).toEqual({
+      imobiliaria: false,
+      assina: false,
+      lista: true,
+    });
+    expect(caso(["corretor"])).toEqual({ imobiliaria: false, assina: false, lista: false });
+  });
+
   it("a rota /minha-carreira/plano só exige o módulo ligado: não bloqueia quem não vê Minha carreira", () => {
     const rota = readFileSync(
       join(process.cwd(), "src/routes/_authenticated/minha-carreira_.plano.tsx"),
@@ -89,8 +118,12 @@ describe("lista Planos 2027 · Preenchimento", () => {
     expect(rota).toContain("beforeLoad: guardMeuPlanoRoute");
     expect(rota).not.toContain("podeVerMinhaCarreira");
     expect(rota).not.toContain("podeVerMinhaImobiliaria");
-    // A lista só aparece para broker (gestor/admin/dono) ou TL; os demais caem no plano pessoal.
-    expect(rota).toContain("const veEquipe = broker || ehLider(roles);");
+    // A lista só aparece para gestor/admin/dono ou TL; os demais caem no plano pessoal.
+    // "broker" (texto "imobiliária") = só admin/dono; gestor assina, mas vê só a equipe (t_48670ed3).
+    expect(rota).toContain("const broker = veImobiliaria(roles);");
+    expect(rota).toContain("const assina = ehBroker(roles);");
+    expect(rota).toContain("const veEquipe = assina || ehLider(roles);");
+    expect(rota).toContain("assina={assina}");
     expect(rota).toContain('busca.v === "equipe" && veEquipe');
     const modulo = readFileSync(join(process.cwd(), "src/lib/meu-plano-2027/modulo.ts"), "utf8");
     const guarda = modulo.slice(modulo.indexOf("export async function guardMeuPlanoRoute"));
