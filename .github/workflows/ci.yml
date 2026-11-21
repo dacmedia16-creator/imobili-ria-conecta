@@ -28,6 +28,9 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      # Os testes do PDF da Locação leem o texto com o pdftotext (pacote poppler-utils), que a VPS já tem.
+      - name: Instalar pdftotext
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends poppler-utils
       - run: npm ci --prefer-offline --no-audit --no-fund
       - name: Testes (vitest)
         run: npm test
