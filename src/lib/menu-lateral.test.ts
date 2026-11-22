@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  ClipboardList,
   FileSignature,
   Handshake,
   Map as MapIcon,
@@ -490,6 +491,57 @@ describe("menu lateral agrupado", () => {
       "/exclusividades",
     ])
       expect(corretor, to).toContain(to);
+  });
+
+  it("Planos 2027 · Preenchimento (t_889fb3c1): módulo ligado e broker/TL, logo após Metas 2027 · Imobiliária", () => {
+    const base = {
+      platformAdmin: false,
+      exclusiveVisible: true,
+      roomVisible: true,
+      feedbackVisible: true,
+      carreiraVisible: true,
+    };
+    const item = (roles: string[], meuPlanoVisible: boolean) =>
+      montarMenuLateral({ ...base, roles, meuPlanoVisible })
+        .flatMap((g) => g.items)
+        .find((i) => i.to === "/minha-carreira/plano");
+    // Admin e dono (sem "Minha carreira") voltam a ter a lista; gestor e TL também.
+    for (const roles of [
+      ["admin"],
+      ["super_admin"],
+      ["gestor"],
+      ["team_leader"],
+      ["admin", "corretor"],
+    ]) {
+      const x = item(roles, true)!;
+      expect(x.show, roles.join("+")).toBe(true);
+      expect(x.label).toBe("Planos 2027 · Preenchimento");
+      expect(x.search).toEqual({ v: "equipe" });
+      expect(x.icon).toBe(ClipboardList);
+      expect(item(roles, false)!.show, `${roles.join("+")} módulo desligado`).toBe(false);
+    }
+    for (const roles of [["corretor"], ["financeiro"], ["staff"], ["juridico"], ["lancamento"], []])
+      expect(item(roles, true)!.show, roles.join("+") || "sem papel").toBe(false);
+    // Admin não vê "Minha carreira", mas vê o atalho da equipe.
+    const admin = itensVisiveis(
+      montarMenuLateral({ ...base, roles: ["admin"], meuPlanoVisible: true }),
+    );
+    expect(admin).not.toContain("/minha-carreira");
+    expect(admin).toContain("/minha-carreira/plano");
+    // Posição: no grupo Equipe, logo depois de Metas 2027 · Imobiliária.
+    const equipe = montarMenuLateral({ ...base, roles: ["admin"], meuPlanoVisible: true })
+      .find((g) => g.label === "Equipe")!
+      .items.filter((i) => i.show)
+      .map((i) => i.to);
+    expect(equipe[equipe.indexOf("/painel-metas-imobiliaria") + 1]).toBe("/minha-carreira/plano");
+    // Ícone não repete com nenhum outro item (todos os papéis e módulos ligados).
+    const todos = montarMenuLateral({
+      ...base,
+      roles: PAPEIS,
+      platformAdmin: true,
+      meuPlanoVisible: true,
+    }).flatMap((g) => g.items);
+    expect(todos.filter((i) => i.icon === ClipboardList)).toHaveLength(1);
   });
 
   it("iniciais do e-mail", () => {

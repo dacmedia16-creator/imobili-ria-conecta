@@ -21,10 +21,21 @@ export async function guardMeuPlanoRoute() {
   if (!data.session || !(await meuPlanoEnabled())) throw redirect({ to: "/minha-carreira" });
 }
 
-/** Quem vê os planos da equipe (somente leitura). O banco repete a regra (meu_plano_eh_broker). */
+/**
+ * Quem assina o pacto como broker e reabre o plano (o banco repete a regra em meu_plano_eh_broker).
+ * Gestor continua aqui; mas ele VÊ só a própria equipe (ver veImobiliaria).
+ */
 export const PAPEIS_BROKER = ["gestor", "admin", "super_admin"] as const;
 export const ehBroker = (roles: readonly string[]) =>
   roles.some((r) => (PAPEIS_BROKER as readonly string[]).includes(r));
+/**
+ * Quem vê os planos da imobiliária TODA (decisão de Denis 21/11/2026, t_48670ed3): só admin e administrador
+ * principal. Gestor e team leader veem só a própria equipe, igual ao Painel da Equipe. O banco repete a regra
+ * (meu_plano_ve_imobiliaria, migration 20261218120000).
+ */
+export const PAPEIS_IMOBILIARIA = ["admin", "super_admin"] as const;
+export const veImobiliaria = (roles: readonly string[]) =>
+  roles.some((r) => (PAPEIS_IMOBILIARIA as readonly string[]).includes(r));
 /**
  * Team leader vê (somente leitura) e baixa o plano dos membros da PRÓPRIA equipe (t_65edd0b0). O banco decide
  * quem é da equipe (RLS carreira_plano_ler_lider + carreira_plano_equipe); aqui só mostra o botão "Equipe".

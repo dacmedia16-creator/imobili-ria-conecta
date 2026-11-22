@@ -36,18 +36,23 @@ const quando = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—";
 
 /**
- * Gestor/admin/administrador principal (a imobiliária) e team leader (só a própria equipe; o banco filtra):
- * lista e o plano completo, somente leitura. Só o broker assina o pacto.
+ * Admin/administrador principal (a imobiliária toda) e gestor/team leader (só a própria equipe; o banco filtra,
+ * decisão de Denis 21/11/2026, t_48670ed3): lista e o plano completo, somente leitura.
+ * `broker` = vê a imobiliária (só muda textos). `assina` = mostra "Assinar o pacto como broker" (gestor/admin/
+ * dono; o banco confere em meu_plano_eh_broker). Ausente = segue `broker`.
  */
 export function EquipePlano({
   aberto,
   abrir,
   broker = true,
+  assina,
 }: {
   aberto: string | null;
   abrir: (id: string | null) => void;
   broker?: boolean;
+  assina?: boolean;
 }) {
+  const podeAssinar = assina ?? broker;
   const [lista, setLista] = useState<Membro[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [taxas, setTaxas] = useState<TaxasFunil | null>(null);
@@ -148,7 +153,7 @@ export function EquipePlano({
                 {m.assinado_broker_em ? `✔ ${quando(m.assinado_broker_em)}` : "pendente"}
               </span>
             </div>
-            {!broker ? null : m.assinado_corretor_em ? (
+            {!podeAssinar ? null : m.assinado_corretor_em ? (
               <Button
                 className="w-full"
                 disabled={ocupado || !!m.assinado_broker_em}
@@ -256,7 +261,9 @@ export function EquipePlano({
       <p className="text-xs text-muted-foreground">
         {broker
           ? "Você vê os planos só desta imobiliária, em somente leitura. O corretor edita; você assina o pacto depois dele."
-          : "Você vê os planos só da sua equipe, em somente leitura. O corretor edita; o broker assina o pacto."}
+          : podeAssinar
+            ? "Você vê os planos só da sua equipe, em somente leitura. O corretor edita; você assina o pacto depois dele."
+            : "Você vê os planos só da sua equipe, em somente leitura. O corretor edita; o broker assina o pacto."}
       </p>
     </div>
   );

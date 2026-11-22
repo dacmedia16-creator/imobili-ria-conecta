@@ -261,8 +261,8 @@ export type LinhaEquipeMetas = {
 
 const n0 = (v: unknown) => (v == null ? 0 : Number(v) || 0);
 
-/** Linhas de carreira_diario_equipe_semana. Gestor/admin recebem o plano (metas pela calc(), sempre
- * atuais); o team leader recebe só a cópia "ms.*". */
+/** Linhas de carreira_diario_equipe_semana. Admin/super_admin recebem o plano (metas pela calc(), sempre
+ * atuais); gestor e team leader veem só a própria equipe e recebem só a cópia "ms.*" (migration 20261218130000). */
 export function normalizarEquipeSemana(
   rows: Record<string, unknown>[] | null | undefined,
   padrao: Partial<TaxasFunil> | null,
