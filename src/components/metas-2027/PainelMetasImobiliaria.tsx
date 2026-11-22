@@ -499,7 +499,7 @@ function TopoMetas({
                     <span className="hidden sm:inline">{fmt(k, x.somaAssinados)}</span>
                   </td>
                   <td
-                    className={`whitespace-nowrap py-1 pl-3 text-right font-semibold ${x.diferenca == null ? "" : x.diferenca >= 0 ? "text-emerald-600" : "text-rose-600"}`}
+                    className={`whitespace-nowrap py-1 pl-3 text-right font-semibold ${x.diferenca == null ? "" : x.diferenca >= 0 ? "text-emerald-700" : "text-rose-700"}`}
                   >
                     {x.diferenca == null ? (
                       "–"

@@ -70,7 +70,7 @@ export function SaleFlowStepper({ status }: { status: SaleStatus }) {
                 >
                   {stage.label}
                   {current && returned && (
-                    <span className="block text-amber-600 dark:text-amber-400">devolvida</span>
+                    <span className="block text-amber-700 dark:text-amber-400">devolvida</span>
                   )}
                 </span>
               </div>

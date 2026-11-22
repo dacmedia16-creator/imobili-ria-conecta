@@ -330,7 +330,7 @@ function PlatformUsers() {
               return (
                 <div
                   key={`${u.organizationId}:${u.id}`}
-                  className={`rounded-xl border bg-card p-3 shadow-sm ${u.ativo ? "" : "opacity-70"}`}
+                  className={`rounded-xl border bg-card p-3 shadow-sm ${u.ativo ? "" : "border-dashed bg-muted/30"}`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">

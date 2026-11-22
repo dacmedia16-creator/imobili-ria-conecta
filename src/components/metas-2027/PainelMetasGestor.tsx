@@ -339,7 +339,7 @@ function ResumoGrupo({
               c.diferenca == null ? null : (
                 <>
                   {pct(c.pctAno)} da meta · ritmo{" "}
-                  <b className={c.diferenca >= 0 ? "text-emerald-600" : "text-rose-600"}>
+                  <b className={c.diferenca >= 0 ? "text-emerald-700" : "text-rose-700"}>
                     {c.diferenca >= 0
                       ? `${brl(c.diferenca)} à frente`
                       : `${brl(-c.diferenca)} atrás`}

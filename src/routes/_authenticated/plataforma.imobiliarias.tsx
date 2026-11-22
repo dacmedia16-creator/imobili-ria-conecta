@@ -248,7 +248,7 @@ type KpiTone = "blue" | "green" | "amber" | "red";
 const KPI_TONE: Record<KpiTone, string> = {
   blue: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
   green: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-  amber: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  amber: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
   red: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
 };
 

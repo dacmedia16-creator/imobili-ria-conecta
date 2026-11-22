@@ -4,17 +4,17 @@ import { describe, expect, it } from "vitest";
 const ler = (p: string) => readFileSync(new URL(p, import.meta.url), "utf8");
 
 describe("FASE 2 D6 — item 25 (celular)", () => {
-  it("botões, campos, seletores, abas e dias do calendário têm 40px no celular", () => {
-    expect(ler("../components/ui/button.tsx")).toContain("max-md:min-h-10");
-    expect(ler("../components/ui/button.tsx")).toContain('icon: "h-9 w-9 max-md:min-w-10"');
-    expect(ler("../components/ui/input.tsx")).toContain("max-md:min-h-10");
-    expect(ler("../components/ui/select.tsx")).toContain("max-md:min-h-10");
-    expect(ler("../components/ui/tabs.tsx")).toContain("max-md:min-h-10");
-    expect(ler("../components/ui/calendar.tsx")).toContain("max-md:[--cell-size:2.5rem]");
-    expect(ler("../components/NotificationBell.tsx")).toContain("h-10 w-10 md:h-9 md:w-9");
+  it("botões, campos, seletores, abas e dias do calendário têm 44px no celular (t_d10c028a; antes 40px)", () => {
+    expect(ler("../components/ui/button.tsx")).toContain("max-md:min-h-11 max-md:min-w-11");
+    expect(ler("../components/ui/button.tsx")).toContain('icon: "h-9 w-9"');
+    expect(ler("../components/ui/input.tsx")).toContain("max-md:min-h-11");
+    expect(ler("../components/ui/select.tsx")).toContain("max-md:min-h-11");
+    expect(ler("../components/ui/tabs.tsx")).toContain("max-md:min-h-11");
+    expect(ler("../components/ui/calendar.tsx")).toContain("max-md:[--cell-size:2.75rem]");
+    expect(ler("../components/NotificationBell.tsx")).toContain("h-11 w-11 md:h-9 md:w-9");
   });
 
-  it("janelas têm altura máxima com área segura e o Fechar é em português e com 40px", () => {
+  it("janelas têm altura máxima com área segura e o Fechar é em português e com 44px no celular", () => {
     for (const p of ["../components/ui/dialog.tsx", "../components/ui/alert-dialog.tsx"]) {
       const s = ler(p);
       expect(s).toContain(
@@ -26,7 +26,7 @@ describe("FASE 2 D6 — item 25 (celular)", () => {
       const s = ler(p);
       expect(s).not.toContain(">Close<");
       expect(s).toContain('aria-label="Fechar"');
-      expect(s).toContain("h-10 w-10");
+      expect(s).toContain("h-10 w-10 max-md:h-11 max-md:w-11");
     }
     // A área segura do PR #235 continua no Fechar da gaveta.
     expect(ler("../components/ui/sheet.tsx")).toContain(

@@ -320,7 +320,7 @@ function BannersAdmin() {
               <p className="text-xs text-muted-foreground">
                 {enviando ? "Enviando a imagem…" : ORIENTACAO_IMAGEM}
               </p>
-              {avisoProporcao && <p className="text-xs text-amber-600">{avisoProporcao}</p>}
+              {avisoProporcao && <p className="text-xs text-amber-700">{avisoProporcao}</p>}
             </div>
 
             <div className="space-y-1.5">

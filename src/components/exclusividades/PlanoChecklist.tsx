@@ -123,7 +123,7 @@ export function PlanoChecklist({ captureId, editable }: { captureId: string; edi
                 return (
                   <div
                     key={planItemKey(it)}
-                    className={`p-2 ${st === "atrasada" ? "bg-red-50" : ""} ${!it.in_plan ? "opacity-70" : ""}`}
+                    className={`p-2 ${st === "atrasada" ? "bg-red-50" : ""} ${!it.in_plan ? "bg-muted/30 text-muted-foreground" : ""}`}
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <Checkbox

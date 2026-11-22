@@ -1428,7 +1428,7 @@ function ResumoCartao({
             <button
               type="button"
               aria-label={`O que entra em ${titulo}`}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="relative inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground after:absolute after:-inset-2 after:content-[''] hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <Info className="h-4 w-4" aria-hidden />
             </button>

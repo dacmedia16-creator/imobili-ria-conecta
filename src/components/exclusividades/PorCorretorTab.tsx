@@ -78,7 +78,7 @@ function Campo({
   );
 }
 
-const zero = (n: number) => (n ? n : <span className="text-muted-foreground/50">0</span>);
+const zero = (n: number) => (n ? n : <span className="text-muted-foreground">0</span>);
 const selo = (n: number, cls: string) =>
   n ? (
     <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}>{n}</span>
@@ -506,7 +506,7 @@ function DetalheCorretor({
                         {textoDiasRestantes(l.v.daysLeft)}
                       </span>
                     ) : (
-                      <span className="text-muted-foreground/50">—</span>
+                      <span className="text-muted-foreground">—</span>
                     )}
                   </td>
                   <td>
@@ -553,7 +553,7 @@ function DetalheCorretor({
                           {textoStatusReuniao(reuniao)}
                         </span>
                       ) : (
-                        <span className="text-muted-foreground/50">—</span>
+                        <span className="text-muted-foreground">—</span>
                       )}
                     </td>
                   )}

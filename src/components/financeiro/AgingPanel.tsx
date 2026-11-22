@@ -16,7 +16,7 @@ function FaixaCard({
 }) {
   return (
     <Card
-      className={`cursor-pointer transition-colors hover:bg-muted/50 ${faixa.quantidade > 0 ? "" : "opacity-60"}`}
+      className={`cursor-pointer transition-colors hover:bg-muted/50 ${faixa.quantidade > 0 ? "" : "bg-muted/40"}`}
       onClick={faixa.quantidade > 0 ? onClick : undefined}
     >
       <CardContent className="pt-6">

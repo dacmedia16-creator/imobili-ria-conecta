@@ -557,7 +557,7 @@ export function MetasDoMes({ base, inicial }: { base: BaseMetasMes; inicial?: Fi
               aria-selected={filtro.nivel === n.k}
               onClick={() => trocar(n.k)}
               className={cn(
-                "flex-1 px-4 py-1.5 text-sm text-muted-foreground sm:flex-none",
+                "flex-1 px-4 py-1.5 max-md:min-h-11 text-sm text-muted-foreground sm:flex-none",
                 filtro.nivel === n.k &&
                   "bg-card font-semibold text-primary shadow-[0_0_0_1px_hsl(var(--primary)/0.25)]",
               )}

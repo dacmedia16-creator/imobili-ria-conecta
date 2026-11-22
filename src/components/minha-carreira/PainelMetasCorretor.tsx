@@ -331,7 +331,7 @@ function Conteudo({ dados }: { dados: Dados }) {
                 c.diferenca == null ? null : (
                   <>
                     Hoje deveria estar em <b>{brl(c.esperado ?? 0)}</b> ·{" "}
-                    <b className={c.diferenca >= 0 ? "text-emerald-600" : "text-rose-600"}>
+                    <b className={c.diferenca >= 0 ? "text-emerald-700" : "text-rose-700"}>
                       {c.diferenca >= 0
                         ? `${brl(c.diferenca)} à frente`
                         : `${brl(-c.diferenca)} atrás`}

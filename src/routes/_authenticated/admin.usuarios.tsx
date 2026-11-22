@@ -617,7 +617,7 @@ function AdminUsers() {
     return (
       <div
         key={u.id}
-        className={`rounded-xl border bg-card p-4 shadow-sm transition-shadow hover:shadow-md ${u.ativo === false ? "opacity-60" : ""}`}
+        className={`rounded-xl border bg-card p-4 shadow-sm transition-shadow hover:shadow-md ${u.ativo === false ? "border-dashed bg-muted/30" : ""}`}
       >
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-3">
