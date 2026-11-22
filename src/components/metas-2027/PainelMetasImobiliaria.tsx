@@ -113,14 +113,14 @@ export function PainelMetasImobiliaria() {
     if (e) {
       setErro(
         e.code === "42501"
-          ? "Este painel é para gestor e administrador da imobiliária."
+          ? "Este painel é para o administrador da imobiliária."
           : errorMessage(e, "Não foi possível carregar o painel da imobiliária."),
       );
       return;
     }
     const planos = normalizarPlanosRpc(pl.data);
     if (!planos.todas) {
-      setErro("Este painel mostra a imobiliária inteira: é para gestor e administrador.");
+      setErro("Este painel mostra a imobiliária inteira: é para o administrador.");
       return;
     }
     const ids = planos.pessoas.map((p) => p.user_id);
@@ -395,7 +395,10 @@ function TopoMetas({
           <p className="text-2xl font-bold" data-testid="meta-direcao">
             {brlOuTraco(p.direcao?.comissao)}
           </p>
-          <p className="text-xs font-medium text-muted-foreground" data-testid="rotulo-vgc-meta-direcao">
+          <p
+            className="text-xs font-medium text-muted-foreground"
+            data-testid="rotulo-vgc-meta-direcao"
+          >
             VGC (comissão do ano)
           </p>
           <p className="text-xs text-muted-foreground">Digitada pelo administrador</p>
@@ -407,7 +410,10 @@ function TopoMetas({
           <p className="text-2xl font-bold" data-testid="soma-assinados">
             {brlOuTraco(cc.somaAssinados)}
           </p>
-          <p className="text-xs font-medium text-muted-foreground" data-testid="rotulo-vgc-soma-assinados">
+          <p
+            className="text-xs font-medium text-muted-foreground"
+            data-testid="rotulo-vgc-soma-assinados"
+          >
             VGC (comissão do ano)
           </p>
           <p className="text-xs text-muted-foreground">
@@ -421,7 +427,10 @@ function TopoMetas({
           <p className="text-2xl font-bold text-muted-foreground" data-testid="soma-preenchimento">
             {brlOuTraco(p.preenchimento.comissao)}
           </p>
-          <p className="text-xs font-medium text-muted-foreground" data-testid="rotulo-vgc-soma-preenchimento">
+          <p
+            className="text-xs font-medium text-muted-foreground"
+            data-testid="rotulo-vgc-soma-preenchimento"
+          >
             VGC (comissão do ano)
           </p>
           <p className="text-xs text-muted-foreground">
@@ -787,8 +796,8 @@ function Indicadores({ p }: { p: PainelImobiliaria }) {
             </p>
           ) : null}
           <p className="text-xs text-muted-foreground">
-            Visível só para gestor e administrador. A comissão do realizado e do ranking é o líquido
-            de cada corretor.
+            Visível só para o administrador. A comissão do realizado e do ranking é o líquido de
+            cada corretor.
           </p>
         </div>
       ) : null}

@@ -23,7 +23,8 @@ export async function guardMeuPlanoRoute() {
 
 /**
  * Quem assina o pacto como broker e reabre o plano (o banco repete a regra em meu_plano_eh_broker).
- * Gestor continua aqui; mas ele VÊ só a própria equipe (ver veImobiliaria).
+ * Gestor continua aqui, mas só para a própria equipe: vê (veImobiliaria), assina e reabre só quem lidera
+ * (carreira_plano_assinar_broker/carreira_plano_reabrir, migration 20261219120000, t_82b66d41).
  */
 export const PAPEIS_BROKER = ["gestor", "admin", "super_admin"] as const;
 export const ehBroker = (roles: readonly string[]) =>

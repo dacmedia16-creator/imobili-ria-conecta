@@ -2,7 +2,7 @@
 /**
  * Painel de metas 2027 · Imobiliária (cartão t_69d29df6) — tela com banco e data simulados, sem tocar produção.
  * Confere: topo direção × assinados × em preenchimento com a diferença; admin edita a meta da direção pela RPC;
- * gestor só vê; bruta recusada (42501) some sem derrubar o painel; TL/corretor recusados; nada gravado direto.
+ * gestor fora (t_82b66d41: só a própria equipe); bruta recusada (42501) some sem derrubar o painel; TL/corretor recusados; nada gravado direto.
  */
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -161,7 +161,9 @@ describe("Painel de metas 2027 · Imobiliária", () => {
     expect(within(topo).getByTestId("soma-assinados").textContent).toMatch(/R\$\s?120\.000,00/);
     expect(within(topo).getByTestId("soma-preenchimento").textContent).toMatch(/R\$\s?120\.000,00/);
     for (const id of ["meta-direcao", "soma-assinados", "soma-preenchimento"])
-      expect(within(topo).getByTestId(`rotulo-vgc-${id}`).textContent).toBe("VGC (comissão do ano)");
+      expect(within(topo).getByTestId(`rotulo-vgc-${id}`).textContent).toBe(
+        "VGC (comissão do ano)",
+      );
     expect(within(topo).getByTestId("diferenca").textContent).toMatch(
       /Faltam R\$\s?80\.000,00 nos planos assinados.*\(60%\)/,
     );
@@ -257,14 +259,14 @@ describe("Painel de metas 2027 · Imobiliária", () => {
     expect(escritas).toEqual([]);
   });
 
-  it("gestor: vê tudo (inclusive a bruta), mas sem o botão de editar a meta da direção", async () => {
+  it("gestor (t_82b66d41: o banco devolve só a equipe dele, todas=false): sem a imobiliária", async () => {
     hoje("2027-03-16");
     papeis = ["gestor"];
-    responder();
+    responder({ planos: { ...PLANOS, todas: false } });
     render(createElement(PainelMetasImobiliaria));
-    await screen.findByTestId("quebra-comissao");
-    expect(screen.queryByTestId("editar-direcao")).toBeNull();
-    expect(screen.getByTestId("diferenca").textContent).toMatch(/ainda não definiu/);
+    expect(await screen.findByText(/é para o administrador/)).toBeTruthy();
+    expect(screen.queryByTestId("topo-metas")).toBeNull();
+    expect(screen.queryByTestId("quebra-comissao")).toBeNull();
   });
 
   it("bruta recusada pelo banco (42501): o bloco da quebra some e o resto do painel continua", async () => {
@@ -281,14 +283,14 @@ describe("Painel de metas 2027 · Imobiliária", () => {
     papeis = ["team_leader"];
     responder({ planos: { ...PLANOS, todas: false } });
     render(createElement(PainelMetasImobiliaria));
-    expect(await screen.findByText(/é para gestor e administrador/)).toBeTruthy();
+    expect(await screen.findByText(/é para o administrador/)).toBeTruthy();
     expect(screen.queryByTestId("topo-metas")).toBeNull();
     cleanup();
     papeis = ["corretor"];
     responder({ tudo42501: true });
     render(createElement(PainelMetasImobiliaria));
     expect(
-      await screen.findByText("Este painel é para gestor e administrador da imobiliária."),
+      await screen.findByText("Este painel é para o administrador da imobiliária."),
     ).toBeTruthy();
   });
 });

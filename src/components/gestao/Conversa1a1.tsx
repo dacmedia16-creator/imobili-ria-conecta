@@ -37,7 +37,7 @@ import { SinalPill } from "./SinalPill";
 
 // Conversa 1:1 (cartão t_01d580b6, Parte 4 do briefing): único bloco novo, sem menu novo. Abre ao clicar
 // no corretor no farol do Painel da Equipe. Pauta automática + combinados; grava pela RPC gestao_1a1_salvar
-// (o banco confere gestor = imobiliária, TL = própria equipe). O corretor vê tudo o que fica registrado.
+// (o banco confere admin/dono = imobiliária; gestor e TL = própria equipe, t_82b66d41). O corretor vê tudo o que fica registrado.
 
 const somarDias = (iso: string, n: number) =>
   new Date(Date.parse(`${iso}T00:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
