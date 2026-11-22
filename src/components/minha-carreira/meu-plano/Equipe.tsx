@@ -19,6 +19,7 @@ import { BotaoBaixarPlano } from "./BaixarPdf";
 import { OQueFalta } from "./OQueFalta";
 import { BotaoReabrirPlano } from "./ReabrirPlano";
 import { useAuth } from "@/lib/auth";
+import { contarNaMeta, planoComSelo, SELO_META } from "@/lib/metas-2027/consolidado";
 
 type Membro = {
   user_id: string;
@@ -90,10 +91,20 @@ export function EquipePlano({
     void carregar();
   }, [carregar]);
 
-  const linhas = useMemo(
-    () => (lista ?? []).map((m) => ({ m, p: progresso(m.respostas) })),
-    [lista],
-  );
+  const linhas = useMemo(() => {
+    // Mesma regra do somarPlanos (seloMeta): situacaoPlano + metaDoPlano com as taxas padrão (em número, como o
+    // painel de metas lê em lerTaxasPadrao). Só exibição; nada é gravado.
+    const n = (v: unknown) => (v == null ? null : Number(v));
+    const padrao = taxas
+      ? { v2cre: n(taxas.v2cre), v1v2: n(taxas.v1v2), folga: n(taxas.folga) }
+      : null;
+    return (lista ?? []).map((m) => ({
+      m,
+      p: progresso(m.respostas),
+      selo: planoComSelo({ assinadoEm: m.assinado_corretor_em, respostas: m.respostas }, padrao)
+        .selo,
+    }));
+  }, [lista, taxas]);
 
   if (erro) return <ErrorState onRetry={() => void carregar()}>{erro}</ErrorState>;
   if (!lista) return <ListSkeleton />;
@@ -206,6 +217,7 @@ export function EquipePlano({
   }
 
   const comecou = linhas.filter((l) => l.p.pct > 0).length;
+  const contam = contarNaMeta(linhas);
   return (
     <div className="space-y-3" data-testid="broker-equipe">
       <div className="grid grid-cols-3 gap-2">
@@ -213,6 +225,18 @@ export function EquipePlano({
         <Stat v={linhas.filter((l) => l.m.assinado_corretor_em).length} rot="pactos assinados" />
         <Stat v={linhas.filter((l) => l.m.meta_oficial_em).length} rot="metas oficiais" />
       </div>
+      <p
+        className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-sm"
+        data-testid="contador-conta-meta"
+      >
+        <b className="tabular-nums">
+          {contam} de {linhas.length}
+        </b>{" "}
+        já contam na meta{" "}
+        <span className="text-xs text-muted-foreground">
+          (plano assinado e com meta de comissão)
+        </span>
+      </p>
       {linhas.length === 0 ? (
         <EmptyState>
           {broker
@@ -221,10 +245,17 @@ export function EquipePlano({
         </EmptyState>
       ) : (
         <ul className="divide-y rounded-xl border bg-card">
-          {linhas.map(({ m: x, p }) => (
+          {linhas.map(({ m: x, p, selo }) => (
             <li key={x.user_id} className="flex items-center gap-2 px-3 py-2.5">
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{x.nome}</p>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <p className="truncate text-sm font-medium">{x.nome}</p>
+                  <Pill tom={SELO_META[selo].tom} className="py-0 text-[11px]">
+                    <span data-testid="selo-meta" data-selo={selo}>
+                      {SELO_META[selo].texto}
+                    </span>
+                  </Pill>
+                </div>
                 <p className="text-xs text-muted-foreground">
                   {p.telas}/{p.total} telas ·{" "}
                   {x.assinado_corretor_em

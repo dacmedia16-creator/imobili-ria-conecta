@@ -17,7 +17,10 @@ import {
   type Posicao,
   type SituacaoPlano,
   type Valores,
+  metaDoPlano,
+  situacaoPlano,
 } from "./regra";
+import type { Respostas, TaxasFunil } from "@/lib/meu-plano-2027/regras";
 
 export type PlanoPessoa = {
   userId: string;
@@ -27,6 +30,43 @@ export type PlanoPessoa = {
 };
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
+
+/**
+ * Selo de cada pessoa na meta da equipe (cartão t_a4fff17e). Regra ÚNICA, usada pelo somarPlanos e pelo selo da
+ * lista da Equipe do Meu Plano, para os dois nunca divergirem:
+ * - "conta": plano assinado E com meta (VGC) → entra na soma oficial;
+ * - "assinado_sem_meta": assinou, mas o plano não fecha meta (sem VGC) → não soma;
+ * - "falta_assinar": em preenchimento ou sem plano.
+ */
+export type SeloMeta = "conta" | "assinado_sem_meta" | "falta_assinar";
+export function seloMeta(p: Pick<PlanoPessoa, "situacao" | "meta">): SeloMeta {
+  if (p.situacao !== "assinado") return "falta_assinar";
+  return p.meta ? "conta" : "assinado_sem_meta";
+}
+
+/** Texto e cor do selo na lista da Equipe do Meu Plano. */
+export const SELO_META: Record<SeloMeta, { texto: string; tom: "green" | "amber" | "slate" }> = {
+  conta: { texto: "Conta na meta", tom: "green" },
+  assinado_sem_meta: { texto: "Assinou, falta a meta", tom: "amber" },
+  falta_assinar: { texto: "Falta assinar", tom: "slate" },
+};
+
+/** Contador "X de N já contam na meta": quantos têm o selo "conta" (= assinados que entram no somarPlanos). */
+export const contarNaMeta = (linhas: readonly { selo: SeloMeta }[]) =>
+  linhas.filter((l) => l.selo === "conta").length;
+
+/**
+ * Plano cru (assinatura + respostas, como vem da RPC) → situação, meta e selo, com a MESMA conta do painel de
+ * metas (situacaoPlano + metaDoPlano com as taxas padrão). O resultado pode ir direto para o somarPlanos.
+ */
+export function planoComSelo(
+  p: { assinadoEm?: string | null; respostas?: Respostas | null } | null | undefined,
+  padrao?: Partial<TaxasFunil> | null,
+): { situacao: SituacaoPlano; meta: MetaPlano | null; selo: SeloMeta } {
+  const situacao = situacaoPlano(p);
+  const meta = situacao === "sem_plano" ? null : metaDoPlano(p?.respostas, padrao);
+  return { situacao, meta, selo: seloMeta({ situacao, meta }) };
+}
 
 function somar(alvo: Valores, v: Valores) {
   for (const k of INDICADORES) {
@@ -58,16 +98,17 @@ export function somarPlanos(planos: readonly PlanoPessoa[]): SomaPlanos {
   for (const p of planos) {
     if (vistos.has(p.userId)) continue;
     vistos.add(p.userId);
-    if (p.situacao === "assinado" && p.meta) {
+    const selo = seloMeta(p);
+    if (selo === "conta" && p.meta) {
       qtdAssinados++;
       somar(ano, p.meta.ano);
       p.meta.meses.forEach((m, i) => somar(meses[i], m));
+    } else if (selo === "assinado_sem_meta") {
+      // Assinado mas incompleto (sem VGC): conta como assinado, sem somar meta.
+      qtdAssinados++;
     } else if (p.situacao === "preenchimento") {
       qtdPreenchimento++;
       if (p.meta) somar(preenchimentoAno, p.meta.ano);
-    } else if (p.situacao === "assinado") {
-      // Assinado mas incompleto (sem VGC): conta como assinado, sem somar meta.
-      qtdAssinados++;
     } else qtdSemPlano++;
   }
   const diverge = Object.fromEntries(INDICADORES.map((k) => [k, false])) as Record<
