@@ -1,0 +1,12 @@
+# Funções que podem ser executadas SEM LOGIN (papel anon) — uma assinatura por linha (formato regprocedure,
+# com schema). Usada pelo teste src/lib/anon-funcoes.test.ts e pela varredura supabase/tests/run-anon-funcoes.sh.
+# Para abrir uma função nova ao anon: GRANT EXECUTE ... TO anon na migration + linha aqui + motivo. (t_44f96aed)
+#
+# graphql_public.graphql(...) é da Supabase (dono supabase_admin); fica fora desta lista e é ignorada pela varredura.
+
+public.depoimentos_publicos()  # Vitrine de depoimentos do site (somosunihub.com.br, sem login). Confirmado: 255 chamadas anon em 30 dias + teste depoimentos.test.ts.
+public.list_public_org_regions(text)  # Página pública /especialistas/$slug (positioning-db.ts). Confirmado: 111 chamadas anon em 30 dias.
+public.list_public_org_specialists(text,text,bigint)  # Página pública /especialistas/$slug (positioning-db.ts). Confirmado: 155 chamadas anon em 30 dias.
+public.list_public_positioning_regions()  # NÃO CONFIRMADO: versão antiga da página de especialistas; o ADM não chama mais, mas houve 17 chamadas anon em 30 dias (última 07/11, sem origem). Mantida aberta por dúvida.
+public.list_public_specialist_agencies()  # Página pública /especialistas (positioning-db.ts). Confirmado: 283 chamadas anon em 30 dias.
+public.list_public_specialists(text,bigint)  # NÃO CONFIRMADO: versão antiga da página de especialistas; o ADM não chama mais, mas houve 89 chamadas anon em 30 dias (última 07/11, sem origem). Mantida aberta por dúvida.
