@@ -375,11 +375,14 @@ const NUM_EXTENSO: Record<string, number> = {
   cinco: 5,
   seis: 6,
 };
-const QTD = String.raw`(\d{1,2}|um|uma|dois|duas|tres|quatro|cinco|seis)`;
+const QTD = String.raw`(?:\d{1,2}|um|uma|dois|duas|tres|quatro|cinco|seis)`;
+// "2 ou 3", "2/3/4", "2 a 3", "3+", "2 ou mais" + dorm/quarto/qto/suíte
 const QUARTOS_RE = new RegExp(
-  String.raw`\b${QTD}\s*(?:\+|ou mais|(?:a|ou|\/|-)\s*${QTD})?\s*(dorm\w*|quartos?|suites?)\b`,
+  String.raw`\b(${QTD}(?:(?:\s+(?:a|ou|e)\s+|\s*[/,-]\s*)${QTD})*)\s*(?:\+|ou mais)?\s*(dorm\w*|quartos?|qtos?|suites?)\b`,
   "g",
 );
+/** "até 3 quartos" / "no máximo 2 dorm" é teto, não mínimo: não barra ninguém. */
+const TETO_QUARTOS = /(?:\bate|\bmaximo|\bmax\.?)\s*(?:de\s*)?$/;
 const qtd = (s: string) => NUM_EXTENSO[s] ?? Number(s);
 
 /**
@@ -390,10 +393,12 @@ const qtd = (s: string) => NUM_EXTENSO[s] ?? Number(s);
 export function quartosPedidos(texto: string | null | undefined): number | null {
   let quartos: number | null = null;
   let suites: number | null = null;
-  for (const m of sem(texto ?? "").matchAll(QUARTOS_RE)) {
-    const n = Math.min(qtd(m[1]), m[2] ? qtd(m[2]) : Infinity);
+  const t = sem(texto ?? "");
+  for (const m of t.matchAll(QUARTOS_RE)) {
+    if (TETO_QUARTOS.test(t.slice(Math.max(0, m.index - 15), m.index))) continue;
+    const n = Math.min(...m[1].split(/\s+(?:a|ou|e)\s+|\s*[/,-]\s*/).map(qtd));
     if (!(n >= 1 && n <= 10)) continue;
-    if (m[3].startsWith("suite")) suites = Math.max(suites ?? 0, n);
+    if (m[2].startsWith("suite")) suites = Math.max(suites ?? 0, n);
     else quartos = Math.max(quartos ?? 0, n);
   }
   return quartos ?? suites;
@@ -461,6 +466,8 @@ export const pairKey = (postId: string, targetId: string) => `${postId}|${target
  * DIFERENCA_TETO_MESMA_PROCURA de diferença (sem teto nos dois também conta). Bairro não entra:
  * o aviso é sobre o MESMO imóvel, e ele já foi mostrado a esse corretor.
  */
+const nomeNorm = (s: string) => sem(s).replace(/\s+/g, " ").trim();
+
 export function mesmaProcura(
   a: Pick<OpportunityPost, "corretor" | "author_profile_id" | "tipo" | "finalidade" | "valor_max">,
   b: Pick<OpportunityPost, "corretor" | "author_profile_id" | "tipo" | "finalidade" | "valor_max">,
@@ -468,7 +475,7 @@ export function mesmaProcura(
   const autor =
     a.author_profile_id && b.author_profile_id
       ? a.author_profile_id === b.author_profile_id
-      : sem(a.corretor).trim() === sem(b.corretor).trim();
+      : nomeNorm(a.corretor) === nomeNorm(b.corretor);
   if (!autor || a.tipo !== b.tipo || a.finalidade !== b.finalidade) return false;
   if (!a.valor_max || !b.valor_max) return !a.valor_max && !b.valor_max;
   const [x, y] = [Math.min(a.valor_max, b.valor_max), Math.max(a.valor_max, b.valor_max)];

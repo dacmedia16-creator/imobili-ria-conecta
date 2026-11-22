@@ -112,6 +112,9 @@ describe("aviso repetido: mesma procura repostada com outro texto (t_b832cf00)",
     // sem cadastro ligado nos dois: vale o nome do grupo
     const semId = { ...p1, author_profile_id: null };
     expect(mesmaProcura(semId, { ...p2, author_profile_id: null })).toBe(true);
+    expect(
+      mesmaProcura(semId, { ...p2, author_profile_id: null, corretor: "ana  corretora " }),
+    ).toBe(true);
     expect(mesmaProcura(semId, { ...p2, author_profile_id: null, corretor: "Ana Paula" })).toBe(
       false,
     );
@@ -158,7 +161,13 @@ describe("quartos (t_b832cf00)", () => {
     expect(quartosPedidos("três quartos sendo 1 suíte")).toBe(3);
     expect(quartosPedidos("casa com 2 suítes")).toBe(2);
     expect(quartosPedidos("3+ dormitórios")).toBe(3);
+    expect(quartosPedidos("casa 2/3/4 dorms")).toBe(2);
+    expect(quartosPedidos("apto 3 qtos")).toBe(3);
+    // teto de quartos não é mínimo: não barra
+    expect(quartosPedidos("apto até 3 quartos")).toBeNull();
+    expect(quartosPedidos("no máximo 2 dormitórios")).toBeNull();
     expect(quartosPedidos("casa térrea até 800 mil, 2 vagas")).toBeNull();
+    expect(quartosPedidos("até 300 mil 2 quartos, 300m²")).toBe(2);
     expect(quartosPedidos("")).toBeNull();
   });
 

@@ -130,7 +130,7 @@ function fakeAdmin(tables: Record<string, unknown[]>, inserts: Record<string, un
         return Promise.resolve({ data: null, error: null });
       },
     };
-    for (const m of ["select", "eq", "in", "is", "gte", "not"]) q[m] = () => q;
+    for (const m of ["select", "eq", "in", "is", "gte", "not", "order"]) q[m] = () => q;
     return q;
   };
   return { from: query } as unknown as OrgAdminClient;

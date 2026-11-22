@@ -179,7 +179,11 @@ export async function runOpportunityAlerts(
           "post_id,capture_id,recipient_id,status,created_at,post:opportunity_posts(corretor,author_profile_id,tipo,finalidade,valor_max)",
         )
         .eq("organization_id", orgId)
-        .gte("created_at", desdeAvisos),
+        // Só o que conta (sent/dry_run), mais recentes primeiro: se o corte de linhas do PostgREST
+        // pegar, perde-se o mais antigo, nunca o de hoje (limite diário).
+        .in("status", ["sent", "dry_run"])
+        .gte("created_at", desdeAvisos)
+        .order("created_at", { ascending: false }),
     ]);
     if (posts.error || caps.error || hid.error || prev.error) continue;
 
