@@ -12,11 +12,16 @@ export type VendaParaResumo = {
   valor_negociado?: number | string | null;
 };
 
-export async function resolverResumoOpcional<T>(consulta: Promise<T>): Promise<T | null> {
+/** Resumo que não pode derrubar a tela: a falha vira `falhou: true` (a tela mostra um aviso),
+ * nunca um zero silencioso (t_a42027c1). */
+export type ResultadoResumo<T> = { dados: T; falhou: false } | { dados: null; falhou: true };
+
+export async function resolverResumo<T>(consulta: Promise<T>): Promise<ResultadoResumo<T>> {
   try {
-    return await consulta;
-  } catch {
-    return null;
+    return { dados: await consulta, falhou: false };
+  } catch (erro) {
+    console.error("vendas-resumo:", erro);
+    return { dados: null, falhou: true };
   }
 }
 
