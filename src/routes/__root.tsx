@@ -14,6 +14,7 @@ import { Toaster } from "@/components/ui/sonner";
 import type { RouterAuth } from "@/lib/route-access";
 import { APP_ORIGIN } from "@/lib/dominios";
 import { TEXTO_ERRO_PAGINA, TEXTO_PAGINA_NAO_ENCONTRADA } from "@/lib/error-page";
+import { instalarCapturaErrosFront, registrarErroFront } from "@/lib/erros-front";
 
 const IS_HOMOLOG = import.meta.env.VITE_HOMOLOG_ONLY === "true";
 const HOMOLOG_URL = "https://adm-max-homolog.dacmedia16.workers.dev";
@@ -54,6 +55,9 @@ function NotFoundComponent() {
 
 function ErrorComponent({ error, reset }: { error: unknown; reset: () => void }) {
   console.error(error);
+  useEffect(() => {
+    registrarErroFront("tela", error);
+  }, [error]);
   const router = useRouter();
 
   return (
@@ -148,6 +152,8 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   useEffect(() => {
+    // Erros não tratados do navegador -> /api/erros-front (resumo mascarado, t_59e94d27).
+    instalarCapturaErrosFront();
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").catch(() => {});
     }

@@ -51,6 +51,7 @@ import { Route as AuthenticatedReservasSalasRouteImport } from './routes/_authen
 import { Route as AuthenticatedVendasPorRegiaoRouteImport } from './routes/_authenticated/vendas-por-regiao'
 import { Route as AuthenticatedVisaoExecutivaRouteImport } from './routes/_authenticated/visao-executiva'
 import { Route as AcompanharTokenRouteImport } from './routes/acompanhar.$token'
+import { Route as ApiErrosFrontRouteImport } from './routes/api/erros-front'
 import { Route as ConviteTokenRouteImport } from './routes/convite.$token'
 import { Route as ConviteCadastroRouteImport } from './routes/convite.cadastro'
 import { Route as EspecialistasIndexRouteImport } from './routes/especialistas.index'
@@ -320,6 +321,11 @@ const AcompanharTokenRoute = AcompanharTokenRouteImport.update({
   path: '/acompanhar/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiErrosFrontRoute = ApiErrosFrontRouteImport.update({
+  id: '/api/erros-front',
+  path: '/api/erros-front',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ConviteTokenRoute = ConviteTokenRouteImport.update({
   id: '/convite/$token',
   path: '/convite/$token',
@@ -575,6 +581,7 @@ export interface FileRoutesByFullPath {
   '/vendas-por-regiao': typeof AuthenticatedVendasPorRegiaoRoute
   '/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
   '/acompanhar/$token': typeof AcompanharTokenRoute
+  '/api/erros-front': typeof ApiErrosFrontRoute
   '/convite/$token': typeof ConviteTokenRoute
   '/convite/cadastro': typeof ConviteCadastroRoute
   '/especialistas/$slug': typeof EspecialistasSlugRoute
@@ -656,6 +663,7 @@ export interface FileRoutesByTo {
   '/vendas-por-regiao': typeof AuthenticatedVendasPorRegiaoRoute
   '/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
   '/acompanhar/$token': typeof AcompanharTokenRoute
+  '/api/erros-front': typeof ApiErrosFrontRoute
   '/convite/$token': typeof ConviteTokenRoute
   '/convite/cadastro': typeof ConviteCadastroRoute
   '/especialistas/$slug': typeof EspecialistasSlugRoute
@@ -739,6 +747,7 @@ export interface FileRoutesById {
   '/_authenticated/vendas-por-regiao': typeof AuthenticatedVendasPorRegiaoRoute
   '/_authenticated/visao-executiva': typeof AuthenticatedVisaoExecutivaRoute
   '/acompanhar/$token': typeof AcompanharTokenRoute
+  '/api/erros-front': typeof ApiErrosFrontRoute
   '/convite/$token': typeof ConviteTokenRoute
   '/convite/cadastro': typeof ConviteCadastroRoute
   '/especialistas/$slug': typeof EspecialistasSlugRoute
@@ -822,6 +831,7 @@ export interface FileRouteTypes {
     | '/vendas-por-regiao'
     | '/visao-executiva'
     | '/acompanhar/$token'
+    | '/api/erros-front'
     | '/convite/$token'
     | '/convite/cadastro'
     | '/especialistas/$slug'
@@ -903,6 +913,7 @@ export interface FileRouteTypes {
     | '/vendas-por-regiao'
     | '/visao-executiva'
     | '/acompanhar/$token'
+    | '/api/erros-front'
     | '/convite/$token'
     | '/convite/cadastro'
     | '/especialistas/$slug'
@@ -985,6 +996,7 @@ export interface FileRouteTypes {
     | '/_authenticated/vendas-por-regiao'
     | '/_authenticated/visao-executiva'
     | '/acompanhar/$token'
+    | '/api/erros-front'
     | '/convite/$token'
     | '/convite/cadastro'
     | '/especialistas/$slug'
@@ -1036,6 +1048,7 @@ export interface RootRouteChildren {
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TrocarSenhaRoute: typeof TrocarSenhaRoute
   AcompanharTokenRoute: typeof AcompanharTokenRoute
+  ApiErrosFrontRoute: typeof ApiErrosFrontRoute
   ConviteTokenRoute: typeof ConviteTokenRoute
   ConviteCadastroRoute: typeof ConviteCadastroRoute
   EspecialistasSlugRoute: typeof EspecialistasSlugRoute
@@ -1345,6 +1358,13 @@ declare module '@tanstack/react-router' {
       path: '/acompanhar/$token'
       fullPath: '/acompanhar/$token'
       preLoaderRoute: typeof AcompanharTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/erros-front': {
+      id: '/api/erros-front'
+      path: '/api/erros-front'
+      fullPath: '/api/erros-front'
+      preLoaderRoute: typeof ApiErrosFrontRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/convite/$token': {
@@ -1759,6 +1779,7 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   TrocarSenhaRoute: TrocarSenhaRoute,
   AcompanharTokenRoute: AcompanharTokenRoute,
+  ApiErrosFrontRoute: ApiErrosFrontRoute,
   ConviteTokenRoute: ConviteTokenRoute,
   ConviteCadastroRoute: ConviteCadastroRoute,
   EspecialistasSlugRoute: EspecialistasSlugRoute,
