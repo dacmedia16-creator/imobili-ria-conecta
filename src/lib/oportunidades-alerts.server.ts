@@ -1,10 +1,12 @@
 // Imports relativos: este módulo também é carregado pela task do Nitro (server/tasks).
 import {
+  JANELA_MESMA_PROCURA_DIAS,
   LIMITE_DIARIO_ALERTAS,
   VALIDADE_DIAS,
   alertMessage,
   captureCandidate,
   captureMatches,
+  mesmaProcura,
   pairKey,
   type CaptureCandidate,
   type OpportunityPost,
@@ -18,7 +20,13 @@ export type AlertRow = {
   recipient_id: string | null;
   status: string;
   created_at: string;
+  /** Procura do alerta (embed de opportunity_posts), para reconhecer repostagem com outro texto. */
+  post?: Pick<
+    OpportunityPost,
+    "corretor" | "author_profile_id" | "tipo" | "finalidade" | "valor_max"
+  > | null;
 };
+type ProcuraAvisada = NonNullable<AlertRow["post"]> & { capture_id: string };
 export type PlannedAlert = { post: OpportunityPost; capture: CaptureCandidate };
 
 const diaSP = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
@@ -27,6 +35,8 @@ const diaSP = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "America/Sa
  * Decide quais alertas saem agora (lógica pura, testável):
  * - só procura × captação aprovada que encaixa e não foi marcada "não encaixa";
  * - no máximo 1 alerta por procura + captação (já registrado = não repete);
+ * - a mesma captação não é avisada de novo para a "mesma procura" (repostada com outro texto,
+ *   ver mesmaProcura) nos últimos JANELA_MESMA_PROCURA_DIAS dias (t_b832cf00);
  * - no máximo LIMITE_DIARIO_ALERTAS por captador por dia (o resto fica só no mural).
  */
 export function planAlerts(
@@ -41,6 +51,15 @@ export function planAlerts(
       .filter((a) => a.status === "sent" || a.status === "dry_run")
       .map((a) => pairKey(a.post_id, a.capture_id)),
   );
+  const janela = now.getTime() - JANELA_MESMA_PROCURA_DIAS * 86_400_000;
+  const avisadas: ProcuraAvisada[] = existing
+    .filter(
+      (a) =>
+        a.post &&
+        (a.status === "sent" || a.status === "dry_run") &&
+        Date.parse(a.created_at) >= janela,
+    )
+    .map((a) => ({ ...a.post!, capture_id: a.capture_id }));
   const hoje = diaSP(now);
   const noDia = new Map<string, number>();
   for (const a of existing)
@@ -57,10 +76,12 @@ export function planAlerts(
   for (const m of captureMatches(ordenados, captures, hidden, now)) {
     const k = pairKey(m.post.id, m.capture.id);
     if (feitos.has(k)) continue;
+    if (avisadas.some((a) => a.capture_id === m.capture.id && mesmaProcura(a, m.post))) continue;
     const n = noDia.get(m.capture.captor_id) ?? 0;
     if (n >= LIMITE_DIARIO_ALERTAS) continue;
     noDia.set(m.capture.captor_id, n + 1);
     feitos.add(k);
+    avisadas.push({ ...m.post, capture_id: m.capture.id });
     out.push(m);
   }
   return out;
@@ -97,6 +118,7 @@ type CaptureRow = {
   bairro: string | null;
   municipio: string | null;
   valor_imovel: string | null;
+  quartos: string | null;
 };
 
 /**
@@ -121,6 +143,9 @@ export async function runOpportunityAlerts(
   const { data: orgs } = await admin.from("organizations").select("id").eq("status", "ativa");
   const active = new Set(((orgs ?? []) as { id: string }[]).map((o) => o.id));
   const desde = new Date(now.getTime() - (VALIDADE_DIAS + 1) * 86_400_000).toISOString();
+  const desdeAvisos = new Date(
+    now.getTime() - Math.max(VALIDADE_DIAS + 1, JANELA_MESMA_PROCURA_DIAS) * 86_400_000,
+  ).toISOString();
 
   for (const { organization_id: orgId } of (mods ?? []) as { organization_id: string }[]) {
     if (!active.has(orgId)) continue;
@@ -138,7 +163,7 @@ export async function runOpportunityAlerts(
       admin
         .from("exclusive_captures")
         .select(
-          "id,captor_id,broker_name,tipo_imovel:form_data->imovel->>tipo_imovel,bairro:form_data->imovel->>bairro,municipio:form_data->imovel->>municipio,valor_imovel:form_data->imovel->>valor_imovel",
+          "id,captor_id,broker_name,tipo_imovel:form_data->imovel->>tipo_imovel,bairro:form_data->imovel->>bairro,municipio:form_data->imovel->>municipio,valor_imovel:form_data->imovel->>valor_imovel,quartos:form_data->ficha->>quartos",
         )
         .eq("organization_id", orgId)
         .eq("status", "aprovada")
@@ -150,9 +175,11 @@ export async function runOpportunityAlerts(
         .eq("organization_id", orgId),
       admin
         .from("opportunity_alerts")
-        .select("post_id,capture_id,recipient_id,status,created_at")
+        .select(
+          "post_id,capture_id,recipient_id,status,created_at,post:opportunity_posts(corretor,author_profile_id,tipo,finalidade,valor_max)",
+        )
         .eq("organization_id", orgId)
-        .gte("created_at", desde),
+        .gte("created_at", desdeAvisos),
     ]);
     if (posts.error || caps.error || hid.error || prev.error) continue;
 
@@ -197,7 +224,14 @@ export async function runOpportunityAlerts(
           pairKey(h.post_id, h.target_id),
         ),
       ),
-      (prev.data ?? []) as AlertRow[],
+      ((prev.data ?? []) as unknown as (Omit<AlertRow, "post"> & { post: unknown })[]).map((a) => {
+        // Embed muitos-para-um: o PostgREST devolve objeto; o tipo gerado diz lista. Aceita os dois.
+        const p = (Array.isArray(a.post) ? a.post[0] : a.post) as AlertRow["post"] | undefined;
+        return {
+          ...a,
+          post: p ? { ...p, valor_max: p.valor_max == null ? null : Number(p.valor_max) } : null,
+        };
+      }),
       now,
     );
     total.planned += plan.length;

@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { planAlerts, runOpportunityAlerts, whatsappOptIn, type AlertRow } from "./oportunidades-alerts.server";
+import {
+  planAlerts,
+  runOpportunityAlerts,
+  whatsappOptIn,
+  type AlertRow,
+} from "./oportunidades-alerts.server";
 import type { OrgAdminClient } from "./org-scope";
-import { LIMITE_DIARIO_ALERTAS, pairKey, type CaptureCandidate, type OpportunityPost } from "./oportunidades";
+import {
+  LIMITE_DIARIO_ALERTAS,
+  pairKey,
+  type CaptureCandidate,
+  type OpportunityPost,
+} from "./oportunidades";
 
 const now = new Date("2026-10-14T15:00:00Z");
 const procura = (id: string, extra: Partial<OpportunityPost> = {}): OpportunityPost => ({
@@ -29,7 +39,12 @@ const cap = (id: string, extra: Partial<CaptureCandidate> = {}): CaptureCandidat
   valor: 780_000,
   ...extra,
 });
-const alerta = (post_id: string, capture_id: string, status = "dry_run", recipient_id = "u-bruno"): AlertRow => ({
+const alerta = (
+  post_id: string,
+  capture_id: string,
+  status = "dry_run",
+  recipient_id = "u-bruno",
+): AlertRow => ({
   post_id,
   capture_id,
   recipient_id,
@@ -44,21 +59,30 @@ describe("planAlerts", () => {
   });
 
   it("não repete o mesmo par (já enviado ou já registrado em dry-run)", () => {
-    expect(planAlerts([procura("p1")], [cap("c1")], new Set(), [alerta("p1", "c1", "sent")], now)).toEqual([]);
-    expect(planAlerts([procura("p1")], [cap("c1")], new Set(), [alerta("p1", "c1")], now)).toEqual([]);
+    expect(
+      planAlerts([procura("p1")], [cap("c1")], new Set(), [alerta("p1", "c1", "sent")], now),
+    ).toEqual([]);
+    expect(planAlerts([procura("p1")], [cap("c1")], new Set(), [alerta("p1", "c1")], now)).toEqual(
+      [],
+    );
   });
 
   it("tenta de novo um par que falhou", () => {
-    expect(planAlerts([procura("p1")], [cap("c1")], new Set(), [alerta("p1", "c1", "failed")], now)).toHaveLength(1);
+    expect(
+      planAlerts([procura("p1")], [cap("c1")], new Set(), [alerta("p1", "c1", "failed")], now),
+    ).toHaveLength(1);
   });
 
   it("respeita o 'não encaixa'", () => {
-    expect(planAlerts([procura("p1")], [cap("c1")], new Set([pairKey("p1", "c1")]), [], now)).toEqual([]);
+    expect(
+      planAlerts([procura("p1")], [cap("c1")], new Set([pairKey("p1", "c1")]), [], now),
+    ).toEqual([]);
   });
 
   it("limita por captador por dia e prioriza as procuras mais novas", () => {
     const posts = Array.from({ length: LIMITE_DIARIO_ALERTAS + 2 }, (_, i) =>
-      procura(`p${i}`, { posted_at: `2026-10-14T1${i}:00:00Z` }),
+      // corretores diferentes: a mesma pessoa repostando seria a "mesma procura" (t_b832cf00)
+      procura(`p${i}`, { posted_at: `2026-10-14T1${i}:00:00Z`, corretor: `Corretor${i} Teste` }),
     );
     const p = planAlerts(posts, [cap("c1")], new Set(), [], now);
     expect(p).toHaveLength(LIMITE_DIARIO_ALERTAS);
@@ -67,14 +91,30 @@ describe("planAlerts", () => {
     const hoje = Array.from({ length: LIMITE_DIARIO_ALERTAS }, (_, i) => alerta(`x${i}`, "c9"));
     expect(planAlerts(posts, [cap("c1")], new Set(), hoje, now)).toEqual([]);
     const ontem = hoje.map((a) => ({ ...a, created_at: "2026-10-13T13:00:00Z" }));
-    expect(planAlerts(posts, [cap("c1")], new Set(), ontem, now)).toHaveLength(LIMITE_DIARIO_ALERTAS);
+    expect(planAlerts(posts, [cap("c1")], new Set(), ontem, now)).toHaveLength(
+      LIMITE_DIARIO_ALERTAS,
+    );
   });
 
   it("ignora oferta, procura vencida, quem postou a própria captação e valor fora da margem", () => {
-    expect(planAlerts([procura("p1", { kind: "oferta" })], [cap("c1")], new Set(), [], now)).toEqual([]);
-    expect(planAlerts([procura("p1", { posted_at: "2026-10-01T12:00:00Z" })], [cap("c1")], new Set(), [], now)).toEqual([]);
-    expect(planAlerts([procura("p1", { corretor: "Bruno Captador" })], [cap("c1")], new Set(), [], now)).toEqual([]);
-    expect(planAlerts([procura("p1")], [cap("c1", { valor: 900_000 })], new Set(), [], now)).toEqual([]);
+    expect(
+      planAlerts([procura("p1", { kind: "oferta" })], [cap("c1")], new Set(), [], now),
+    ).toEqual([]);
+    expect(
+      planAlerts(
+        [procura("p1", { posted_at: "2026-10-01T12:00:00Z" })],
+        [cap("c1")],
+        new Set(),
+        [],
+        now,
+      ),
+    ).toEqual([]);
+    expect(
+      planAlerts([procura("p1", { corretor: "Bruno Captador" })], [cap("c1")], new Set(), [], now),
+    ).toEqual([]);
+    expect(
+      planAlerts([procura("p1")], [cap("c1", { valor: 900_000 })], new Set(), [], now),
+    ).toEqual([]);
   });
 });
 
@@ -83,7 +123,8 @@ function fakeAdmin(tables: Record<string, unknown[]>, inserts: Record<string, un
   const query = (table: string) => {
     const result = { data: tables[table] ?? [], error: null };
     const q: Record<string, unknown> = {
-      then: (ok: (v: typeof result) => unknown, ko?: (e: unknown) => unknown) => Promise.resolve(result).then(ok, ko),
+      then: (ok: (v: typeof result) => unknown, ko?: (e: unknown) => unknown) =>
+        Promise.resolve(result).then(ok, ko),
       insert: (row: Record<string, unknown>) => {
         inserts.push({ table, ...row });
         return Promise.resolve({ data: null, error: null });
@@ -150,5 +191,48 @@ describe("notificar_whatsapp", () => {
         status: "dry_run",
       },
     ]);
+  });
+});
+
+describe("aviso repetido no fluxo completo (t_b832cf00)", () => {
+  it("procura repostada não gera aviso novo da captação já avisada (embed vindo como objeto ou lista)", async () => {
+    const capRow = {
+      id: "c1",
+      captor_id: "u-bruno",
+      broker_name: null,
+      tipo_imovel: "Casa",
+      bairro: "Campolim",
+      municipio: "Sorocaba",
+      valor_imovel: "780.000",
+      quartos: null,
+    };
+    const antigo = {
+      corretor: "Ana Corretora",
+      author_profile_id: null,
+      tipo: "Casa",
+      finalidade: "Venda",
+      valor_max: "800000",
+    };
+    for (const post of [antigo, [antigo]]) {
+      const inserts: Record<string, unknown>[] = [];
+      const tables = {
+        organization_modules: [{ organization_id: "org1" }],
+        organizations: [{ id: "org1" }],
+        opportunity_posts: [procura("p2", { texto: "Ainda procuro casa no Campolim até 800 mil" })],
+        exclusive_captures: [capRow],
+        profiles: [{ id: "u-bruno", nome: "Bruno Captador", ativo: true }],
+        user_roles: [{ user_id: "u-bruno", notificar_whatsapp: true }],
+        opportunity_hidden_pairs: [],
+        opportunity_alerts: [{ ...alerta("p1", "c1", "sent"), post }],
+      };
+      const r = await runOpportunityAlerts(fakeAdmin(tables, inserts), {
+        send: null,
+        pilotPhone: null,
+        appUrl: "https://exemplo.local",
+        now,
+      });
+      expect(r.planned).toBe(0);
+      expect(inserts).toEqual([]);
+    }
   });
 });
