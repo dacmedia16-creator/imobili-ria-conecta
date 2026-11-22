@@ -12,6 +12,20 @@ compatibility_date = "2026-07-19"
 # wrangler.json gerado como fonte da verdade e remove o que não está nele).
 keep_vars = true
 
+# Workers Logs (t_59e94d27): guarda os console.log/error do Worker por 7 dias no painel da Cloudflare,
+# incluído no plano grátis (até 0,5 GB/dia a partir de 01/12/2026; passando disso a Cloudflare só para
+# de guardar até 00:00 UTC, sem cobrar). Erros são registrados já mascarados (src/lib/log-seguro.ts).
+# head_sampling_rate = 1: guarda todos os pedidos (volume atual ~3 mil/dia, bem abaixo do limite).
+# invocation_logs = false: NÃO guarda a linha automática de cada pedido (URL completa, IP, cabeçalhos),
+# que poderia ter token de link ou dado pessoal. Ficam só as linhas que o código escreve. A contagem de
+# 5xx do resumo diário vem do Analytics da Cloudflare, que não depende disso.
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+[observability.logs]
+invocation_logs = false
+
 # As variáveis salvas no painel "Build > Variáveis e segredos" do dashboard
 # não viraram bindings de runtime do Worker (o erro "Missing Supabase
 # environment variable(s)" continuou mesmo depois de configuradas lá e
