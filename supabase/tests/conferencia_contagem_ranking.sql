@@ -39,6 +39,9 @@ INSERT INTO depois SELECT 'rank_mes', 'adm', public.desempenho_ranking_periodo(
   date_trunc('month', now() AT TIME ZONE 'America/Sao_Paulo')::date, (now() AT TIME ZONE 'America/Sao_Paulo')::date);
 INSERT INTO depois SELECT 'rank_ano', 'adm', public.desempenho_ranking_periodo(
   date_trunc('year', now() AT TIME ZONE 'America/Sao_Paulo')::date, (now() AT TIME ZONE 'America/Sao_Paulo')::date);
+SELECT pg_temp.as_user(pg_temp.id('tl')::text);
+INSERT INTO depois SELECT 'rank_tl', 'tl', public.desempenho_equipe_ranking_periodo(
+  date_trunc('year', now() AT TIME ZONE 'America/Sao_Paulo')::date, (now() AT TIME ZONE 'America/Sao_Paulo')::date);
 SELECT pg_temp.as_user(pg_temp.id('go')::text);
 INSERT INTO depois SELECT 'rank_emp', 'go', public.desempenho_empresa_ranking_periodo(
   date_trunc('year', now() AT TIME ZONE 'America/Sao_Paulo')::date, (now() AT TIME ZONE 'America/Sao_Paulo')::date);
@@ -103,6 +106,14 @@ SELECT pg_temp.ok((SELECT bool_and(e ->> 'linha' IN ('equipe', 'sem_equipe', 'co
                      FROM jsonb_array_elements(pg_temp.dep('rank_ano', 'adm') -> 'ranking_equipe') e)
   AND (SELECT count(*) FROM jsonb_array_elements(pg_temp.dep('rank_ano', 'adm') -> 'ranking_equipe') e WHERE e ->> 'linha' <> 'equipe') = 2,
   'C: toda linha tem o tipo; só 1 Sem equipe + 1 Coordenação');
+SELECT pg_temp.ok(pg_temp.equipes(pg_temp.ant('rank_tl', 'tl'), false) = pg_temp.equipes(pg_temp.dep('rank_tl', 'tl'), true)
+  AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(pg_temp.dep('rank_tl', 'tl') -> 'ranking_equipe') e
+                   WHERE e ->> 'linha' = 'equipe' AND e ->> 'team_nome' IS NULL),
+  'C: líder de equipe vê as mesmas equipes de antes (equipe que a RLS esconde não volta como linha sem nome)');
+SELECT pg_temp.ok((pg_temp.linha(pg_temp.dep('rank_mes', 'adm'), 'coordenacao_lancamento') ->> 'vendas_fechadas')::int
+  = (SELECT count(DISTINCT o.sale_id) FROM public.occurrences o JOIN public.occurrence_commissions oc ON oc.occurrence_id = o.id
+      WHERE oc.papel = 'coordenador_lancamento' AND o.sale_id IN (SELECT v FROM ids)),
+  'C: Fechadas da Coordenação conta vendas distintas');
 SELECT pg_temp.ok(pg_temp.soma(pg_temp.dep('rank_emp', 'go') -> 'ranking_equipe') = pg_temp.soma(pg_temp.dep('rank_ano', 'adm') -> 'ranking_equipe')
   AND pg_temp.dep('rank_emp', 'go') -> 'ranking_corretor' = '[]'::jsonb,
   'C: visão Empresa do gestor recebe as mesmas linhas (e segue sem ranking por corretor)');

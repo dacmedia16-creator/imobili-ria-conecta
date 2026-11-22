@@ -92,6 +92,9 @@ INSERT INTO antes SELECT 'rank_mes', 'adm', public.desempenho_ranking_periodo(
   date_trunc('month', now() AT TIME ZONE 'America/Sao_Paulo')::date, (now() AT TIME ZONE 'America/Sao_Paulo')::date);
 INSERT INTO antes SELECT 'rank_ano', 'adm', public.desempenho_ranking_periodo(
   date_trunc('year', now() AT TIME ZONE 'America/Sao_Paulo')::date, (now() AT TIME ZONE 'America/Sao_Paulo')::date);
+SELECT pg_temp.as_user(pg_temp.id('tl')::text);
+INSERT INTO antes SELECT 'rank_tl', 'tl', public.desempenho_equipe_ranking_periodo(
+  date_trunc('year', now() AT TIME ZONE 'America/Sao_Paulo')::date, (now() AT TIME ZONE 'America/Sao_Paulo')::date);
 SELECT pg_temp.as_user(pg_temp.id('go')::text);
 INSERT INTO antes SELECT 'rank_emp', 'go', public.desempenho_empresa_ranking_periodo(
   date_trunc('year', now() AT TIME ZONE 'America/Sao_Paulo')::date, (now() AT TIME ZONE 'America/Sao_Paulo')::date);

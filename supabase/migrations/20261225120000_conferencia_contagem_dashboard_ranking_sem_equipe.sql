@@ -313,8 +313,8 @@ AS $function$
   ), coordenacao_base as (
     -- t_fee0b359 (D3): parte da coordenação de lançamento (fica fora da equipe pela regra) numa linha própria.
     select
-      count(*) as vendas_fechadas,
-      count(*) filter (where teve_devolucao) as vendas_com_devolucao,
+      count(distinct sale_id) as vendas_fechadas,
+      count(distinct sale_id) filter (where teve_devolucao) as vendas_com_devolucao,
       sum(coalesce(valor_na_venda, 0) - valor_equipe_na_venda) as comissao
     from participante_venda
     where tem_coordenacao
@@ -338,6 +338,8 @@ AS $function$
     )) from coordenacao_base cb), '[]'::jsonb) as valor
     from ranking_equipe_base r
     left join teams t on t.id = r.team_id
+    -- equipe real continua exigindo a equipe visível (RLS de teams), como antes; só o grupo nulo é novo
+    where r.team_id is null or t.id is not null
   ), captacoes as (
     select count(distinct id) as quantidade
     from sales
