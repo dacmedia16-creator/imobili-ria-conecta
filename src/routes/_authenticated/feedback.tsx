@@ -54,6 +54,7 @@ import {
   paidOwnerLabel,
   paidPeriodText,
   paidTrafficAccess,
+  periodMismatch,
   summarizePaid,
   type PaidTrafficEntry,
   type ReportPeriod,
@@ -104,9 +105,14 @@ async function loadPaid(code?: string): Promise<PaidTrafficEntry[]> {
     .select(PAID_SELECT)
     .order("inicio", { ascending: false });
   if (code) q = q.eq("code_key", codeKey(code));
+  // shortcut: limite de 5000 lançamentos visíveis por usuário na lista (bem acima do uso esperado).
   const { data, error } = await q.limit(5000);
-  // Banco ainda sem a tabela (antes da migration): a tela segue só com os portais.
-  if (error) return [];
+  if (error) {
+    // Banco ainda sem a tabela (antes da migration): a tela segue só com os portais, sem aviso.
+    const semTabela = error.code === "42P01" || error.code === "PGRST205";
+    if (!semTabela) toast.error(errorMessage(error, "Não foi possível carregar o tráfego pago."));
+    return [];
+  }
   return (data ?? []) as PaidTrafficEntry[];
 }
 
@@ -216,15 +222,30 @@ function FeedbackPage() {
   }, [codigo, listings, selected]);
   const current =
     listings.find((l) => l.code === selected) ?? foraDaRemax.find((l) => l.code === selected);
-  const pagoDe = (l: ListingFeedback) =>
-    paidAll.length ? summarizePaid(entriesForListing(paidAll, l.code), periodoPadrao(l)) : null;
+  // Lançamentos agrupados por chave do código (uma vez por carga, não a cada imóvel da lista).
+  const paidPorChave = useMemo(() => {
+    const m = new Map<string, PaidTrafficEntry[]>();
+    for (const e of paidAll) {
+      const k = e.code_key || codeKey(e.listing_code);
+      m.set(k, [...(m.get(k) ?? []), e]);
+    }
+    return m;
+  }, [paidAll]);
+  const pagoDe = (l: ListingFeedback) => {
+    const es = paidPorChave.get(codeKey(l.code));
+    return es ? summarizePaid(es, periodoPadrao(l)) : null;
+  };
 
   if (current)
     return (
       <Review
         listing={current}
         brokerName={current.brokerId ? names[current.brokerId] : undefined}
-        onBack={() => setSelected(null)}
+        onBack={() => {
+          setSelected(null);
+          // Volta à lista com os totais já somando o que foi lançado/editado na revisão.
+          void loadPaid().then(setPaidAll);
+        }}
       />
     );
 
@@ -688,6 +709,12 @@ function Review({
           period={periodo}
           onPeriodChange={setPeriodo}
           onChanged={() => setPaidTick((t) => t + 1)}
+          aviso={periodMismatch(
+            periodo,
+            listing.lines
+              .filter((x) => x.confirmed)
+              .map((x) => ({ from: x.windowFrom ?? null, to: x.windowTo ?? null })),
+          )}
         />
       )}
 

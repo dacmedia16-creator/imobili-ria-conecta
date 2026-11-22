@@ -252,9 +252,15 @@ export function totalContacts(l: ListingFeedback): number {
  */
 export function diagnosis(l: ListingFeedback, paid?: PaidTrafficSummary | null): string {
   const ok = l.lines.filter((x) => x.confirmed);
-  const v = ok.reduce((s, x) => s + (x.views ?? 0), 0) + (paid?.views ?? 0);
+  // Exposição/conversão olham os PORTAIS: anúncio pago tem muita visualização e pouco contato por natureza e
+  // distorceria a razão. O tráfego pago entra como contatos extras e como texto próprio.
+  const v = ok.reduce((s, x) => s + (x.views ?? 0), 0);
   const c = ok.reduce((s, x) => s + (x.contacts ?? 0), 0) + (paid?.contacts ?? 0);
   if (!ok.length && !paid) return "";
+  if (!ok.length && paid)
+    return paid.contacts > 0
+      ? "O tráfego pago está trazendo contatos. Seguimos acompanhando os interessados."
+      : "O tráfego pago está gerando visualizações. Seguimos acompanhando para transformar em contatos.";
   if (v < 20)
     return "O anúncio está com pouca exposição. Vale reforçar fotos, título e destaque nos portais.";
   if (c === 0 || c / v < 0.01)
@@ -287,7 +293,8 @@ export function ownerMessage(opts: {
     linhas.push(
       `• ${paidOwnerLabel(paid)} (${paidPeriodText(paid)}): ${n(paid.views)} visualizações e ${n(paid.contacts)} contatos`,
     );
-  if (linhas.length > 1) {
+  // Linha "Total" só quando há tráfego pago junto (sem ele, a mensagem fica igual à de antes).
+  if (paid && linhas.length > 1) {
     const tv = ok.reduce((s, x) => s + (x.views ?? 0), 0) + (paid?.views ?? 0);
     const tc = ok.reduce((s, x) => s + (x.contacts ?? 0), 0) + (paid?.contacts ?? 0);
     linhas.push(`Total: ${n(tv)} visualizações e ${n(tc)} contatos`);

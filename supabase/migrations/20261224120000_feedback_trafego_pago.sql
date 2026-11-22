@@ -51,7 +51,8 @@ BEGIN
     NEW.created_by := coalesce(auth.uid(), NEW.created_by);
   ELSIF NEW.organization_id IS DISTINCT FROM OLD.organization_id
      OR NEW.listing_code IS DISTINCT FROM OLD.listing_code
-     OR NEW.created_by IS DISTINCT FROM OLD.created_by
+     -- Autor só pode virar NULL (ON DELETE SET NULL quando o usuário é apagado); trocar por outro, não.
+     OR (NEW.created_by IS DISTINCT FROM OLD.created_by AND NEW.created_by IS NOT NULL)
      OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
     RAISE EXCEPTION 'Não é possível mudar o imóvel, a imobiliária ou o autor do lançamento' USING ERRCODE = '42501';
   END IF;

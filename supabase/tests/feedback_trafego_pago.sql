@@ -185,6 +185,14 @@ RESET ROLE;
 SET LOCAL session_replication_role = replica;
 UPDATE public.profiles SET ativo = true WHERE id = :'c2';
 SET LOCAL session_replication_role = origin;
+-- 10) Exclusão do usuário (LGPD / painel): o lançamento fica, com autor nulo, e a exclusão não é barrada.
+-- (o admin lançou em L2 e não tem captação/venda que impeça apagar a conta)
+SELECT coalesce(pg_temp.err(format('DELETE FROM auth.users WHERE id = %L', :'admin')), '') AS del_err \gset
+SELECT pg_temp.ok(:'del_err' = '', 'apagar usuário que lançou NÃO é barrado (FK SET NULL x gatilho): '
+  || coalesce(nullif(:'del_err', ''), 'sem erro'));
+SELECT pg_temp.ok((SELECT count(*) FROM public.listing_paid_traffic_entries
+                    WHERE organization_id = :'org_a' AND canal = 'outro' AND created_by IS NULL) = 1,
+  'lançamento do usuário apagado continua, com autor nulo');
 SELECT pg_temp.ok((SELECT md5(string_agg(organization_id::text || listing_code || coalesce(broker_id::text, '') || views || contacts, ','
   ORDER BY organization_id, listing_code, portal, collected_on)) FROM public.portal_listing_snapshots) = :'snap_antes',
   'portal_listing_snapshots intacta');

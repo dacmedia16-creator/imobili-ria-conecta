@@ -314,12 +314,13 @@ export async function buildOwnerFeedbackPdf(input: OwnerPdfInput): Promise<Uint8
     });
     if (paid) {
       // Linha marcada "Tráfego pago" (lançada pelo corretor), sem valor investido.
-      const rh = 40;
+      // Rótulo inteiro (todos os canais): quebra em quantas linhas precisar, no tamanho em que é desenhado.
+      const rot = wrap(paidOwnerLabel(paid), 10, c1 - c0 - 8, bold);
+      const rh = 30 + rot.length * 12;
       ensure(rh);
       page.drawRectangle({ x: M, y: y - rh, width: W, height: rh, color: BLUE_SOFT });
-      const rot = wrap(paidOwnerLabel(paid), 11, c1 - c0 - 8, bold);
-      txt(rot[0] ?? "Tráfego pago", c0, y - 17, rot.length > 1 ? 9 : 11, bold, INK);
-      txt(`Período: ${paidPeriodText(paid)}`, c0, y - 30, 7.5, font, MUTED);
+      rot.forEach((ln, i) => txt(ln, c0, y - 16 - i * 12, 10, bold, INK));
+      txt(`Período: ${paidPeriodText(paid)}`, c0, y - 16 - rot.length * 12 - 2, 7.5, font, MUTED);
       txt(fmt(paid.views), c1, y - 22, 13, bold, BLUE_DARK);
       txt(fmt(paid.contacts), c2, y - 22, 13, bold, BLUE_DARK);
       txtRight("-", cR, y - 22, 13, bold, MUTED);

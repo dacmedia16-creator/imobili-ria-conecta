@@ -16,7 +16,7 @@ import {
 } from "@/lib/owner-feedback";
 import {
   defaultReportPeriod,
-  PAID_SELECT,
+  PAID_SELECT_OWNER,
   summarizePaid,
   type PaidTrafficEntry,
   type PaidTrafficSummary,
@@ -192,7 +192,7 @@ export const suggestOwnerRecommendation = createServerFn({ method: "POST" })
         );
       const { data: pt } = await db
         .from("listing_paid_traffic_entries")
-        .select(PAID_SELECT)
+        .select(PAID_SELECT_OWNER)
         .eq("code_key", codeKey(data.code))
         .limit(200);
       paid = summarizePaid((pt ?? []) as PaidTrafficEntry[], periodo);

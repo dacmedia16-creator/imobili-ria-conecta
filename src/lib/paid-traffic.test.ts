@@ -8,6 +8,7 @@ import {
   paidOwnerLabel,
   paidTrafficAccess,
   parseReais,
+  periodMismatch,
   summarizePaid,
   validatePaid,
   type PaidTrafficEntry,
@@ -181,6 +182,9 @@ describe("tráfego pago: validação igual ao banco", () => {
     expect(validatePaid({ ...ok, canal: "tiktok" }).ok).toBe(false);
     expect(validatePaid({ ...ok, investimento: "-10" }).ok).toBe(false);
     expect(validatePaid({ ...ok, inicio: "2025-01-01" }).ok).toBe(false);
+    // "1.5" e "12.34" não viram 15/1234 calados.
+    expect(validatePaid({ ...ok, visualizacoes: "1.5" }).ok).toBe(false);
+    expect(validatePaid({ ...ok, contatos: "12.34" }).ok).toBe(false);
   });
 });
 
@@ -233,18 +237,45 @@ describe("tráfego pago no relatório do proprietário", () => {
     );
     expect(msg).toContain("Total: 620 visualizações e 13 contatos");
     expect(msg).not.toMatch(/987|investid|R\$/);
-    // Sem tráfego pago: mensagem igual à de antes (sem linha Total).
+    // Sem tráfego pago: mensagem igual à de antes (sem linha Total), mesmo com 2 portais.
     expect(ownerMessage({ listing, recommendation: "Rec.", brokerName: "Ana" })).not.toContain(
       "Total:",
     );
+    const doisPortais = groupByListing([
+      snap,
+      { ...snap, portal: "zap", views: 80, contacts: 1 },
+    ])[0];
+    const semPago = ownerMessage({
+      listing: doisPortais,
+      recommendation: "Rec.",
+      brokerName: "Ana",
+    });
+    expect(semPago).not.toContain("Total:");
+    expect(semPago).toContain("nos portais:");
+  });
+
+  it("aviso quando o período do tráfego pago difere da janela dos portais", () => {
+    const w = [{ from: "2026-10-01", to: "2026-10-31" }];
+    expect(periodMismatch(P, w)).toBeNull();
+    expect(periodMismatch({ de: "2026-01-01", ate: "2026-03-31" }, w)).toContain(
+      "O total junta os dois períodos",
+    );
+    expect(periodMismatch({ de: "2026-01-01", ate: "2026-03-31" }, [])).toBeNull();
   });
 
   it("diagnóstico e IA consideram o tráfego pago, sem valor e sem inventar canal", () => {
-    expect(diagnosis(groupByListing([{ ...snap, views: 5, contacts: 0 }])[0])).toContain(
-      "pouca exposição",
-    );
-    expect(diagnosis(groupByListing([{ ...snap, views: 5, contacts: 0 }])[0], paid)).toContain(
-      "atraindo visitas e contatos",
+    // Portal com muita visualização e 0 contato: sem tráfego pago = conversa sobre preço; com contatos pagos, não.
+    const fraco = groupByListing([{ ...snap, views: 400, contacts: 0 }])[0];
+    expect(diagnosis(fraco)).toContain("poucos estão pedindo informações");
+    expect(diagnosis(fraco, paid)).toContain("atraindo visitas e contatos");
+    // Muita visualização de anúncio pago NÃO derruba a razão dos portais (portal bom continua bom).
+    const bom = groupByListing([{ ...snap, views: 100, contacts: 5 }])[0];
+    const pagoGrande = summarizePaid([e({ visualizacoes: 50000, contatos: 0 })], P);
+    expect(diagnosis(bom, pagoGrande)).toContain("atraindo visitas e contatos");
+    // Só tráfego pago (sem portal confirmado): texto próprio, sem falar de portal.
+    const semPortal = { code: "630601001-12", brokerId: null, lines: [], lastCollectedOn: "" };
+    expect(diagnosis(semPortal, paid)).toBe(
+      "O tráfego pago está trazendo contatos. Seguimos acompanhando os interessados.",
     );
     const f = aiFacts(listing, undefined, paid);
     expect(f).toContain(
@@ -267,5 +298,24 @@ describe("tráfego pago no relatório do proprietário", () => {
     const { PDFDocument } = await import("pdf-lib");
     expect((await PDFDocument.load(bytes)).getPageCount()).toBe(1);
     expect(Buffer.from(bytes).toString("latin1")).not.toContain("987");
+  });
+
+  it("PDF com os 3 canais não corta o rótulo", async () => {
+    const tres = summarizePaid(
+      [e({ canal: "meta" }), e({ canal: "google" }), e({ canal: "outro" })],
+      P,
+    );
+    const bytes = await buildOwnerFeedbackPdf({
+      listing,
+      brokerName: "Ana",
+      ownerName: "João",
+      recommendation: "Seguimos.",
+      logoPng: null,
+      issuedAt: new Date("2026-11-02T12:00:00Z"),
+      paid: tres,
+    });
+    const { PDFDocument } = await import("pdf-lib");
+    expect((await PDFDocument.load(bytes)).getPageCount()).toBe(1);
+    expect(paidOwnerLabel(tres!)).toBe("Tráfego pago (Meta Ads, Google Ads e outros canais)");
   });
 });

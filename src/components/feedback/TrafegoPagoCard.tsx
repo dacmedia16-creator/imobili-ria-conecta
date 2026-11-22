@@ -45,12 +45,15 @@ export function TrafegoPagoCard({
   period,
   onPeriodChange,
   onChanged,
+  aviso,
 }: {
   listingCode: string;
   entries: PaidTrafficEntry[];
   period: ReportPeriod;
   onPeriodChange: (p: ReportPeriod) => void;
   onChanged: () => void;
+  /** Aviso quando o período escolhido difere da janela dos portais (o total junta os dois). */
+  aviso?: string | null;
 }) {
   const [editing, setEditing] = useState<PaidTrafficEntry | "novo" | null>(null);
   const [draft, setDraft] = useState<PaidDraft>(() => draftFrom(null, period));
@@ -70,30 +73,40 @@ export function TrafegoPagoCard({
     }
     setSaving(true);
     try {
-      const { error } =
+      // .select("id"): se a RLS filtrar a linha (perdeu o acesso), volta vazio sem erro; aí avisamos.
+      const { data, error } =
         editing && editing !== "novo"
-          ? await db.from("listing_paid_traffic_entries").update(v.value).eq("id", editing.id)
+          ? await db
+              .from("listing_paid_traffic_entries")
+              .update(v.value)
+              .eq("id", editing.id)
+              .select("id")
           : await db
               .from("listing_paid_traffic_entries")
-              .insert({ ...v.value, listing_code: listingCode });
+              .insert({ ...v.value, listing_code: listingCode })
+              .select("id");
       if (error) throw error;
+      if (!data?.length) throw new Error("sem_permissao");
       toast.success(editing === "novo" ? "Tráfego pago lançado." : "Lançamento atualizado.");
       setEditing(null);
       onChanged();
     } catch (e) {
-      toast.error(
-        errorMessage(
-          e,
-          "Não foi possível salvar. Só o corretor responsável pelo imóvel, o gestor dele ou a administração podem lançar.",
-        ),
-      );
+      const msg =
+        "Não foi possível salvar. Só o corretor responsável pelo imóvel, o gestor dele ou a administração podem lançar.";
+      toast.error(e instanceof Error && e.message === "sem_permissao" ? msg : errorMessage(e, msg));
     } finally {
       setSaving(false);
     }
   };
   const excluir = async (e: PaidTrafficEntry) => {
-    const { error } = await db.from("listing_paid_traffic_entries").delete().eq("id", e.id);
+    const { data, error } = await db
+      .from("listing_paid_traffic_entries")
+      .delete()
+      .eq("id", e.id)
+      .select("id");
     if (error) toast.error(errorMessage(error, "Não foi possível excluir o lançamento."));
+    else if (!data?.length)
+      toast.error("Não foi possível excluir: você não tem mais acesso a este lançamento.");
     else {
       toast.success("Lançamento excluído.");
       onChanged();
@@ -136,6 +149,16 @@ export function TrafegoPagoCard({
               onChange={(e) => e.target.value && onPeriodChange({ ...period, ate: e.target.value })}
             />
           </label>
+          {period.ate < period.de && (
+            <p className="basis-full text-xs font-medium text-red-700 dark:text-red-400">
+              O fim do período está antes do início: o tráfego pago não entra no relatório.
+            </p>
+          )}
+          {aviso && (
+            <p className="basis-full text-xs font-medium text-amber-700 dark:text-amber-400">
+              {aviso}
+            </p>
+          )}
           <p className="basis-full text-xs text-muted-foreground">
             Entram no relatório (tela, mensagem e PDF) só os lançamentos com início e fim dentro
             deste período. O valor investido aparece só aqui, para quem lança e para os gestores;

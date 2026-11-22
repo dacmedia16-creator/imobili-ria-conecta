@@ -38,6 +38,28 @@ export interface PaidTrafficEntry {
 
 export const PAID_SELECT =
   "id,listing_code,code_key,canal,inicio,fim,visualizacoes,contatos,investimento,created_by,updated_by,created_at,updated_at";
+/** Leitura para o relatório do proprietário/IA: sem a coluna do valor investido. */
+export const PAID_SELECT_OWNER =
+  "id,listing_code,code_key,canal,inicio,fim,visualizacoes,contatos,created_at";
+
+/**
+ * O período do relatório e a janela dos portais são diferentes? (o total do relatório junta os dois).
+ * Devolve o aviso para a tela, ou null quando batem/não há portal confirmado.
+ */
+export function periodMismatch(
+  p: ReportPeriod,
+  windows: Array<{ from: string | null; to: string | null }>,
+): string | null {
+  const ok = windows.filter((w) => w.from && w.to);
+  if (!ok.length) return null;
+  const de = ok.map((w) => w.from as string).sort()[0];
+  const ate = ok
+    .map((w) => w.to as string)
+    .sort()
+    .at(-1) as string;
+  if (p.de === de && p.ate === ate) return null;
+  return `Atenção: os portais mostram ${fmtDataBr(de)} a ${fmtDataBr(ate)} e o tráfego pago usa ${fmtDataBr(p.de)} a ${fmtDataBr(p.ate)}. O total junta os dois períodos.`;
+}
 
 /** Período do relatório (datas civis YYYY-MM-DD, inclusivas). */
 export interface ReportPeriod {
@@ -186,10 +208,12 @@ export interface PaidValues {
 
 /** Inteiro >= 0 a partir do texto digitado ("1.200" = 1200). Vazio = 0. */
 function inteiro(t: string): number | null {
-  const s = t.trim().replace(/\./g, "");
+  const s = t.trim();
   if (!s) return 0;
-  if (!/^\d+$/.test(s)) return null;
-  return Number(s);
+  // Só dígitos ou milhar com ponto ("1.200"); "1.5" ou "12.34" são recusados (não vira 15/1234 calado).
+  if (/^\d+$/.test(s)) return Number(s);
+  if (/^\d{1,3}(\.\d{3})+$/.test(s)) return Number(s.replace(/\./g, ""));
+  return null;
 }
 
 /** Valor em reais ("1.234,56", "350,5", "350.50") >= 0. Vazio = null (não informado). */
