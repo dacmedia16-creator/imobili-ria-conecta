@@ -254,7 +254,7 @@ import type {
   SaleRow,
   SaleUpdate,
 } from "@/lib/database.types";
-import { errorMessage } from "@/lib/errors";
+import { errorMessage, mensagemErro } from "@/lib/errors";
 import {
   DETAIL_NOT_FOUND_MESSAGE,
   isDetailRouteId,
@@ -1214,11 +1214,48 @@ function SaleDetail() {
       // `corretor_id` identifica quem criou e continua responsável pelo rascunho. Captador e
       // vendedor são participações comerciais independentes e nunca podem transferir silenciosamente
       // a propriedade nem bloquear o criador durante o preenchimento.
-      if (Object.keys(patch).length > 0) {
-        const { error } = await supabase
-          .from("sales")
-          .update(patch as SaleUpdate)
-          .eq("id", id);
+      // Extras resolvidos com id real do banco — usado pra sincronizar com a Ocorrência logo abaixo.
+      // Sem isso, um extra recém-criado ainda estaria com o id temporário ("new-...") nesse ponto.
+      let resolvedExtras = formExtras;
+      // Linha extra incompleta: avisa antes, com o nome da linha (mesmo critério do CHECK 23514 do banco).
+      // Como antes, o Resumo continua sendo salvo; só os extras esperam a correção.
+      let extrasErro: string | null = null;
+      if (dirtyExtras && formExtras.some((r) => !r.user_id && !(r.nome ?? "").trim())) {
+        extrasErro =
+          "Há uma participação extra sem pessoa. Escolha a pessoa ou remova a linha antes de salvar.";
+      } else {
+        const extraSemPessoa = dirtyExtras ? extraSemPessoaCadastrada(formExtras) : null;
+        if (extraSemPessoa)
+          extrasErro = `A parte extra "${(extraSemPessoa.nome ?? "").trim() || "sem nome"}" está como ${COMISSAO_PAPEIS.find((p) => p.key === extraSemPessoa.papel)?.label ?? extraSemPessoa.papel}, mas sem pessoa cadastrada. Escolha a pessoa na lista ou, se for parceiro sem cadastro, mude o papel para "Outro".`;
+      }
+      const enviarExtras = dirtyExtras && !extrasErro;
+      // Tudo ou nada (t_8ab6c348): venda + remoções + inclusões/alterações de extras vão numa única
+      // chamada ao banco (RPC venda_salvar_resumo, uma transação). Se qualquer parte falhar, nada é
+      // gravado — antes, cada passo era uma requisição e uma falha no meio deixava a comissão pela metade.
+      // A RPC roda com o papel de quem chama: as mesmas regras de acesso de antes continuam valendo.
+      if (Object.keys(patch).length > 0 || enviarExtras) {
+        const currentIds = new Set(formExtras.filter((r) => !r._new).map((r) => r.id));
+        const removed = enviarExtras ? commissionExtras.filter((r) => !currentIds.has(r.id)) : [];
+        const extrasPayload = enviarExtras
+          ? formExtras.map((r) => ({
+              ...(r._new ? {} : { id: r.id }),
+              nome: r.nome || null,
+              origem: r.origem,
+              papel: r.papel || null,
+              percentual: r.percentual ?? null,
+              valor: r.valor ?? null,
+              user_id: r.user_id ?? null,
+              lado: r.lado ?? null,
+              creci_tipo: !r.user_id ? (r.creci_tipo ?? null) : null,
+              creci: !r.user_id ? (r.creci ?? null) : null,
+            }))
+          : null;
+        const { data: saved, error } = await supabase.rpc("venda_salvar_resumo", {
+          _sale_id: id,
+          _patch: patch as SaleUpdate as Json,
+          _extras: extrasPayload as Json,
+          _extras_remover: removed.map((r) => r.id),
+        });
         if (error) {
           setResumoSaveFailed(true);
           if (error.code === "23505" && error.message?.includes("sales_imovel_id_ativa_key")) {
@@ -1228,82 +1265,31 @@ function SaleDetail() {
           }
           return false;
         }
-      }
-      // Extras resolvidos com id real do banco — usado pra sincronizar com a Ocorrência logo abaixo.
-      // Sem isso, um extra recém-criado ainda estaria com o id temporário ("new-...") nesse ponto.
-      let resolvedExtras = formExtras;
-      if (dirtyExtras && formExtras.some((r) => !r.user_id && !(r.nome ?? "").trim())) {
-        setResumoSaveFailed(true);
-        toast.error(
-          "Há uma participação extra sem pessoa. Escolha a pessoa ou remova a linha antes de salvar.",
-        );
-        return false;
-      }
-      const extraSemPessoa = dirtyExtras ? extraSemPessoaCadastrada(formExtras) : null;
-      if (extraSemPessoa) {
-        // Mesmo critério do CHECK do banco (23514): avisa antes, com o nome da linha.
-        setResumoSaveFailed(true);
-        toast.error(
-          `A parte extra "${(extraSemPessoa.nome ?? "").trim() || "sem nome"}" está como ${COMISSAO_PAPEIS.find((p) => p.key === extraSemPessoa.papel)?.label ?? extraSemPessoa.papel}, mas sem pessoa cadastrada. Escolha a pessoa na lista ou, se for parceiro sem cadastro, mude o papel para "Outro".`,
-        );
-        return false;
-      }
-      if (dirtyExtras) {
-        const currentIds = new Set(formExtras.filter((r) => !r._new).map((r) => r.id));
-        const removed = commissionExtras.filter((r) => !currentIds.has(r.id));
-        for (const r of removed) {
-          const { error } = await supabase.from("sale_commission_extras").delete().eq("id", r.id);
-          if (error) {
+        if (enviarExtras) {
+          const ids = (saved as { extras?: unknown } | null)?.extras;
+          if (!Array.isArray(ids) || ids.length !== formExtras.length) {
+            // Resposta fora do esperado: não marca os extras como salvos (evita duplicar no retry).
             setResumoSaveFailed(true);
-            toast.error(resumoSaveErrorMessage(error));
+            toast.error(resumoSaveErrorMessage(null));
+            await load();
             return false;
           }
+          resolvedExtras = formExtras.map((r, i) =>
+            r._new ? { ...r, id: String(ids[i]), _new: false } : r,
+          );
+          // Aplica os ids reais no estado IMEDIATAMENTE, não só via load() — load() só reescreve
+          // formExtras quando dirtyExtras é false (pra não apagar edição em digitação), e a falha de
+          // sincronização abaixo deixa dirtyExtras true de propósito (pra permitir retry). Sem isto, um
+          // retry encontraria os mesmos extras ainda com _new=true e id temporário "new-..." e os
+          // inseriria de novo — duplicando linha de comissão a cada tentativa.
+          setFormExtras(resolvedExtras);
+          setCommissionExtras(resolvedExtras as CommissionExtraRow[]);
         }
-        resolvedExtras = [...formExtras];
-        for (let i = 0; i < resolvedExtras.length; i++) {
-          const r = resolvedExtras[i];
-          const data = {
-            nome: r.nome || null,
-            origem: r.origem,
-            papel: r.papel || null,
-            percentual: r.percentual ?? null,
-            valor: r.valor ?? null,
-            user_id: r.user_id ?? null,
-            lado: r.lado ?? null,
-            creci_tipo: !r.user_id ? (r.creci_tipo ?? null) : null,
-            creci: !r.user_id ? (r.creci ?? null) : null,
-          };
-          if (r._new) {
-            const { data: inserted, error } = await supabase
-              .from("sale_commission_extras")
-              .insert({ sale_id: id, ...data })
-              .select("id")
-              .single();
-            if (error) {
-              setResumoSaveFailed(true);
-              toast.error(resumoSaveErrorMessage(error));
-              return false;
-            }
-            resolvedExtras[i] = { ...r, id: inserted.id, _new: false };
-          } else {
-            const { error } = await supabase
-              .from("sale_commission_extras")
-              .update(data)
-              .eq("id", r.id);
-            if (error) {
-              setResumoSaveFailed(true);
-              toast.error(resumoSaveErrorMessage(error));
-              return false;
-            }
-          }
-        }
-        // Aplica os ids reais no estado IMEDIATAMENTE, não só via load() — load() só reescreve
-        // formExtras quando dirtyExtras é false (pra não apagar edição em digitação), e a falha de
-        // sincronização abaixo deixa dirtyExtras true de propósito (pra permitir retry). Sem isto, um
-        // retry encontraria os mesmos extras ainda com _new=true e id temporário "new-..." e os
-        // inseriria de novo — duplicando linha de comissão a cada tentativa.
-        setFormExtras(resolvedExtras);
-        setCommissionExtras(resolvedExtras as CommissionExtraRow[]);
+      }
+      if (extrasErro) {
+        setResumoSaveFailed(true);
+        toast.error(extrasErro);
+        return false;
       }
       // Mesmo sem patch: uma tentativa anterior pode ter salvo sales e falhado na ocorrência,
       // inclusive antes de recarregar a página. Não depender de flag volátil para decidir o sync.
@@ -1951,7 +1937,7 @@ function SaleDetail() {
           });
     if (error) {
       // Trava de campo do banco (ex.: Mídia, errcode 23514): leva até o campo em vez de só avisar.
-      if (!tratarErroDeCampo(error)) toast.error(error.message);
+      if (!tratarErroDeCampo(error)) toast.error(mensagemErro(error));
       load(); // reconcilia a tela com o que realmente ficou salvo — a troca é atômica, então nada mudou
       return;
     }
@@ -2058,7 +2044,7 @@ function SaleDetail() {
           .from("sale-documents")
           .upload(path, contratoFile, { upsert: false });
         if (upErr) {
-          toast.error(`Falha no upload: ${upErr.message}`);
+          toast.error(mensagemErro(upErr, "Falha no upload. Tente de novo."));
           return;
         }
         const { error: insErr } = await supabase.from("sale_documents").insert({
@@ -2071,7 +2057,7 @@ function SaleDetail() {
           status: "enviado",
         });
         if (insErr) {
-          toast.error(insErr.message);
+          toast.error(mensagemErro(insErr));
           return;
         }
         await supabase.from("activity_logs").insert({
@@ -2092,7 +2078,7 @@ function SaleDetail() {
         _libera_assinatura: contratoLiberaAssinatura,
       });
       if (updErr) {
-        toast.error(updErr.message);
+        toast.error(mensagemErro(updErr));
         return;
       }
       await supabase.from("activity_logs").insert({
@@ -2145,7 +2131,7 @@ function SaleDetail() {
         .from("sale-documents")
         .upload(path, contratoAssinadoFile, { upsert: false });
       if (upErr) {
-        toast.error(`Falha no upload: ${upErr.message}`);
+        toast.error(mensagemErro(upErr, "Falha no upload. Tente de novo."));
         return;
       }
       const { error: insErr } = await supabase.from("sale_documents").insert({
@@ -2158,7 +2144,7 @@ function SaleDetail() {
         status: "enviado",
       });
       if (insErr) {
-        toast.error(insErr.message);
+        toast.error(mensagemErro(insErr));
         return;
       }
       await supabase.from("activity_logs").insert({
@@ -2269,7 +2255,7 @@ function SaleDetail() {
     const destino = campo ? destinoDaPendencia(campo) : null;
     if (!campo || !destino) return false;
     void levarAoCampo(campo);
-    toast.error(error.message, {
+    toast.error(mensagemErro(error), {
       description: `Falta preencher ${destino.campoLabel}. Já abrimos o campo para você.`,
       duration: 10000,
     });
@@ -6045,7 +6031,7 @@ function OccurrenceReviewPanel({
         .update({ status: "concluida" })
         .eq("id", occ.id);
       if (e0) {
-        toast.error(e0.message);
+        toast.error(mensagemErro(e0));
         return;
       }
       const { error } = await supabase
@@ -6053,7 +6039,7 @@ function OccurrenceReviewPanel({
         .update({ status: "ocorrencia_concluida" })
         .eq("id", saleId);
       if (error) {
-        toast.error(error.message);
+        toast.error(mensagemErro(error));
         return;
       }
       const motivo = motivoExcedido
@@ -6341,7 +6327,7 @@ function SaleReport({
         })
         .eq("id", occ.id);
       if (e0) {
-        toast.error(e0.message);
+        toast.error(mensagemErro(e0));
         return;
       }
       const { error: e1 } = await supabase
@@ -6349,7 +6335,7 @@ function SaleReport({
         .update({ status: "ocorrencia_pendente" })
         .eq("id", sale.id);
       if (e1) {
-        toast.error(e1.message);
+        toast.error(mensagemErro(e1));
         return;
       }
       await supabase.from("sale_status_history").insert({
@@ -6586,7 +6572,7 @@ function CommentsPanel({
       .insert({ sale_id: saleId, autor_id: user!.id, escopo, texto })
       .select("id")
       .single();
-    if (error) toast.error(error.message);
+    if (error) toast.error(mensagemErro(error));
     else {
       setText("");
       if (comment) {
@@ -6924,7 +6910,7 @@ function OccurrencePanel({
   const createOcc = async () => {
     const { error } = await supabase.rpc("criar_ocorrencia_completa", { p_sale_id: saleId });
     if (error) {
-      toast.error(error.message);
+      toast.error(mensagemErro(error));
       return;
     }
     toast.success("Ocorrência criada");
@@ -7007,7 +6993,7 @@ function OccurrencePanel({
   const pullFromSaleSplit = async () => {
     const { error } = await supabase.rpc("sync_occurrence_commissions", { _sale_id: saleId });
     if (error) {
-      toast.error(error.message);
+      toast.error(mensagemErro(error));
       return;
     }
     toast.success("Comissões sincronizadas com a revisão do gestor.");
@@ -7181,7 +7167,7 @@ function OccurrencePanel({
             .update(patch as Partial<OccurrenceRow>)
             .eq("id", occ.id);
           if (error) {
-            toast.error(error.message);
+            toast.error(mensagemErro(error));
             return false;
           }
         }
@@ -7201,7 +7187,7 @@ function OccurrencePanel({
         for (const r of removed) {
           const { error } = await supabase.from("occurrence_commissions").delete().eq("id", r.id);
           if (error) {
-            toast.error(error.message);
+            toast.error(mensagemErro(error));
             return false;
           }
         }
@@ -7230,7 +7216,7 @@ function OccurrencePanel({
               })
             : await supabase.from("occurrence_commissions").update(data).eq("id", r.id);
           if (error) {
-            toast.error(error.message);
+            toast.error(mensagemErro(error));
             return false;
           }
         }
@@ -7241,7 +7227,7 @@ function OccurrencePanel({
         for (const r of removed) {
           const { error } = await supabase.from("occurrence_partners").delete().eq("id", r.id);
           if (error) {
-            toast.error(error.message);
+            toast.error(mensagemErro(error));
             return false;
           }
         }
@@ -7263,7 +7249,7 @@ function OccurrencePanel({
             ? await supabase.from("occurrence_partners").insert({ occurrence_id: occ.id, ...data })
             : await supabase.from("occurrence_partners").update(data).eq("id", r.id);
           if (error) {
-            toast.error(error.message);
+            toast.error(mensagemErro(error));
             return false;
           }
         }
@@ -7350,7 +7336,7 @@ function OccurrencePanel({
       : { aceita_financeiro: false, aceita_financeiro_em: null, aceita_financeiro_por: null };
     const { error } = await supabase.from("occurrences").update(patch).eq("id", occ.id);
     if (error) {
-      toast.error(error.message);
+      toast.error(mensagemErro(error));
       return;
     }
     await supabase.from("activity_logs").insert({
@@ -7392,7 +7378,7 @@ function OccurrencePanel({
         })
         .eq("id", occ.id);
       if (e0) {
-        toast.error(e0.message);
+        toast.error(mensagemErro(e0));
         return;
       }
       const { error: e1 } = await supabase
@@ -7400,7 +7386,7 @@ function OccurrencePanel({
         .update({ status: "ocorrencia_pendente" })
         .eq("id", saleId);
       if (e1) {
-        toast.error(e1.message);
+        toast.error(mensagemErro(e1));
         return;
       }
       await supabase.from("sale_status_history").insert({

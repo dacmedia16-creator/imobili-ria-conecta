@@ -9,6 +9,7 @@ import {
 } from "@/lib/meu-plano-2027/regras";
 import { erroPlano, planoDb } from "@/lib/meu-plano-2027/modulo";
 import { campoLivre, erroPlanoAssinado, filaPermitida } from "@/lib/meu-plano-2027/trava-assinado";
+import { mensagemErro } from "@/lib/errors";
 
 /**
  * Estado do plano do corretor logado + gravação a cada campo.
@@ -295,7 +296,7 @@ export function usePlano(userId: string) {
       travado.current = true;
       if (m)
         await usarMeta(m, true).catch((e: Error) => {
-          throw new Error(`Pacto assinado, mas a meta oficial não foi gravada: ${e.message}`);
+          throw new Error(`Pacto assinado, mas a meta oficial não foi gravada: ${mensagemErro(e)}`);
         });
     } finally {
       sincronizando.current = false;

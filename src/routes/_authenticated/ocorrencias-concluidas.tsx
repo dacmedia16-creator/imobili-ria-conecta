@@ -49,6 +49,7 @@ import {
   type OpcaoRelatorio,
   type OcorrenciaConcluidaRow,
 } from "@/lib/ocorrencias-concluidas";
+import { mensagemErro } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/ocorrencias-concluidas")({
   head: () => ({ meta: [{ title: "Ocorrências concluídas" }] }),
@@ -111,7 +112,7 @@ function OcorrenciasConcluidasPage() {
           .rpc("relatorio_ocorrencias_concluidas")
           .abortSignal(controller.signal);
         if (!ativo) return;
-        if (error) throw new Error(error.message || "Falha ao consultar o relatório.");
+        if (error) throw error;
         const resultado = relatorioOcorrenciasConcluidasSchema.safeParse(data);
         if (!resultado.success)
           throw new Error("O relatório retornou dados inválidos. Tente novamente.");
@@ -137,7 +138,7 @@ function OcorrenciasConcluidasPage() {
         setEstado({
           ...vazio,
           loading: false,
-          erro: err instanceof Error ? err.message : "Falha ao carregar as ocorrências concluídas.",
+          erro: mensagemErro(err, "Falha ao carregar as ocorrências concluídas."),
         });
       }
     };

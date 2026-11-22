@@ -26,6 +26,7 @@ import {
   linkAcompanhamentoEnabled,
   regenerarLinkVenda,
 } from "@/lib/link-acompanhamento-db";
+import { mensagemErro } from "@/lib/errors";
 
 /**
  * Bloco "Link de acompanhamento" da venda (t_54c79bdc). Um link para o comprador e outro para o vendedor.
@@ -76,7 +77,7 @@ export function LinkAcompanhamentoVenda({
       setDados(await regenerarLinkVenda(saleId, lado));
       toast.success(`Link do ${LADO_LABEL[lado].toLowerCase()} trocado. O antigo não abre mais.`);
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível gerar outro link.");
+      toast.error(mensagemErro(e, "Não foi possível gerar outro link."));
     } finally {
       setBusy(false);
       setConfirmar(null);

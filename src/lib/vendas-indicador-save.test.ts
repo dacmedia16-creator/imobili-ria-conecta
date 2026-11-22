@@ -211,6 +211,65 @@ function harness(initial = fixture()) {
               },
           error: failure.read ?? null,
         };
+      if (name === "venda_salvar_resumo") {
+        // Modelo da RPC (t_8ab6c348): uma transação. Aplica numa cópia e só confirma se tudo der certo;
+        // as escritas aparecem em `calls` (table/operation) apenas quando confirmadas.
+        if (failure.updateThrow) throw failure.updateThrow;
+        const patch: Bag = payload._patch ?? {};
+        const list: Bag[] | null = payload._extras ?? null;
+        const remover: string[] = payload._extras_remover ?? [];
+        const draftDb = { ...db };
+        let draftExtras = structuredClone(extras);
+        const writes: Bag[] = [];
+        const ids: string[] = [];
+        if (Object.keys(patch).length > 0) {
+          if (failure.update) return { data: null, error: failure.update };
+          Object.assign(draftDb, patch);
+          writes.push({
+            table: "sales",
+            operation: "update",
+            data: structuredClone(patch),
+            filters: { id: payload._sale_id },
+          });
+        }
+        if (list) {
+          for (const rid of remover) {
+            if (failure.extra) return { data: null, error: failure.extra };
+            draftExtras = draftExtras.filter((e) => e.id !== rid);
+            writes.push({
+              table: "sale_commission_extras",
+              operation: "delete",
+              filters: { id: rid },
+            });
+          }
+          for (const e of list) {
+            if (failure.extra) return { data: null, error: failure.extra };
+            if (!e.id) {
+              const row = { ...e, id: `extra-${draftExtras.length}-${ids.length}` };
+              draftExtras.push(row);
+              ids.push(row.id);
+              writes.push({
+                table: "sale_commission_extras",
+                operation: "insert",
+                data: structuredClone(e),
+              });
+            } else {
+              draftExtras = draftExtras.map((x) => (x.id === e.id ? { ...x, ...e } : x));
+              ids.push(e.id);
+              writes.push({
+                table: "sale_commission_extras",
+                operation: "update",
+                data: structuredClone(e),
+                filters: { id: e.id },
+              });
+            }
+          }
+        }
+        db = draftDb;
+        extras = draftExtras;
+        calls.push(...writes);
+        return { data: { extras: ids }, error: null };
+      }
       if (name !== "sync_occurrence_commissions") return { error: null };
       if (failure.rpc) return { error: failure.rpc };
       try {
@@ -761,6 +820,43 @@ describe("remoção de indicadores e retomada — handlers reais, backend MOCK o
     expect(h.derived().find((r) => r.papel === "lider_captador")?.user_id).toBe(
       "leader-replacement",
     );
+  });
+  it("tudo ou nada (t_8ab6c348): falha no extra não deixa a venda nem os extras gravados pela metade", async () => {
+    const h = harness();
+    h.context.updResumo({ matricula: "alterada no meio" });
+    h.context.formExtras = [
+      { id: "new-a", _new: true, nome: "Parceiro A", papel: "outro", user_id: null, valor: 100 },
+      { id: "new-b", _new: true, nome: "Parceiro B", papel: "outro", user_id: null, valor: 50 },
+    ];
+    h.context.dirtyExtras = true;
+    h.failure.extra = { code: "23514", message: "private check" };
+    expect(await h.context.saveResumo()).toBe(false);
+    // Nada gravado: a venda continua como estava e nenhum extra entrou.
+    expect(h.db().matricula).toBeUndefined();
+    expect(h.calls.filter((c) => c.table && c.operation && c.operation !== "select")).toEqual([]);
+    expect(syncCalls(h)).toHaveLength(0);
+    expect(h.errors.join()).not.toContain("private");
+    // Corrigido o problema, a mesma tentativa grava tudo de uma vez.
+    delete h.failure.extra;
+    expect(await h.context.saveResumo()).toBe(true);
+    expect(h.db().matricula).toBe("alterada no meio");
+    expect(h.context.formExtras.map((e: Bag) => e.nome)).toEqual(["Parceiro A", "Parceiro B"]);
+    expect(h.context.formExtras.some((e: Bag) => e._new || String(e.id).startsWith("new-"))).toBe(
+      false,
+    );
+    expect(h.calls.filter((c) => c.name === "venda_salvar_resumo")).toHaveLength(2);
+  });
+  it("linha extra incompleta não impede salvar o Resumo (igual a antes); extras esperam a correção", async () => {
+    const h = harness();
+    h.context.updResumo({ matricula: "resumo salvo" });
+    h.context.formExtras = [
+      { id: "new-vazio", _new: true, nome: "", papel: "outro", user_id: null },
+    ];
+    h.context.dirtyExtras = true;
+    expect(await h.context.saveResumo()).toBe(false);
+    expect(h.db().matricula).toBe("resumo salvo");
+    expect(h.calls.filter((c) => c.table === "sale_commission_extras")).toEqual([]);
+    expect(h.errors.at(-1)).toContain("participação extra sem pessoa");
   });
   it("preserva tratamento amigável de imóvel ativo duplicado", async () => {
     const h = harness();

@@ -8,6 +8,7 @@ import { Bell, Check, CheckCheck, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import type { NotificationRow } from "@/lib/database.types";
 import { EmptyState, ListSkeleton, PageHeader } from "@/components/visual/base";
+import { mensagemErro } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/notificacoes")({
   head: () => ({ meta: [{ title: "Notificações" }] }),
@@ -72,7 +73,7 @@ function NotificationsPage() {
       .update({ lida: true })
       .eq("user_id", user.id)
       .eq("lida", false);
-    if (error) toast.error(error.message);
+    if (error) toast.error(mensagemErro(error));
     else {
       toast.success("Todas marcadas como lidas");
       load();

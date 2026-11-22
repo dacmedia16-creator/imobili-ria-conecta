@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { mensagemErro } from "@/lib/errors";
 
 export function DescricaoMatricula({ saleId, value, origem, editable, canCorrect, onChange, onSaved }: {
   saleId: string;
@@ -31,7 +32,7 @@ export function DescricaoMatricula({ saleId, value, origem, editable, canCorrect
       await onSaved();
       setCorrecting(false);
       toast.success("Correção registrada com usuário e data");
-    } catch (error) { toast.error(error instanceof Error ? error.message : "Falha ao corrigir descrição"); }
+    } catch (error) { toast.error(mensagemErro(error, "Falha ao corrigir descrição")); }
     finally { setSaving(false); }
   };
   return <div className="space-y-2">

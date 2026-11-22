@@ -1,9 +1,28 @@
+// Página de erro geral servida pelo servidor (start.ts/server.ts) quando a tela nem chega a abrir.
+// Textos em português com orientação; nunca mostra detalhe interno (pilha, SQL, mensagem crua).
+// Os mesmos textos são usados pelo erro e pela 404 do React (__root.tsx).
+export const TEXTO_ERRO_PAGINA = {
+  titulo: "Esta página não abriu",
+  explicacao:
+    "Algo deu errado do nosso lado. Recarregue a página; se continuar, fale com o suporte.",
+  tentarDeNovo: "Recarregar",
+  inicio: "Ir para o início",
+} as const;
+
+export const TEXTO_PAGINA_NAO_ENCONTRADA = {
+  titulo: "Página não encontrada",
+  explicacao:
+    "Este endereço não existe ou mudou de lugar. Confira o link ou volte para o início; se precisar, fale com o suporte.",
+  inicio: "Ir para o início",
+} as const;
+
 export function renderErrorPage(): string {
+  const t = TEXTO_ERRO_PAGINA;
   return `<!doctype html>
-<html lang="en">
+<html lang="pt-BR">
   <head>
     <meta charset="utf-8" />
-    <title>This page didn't load</title>
+    <title>${t.titulo}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
       body { font: 15px/1.5 system-ui, -apple-system, sans-serif; background: #fafafa; color: #111; display: grid; place-items: center; min-height: 100vh; margin: 0; padding: 1.5rem; }
@@ -18,11 +37,11 @@ export function renderErrorPage(): string {
   </head>
   <body>
     <div class="card">
-      <h1>This page didn't load</h1>
-      <p>Something went wrong on our end. You can try refreshing or head back home.</p>
+      <h1>${t.titulo}</h1>
+      <p>${t.explicacao}</p>
       <div class="actions">
-        <button class="primary" onclick="location.reload()">Try again</button>
-        <a class="secondary" href="/">Go home</a>
+        <button class="primary" onclick="location.reload()">${t.tentarDeNovo}</button>
+        <a class="secondary" href="/">${t.inicio}</a>
       </div>
     </div>
   </body>

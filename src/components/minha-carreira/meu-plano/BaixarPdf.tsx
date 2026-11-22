@@ -4,6 +4,7 @@ import { FileDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Respostas } from "@/lib/meu-plano-2027/regras";
 import { baixarPlanoPdf } from "@/lib/meu-plano-2027/baixar";
+import { mensagemErro } from "@/lib/errors";
 
 /**
  * Botão "Baixar meu plano em PDF". Aparece sempre, mesmo com o plano incompleto (t_b8aae132): o PDF sai com o
@@ -33,7 +34,7 @@ export function BotaoBaixarPlano({
       await baixarPlanoPdf(userId, nome);
       toast.success("PDF do plano baixado.");
     } catch (e) {
-      toast.error((e as Error).message || "Não foi possível gerar o PDF.");
+      toast.error(mensagemErro(e, "Não foi possível gerar o PDF."));
     } finally {
       setOcupado(false);
     }

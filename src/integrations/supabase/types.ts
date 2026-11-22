@@ -3952,6 +3952,15 @@ export type Database = {
         Args: { _sale_id: string };
         Returns: undefined;
       };
+      venda_salvar_resumo: {
+        Args: {
+          _sale_id: string;
+          _patch?: Json;
+          _extras?: Json;
+          _extras_remover?: string[];
+        };
+        Returns: Json;
+      };
       update_contrato_pendencia: {
         Args: {
           _libera_assinatura: boolean;

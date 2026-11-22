@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { errorCode, errorMessage } from "@/lib/errors";
+import { errorCode, errorMessage, errorRawMessage } from "@/lib/errors";
 import { Building2 } from "lucide-react";
 import { ListSkeleton, PageHeader } from "@/components/visual/base";
 
@@ -44,7 +44,7 @@ function NewLancamento() {
     } catch (err: unknown) {
       if (
         errorCode(err) === "23505" &&
-        errorMessage(err, "").includes("sales_imovel_id_ativa_key")
+        errorRawMessage(err).includes("sales_imovel_id_ativa_key")
       ) {
         toast.error("Já existe uma venda em andamento para esse código de imóvel.");
       } else {

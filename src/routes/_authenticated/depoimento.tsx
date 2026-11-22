@@ -18,6 +18,7 @@ import {
   DepoimentoObrigado,
   Estrelas,
 } from "@/components/depoimentos/DepoimentoForm";
+import { mensagemErro } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/depoimento")({
   head: () => ({ meta: [{ title: "Seu depoimento" }] }),
@@ -45,7 +46,7 @@ function PaginaDepoimento() {
       toast.success("Depoimento retirado.");
       carregar();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível retirar.");
+      toast.error(mensagemErro(e, "Não foi possível retirar."));
     }
   };
 

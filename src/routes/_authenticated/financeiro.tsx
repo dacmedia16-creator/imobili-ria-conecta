@@ -31,6 +31,7 @@ import { AgingPanel } from "@/components/financeiro/AgingPanel";
 import { DivergenciasList } from "@/components/financeiro/DivergenciasList";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 import { dateBR } from "@/components/vendas/shared";
+import { mensagemErro } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/financeiro")({
   head: () => ({ meta: [{ title: "Financeiro" }] }),
@@ -64,7 +65,7 @@ function CentralFinanceiraPage() {
       setBundle(await fetchFinanceiroBundle());
     } catch (err) {
       setBundle(null);
-      setErro(err instanceof Error ? err.message : "Falha ao carregar a Central Financeira.");
+      setErro(mensagemErro(err, "Falha ao carregar a Central Financeira."));
     } finally {
       setLoading(false);
     }

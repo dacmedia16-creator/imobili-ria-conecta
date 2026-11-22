@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { mensagemErro } from "@/lib/errors";
 
 /**
  * Reunião de prestação de contas com o proprietário (a cada 45 dias de exclusividade em vigor; a
@@ -76,7 +77,7 @@ export function ReuniaoProprietario({
       setAbrir(false);
       await carregar();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível registrar a reunião.");
+      toast.error(mensagemErro(e, "Não foi possível registrar a reunião."));
     } finally {
       setSalvando(false);
     }

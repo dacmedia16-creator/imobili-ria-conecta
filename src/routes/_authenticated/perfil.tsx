@@ -55,6 +55,7 @@ import {
 import { listMyPositioningRegions } from "@/lib/positioning-db";
 import { CRECI_SO_ZEROS_AVISO, creciReal, creciSoZeros } from "@/lib/exclusive-captures-ocr";
 import { AvisosExclusividadePreferencias } from "@/components/perfil/AvisosExclusividadePreferencias";
+import { mensagemErro } from "@/lib/errors";
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 
@@ -261,7 +262,7 @@ function MeuAcesso() {
         .eq("user_id", user.id)
         .eq("role", r);
       if (error) {
-        toast.error(error.message);
+        toast.error(mensagemErro(error));
         return;
       }
       if (campo === "notificar_whatsapp") setNotifPorPapel((m) => ({ ...m, [r]: valor }));
@@ -298,7 +299,7 @@ function MeuAcesso() {
           .update({ telefone: telefone.trim() || null })
           .eq("id", user.id);
         if (error) {
-          toast.error(error.message);
+          toast.error(mensagemErro(error));
           return;
         }
         setSalvo((x) => ({ ...x, telefone }));
@@ -308,7 +309,7 @@ function MeuAcesso() {
         try {
           await salvarMinhaDataNascimento(nova, comemora);
         } catch (e: unknown) {
-          toast.error(e instanceof Error ? e.message : "Não foi possível salvar agora.");
+          toast.error(mensagemErro(e, "Não foi possível salvar agora."));
           return;
         }
         // Sem data a linha some no banco: a escolha volta ao padrão.
@@ -339,7 +340,7 @@ function MeuAcesso() {
           .update({ cpf: cpf.trim() || null, creci: creciReal(creci) })
           .eq("id", user.id);
         if (error) {
-          toast.error(error.message);
+          toast.error(mensagemErro(error));
           return;
         }
         const creciGravado = creciReal(creci) ?? "";
@@ -357,7 +358,7 @@ function MeuAcesso() {
               ? "Esse ID RE/MAX já está em outro cadastro. Fale com o administrador."
               : /ID RE\/MAX invalido/i.test(error.message)
                 ? "O ID RE/MAX tem 9 números e começa com 63 (ex.: 630601272)."
-                : error.message,
+                : mensagemErro(error),
           );
           return;
         }
@@ -389,7 +390,7 @@ function MeuAcesso() {
         .update({ pagina_pessoal_url: paginaUrl, instagram_url: instagramUrl })
         .eq("id", user.id);
       if (error) {
-        toast.error(error.message);
+        toast.error(mensagemErro(error));
         return;
       }
       setPaginaPessoal(paginaUrl ?? "");
@@ -420,7 +421,7 @@ function MeuAcesso() {
         _public_enabled: true,
       });
       if (error) {
-        toast.error(error.message);
+        toast.error(mensagemErro(error));
         return;
       }
       toast.success("Posicionamento salvo");
@@ -443,7 +444,7 @@ function MeuAcesso() {
         _tipo: suggestion.tipo,
       });
       if (error) {
-        toast.error(error.message);
+        toast.error(mensagemErro(error));
         return;
       }
       setMySuggestions((current) => [
@@ -476,7 +477,7 @@ function MeuAcesso() {
     try {
       const { error } = await supabase.auth.updateUser({ password: novaSenha });
       if (error) {
-        toast.error(error.message);
+        toast.error(mensagemErro(error));
         return;
       }
       setNovaSenha("");
@@ -515,7 +516,7 @@ function MeuAcesso() {
         .from("avatars")
         .upload(path, avatarFile, { upsert: true, contentType: avatarFile.type });
       if (upErr) {
-        toast.error(upErr.message);
+        toast.error(mensagemErro(upErr));
         return;
       }
       const { data } = supabase.storage.from("avatars").getPublicUrl(path);
@@ -525,7 +526,7 @@ function MeuAcesso() {
         .update({ avatar_url: url })
         .eq("id", user.id);
       if (dbErr) {
-        toast.error(dbErr.message);
+        toast.error(mensagemErro(dbErr));
         return;
       }
       setAvatarUrl(url);
@@ -534,7 +535,7 @@ function MeuAcesso() {
       setAvatarFile(null);
       toast.success("Foto de perfil atualizada");
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Falha ao atualizar foto");
+      toast.error(mensagemErro(err, "Falha ao atualizar foto"));
     } finally {
       setSavingAvatar(false);
     }
