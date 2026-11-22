@@ -35,7 +35,8 @@ import { ContextoInfo } from "./contexto-info";
 // Painéis de metas 2027 — ETAPA 3 (cartão t_863b7590, Denis 20/11): painel do gestor/broker/Team Leader.
 // Tela NOVA: não altera o Painel da Equipe nem o Farol. A tela não faz conta: tudo sai de montarPainelGestor()
 // (src/lib/metas-2027). O banco decide o escopo: metas_equipe_planos/metas_equipe_realizado devolvem só as
-// equipes que quem chama pode ver (broker/gestor/admin = imobiliária inteira; TL = a dele) e recusam o corretor.
+// equipes que quem chama pode ver (admin/dono = imobiliária inteira; gestor e TL = as que lideram, t_82b66d41)
+// e recusam o corretor. Gestor sem equipe recebe lista vazia: a tela mostra o aviso "sem-equipe".
 // Anotações: carreira_anotacoes, só leitura (RLS: líder da equipe e admin leem).
 const db = supabase as unknown as SupabaseClient;
 
@@ -129,6 +130,12 @@ export function PainelMetasGestor() {
           <p className="text-sm text-destructive">{erro}</p>
         ) : !painel ? (
           <ListSkeleton />
+        ) : !painel.todas && painel.grupos.length === 0 ? (
+          <div data-testid="sem-equipe">
+            <EmptyState icon={Users}>
+              Você ainda não lidera nenhuma equipe. O painel mostra só as equipes que você lidera.
+            </EmptyState>
+          </div>
         ) : (
           <ContextoInfo.Provider value={{ ano: painel.anoDados, anoPlano: ANO_PLANO }}>
             <Conteudo painel={painel} sel={sel} setSel={setSel} recarregar={carregar} />
