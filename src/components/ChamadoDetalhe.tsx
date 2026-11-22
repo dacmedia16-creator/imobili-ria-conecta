@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { errorMessage } from "@/lib/errors";
+import { errorMessage, mensagemErro } from "@/lib/errors";
 import { linkDoPrint, responderChamado } from "@/lib/ajuda-sugestoes.functions";
 import {
   STATUS_CLASSE,
@@ -104,7 +104,7 @@ export function ChamadoDetalhe({
   const carregar = useCallback(async () => {
     setCarregando(true);
     const { data, error } = await rpcLivre("support_ticket_thread", { _ticket: chamado.id });
-    if (error) toast.error(error.message);
+    if (error) toast.error(mensagemErro(error));
     setMsgs((data as Mensagem[] | null) ?? []);
     setCarregando(false);
   }, [chamado.id]);
@@ -135,7 +135,7 @@ export function ChamadoDetalhe({
       _ticket: chamado.id,
       _status: status,
     });
-    if (error) toast.error(error.message);
+    if (error) toast.error(mensagemErro(error));
     else {
       toast.success(`Status: ${statusLabel(status)}`);
       onMudou();

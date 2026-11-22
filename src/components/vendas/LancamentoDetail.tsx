@@ -84,6 +84,7 @@ import type {
   SaleHistoryRow,
   SaleRow,
 } from "@/lib/database.types";
+import { mensagemErro } from "@/lib/errors";
 
 type FieldChanges = Record<string, { de: Json | undefined; para: Json | undefined }>;
 type ActivityPayload = {
@@ -382,7 +383,7 @@ export function LancamentoDetail({
         p_motivo: editMotivo.trim(),
       });
       if (error) {
-        toast.error(error.message);
+        toast.error(mensagemErro(error));
         return;
       }
       setDistribuicao(asDistribution(data));
@@ -545,7 +546,7 @@ export function LancamentoDetail({
         _motivo: returnMotivo,
       });
       if (error) {
-        toast.error(error.message);
+        toast.error(mensagemErro(error));
         return;
       }
       notifySaleStatusChange({
@@ -585,7 +586,7 @@ export function LancamentoDetail({
         p_saldo_confirmado: concludeDist.saldo_imobiliaria,
       });
       if (error) {
-        toast.error(error.message);
+        toast.error(mensagemErro(error));
         return;
       }
       setDistribuicao(asDistribution(data));
@@ -614,7 +615,7 @@ export function LancamentoDetail({
         _motivo: `Reaberta: ${reopenMotivo}`,
       });
       if (error) {
-        toast.error(error.message);
+        toast.error(mensagemErro(error));
         return;
       }
       toast.success("Ocorrência reaberta");
@@ -697,8 +698,8 @@ export function LancamentoDetail({
       // Erro persistente e visível (não só um toast que some sozinho) -- sem isso, o autosave falha
       // em silêncio a cada edição seguinte e a pessoa não entende por que "Enviar ao financeiro"
       // nunca destrava, já que dirty nunca zera enquanto o erro não for corrigido.
-      setFormError(error.message);
-      toast.error(error.message);
+      setFormError(mensagemErro(error));
+      toast.error(mensagemErro(error));
       return false;
     }
     setFormError(null);
@@ -794,7 +795,7 @@ export function LancamentoDetail({
             ...data,
           });
       if (error) {
-        toast.error(error.message);
+        toast.error(mensagemErro(error));
         return false;
       }
     }
@@ -939,8 +940,8 @@ export function LancamentoDetail({
       p_linhas: payload,
     });
     if (error) {
-      setCommError(error.message);
-      toast.error(error.message);
+      setCommError(mensagemErro(error));
+      toast.error(mensagemErro(error));
       return false;
     }
     // Resincroniza com os ids reais devolvidos pela RPC (troca os ids temporários "new-..." gerados
@@ -987,8 +988,8 @@ export function LancamentoDetail({
         // Travas do banco com campo conhecido (Mídia, valor negociado, comissão, divisão): leva ao
         // campo em vez de só mostrar o texto.
         const campo = campoDoErroBanco(error);
-        if (campo && destinoLancamento(campo)) levarAoCampoLancamento(campo, error.message);
-        else toast.error(error.message);
+        if (campo && destinoLancamento(campo)) levarAoCampoLancamento(campo, mensagemErro(error));
+        else toast.error(mensagemErro(error));
         return;
       }
       notifySaleStatusChange({ data: { saleId, status: "ocorrencia_analise_financeiro" } }).catch(

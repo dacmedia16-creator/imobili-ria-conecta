@@ -14,6 +14,7 @@ import { idade } from "@/lib/ajuda-sugestoes";
 import { LifeBuoy, MessageSquareText } from "lucide-react";
 import { EmptyState, ListSkeleton, PageHeader } from "@/components/visual/base";
 import { DetalhePorCima, useTelaEstreita } from "@/components/ListaDetalhe";
+import { mensagemErro } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/ajuda")({
   head: () => ({ meta: [{ title: "Meus chamados" }] }),
@@ -32,7 +33,7 @@ function AjudaPage() {
   const carregar = useCallback(async () => {
     setCarregando(true);
     const { data, error } = await rpcLivre("support_ticket_list", { _escopo: aba });
-    if (error) toast.error(error.message);
+    if (error) toast.error(mensagemErro(error));
     setLista((data as ChamadoLinha[] | null) ?? []);
     setCarregando(false);
   }, [aba]);

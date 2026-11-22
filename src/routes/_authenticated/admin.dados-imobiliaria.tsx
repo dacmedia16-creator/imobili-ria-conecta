@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { GoogleAvaliacaoCard } from "@/components/vendas/GoogleAvaliacaoCard";
+import { mensagemErro } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/admin/dados-imobiliaria")({
   head: () => ({ meta: [{ title: "Dados da imobiliária" }] }),
@@ -93,7 +94,7 @@ function AgencySettings() {
       await reload();
       toast.success("Dados da imobiliária salvos.");
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "Falha ao salvar os dados.");
+      toast.error(mensagemErro(error, "Falha ao salvar os dados."));
     } finally {
       setSaving(false);
     }
@@ -110,7 +111,7 @@ function AgencySettings() {
           : "Imóveis do site RE/MAX desligados no Mapa de captações.",
       );
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "Não foi possível alterar a opção.");
+      toast.error(mensagemErro(error, "Não foi possível alterar a opção."));
     } finally {
       setSaving(false);
     }
@@ -124,7 +125,7 @@ function AgencySettings() {
       setEditingRoom(null);
       toast.success("Sala salva.");
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "Não foi possível salvar a sala.");
+      toast.error(mensagemErro(error, "Não foi possível salvar a sala."));
     } finally {
       setSaving(false);
     }
@@ -146,7 +147,7 @@ function AgencySettings() {
       setLogoFile(null);
       toast.success("Logo atualizado.");
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "Falha ao atualizar o logo.");
+      toast.error(mensagemErro(error, "Falha ao atualizar o logo."));
     } finally {
       setSaving(false);
     }

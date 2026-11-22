@@ -33,6 +33,7 @@ import {
 } from "@/lib/depoimentos";
 import { corrigirDepoimento, listarModeracao, moderarDepoimento } from "@/lib/depoimentos-db";
 import { guardPlatformRoute } from "./plataforma.imobiliarias";
+import { mensagemErro } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/plataforma/depoimentos")({
   head: () => ({ meta: [{ title: "Depoimentos" }] }),
@@ -65,7 +66,7 @@ function ModeracaoDepoimentos() {
     try {
       setLista(await listarModeracao());
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Falha ao carregar.");
+      toast.error(mensagemErro(e, "Falha ao carregar."));
     } finally {
       setCarregando(false);
     }
@@ -86,7 +87,7 @@ function ModeracaoDepoimentos() {
       );
       await carregar();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível.");
+      toast.error(mensagemErro(e, "Não foi possível."));
     } finally {
       setOcupado(null);
     }
@@ -269,7 +270,7 @@ function CorrigirDialog({
       toast.success("Correção salva (com registro).");
       await onSalvo();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível salvar.");
+      toast.error(mensagemErro(e, "Não foi possível salvar."));
     } finally {
       setSalvando(false);
     }

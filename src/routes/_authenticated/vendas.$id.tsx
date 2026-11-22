@@ -254,7 +254,7 @@ import type {
   SaleRow,
   SaleUpdate,
 } from "@/lib/database.types";
-import { errorMessage } from "@/lib/errors";
+import { errorMessage, mensagemErro } from "@/lib/errors";
 import {
   DETAIL_NOT_FOUND_MESSAGE,
   isDetailRouteId,
@@ -1951,7 +1951,7 @@ function SaleDetail() {
           });
     if (error) {
       // Trava de campo do banco (ex.: Mídia, errcode 23514): leva até o campo em vez de só avisar.
-      if (!tratarErroDeCampo(error)) toast.error(error.message);
+      if (!tratarErroDeCampo(error)) toast.error(mensagemErro(error));
       load(); // reconcilia a tela com o que realmente ficou salvo — a troca é atômica, então nada mudou
       return;
     }
@@ -2058,7 +2058,7 @@ function SaleDetail() {
           .from("sale-documents")
           .upload(path, contratoFile, { upsert: false });
         if (upErr) {
-          toast.error(`Falha no upload: ${upErr.message}`);
+          toast.error(mensagemErro(upErr, "Falha no upload. Tente de novo."));
           return;
         }
         const { error: insErr } = await supabase.from("sale_documents").insert({
@@ -2071,7 +2071,7 @@ function SaleDetail() {
           status: "enviado",
         });
         if (insErr) {
-          toast.error(insErr.message);
+          toast.error(mensagemErro(insErr));
           return;
         }
         await supabase.from("activity_logs").insert({
@@ -2092,7 +2092,7 @@ function SaleDetail() {
         _libera_assinatura: contratoLiberaAssinatura,
       });
       if (updErr) {
-        toast.error(updErr.message);
+        toast.error(mensagemErro(updErr));
         return;
       }
       await supabase.from("activity_logs").insert({
@@ -2145,7 +2145,7 @@ function SaleDetail() {
         .from("sale-documents")
         .upload(path, contratoAssinadoFile, { upsert: false });
       if (upErr) {
-        toast.error(`Falha no upload: ${upErr.message}`);
+        toast.error(mensagemErro(upErr, "Falha no upload. Tente de novo."));
         return;
       }
       const { error: insErr } = await supabase.from("sale_documents").insert({
@@ -2158,7 +2158,7 @@ function SaleDetail() {
         status: "enviado",
       });
       if (insErr) {
-        toast.error(insErr.message);
+        toast.error(mensagemErro(insErr));
         return;
       }
       await supabase.from("activity_logs").insert({
@@ -2269,7 +2269,7 @@ function SaleDetail() {
     const destino = campo ? destinoDaPendencia(campo) : null;
     if (!campo || !destino) return false;
     void levarAoCampo(campo);
-    toast.error(error.message, {
+    toast.error(mensagemErro(error), {
       description: `Falta preencher ${destino.campoLabel}. Já abrimos o campo para você.`,
       duration: 10000,
     });
@@ -6045,7 +6045,7 @@ function OccurrenceReviewPanel({
         .update({ status: "concluida" })
         .eq("id", occ.id);
       if (e0) {
-        toast.error(e0.message);
+        toast.error(mensagemErro(e0));
         return;
       }
       const { error } = await supabase
@@ -6053,7 +6053,7 @@ function OccurrenceReviewPanel({
         .update({ status: "ocorrencia_concluida" })
         .eq("id", saleId);
       if (error) {
-        toast.error(error.message);
+        toast.error(mensagemErro(error));
         return;
       }
       const motivo = motivoExcedido
@@ -6341,7 +6341,7 @@ function SaleReport({
         })
         .eq("id", occ.id);
       if (e0) {
-        toast.error(e0.message);
+        toast.error(mensagemErro(e0));
         return;
       }
       const { error: e1 } = await supabase
@@ -6349,7 +6349,7 @@ function SaleReport({
         .update({ status: "ocorrencia_pendente" })
         .eq("id", sale.id);
       if (e1) {
-        toast.error(e1.message);
+        toast.error(mensagemErro(e1));
         return;
       }
       await supabase.from("sale_status_history").insert({
@@ -6586,7 +6586,7 @@ function CommentsPanel({
       .insert({ sale_id: saleId, autor_id: user!.id, escopo, texto })
       .select("id")
       .single();
-    if (error) toast.error(error.message);
+    if (error) toast.error(mensagemErro(error));
     else {
       setText("");
       if (comment) {
@@ -6924,7 +6924,7 @@ function OccurrencePanel({
   const createOcc = async () => {
     const { error } = await supabase.rpc("criar_ocorrencia_completa", { p_sale_id: saleId });
     if (error) {
-      toast.error(error.message);
+      toast.error(mensagemErro(error));
       return;
     }
     toast.success("Ocorrência criada");
@@ -7007,7 +7007,7 @@ function OccurrencePanel({
   const pullFromSaleSplit = async () => {
     const { error } = await supabase.rpc("sync_occurrence_commissions", { _sale_id: saleId });
     if (error) {
-      toast.error(error.message);
+      toast.error(mensagemErro(error));
       return;
     }
     toast.success("Comissões sincronizadas com a revisão do gestor.");
@@ -7181,7 +7181,7 @@ function OccurrencePanel({
             .update(patch as Partial<OccurrenceRow>)
             .eq("id", occ.id);
           if (error) {
-            toast.error(error.message);
+            toast.error(mensagemErro(error));
             return false;
           }
         }
@@ -7201,7 +7201,7 @@ function OccurrencePanel({
         for (const r of removed) {
           const { error } = await supabase.from("occurrence_commissions").delete().eq("id", r.id);
           if (error) {
-            toast.error(error.message);
+            toast.error(mensagemErro(error));
             return false;
           }
         }
@@ -7230,7 +7230,7 @@ function OccurrencePanel({
               })
             : await supabase.from("occurrence_commissions").update(data).eq("id", r.id);
           if (error) {
-            toast.error(error.message);
+            toast.error(mensagemErro(error));
             return false;
           }
         }
@@ -7241,7 +7241,7 @@ function OccurrencePanel({
         for (const r of removed) {
           const { error } = await supabase.from("occurrence_partners").delete().eq("id", r.id);
           if (error) {
-            toast.error(error.message);
+            toast.error(mensagemErro(error));
             return false;
           }
         }
@@ -7263,7 +7263,7 @@ function OccurrencePanel({
             ? await supabase.from("occurrence_partners").insert({ occurrence_id: occ.id, ...data })
             : await supabase.from("occurrence_partners").update(data).eq("id", r.id);
           if (error) {
-            toast.error(error.message);
+            toast.error(mensagemErro(error));
             return false;
           }
         }
@@ -7350,7 +7350,7 @@ function OccurrencePanel({
       : { aceita_financeiro: false, aceita_financeiro_em: null, aceita_financeiro_por: null };
     const { error } = await supabase.from("occurrences").update(patch).eq("id", occ.id);
     if (error) {
-      toast.error(error.message);
+      toast.error(mensagemErro(error));
       return;
     }
     await supabase.from("activity_logs").insert({
@@ -7392,7 +7392,7 @@ function OccurrencePanel({
         })
         .eq("id", occ.id);
       if (e0) {
-        toast.error(e0.message);
+        toast.error(mensagemErro(e0));
         return;
       }
       const { error: e1 } = await supabase
@@ -7400,7 +7400,7 @@ function OccurrencePanel({
         .update({ status: "ocorrencia_pendente" })
         .eq("id", saleId);
       if (e1) {
-        toast.error(e1.message);
+        toast.error(mensagemErro(e1));
         return;
       }
       await supabase.from("sale_status_history").insert({

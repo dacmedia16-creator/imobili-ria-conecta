@@ -56,6 +56,7 @@ import {
 import { TIPO_XLSX, baixarArquivo, gerarXlsx } from "@/lib/xlsx-simples";
 import { buildFichasPdf, fichasPdfFileName } from "@/lib/ficha-colaborador-pdf";
 import { FichaColaboradorCard } from "@/components/ficha/FichaColaboradorCard";
+import { mensagemErro } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/ficha-colaboradores")({
   head: () => ({ meta: [{ title: "Ficha dos colaboradores" }] }),
@@ -86,7 +87,7 @@ function FichaColaboradoresPage() {
         setLista(r.colaboradores);
         setPrazo(r.obrigatoria_a_partir_de);
       })
-      .catch((e: unknown) => setErro(e instanceof Error ? e.message : "Erro ao carregar."));
+      .catch((e: unknown) => setErro(mensagemErro(e, "Erro ao carregar.")));
   };
   useEffect(carregar, []);
 
@@ -179,7 +180,7 @@ function FichaColaboradoresPage() {
       }
       toast.success("Arquivo gerado. Dados pessoais: guarde e compartilhe com cuidado.");
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível exportar.");
+      toast.error(mensagemErro(e, "Não foi possível exportar."));
     } finally {
       setExportando(null);
     }
@@ -632,7 +633,7 @@ function PrazoCard({ prazo, onSalvo }: { prazo: string; onSalvo: (iso: string) =
       onSalvo(await salvarPrazoFicha(iso));
       toast.success("Prazo atualizado.");
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível salvar.");
+      toast.error(mensagemErro(e, "Não foi possível salvar."));
     } finally {
       setSalvando(false);
     }

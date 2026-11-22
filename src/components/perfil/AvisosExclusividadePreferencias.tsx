@@ -15,6 +15,7 @@ import {
   type SituacaoPush,
 } from "@/lib/avisos-exclusividade-module";
 import { chavePublicaPush } from "@/lib/avisos-exclusividade.functions";
+import { mensagemErro } from "@/lib/errors";
 
 /**
  * Meu acesso → Avisos de exclusividade (cartão t_c337fc12). O sino fica sempre ligado; o corretor
@@ -54,7 +55,7 @@ export function AvisosExclusividadePreferencias({ userId }: { userId: string | n
       setPrefs(novo);
       toast.success("Preferência salva.");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível salvar.");
+      toast.error(mensagemErro(e, "Não foi possível salvar."));
     } finally {
       setSalvando(false);
     }
@@ -69,7 +70,7 @@ export function AvisosExclusividadePreferencias({ userId }: { userId: string | n
       setPush("ativo");
       toast.success("Pronto! Este aparelho vai receber os avisos.");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível ativar os avisos.");
+      toast.error(mensagemErro(e, "Não foi possível ativar os avisos."));
       setPush(await situacaoPush());
     } finally {
       setAtivando(false);

@@ -49,6 +49,7 @@ import {
 import { loadAgencyProfile, type AgencyProfile } from "@/lib/agency-profile";
 import { PinsMap, type MapPin as Pino } from "@/components/mapa/PinsMap";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { mensagemErro } from "@/lib/errors";
 
 // vendas_por_regiao_todos/sale_set_geo ainda não constam do types.ts gerado.
 const db = supabase as unknown as SupabaseClient;
@@ -140,7 +141,7 @@ function VendasPorRegiaoPage() {
       })
       .then(({ data, error }) => {
         if (cancelado) return;
-        if (error) setErro(error.message);
+        if (error) setErro(mensagemErro(error));
         else {
           const m = montarVendasTodos((data ?? []) as VendaRegiaoTodosRow[]);
           setVendas(m.vendas);

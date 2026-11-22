@@ -25,6 +25,7 @@ import {
 import { guardPlatformRoute } from "./plataforma.imobiliarias";
 import { clicavelPorTeclado } from "@/lib/clicavel";
 import { DetalhePorCima, useTelaEstreita } from "@/components/ListaDetalhe";
+import { mensagemErro } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/plataforma/chamados")({
   head: () => ({ meta: [{ title: "Central de chamados" }] }),
@@ -57,7 +58,7 @@ function CentralChamados() {
 
   const carregar = useCallback(async () => {
     const { data, error } = await rpcLivre("support_ticket_list", { _escopo: "todos" });
-    if (error) toast.error(error.message);
+    if (error) toast.error(mensagemErro(error));
     setLista((data as ChamadoLinha[] | null) ?? []);
     setCarregando(false);
   }, []);

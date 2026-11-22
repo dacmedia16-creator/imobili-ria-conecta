@@ -36,6 +36,7 @@ import {
   type PlatformPendingRegion,
 } from "@/lib/positioning-db";
 import { REGION_STATUS_LABEL } from "@/lib/especialistas-publico";
+import { mensagemErro } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/admin/posicionamento")({
   head: () => ({ meta: [{ title: "Regiões e sugestões" }] }),
@@ -117,7 +118,7 @@ function AdminPositioning() {
       .eq("status", "pendente")
       .order("created_at");
     if (error) {
-      toast.error(error.message);
+      toast.error(mensagemErro(error));
       return;
     }
     setItems(data ?? []);
@@ -132,7 +133,7 @@ function AdminPositioning() {
     try {
       setRegions(await listOrgRegions());
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(mensagemErro(e));
     }
   }, []);
 
@@ -183,7 +184,7 @@ function AdminPositioning() {
         _tipo: item.tipo,
       });
       if (error) {
-        toast.error(error.message);
+        toast.error(mensagemErro(error));
         return;
       }
       toast.success(
@@ -214,7 +215,7 @@ function AdminPositioning() {
       setNova((n) => ({ ...n, nome: "", zona: "" }));
       await loadRegions();
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(mensagemErro(e));
     } finally {
       setSaving(false);
     }
@@ -239,7 +240,7 @@ function AdminPositioning() {
       setDecidindo(null);
       await loadRegions();
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(mensagemErro(e));
     } finally {
       setSaving(false);
     }
@@ -259,7 +260,7 @@ function AdminPositioning() {
       setEditandoRegiao(null);
       await loadRegions();
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(mensagemErro(e));
     } finally {
       setSaving(false);
     }
@@ -278,7 +279,7 @@ function AdminPositioning() {
       toast.success("Região desativada");
       await loadRegions();
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(mensagemErro(e));
     } finally {
       setSaving(false);
     }

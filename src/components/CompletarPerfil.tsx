@@ -33,6 +33,7 @@ import {
   normalizarCpf,
   type PerfilParaCompletar,
 } from "@/lib/completar-perfil";
+import { mensagemErro } from "@/lib/errors";
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 const TIPOS_FOTO = ["image/jpeg", "image/png", "image/webp", "image/gif"];
@@ -344,7 +345,7 @@ function CompletarPerfilTela({
       toast.success("Perfil completo. Bem-vindo(a)!");
       onConcluir();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Não foi possível salvar agora.");
+      toast.error(mensagemErro(err, "Não foi possível salvar agora."));
     } finally {
       setSalvando(false);
     }

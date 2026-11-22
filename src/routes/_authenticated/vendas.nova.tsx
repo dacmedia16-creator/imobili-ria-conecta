@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { errorCode, errorMessage } from "@/lib/errors";
+import { errorCode, errorMessage, errorRawMessage } from "@/lib/errors";
 import { House } from "lucide-react";
 import { ListSkeleton, PageHeader } from "@/components/visual/base";
 
@@ -56,7 +56,7 @@ function NewSale() {
     } catch (err: unknown) {
       if (
         errorCode(err) === "23505" &&
-        errorMessage(err, "").includes("sales_imovel_id_ativa_key")
+        errorRawMessage(err).includes("sales_imovel_id_ativa_key")
       ) {
         toast.error("Já existe uma venda em andamento para esse código de imóvel.");
       } else {

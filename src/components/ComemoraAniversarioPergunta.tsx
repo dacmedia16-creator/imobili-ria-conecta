@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { PERGUNTA_COMEMORA } from "@/lib/data-nascimento";
 import { idDaSessao, lembreteAdiadoNestaSessao } from "@/lib/completar-perfil";
 import { perguntaComemoraPendente, responderComemora } from "@/lib/data-nascimento-db";
+import { mensagemErro } from "@/lib/errors";
 
 export const AVISO_PERGUNTA_COMEMORA =
   "Se marcar Não, seu nome não aparece no mural de aniversariantes.";
@@ -87,7 +88,7 @@ export function ComemoraAniversarioPergunta() {
       );
     } catch (err: unknown) {
       if (userId) gravarAdiada(userId, sessao);
-      toast.error(err instanceof Error ? err.message : "Não foi possível salvar sua resposta agora.");
+      toast.error(mensagemErro(err, "Não foi possível salvar sua resposta agora."));
     } finally {
       setSalvando(false);
       // Fecha sempre: nunca prende a pessoa por erro.

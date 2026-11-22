@@ -12,6 +12,7 @@ import {
   type SituacaoFicha,
 } from "@/lib/ficha-colaborador";
 import { salvarMeuCadastro } from "@/lib/ficha-colaborador-db";
+import { mensagemErro } from "@/lib/errors";
 
 /**
  * Cadastro pendente no mesmo aviso/trava da ficha (t_b98f3e4b). Mostra só os campos que faltam ou
@@ -68,7 +69,7 @@ export function CadastroPendenteForm({
       toast.success("Cadastro atualizado.");
       onSalvo(nova);
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível salvar agora.");
+      toast.error(mensagemErro(e, "Não foi possível salvar agora."));
     } finally {
       setSalvando(false);
     }

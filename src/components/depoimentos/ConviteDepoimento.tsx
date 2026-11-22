@@ -21,6 +21,7 @@ import { idDaSessao, lembreteAdiadoNestaSessao } from "@/lib/completar-perfil";
 import { abreConviteAutomatico, type DepSituacao } from "@/lib/depoimentos";
 import { minhaSituacaoDepoimento, responderConvite } from "@/lib/depoimentos-db";
 import { DepoimentoForm, DepoimentoObrigado } from "./DepoimentoForm";
+import { mensagemErro } from "@/lib/errors";
 
 const ATRASO_MS = 4000;
 const chaveFechado = (uid: string) => `max:depoimento-convite-fechado:${uid}`;
@@ -79,7 +80,7 @@ export function ConviteDepoimento() {
     try {
       await responderConvite(r);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível registrar.");
+      toast.error(mensagemErro(e, "Não foi possível registrar."));
     }
     fecharSoAgora();
   };
