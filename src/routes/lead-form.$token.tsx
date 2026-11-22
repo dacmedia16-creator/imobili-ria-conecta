@@ -35,7 +35,7 @@ export const Route = createFileRoute("/lead-form/$token")({
 });
 
 const CAMPO =
-  "h-10 w-full rounded-xl border border-white/15 bg-white/5 px-3 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-white/40";
+  "h-10 w-full rounded-xl border border-white/15 bg-white/5 px-3 text-sm text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-white/40";
 
 const VAZIO: FormPublico = {
   nome: "",

@@ -1055,7 +1055,7 @@ function CollapsibleSection({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="mb-2 flex min-h-10 w-full items-center gap-2 text-left"
+        className="mb-2 flex min-h-10 max-md:min-h-11 w-full items-center gap-2 text-left"
       >
         <ChevronRight
           className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`}

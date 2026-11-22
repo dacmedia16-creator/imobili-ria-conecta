@@ -46,7 +46,7 @@ export function Estrelas({
         {[1, 2, 3, 4, 5].map((n) => (
           <Star
             key={n}
-            className={`${tamanho} ${n <= (valor ?? 0) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/40"}`}
+            className={`${tamanho} ${n <= (valor ?? 0) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/70"}`}
             aria-hidden
           />
         ))}
@@ -67,7 +67,7 @@ export function Estrelas({
           onClick={() => onChange(n)}
         >
           <Star
-            className={`${tamanho} ${n <= ativo ? "fill-amber-400 text-amber-400" : "text-muted-foreground/40"}`}
+            className={`${tamanho} ${n <= ativo ? "fill-amber-400 text-amber-400" : "text-muted-foreground/70"}`}
             aria-hidden
           />
         </button>

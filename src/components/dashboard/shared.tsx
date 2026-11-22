@@ -58,7 +58,7 @@ export function InfoDot({
         }}
         // Ícone continua com 16px, mas a área de toque é ampliada para ~40px pelo ::after.
         // `peer`: com o teclado (Tab), a explicação aparece só de focar o botão.
-        className={`peer relative grid h-4 w-4 place-items-center rounded-full transition-colors after:absolute after:-inset-3 after:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover/info:bg-primary group-hover/info:text-primary-foreground ${
+        className={`peer relative grid h-4 w-4 place-items-center rounded-full transition-colors after:absolute after:-inset-3.5 after:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover/info:bg-primary group-hover/info:text-primary-foreground ${
           open ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
         }`}
       >
@@ -111,13 +111,13 @@ export function KpiCard({
       {info && <InfoDot text={info} />}
       <CardContent className="flex items-center gap-3 p-4">
         <div
-          className={`rounded-md p-2 ${isZero ? "bg-muted text-muted-foreground/50" : "bg-primary/10 text-primary"}`}
+          className={`rounded-md p-2 ${isZero ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"}`}
         >
           <Icon className="h-5 w-5" />
         </div>
         <div>
           <div
-            className={`text-xl font-semibold leading-none ${isZero ? "text-muted-foreground/50" : ""}`}
+            className={`text-xl font-semibold leading-none ${isZero ? "text-muted-foreground" : ""}`}
           >
             {display ?? value}
           </div>
@@ -153,13 +153,13 @@ export function MovimentacaoCard({
       {info && <InfoDot text={info} />}
       <CardContent className="flex items-center gap-3 p-4">
         <div
-          className={`rounded-md p-2 ${quantidade === 0 ? "bg-muted text-muted-foreground/50" : "bg-primary/10 text-primary"}`}
+          className={`rounded-md p-2 ${quantidade === 0 ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"}`}
         >
           <Icon className="h-5 w-5" />
         </div>
         <div>
           <div
-            className={`text-xl font-semibold leading-none ${quantidade === 0 ? "text-muted-foreground/50" : ""}`}
+            className={`text-xl font-semibold leading-none ${quantidade === 0 ? "text-muted-foreground" : ""}`}
           >
             {quantidade}
           </div>

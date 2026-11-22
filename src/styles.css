@@ -80,7 +80,7 @@
   /* RE/MAX Red — uso explícito da marca (barra de meta, cartão tone="red", border-beam). */
   --brand-red: oklch(0.575 0.222 25);
   --muted: oklch(0.968 0.007 247);
-  --muted-foreground: oklch(0.5 0.02 260);
+  --muted-foreground: oklch(0.47 0.02 260);
   --accent: oklch(0.95 0.03 264);
   --accent-foreground: oklch(0.396 0.184 264);
   --destructive: oklch(0.52 0.22 25);

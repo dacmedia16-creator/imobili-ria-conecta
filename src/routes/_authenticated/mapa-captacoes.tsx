@@ -324,7 +324,7 @@ function MapaCaptacoesPage() {
                   aria-pressed={siteShown}
                   title={siteShown ? "Esconder imóveis do site" : "Mostrar imóveis do site"}
                   onClick={() => setSiteShown((x) => !x)}
-                  className={`ml-2 flex items-center gap-1 rounded-full border px-2 py-0.5 ${siteShown ? "" : "opacity-40"}`}
+                  className={`ml-2 flex items-center gap-1 rounded-full border px-2 py-0.5 ${siteShown ? "" : "opacity-60"}`}
                 >
                   <span className="h-2.5 w-2.5 rounded-full" style={{ background: SITE_COLOR }} />
                   {SITE_LABEL} ({siteShown ? siteNoMapa.length : soltos.length})

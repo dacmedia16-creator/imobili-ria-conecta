@@ -642,7 +642,7 @@ function VisaoGeralCard({
           </div>
         </div>
         {comissaoResumo.semVinculo.quantidade > 0 && (
-          <p className="text-xs text-amber-600 dark:text-amber-400">
+          <p className="text-xs text-amber-700 dark:text-amber-400">
             {comissaoResumo.semVinculo.quantidade} parcela(s) de comissão (
             {money(comissaoResumo.semVinculo.valor)}) sem vínculo de perfil confirmado — pendente de
             correção, não aparecem no total de nenhum corretor acima.

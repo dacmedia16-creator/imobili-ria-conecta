@@ -322,7 +322,7 @@ function CapturesDashboard() {
                         onClick={() =>
                           setHidden((h) => (off ? h.filter((x) => x !== s) : [...h, s]))
                         }
-                        className={`flex items-center gap-1 rounded-full border px-2 py-0.5 ${off ? "opacity-40 line-through" : ""}`}
+                        className={`flex items-center gap-1 rounded-full border px-2 py-0.5 ${off ? "opacity-60 line-through" : ""}`}
                       >
                         <span
                           className="h-2.5 w-2.5 rounded-full"
@@ -337,7 +337,7 @@ function CapturesDashboard() {
                       type="button"
                       aria-pressed={siteShown}
                       onClick={() => setSiteShown((x) => !x)}
-                      className={`flex items-center gap-1 rounded-full border px-2 py-0.5 ${siteShown ? "" : "opacity-40"}`}
+                      className={`flex items-center gap-1 rounded-full border px-2 py-0.5 ${siteShown ? "" : "opacity-60"}`}
                     >
                       <span className="h-2 w-2 rounded-full" style={{ background: SITE_COLOR }} />
                       {SITE_LABEL} ({soltos.length})

@@ -69,7 +69,7 @@ export function LocacaoStepper({
                   {PAPEL_LABEL[e.papel]}
                 </span>
                 {corrente && devolvida && (
-                  <span className="block text-amber-600 dark:text-amber-400">devolvida</span>
+                  <span className="block text-amber-700 dark:text-amber-400">devolvida</span>
                 )}
                 {corrente && (
                   <span className="block text-[10px]">{textoParado(diasParado(etapaDesde))}</span>
