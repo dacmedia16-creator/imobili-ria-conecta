@@ -17,6 +17,7 @@ import {
   registrarArquivoLinkLocacao,
   salvarLinkLocacao,
 } from "@/lib/locacao-links.functions";
+import { mensagemErro } from "@/lib/errors";
 
 type Dados = {
   ok: boolean;
@@ -94,7 +95,7 @@ function Page() {
     try {
       await fn();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível concluir. Tente novamente.");
+      toast.error(mensagemErro(e, "Não foi possível concluir. Tente novamente."));
     } finally {
       setBusy(false);
     }

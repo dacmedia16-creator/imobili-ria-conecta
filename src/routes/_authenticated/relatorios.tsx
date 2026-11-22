@@ -75,6 +75,7 @@ import { consultarTodasLinhas } from "@/lib/consulta-paginada";
 import { buscarCorretoresPorVenda } from "@/lib/sale-participantes";
 import { dataOficialVendaComercial } from "@/lib/data-assinatura-oficial";
 import { formatBRLOu } from "@/lib/formato-moeda";
+import { mensagemErro } from "@/lib/errors";
 
 type ReportSale = Pick<
   SaleRow,
@@ -332,7 +333,7 @@ function RelatoriosPage() {
       if (versao === loadVersion.current) setCarregouUmaVez(true);
     } catch (error) {
       if (versao === loadVersion.current)
-        setLoadError(error instanceof Error ? error.message : "Falha ao carregar relatórios.");
+        setLoadError(mensagemErro(error, "Falha ao carregar relatórios."));
     } finally {
       if (versao === loadVersion.current) setLoading(false);
     }
@@ -762,7 +763,7 @@ function FluxoCaixaTab({
       setMarcando(null);
       onChange();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Falha ao registrar recebimento.");
+      toast.error(mensagemErro(error, "Falha ao registrar recebimento."));
     } finally {
       setSaving(false);
     }
@@ -782,7 +783,7 @@ function FluxoCaixaTab({
       toast.success("Desfeito");
       onChange();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Falha ao desfazer recebimento.");
+      toast.error(mensagemErro(error, "Falha ao desfazer recebimento."));
     }
   };
 

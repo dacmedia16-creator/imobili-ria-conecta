@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { type Saver, useAutosave, AutosaveStatus, FieldGrid, Field, CurrencyInput } from "./shared";
 import { aplicarValorFgts, calcularComposicaoPagamento } from "@/lib/status";
 import type { PaymentRow } from "@/lib/database.types";
+import { mensagemErro } from "@/lib/errors";
 
 export function PaymentStep({
   saleId,
@@ -64,7 +65,7 @@ export function PaymentStep({
       if (dp) {
         const { error } = await supabase.from("sale_payment").upsert({ sale_id: saleId, ...p });
         if (error) {
-          toast.error(error.message);
+          toast.error(mensagemErro(error));
           return false;
         }
       }

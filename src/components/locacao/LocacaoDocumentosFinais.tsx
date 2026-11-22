@@ -53,7 +53,7 @@ export function LocacaoDocumentosFinais({
       const { error } = await supabase.storage
         .from("locacao-documentos")
         .uploadToSignedUrl(path, token, arquivo, { contentType: "application/pdf" });
-      if (error) throw new Error(error.message);
+      if (error) throw error;
       const reg = await registrarFinalLocacao({
         data: {
           locacaoId: d.id,

@@ -56,7 +56,7 @@ import { baixarDocumentosComoPdf, printDocumentUrls } from "@/lib/document-actio
 import { DocStatusBadge } from "./shared";
 import { VisualizadorDocumento } from "@/components/documentos/VisualizadorDocumento";
 import type { DocumentRow, PartyRow } from "@/lib/database.types";
-import { errorMessage } from "@/lib/errors";
+import { errorMessage, mensagemErro } from "@/lib/errors";
 import { storageOrganizationPath } from "@/lib/storage-org";
 import { buscarResponsaveisDaVenda } from "@/lib/sale-participantes";
 
@@ -182,7 +182,7 @@ export function DocumentsPanel({
         .from("sale-documents")
         .upload(path, file, { upsert: false });
       if (error) {
-        toast.error(error.message);
+        toast.error(mensagemErro(error));
         return;
       }
       // RPC em vez de insert direto: mesmo bug de RLS inconsistente do PostgREST já corrigido
@@ -196,7 +196,7 @@ export function DocumentsPanel({
         _descricao: nome.trim() || undefined,
       });
       if (insErr) {
-        toast.error(insErr.message);
+        toast.error(mensagemErro(insErr));
         return;
       }
       await supabase.from("activity_logs").insert({
@@ -307,7 +307,7 @@ export function DocumentsPanel({
       // essa inconsistência da camada do PostgREST.
       const { error } = await supabase.rpc("archive_sale_document", { _document_id: doc.id });
       if (error) {
-        toast.error(error.message);
+        toast.error(mensagemErro(error));
         return;
       }
       await supabase.from("activity_logs").insert({
@@ -368,7 +368,7 @@ export function DocumentsPanel({
       .from("sale-documents")
       .upload(path, file, { upsert: false });
     if (error) {
-      toast.error(error.message);
+      toast.error(mensagemErro(error));
       return;
     }
     // RPC em vez de insert direto: mesmo bug de RLS inconsistente do PostgREST já corrigido
@@ -381,7 +381,7 @@ export function DocumentsPanel({
       _file_name: file.name,
     });
     if (insErr) {
-      toast.error(insErr.message);
+      toast.error(mensagemErro(insErr));
       return;
     }
     await supabase.from("activity_logs").insert({
@@ -421,7 +421,7 @@ export function DocumentsPanel({
       _extraction_status: "done",
     });
     if (error) {
-      toast.error(error.message);
+      toast.error(mensagemErro(error));
       return;
     }
 
@@ -489,7 +489,7 @@ export function DocumentsPanel({
       .update({ status: "aprovado", motivo_recusa: null })
       .eq("id", doc.id);
     if (error) {
-      toast.error(error.message);
+      toast.error(mensagemErro(error));
       return;
     }
     await supabase.from("activity_logs").insert({
@@ -518,7 +518,7 @@ export function DocumentsPanel({
         .update({ status: "recusado", motivo_recusa: motivo })
         .eq("id", doc.id);
       if (error) {
-        toast.error(error.message);
+        toast.error(mensagemErro(error));
         return;
       }
       await supabase.from("sale_comments").insert({

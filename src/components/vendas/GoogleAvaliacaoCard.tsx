@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { lerGoogleAvaliacao, salvarGoogleAvaliacao } from "@/lib/link-acompanhamento-db";
+import { mensagemErro } from "@/lib/errors";
 
 /**
  * "Link de avaliação no Google" no cadastro da imobiliária (t_54c79bdc). Cartão próprio, com RPC própria
@@ -33,7 +34,7 @@ export function GoogleAvaliacaoCard({ orgId, canEdit }: { orgId: string; canEdit
         v ? "Link de avaliação no Google salvo." : "Link de avaliação no Google removido.",
       );
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível salvar o link.");
+      toast.error(mensagemErro(e, "Não foi possível salvar o link."));
     } finally {
       setSaving(false);
     }

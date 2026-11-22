@@ -81,7 +81,7 @@ import {
   type AtribuicaoComercialResumo,
 } from "@/lib/vendas-comerciais-query";
 import type { SaleRow } from "@/lib/database.types";
-import { errorMessage } from "@/lib/errors";
+import { errorMessage, mensagemErro } from "@/lib/errors";
 import { formatBRL } from "@/lib/formato-moeda";
 
 export const Route = createFileRoute("/_authenticated/equipe")({
@@ -295,7 +295,7 @@ function EquipesPage() {
   const excluirEquipe = async () => {
     if (!deleteTeam) return;
     const { error } = await supabase.from("teams").delete().eq("id", deleteTeam.id);
-    if (error) toast.error(error.message);
+    if (error) toast.error(mensagemErro(error));
     else {
       toast.success("Equipe excluída");
       load();
@@ -1599,7 +1599,7 @@ function DesempenhoDialog({
             team_id: args.tipo === "equipe" ? team.id : null,
           });
       if (error) {
-        toast.error(error.message);
+        toast.error(mensagemErro(error));
         return;
       }
       toast.success("Meta salva");

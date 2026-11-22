@@ -17,6 +17,7 @@ import type {
   PartyRow,
   SaleRow,
 } from "@/lib/database.types";
+import { mensagemErro } from "@/lib/errors";
 
 type PrintDistribution = {
   saldo_liquido_imobiliaria?: number | null;
@@ -137,7 +138,7 @@ function OcorrenciasImprimirPage() {
         setLoading(false);
       } catch (err) {
         if (!ativo) return;
-        setError(err instanceof Error ? err.message : "Não foi possível carregar as ocorrências.");
+        setError(mensagemErro(err, "Não foi possível carregar as ocorrências."));
         setLoading(false);
       }
     };

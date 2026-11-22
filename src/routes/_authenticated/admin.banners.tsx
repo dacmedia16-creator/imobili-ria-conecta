@@ -41,6 +41,7 @@ import {
   prepararEnvioBanner,
   salvarBanner,
 } from "@/lib/home-banners.functions";
+import { mensagemErro } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/admin/banners")({
   head: () => ({ meta: [{ title: "Banners do Início" }] }),
@@ -179,10 +180,10 @@ function BannersAdmin() {
       const { error } = await supabase.storage
         .from("home-banners")
         .uploadToSignedUrl(path, token, arquivo, { contentType: arquivo.type });
-      if (error) throw new Error(error.message);
+      if (error) throw error;
       setDraft((d) => (d ? { ...d, imagemPath: path, previa: URL.createObjectURL(arquivo) } : d));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível enviar a imagem.");
+      toast.error(mensagemErro(e, "Não foi possível enviar a imagem."));
     } finally {
       setEnviando(false);
     }
@@ -222,7 +223,7 @@ function BannersAdmin() {
       setDraft(null);
       await recarregar();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível salvar.");
+      toast.error(mensagemErro(e, "Não foi possível salvar."));
     } finally {
       setSalvando(false);
     }
@@ -233,7 +234,7 @@ function BannersAdmin() {
       await ativar({ data: { id: b.id, ativo } });
       await recarregar();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível alterar.");
+      toast.error(mensagemErro(e, "Não foi possível alterar."));
     }
   };
 
@@ -244,7 +245,7 @@ function BannersAdmin() {
       toast.success("Banner excluído.");
       await recarregar();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível excluir.");
+      toast.error(mensagemErro(e, "Não foi possível excluir."));
     }
   };
 

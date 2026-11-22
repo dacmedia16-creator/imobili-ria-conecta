@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
+import { mensagemErro } from "@/lib/errors";
 
 // Tabela carreira_plano e RPCs da migração 20261107120000 (ainda fora de types.ts). O banco garante:
 // corretor só lê/grava o próprio plano; gestor/admin leem a imobiliária; módulo desligado = nada.
@@ -63,5 +64,5 @@ export function erroPlano(msg: string | undefined | null): string {
   if (/não está assinado/i.test(m))
     return "Este plano já está em preenchimento (não está assinado).";
   if (/Failed to fetch|NetworkError|network/i.test(m)) return "Sem conexão. Tentando de novo…";
-  return m || "Não foi possível salvar.";
+  return mensagemErro(m, "Não foi possível salvar.");
 }

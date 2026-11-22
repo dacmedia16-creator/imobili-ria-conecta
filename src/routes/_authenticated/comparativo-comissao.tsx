@@ -21,6 +21,7 @@ import { Filters } from "@/components/comparativo-comissao/Filters";
 import { DetailTable } from "@/components/comparativo-comissao/DetailTable";
 import { MonthlyGrouping } from "@/components/comparativo-comissao/MonthlyGrouping";
 import { InconsistenciasIndicator } from "@/components/comparativo-comissao/InconsistenciasIndicator";
+import { mensagemErro } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/comparativo-comissao")({
   head: () => ({ meta: [{ title: "Comparativo 6%" }] }),
@@ -52,7 +53,7 @@ function ComparativoComissaoPage() {
       try {
         setRows(await fetchComparativoRows());
       } catch (err) {
-        setErro(err instanceof Error ? err.message : "Falha ao carregar o comparativo.");
+        setErro(mensagemErro(err, "Falha ao carregar o comparativo."));
       }
       // Falha aqui não pode travar o relatório principal — o indicador é só informativo.
       try {
