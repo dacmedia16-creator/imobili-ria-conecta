@@ -123,6 +123,44 @@ describe("encaixe", () => {
     expect(valorCasa({ valor_min: null, valor_max: null }, 500_000)).toBe(false);
   });
 
+  it("faixa realista: sem mínimo, imóvel abaixo de 70% do teto não encaixa (t_e0d21a44)", () => {
+    // Caso real de 22/11: "casa para venda em qualquer região até R$ 800 mil" × captação de R$ 345 mil.
+    const ate800 = post({
+      id: "p800",
+      kind: "procura",
+      tipo: "Casa",
+      bairro: "Qualquer região",
+      valor_max: 800_000,
+      corretor: "Simone Mendes",
+    });
+    const cap = (id: string, valor: number): CaptureCandidate => ({
+      id,
+      captor_id: "uCap",
+      captor_nome: "Bruno Lima",
+      tipo: "Casa",
+      finalidade: "Venda",
+      bairro: "Jardim Bom Sucesso",
+      municipio: "Sorocaba",
+      valor,
+    });
+    expect(encaixa(ate800, cap("c345", 345_000))).toBe(false);
+    expect(captureMatches([ate800], [cap("c345", 345_000)], new Set(), NOW)).toEqual([]);
+    expect(encaixa(ate800, cap("c650", 650_000))).toBe(true);
+    expect(valorCasa(ate800, 560_000)).toBe(true); // 70% do teto
+    expect(valorCasa(ate800, 559_999)).toBe(false);
+    expect(valorCasa(ate800, 880_000)).toBe(true); // teto + 10% de folga continua
+    // Tipo e finalidade continuam obrigatórios mesmo em "qualquer região".
+    expect(encaixa(ate800, { ...cap("cx", 650_000), tipo: "Apartamento" })).toBe(false);
+    expect(encaixa(ate800, { ...cap("cy", 650_000), finalidade: "Locação" })).toBe(false);
+  });
+
+  it("faixa realista: mínimo informado pelo cliente vale no lugar dos 70%", () => {
+    const faixa = { valor_min: 300_000, valor_max: 800_000 };
+    expect(valorCasa(faixa, 345_000)).toBe(true);
+    expect(valorCasa(faixa, 270_000)).toBe(true); // mínimo com 10% de folga (regra antiga)
+    expect(valorCasa(faixa, 269_000)).toBe(false);
+  });
+
   it("bairro: contém, lista e curinga de cidade", () => {
     expect(bairroCasa("Jardim Europa / Campolim", "Parque Campolim")).toBe(true);
     expect(bairroCasa("Vila Hortência", "Campolim")).toBe(false);
