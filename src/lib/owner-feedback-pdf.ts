@@ -7,6 +7,7 @@
 import type { ListingFeedback } from "@/lib/owner-feedback";
 import { nextActions, type ActionSummary } from "@/lib/owner-feedback-actions";
 import { proximoTexto, type OwnerPlan } from "@/lib/feedback-captacao";
+import { paidOwnerLabel, paidPeriodText, type PaidTrafficSummary } from "@/lib/paid-traffic";
 
 export interface OwnerPdfInput {
   listing: ListingFeedback;
@@ -29,6 +30,11 @@ export interface OwnerPdfInput {
   agencyName?: string | null;
   /** Data de emissão (padrão: hoje). */
   issuedAt?: Date;
+  /**
+   * Tráfego pago lançado no período do relatório (t_f3f64be0). Só visualizações e contatos: o tipo nem tem o
+   * valor investido, que não vai ao proprietário.
+   */
+  paid?: PaidTrafficSummary | null;
 }
 
 /** Helvetica padrão só cobre WinAnsi: troca o que não couber (emoji, aspas especiais). */
@@ -225,10 +231,17 @@ export async function buildOwnerFeedbackPdf(input: OwnerPdfInput): Promise<Uint8
   const mk = !op && input.marketing && input.marketing.total ? input.marketing : null;
   const ck = input.checklist && input.checklist.total ? input.checklist : null;
   const confirmed = input.listing.lines.filter((l) => l.confirmed && !l.error);
-  const sum = (k: "views" | "contacts") => confirmed.reduce((a, l) => a + (l[k] ?? 0), 0);
+  const paid =
+    input.paid && (input.paid.views > 0 || input.paid.contacts > 0 || input.paid.lancamentos)
+      ? input.paid
+      : null;
+  // Total = portais confirmados + tráfego pago do período (mostrado em linha própria na tabela).
+  const sum = (k: "views" | "contacts") =>
+    confirmed.reduce((a, l) => a + (l[k] ?? 0), 0) +
+    (paid ? (k === "views" ? paid.views : paid.contacts) : 0);
   {
     const kpis: Array<{ v: string; k: string; accent: Color; pct?: number }> = [];
-    if (confirmed.length) {
+    if (confirmed.length || paid) {
       kpis.push({ v: fmt(sum("views")), k: "Visualizações", accent: BLUE });
       kpis.push({ v: fmt(sum("contacts")), k: "Contatos recebidos", accent: BLUE });
     }
@@ -265,7 +278,7 @@ export async function buildOwnerFeedbackPdf(input: OwnerPdfInput): Promise<Uint8
   }
 
   // ---------- portais ----------
-  section("Desempenho nos portais");
+  section(paid ? "Desempenho nos portais e tráfego pago" : "Desempenho nos portais");
   {
     const c0 = M + 14;
     const c1 = M + 230;
@@ -278,7 +291,7 @@ export async function buildOwnerFeedbackPdf(input: OwnerPdfInput): Promise<Uint8
     txt("CONTATOS", c2, y - 15.5, 8, bold, WHITE);
     txtRight("APARIÇÕES EM BUSCAS", cR, y - 15.5, 8, bold, WHITE);
     y -= headH;
-    if (!confirmed.length) {
+    if (!confirmed.length && !paid) {
       txt("Ainda sem números com período confirmado nesta semana.", c0, y - 20, 10, font, MUTED);
       y -= 30;
     }
@@ -299,6 +312,29 @@ export async function buildOwnerFeedbackPdf(input: OwnerPdfInput): Promise<Uint8
       y -= rh;
       page.drawLine({ start: { x: M, y }, end: { x: M + W, y }, thickness: 0.5, color: LINE });
     });
+    if (paid) {
+      // Linha marcada "Tráfego pago" (lançada pelo corretor), sem valor investido.
+      const rh = 40;
+      ensure(rh);
+      page.drawRectangle({ x: M, y: y - rh, width: W, height: rh, color: BLUE_SOFT });
+      const rot = wrap(paidOwnerLabel(paid), 11, c1 - c0 - 8, bold);
+      txt(rot[0] ?? "Tráfego pago", c0, y - 17, rot.length > 1 ? 9 : 11, bold, INK);
+      txt(`Período: ${paidPeriodText(paid)}`, c0, y - 30, 7.5, font, MUTED);
+      txt(fmt(paid.views), c1, y - 22, 13, bold, BLUE_DARK);
+      txt(fmt(paid.contacts), c2, y - 22, 13, bold, BLUE_DARK);
+      txtRight("-", cR, y - 22, 13, bold, MUTED);
+      y -= rh;
+      page.drawLine({ start: { x: M, y }, end: { x: M + W, y }, thickness: 0.5, color: LINE });
+    }
+    if (paid && confirmed.length) {
+      const rh = 30;
+      ensure(rh);
+      txt("TOTAL", c0, y - 19, 9, bold, BLUE_DARK);
+      txt(fmt(sum("views")), c1, y - 19, 11, bold, BLUE_DARK);
+      txt(fmt(sum("contacts")), c2, y - 19, 11, bold, BLUE_DARK);
+      y -= rh;
+      page.drawLine({ start: { x: M, y }, end: { x: M + W, y }, thickness: 0.8, color: BLUE });
+    }
     const others = input.listing.lines.filter((l) => !l.confirmed && !l.error);
     const failed = input.listing.lines.filter((l) => l.error);
     y -= 16;
@@ -413,13 +449,20 @@ export async function buildOwnerFeedbackPdf(input: OwnerPdfInput): Promise<Uint8
   const pages = pdf.getPages();
   pages.forEach((p, i) => {
     p.drawLine({ start: { x: M, y: 44 }, end: { x: M + W, y: 44 }, thickness: 0.6, color: LINE });
-    p.drawText(s("Números informados pelos próprios portais de anúncio."), {
-      x: M,
-      y: 30,
-      size: 7.5,
-      font,
-      color: MUTED,
-    });
+    p.drawText(
+      s(
+        paid
+          ? "Números dos portais informados pelos próprios portais; tráfego pago informado pelo corretor."
+          : "Números informados pelos próprios portais de anúncio.",
+      ),
+      {
+        x: M,
+        y: 30,
+        size: 7.5,
+        font,
+        color: MUTED,
+      },
+    );
     const pg = `Página ${i + 1} de ${pages.length}`;
     p.drawText(pg, {
       x: M + W - font.widthOfTextAtSize(pg, 7.5),

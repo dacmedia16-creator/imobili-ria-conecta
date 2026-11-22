@@ -45,6 +45,19 @@ import {
 } from "@/lib/owner-feedback-actions";
 import { Checkbox } from "@/components/ui/checkbox";
 import { VinculosXmlPanel } from "@/components/feedback/VinculosXmlPanel";
+import { TrafegoPagoCard } from "@/components/feedback/TrafegoPagoCard";
+import {
+  defaultReportPeriod,
+  entriesForListing,
+  PAID_SCREEN_LABEL,
+  PAID_SELECT,
+  paidOwnerLabel,
+  paidPeriodText,
+  paidTrafficAccess,
+  summarizePaid,
+  type PaidTrafficEntry,
+  type ReportPeriod,
+} from "@/lib/paid-traffic";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -75,6 +88,28 @@ const n = (x: number | null) => (x == null ? "—" : x.toLocaleString("pt-BR"));
 const delta = (x: number | null) =>
   x == null ? "" : x > 0 ? ` (+${n(x)})` : x < 0 ? ` (${n(x)})` : "";
 
+/** Período padrão do relatório de um imóvel: janela "últimos 30 dias" dos portais ou 30 dias até hoje. */
+const periodoPadrao = (l: ListingFeedback): ReportPeriod =>
+  defaultReportPeriod(
+    l.lines
+      .filter((x) => x.confirmed)
+      .map((x) => ({ from: x.windowFrom ?? null, to: x.windowTo ?? null })),
+    hojeSaoPaulo(),
+  );
+
+/** Lançamentos de tráfego pago que o usuário enxerga (RLS: responsável, gestor/TL dele, admin). */
+async function loadPaid(code?: string): Promise<PaidTrafficEntry[]> {
+  let q = db
+    .from("listing_paid_traffic_entries")
+    .select(PAID_SELECT)
+    .order("inicio", { ascending: false });
+  if (code) q = q.eq("code_key", codeKey(code));
+  const { data, error } = await q.limit(5000);
+  // Banco ainda sem a tabela (antes da migration): a tela segue só com os portais.
+  if (error) return [];
+  return (data ?? []) as PaidTrafficEntry[];
+}
+
 function FeedbackPage() {
   const { user, hasAny } = useAuth();
   const isManager = hasAny(["gestor", "team_leader", "admin", "super_admin"]);
@@ -86,6 +121,8 @@ function FeedbackPage() {
   // Base oficial: venda do XML RE/MAX -> OLX (t_698be0d2). Vazio = sem coleta boa: usa só os portais.
   const [xmlBase, setXmlBase] = useState<XmlBaseRow[]>([]);
   const [xmlAviso, setXmlAviso] = useState<string | null>(null);
+  // Tráfego pago lançado à mão (t_f3f64be0): soma no total da lista, no período padrão de cada imóvel.
+  const [paidAll, setPaidAll] = useState<PaidTrafficEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [broker, setBroker] = useState<string>("");
   const [search, setSearch] = useState("");
@@ -101,7 +138,7 @@ function FeedbackPage() {
         const since = new Date(Date.now() - 22 * 864e5).toISOString().slice(0, 10);
         const all: Snapshot[] = [];
         for (let from = 0; ; from += 1000) {
-          let q = db
+          const q = db
             .from("portal_listing_snapshots")
             .select(
               "portal,collected_on,listing_code,broker_id,window_kind,window_from,window_to,impressions,views,contacts,error",
@@ -117,9 +154,10 @@ function FeedbackPage() {
           if (!data || data.length < 1000) break;
         }
         // XML: RPC ausente ou com erro não derruba a tela (cai no comportamento antigo).
-        const [xb, xs] = await Promise.all([
+        const [xb, xs, pt] = await Promise.all([
           db.rpc("feedback_xml_base"),
           db.rpc("remax_xml_status"),
+          loadPaid(),
         ]);
         const base = xb.error ? [] : ((xb.data ?? []) as XmlBaseRow[]);
         const aviso = xs.error ? null : ((xs.data?.[0]?.aviso as string | null) ?? null);
@@ -140,6 +178,7 @@ function FeedbackPage() {
           setSiteNames(site);
           setXmlBase(base);
           setXmlAviso(aviso);
+          setPaidAll(pt);
         }
       } catch (e) {
         toast.error(errorMessage(e, "Não foi possível carregar os números dos portais."));
@@ -177,6 +216,8 @@ function FeedbackPage() {
   }, [codigo, listings, selected]);
   const current =
     listings.find((l) => l.code === selected) ?? foraDaRemax.find((l) => l.code === selected);
+  const pagoDe = (l: ListingFeedback) =>
+    paidAll.length ? summarizePaid(entriesForListing(paidAll, l.code), periodoPadrao(l)) : null;
 
   if (current)
     return (
@@ -236,35 +277,39 @@ function FeedbackPage() {
       ) : (
         <div className="grid gap-2">
           <p className="text-xs text-muted-foreground">{visible.length} imóveis</p>
-          {visible.slice(0, 300).map((l) => (
-            <button
-              key={l.code}
-              onClick={() => setSelected(l.code)}
-              className="flex flex-col gap-2 rounded-lg border bg-card p-3 text-left shadow-sm transition-shadow hover:bg-muted hover:shadow-md sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div className="min-w-0">
-                <div className="font-medium">{l.code}</div>
-                <div className="break-words text-xs text-muted-foreground">
-                  {isManager &&
-                    (l.brokerId
-                      ? names[l.brokerId] || "Sem nome"
-                      : l.corretorXml
-                        ? `Sem corretor no ADM · ${l.corretorXml} (XML RE/MAX)`
-                        : siteNames[l.code.slice(0, 9)]
-                          ? `Sem corretor no ADM · ${siteNames[l.code.slice(0, 9)]} (site RE/MAX)`
-                          : "Sem corretor")}
-                  {isManager && " · "}
-                  {l.lines.length
-                    ? `${l.lines.length} portal(is)`
-                    : "Sem números dos portais ainda"}
+          {visible.slice(0, 300).map((l) => {
+            const pago = pagoDe(l);
+            return (
+              <button
+                key={l.code}
+                onClick={() => setSelected(l.code)}
+                className="flex flex-col gap-2 rounded-lg border bg-card p-3 text-left shadow-sm transition-shadow hover:bg-muted hover:shadow-md sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <div className="font-medium">{l.code}</div>
+                  <div className="break-words text-xs text-muted-foreground">
+                    {isManager &&
+                      (l.brokerId
+                        ? names[l.brokerId] || "Sem nome"
+                        : l.corretorXml
+                          ? `Sem corretor no ADM · ${l.corretorXml} (XML RE/MAX)`
+                          : siteNames[l.code.slice(0, 9)]
+                            ? `Sem corretor no ADM · ${siteNames[l.code.slice(0, 9)]} (site RE/MAX)`
+                            : "Sem corretor")}
+                    {isManager && " · "}
+                    {l.lines.length
+                      ? `${l.lines.length} portal(is)`
+                      : "Sem números dos portais ainda"}
+                    {pago ? " + tráfego pago" : ""}
+                  </div>
                 </div>
-              </div>
-              <div className="flex shrink-0 gap-3 text-xs tabular-nums sm:block sm:text-right">
-                <div>{n(totalViews(l))} visualizações</div>
-                <div>{n(totalContacts(l))} contatos</div>
-              </div>
-            </button>
-          ))}
+                <div className="flex shrink-0 gap-3 text-xs tabular-nums sm:block sm:text-right">
+                  <div>{n(totalViews(l) + (pago?.views ?? 0))} visualizações</div>
+                  <div>{n(totalContacts(l) + (pago?.contacts ?? 0))} contatos</div>
+                </div>
+              </button>
+            );
+          })}
           {visible.length > 300 && (
             <p className="text-xs text-muted-foreground">
               Mostrando 300 de {visible.length}. Use a busca ou o filtro.
@@ -314,6 +359,33 @@ function Review({
   const [ownerName, setOwnerName] = useState("");
   const [phone, setPhone] = useState("");
   const [rec, setRec] = useState(() => diagnosis(listing));
+  // Recomendação editada pelo corretor (ou vinda da IA): não é mais trocada pelo diagnóstico automático.
+  const [recTocada, setRecTocada] = useState(false);
+  // Tráfego pago (t_f3f64be0): período do relatório, lançamentos e permissão (mesma regra do banco).
+  const [periodo, setPeriodo] = useState<ReportPeriod>(() => periodoPadrao(listing));
+  const [paidEntries, setPaidEntries] = useState<PaidTrafficEntry[]>([]);
+  const [podeLancar, setPodeLancar] = useState(false);
+  const [paidTick, setPaidTick] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const [pode, entries] = await Promise.all([
+        db.rpc("owner_feedback_can_edit", { _code: listing.code }),
+        loadPaid(listing.code),
+      ]);
+      if (!alive) return;
+      setPodeLancar(!pode.error && pode.data === true);
+      setPaidEntries(entries);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [listing.code, paidTick]);
+  const acesso = paidTrafficAccess(podeLancar);
+  const paid = useMemo(() => summarizePaid(paidEntries, periodo), [paidEntries, periodo]);
+  useEffect(() => {
+    if (!recTocada) setRec(diagnosis(listing, paid));
+  }, [listing, paid, recTocada]);
   const [aiLoading, setAiLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [actions, setActions] = useState<FeedbackAction[]>([]);
@@ -464,6 +536,7 @@ function Review({
         ownerPlan: ownerPlanData,
         imovel,
         logoPng: logo,
+        paid,
       });
       const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/pdf" }));
       const a = document.createElement("a");
@@ -481,9 +554,10 @@ function Review({
   const suggest = async () => {
     setAiLoading(true);
     try {
-      const r = await suggestOwnerRecommendation({ data: { code: listing.code } });
+      const r = await suggestOwnerRecommendation({ data: { code: listing.code, periodo } });
       if (r.ok) {
         setRec(r.text);
+        setRecTocada(true);
         toast.success("Sugestão da IA pronta. Revise antes de enviar.");
       } else toast.error(r.error);
     } catch {
@@ -499,8 +573,14 @@ function Review({
     listing,
     recommendation: rec,
     planText: ownerPlanData ? ownerPlanText(ownerPlanData) : undefined,
+    paid,
   });
-  const anyConfirmed = listing.lines.some((l) => l.confirmed);
+  const portaisConfirmados = listing.lines.some((l) => l.confirmed);
+  // Número que pode ir para o proprietário: portal confirmado ou tráfego pago lançado no período.
+  const anyConfirmed = portaisConfirmados || !!paid;
+  const okLines = listing.lines.filter((l) => l.confirmed && !l.error);
+  const totalV = okLines.reduce((s, l) => s + (l.views ?? 0), 0) + (paid?.views ?? 0);
+  const totalC = okLines.reduce((s, l) => s + (l.contacts ?? 0), 0) + (paid?.contacts ?? 0);
 
   return (
     <div className="space-y-4 p-4 md:p-6">
@@ -544,9 +624,21 @@ function Review({
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Números dos portais</CardTitle>
+          <CardTitle className="text-base">
+            {paid ? "Números dos portais e tráfego pago" : "Números dos portais"}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
+          {paid && (
+            <div
+              className="rounded-md border border-blue-300 bg-blue-50 p-2 text-blue-950 dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-100"
+              data-testid="feedback-total"
+            >
+              <span className="font-medium">Total no relatório:</span> {n(totalV)} visualizações ·{" "}
+              {n(totalC)} contatos{" "}
+              <span className="text-xs opacity-80">(portais confirmados + tráfego pago)</span>
+            </div>
+          )}
           {listing.lines.map((l) => (
             <div key={l.portal} className="rounded-md border p-2">
               <div className="font-medium">{l.label}</div>
@@ -569,8 +661,35 @@ function Review({
               )}
             </div>
           ))}
+          {paid && (
+            <div
+              className="rounded-md border border-dashed border-blue-400 p-2"
+              data-testid="feedback-linha-pago"
+            >
+              <div className="font-medium">{PAID_SCREEN_LABEL}</div>
+              <div>
+                {n(paid.views)} visualizações · {n(paid.contacts)} contatos
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {paidOwnerLabel(paid)} · {paidPeriodText(paid)} · lançado pelo corretor
+              </div>
+            </div>
+          )}
+          {!listing.lines.length && !paid && (
+            <p className="text-muted-foreground">Sem números dos portais ainda.</p>
+          )}
         </CardContent>
       </Card>
+
+      {acesso.lancar && (
+        <TrafegoPagoCard
+          listingCode={listing.code}
+          entries={entriesForListing(paidEntries, listing.code)}
+          period={periodo}
+          onPeriodChange={setPeriodo}
+          onChanged={() => setPaidTick((t) => t + 1)}
+        />
+      )}
 
       {ownerPlanData && cap ? (
         <Card>
@@ -685,7 +804,10 @@ function Review({
             <textarea
               className="mt-1 min-h-20 w-full rounded-md border border-input bg-background p-2"
               value={rec}
-              onChange={(e) => setRec(e.target.value)}
+              onChange={(e) => {
+                setRec(e.target.value);
+                setRecTocada(true);
+              }}
             />
           </label>
           <div>
