@@ -171,8 +171,20 @@ export type FinanceiroBundle = {
   teamOptions: { id: string; label: string }[];
 };
 
-export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
+export type OpcoesFinanceiroBundle = {
+  /** A RPC comparativo_comissao_6pct_inconsistencias só responde a financeiro, admin e super_admin
+   * (os demais recebem 403/42501). Tela aberta a outros papéis (ex.: /vendas) passa
+   * `podeAcessarCentralFinanceira(roles)`: sem o papel, a RPC nem é chamada, a lista de
+   * inconsistências fica vazia e o resto do pacote (efetivadas etc.) segue normal.
+   * Padrão: true (Central Financeira e Painel do Gestor, já restritos ao financeiro). */
+  incluirInconsistencias?: boolean;
+};
+
+export async function fetchFinanceiroBundle(
+  opcoes: OpcoesFinanceiroBundle = {},
+): Promise<FinanceiroBundle> {
   const hoje = hojeSaoPaulo();
+  const incluirInconsistencias = opcoes.incluirInconsistencias ?? true;
 
   const [
     efetivadasRaw,
@@ -190,7 +202,9 @@ export async function fetchFinanceiroBundle(): Promise<FinanceiroBundle> {
     coLeaders,
   ] = await Promise.all([
     callRpc<EfetivacaoRawRow>("vendas_comerciais_canonicas"),
-    callRpc<InconsistenciaRawRow>("comparativo_comissao_6pct_inconsistencias"),
+    incluirInconsistencias
+      ? callRpc<InconsistenciaRawRow>("comparativo_comissao_6pct_inconsistencias")
+      : Promise.resolve([] as InconsistenciaRawRow[]),
     callRpc<DistribuicaoRawRow>("financeiro_distribuicao_vendas"),
     consultarTodasLinhas<OccRow>(
       "ocorrências",

@@ -1,21 +1,21 @@
-import { describe, expect, it } from "vitest";
-import {
-  idsDeContratosAssinadosNoPeriodo,
-  resolverResumoOpcional,
-  resumirVendas,
-} from "./vendas-resumo";
+import { describe, expect, it, vi } from "vitest";
+import { idsDeContratosAssinadosNoPeriodo, resolverResumo, resumirVendas } from "./vendas-resumo";
 
-describe("resolverResumoOpcional", () => {
-  it("preserva o resumo quando a consulta é permitida", async () => {
-    await expect(resolverResumoOpcional(Promise.resolve({ quantidade: 2 }))).resolves.toEqual({
-      quantidade: 2,
+describe("resolverResumo", () => {
+  it("preserva o resumo quando a consulta dá certo", async () => {
+    await expect(resolverResumo(Promise.resolve({ quantidade: 2 }))).resolves.toEqual({
+      dados: { quantidade: 2 },
+      falhou: false,
     });
   });
 
-  it("retorna vazio quando o perfil não pode consultar o resumo financeiro", async () => {
-    await expect(
-      resolverResumoOpcional(Promise.reject(new Error("Acesso restrito ao financeiro"))),
-    ).resolves.toBeNull();
+  it("marca a falha (a tela mostra aviso) em vez de devolver um zero calado", async () => {
+    const espiao = vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(resolverResumo(Promise.reject(new Error("rede")))).resolves.toEqual({
+      dados: null,
+      falhou: true,
+    });
+    espiao.mockRestore();
   });
 });
 
