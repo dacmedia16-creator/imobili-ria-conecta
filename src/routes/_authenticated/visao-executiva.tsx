@@ -61,6 +61,12 @@ import {
 } from "@/lib/desempenho-visao";
 import { formatBRL } from "@/lib/formato-moeda";
 import { RankingClubesPainel } from "@/components/ranking/RankingClubes";
+import {
+  ID_SEM_EQUIPE,
+  INFO_PREMIO_LANCAMENTO,
+  linhaRankingEquipe,
+  type RankingEquipeRpc,
+} from "@/lib/desempenho-ranking-equipes";
 
 export const Route = createFileRoute("/_authenticated/visao-executiva")({
   head: () => ({ meta: [{ title: "Desempenho" }] }),
@@ -90,13 +96,7 @@ type VisaoExecutivaStats = {
     gestao_lancamento?: boolean;
     corretora_lancamento?: boolean;
   }[];
-  ranking_equipe: {
-    team_id: string | null;
-    team_nome: string | null;
-    vendas_fechadas: number;
-    comissao: number;
-    taxa_devolucao: number;
-  }[];
+  ranking_equipe: RankingEquipeRpc[];
   /** Indicadores da operação (não por pessoa) — mesmo mês selecionado no ranking. */
   resumo_operacional: {
     vgv: number;
@@ -882,8 +882,8 @@ function VisaoExecutiva() {
                             metaRealizado: meta?.comissao_realizada ?? 0,
                           };
                         })}
-                        rotuloComissao="Comissão como corretor"
-                        nota="Só captações e vendas próprias. O que a pessoa ganhou como líder, gestor ou coordenação de lançamento aparece no quadro Comissão por corretor, na coluna Como equipe."
+                        rotuloComissao="Produção como corretor (captação e venda)"
+                        nota="Só captações e vendas próprias. Comissões de líder, indicação e coordenação ficam fora daqui: aparecem no Meu Realizado (Minha carreira) e no quadro Comissão por corretor, na coluna Como equipe."
                         onSelect={(row) =>
                           setDetalheSel({ tipo: "corretor", id: row.id, nome: row.nome })
                         }
@@ -894,23 +894,31 @@ function VisaoExecutiva() {
                     <TabsContent value="equipe">
                       <RankingTable
                         rows={(stats?.ranking_equipe ?? []).map((r) => {
-                          const meta = metas.equipe.find((m) => m.team_id === r.team_id) ?? null;
+                          const linha = linhaRankingEquipe(r);
+                          const meta =
+                            linha.tipo === "equipe"
+                              ? (metas.equipe.find((m) => m.team_id === r.team_id) ?? null)
+                              : null;
                           return {
-                            id: r.team_id ?? "sem-equipe",
-                            nome: r.team_nome ?? "Sem equipe",
+                            id: linha.id,
+                            nome: linha.nome,
                             vendas: r.vendas_fechadas,
                             comissao: r.comissao,
                             meta: meta?.meta_comissao ?? null,
                             metaRealizado: meta?.comissao_realizada ?? 0,
+                            info: linha.info,
+                            fixoNoFim: linha.tipo !== "equipe",
+                            selecionavel: linha.tipo !== "coordenacao_lancamento",
                           };
                         })}
                         rotuloComissao="Comissão da equipe (soma dos membros)"
-                        nota="Soma do que cada membro ganhou nas vendas da equipe: corretores, líder e gestor. Não é o ganho individual do líder. Coordenação de lançamento não entra nesta soma."
+                        infoComissao={INFO_PREMIO_LANCAMENTO}
+                        nota="Soma do que cada membro ganhou nas vendas da equipe: corretores, líder e gestor. Não é o ganho individual do líder. As linhas Sem equipe e Coordenação de lançamento completam a conta: a soma de todas as linhas é igual à soma das pessoas."
                         onSelect={(row) => {
                           if (!podeAlternarVisao) {
                             setDetalheSel({
                               tipo: "equipe",
-                              teamId: row.id === "sem-equipe" ? null : row.id,
+                              teamId: row.id === ID_SEM_EQUIPE ? null : row.id,
                               nome: row.nome,
                             });
                           }
@@ -1056,10 +1064,13 @@ function RankingTable({
   rows,
   onSelect,
   rotuloComissao = "Comissão",
+  infoComissao,
   nota,
 }: {
   /** Título da coluna de comissão (deixa claro o que o valor soma). */
   rotuloComissao?: string;
+  /** Explicação curta no "i" ao lado do título da coluna de comissão. */
+  infoComissao?: string;
   /** Explicação curta exibida abaixo da tabela. */
   nota?: string;
   rows: {
@@ -1069,13 +1080,25 @@ function RankingTable({
     comissao: number;
     meta: number | null;
     metaRealizado: number;
+    /** Explicação curta no "i" ao lado do nome (ex.: linha Sem equipe). */
+    info?: string;
+    /** Linha de fechamento da conta (Sem equipe / Coordenação): fica no fim, sem medalha. */
+    fixoNoFim?: boolean;
+    /** false = nome sem clique (não há detalhe para essa linha). */
+    selecionavel?: boolean;
   }[];
   /** Clique no nome — abre o detalhe das vendas que compõem a comissão dessa linha. */
   onSelect: (row: { id: string; nome: string }) => void;
 }) {
   // Ranking por valor de comissão (pedido do usuário) — antes era por vendas fechadas, com
-  // comissão só como desempate. `vendas` agora só desempata comissões iguais.
-  const sorted = [...rows].sort((a, b) => b.comissao - a.comissao || b.vendas - a.vendas);
+  // comissão só como desempate. `vendas` agora só desempata comissões iguais. Linhas de
+  // fechamento da conta (Sem equipe / Coordenação de lançamento) ficam no fim, fora do pódio.
+  const sorted = [...rows].sort(
+    (a, b) =>
+      Number(a.fixoNoFim ?? false) - Number(b.fixoNoFim ?? false) ||
+      b.comissao - a.comissao ||
+      b.vendas - a.vendas,
+  );
   if (sorted.length === 0)
     return <p className="py-8 text-center text-sm text-muted-foreground">Sem dados no período.</p>;
   return (
@@ -1085,41 +1108,63 @@ function RankingTable({
           <TableRow>
             <TableHead>Nome</TableHead>
             <TableHead className="text-right">Fechadas</TableHead>
-            <TableHead className="text-right">{rotuloComissao}</TableHead>
+            <TableHead className="text-right">
+              <span className="relative inline-flex items-center justify-end gap-1">
+                {rotuloComissao}
+                {infoComissao && (
+                  <InfoDot text={infoComissao} label="Sobre o prêmio de Lançamento" inline />
+                )}
+              </span>
+            </TableHead>
             <TableHead>Meta do período</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {sorted.map((r, i) => (
-            <TableRow key={r.id}>
-              <TableCell className="font-medium">
-                <button
-                  type="button"
-                  onClick={() => onSelect({ id: r.id, nome: r.nome })}
-                  className="inline-flex items-center gap-2 text-primary hover:underline"
-                >
-                  {i < 3 && (
-                    <span
-                      className="flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                      style={{ background: i === 0 ? "#c9971f" : i === 1 ? "#9aa0a6" : "#b0703a" }}
-                    >
-                      {i + 1}
-                    </span>
-                  )}
-                  {r.nome}
-                </button>
-              </TableCell>
-              <TableCell className="text-right">{r.vendas}</TableCell>
-              <TableCell className="text-right">{money(r.comissao)}</TableCell>
-              <TableCell>
-                {r.meta != null ? (
-                  <MetaCell realizado={r.metaRealizado} meta={r.meta} />
-                ) : (
-                  <span className="text-xs text-muted-foreground">Sem meta</span>
+          {sorted.map((r, i) => {
+            const medalha = i < 3 && !r.fixoNoFim;
+            const conteudo = (
+              <>
+                {medalha && (
+                  <span
+                    className="flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                    style={{ background: i === 0 ? "#c9971f" : i === 1 ? "#9aa0a6" : "#b0703a" }}
+                  >
+                    {i + 1}
+                  </span>
                 )}
-              </TableCell>
-            </TableRow>
-          ))}
+                {r.nome}
+              </>
+            );
+            return (
+              <TableRow key={r.id} data-linha={r.fixoNoFim ? r.id : undefined}>
+                <TableCell className="font-medium">
+                  <span className="relative inline-flex items-center gap-1.5">
+                    {r.selecionavel === false ? (
+                      <span className="inline-flex items-center gap-2">{conteudo}</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onSelect({ id: r.id, nome: r.nome })}
+                        className="inline-flex items-center gap-2 text-primary hover:underline"
+                      >
+                        {conteudo}
+                      </button>
+                    )}
+                    {r.info && <InfoDot text={r.info} label={`Sobre a linha ${r.nome}`} inline />}
+                  </span>
+                </TableCell>
+                <TableCell className="text-right">{r.vendas}</TableCell>
+                <TableCell className="text-right">{money(r.comissao)}</TableCell>
+                <TableCell>
+                  {r.meta != null ? (
+                    <MetaCell realizado={r.metaRealizado} meta={r.meta} />
+                  ) : (
+                    <span className="text-xs text-muted-foreground">Sem meta</span>
+                  )}
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
       {nota && <p className="pt-2 text-xs text-muted-foreground">{nota}</p>}
