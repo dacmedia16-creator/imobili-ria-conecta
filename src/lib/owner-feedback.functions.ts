@@ -14,6 +14,13 @@ import {
   type ListingFeedback,
   type Snapshot,
 } from "@/lib/owner-feedback";
+import {
+  defaultReportPeriod,
+  PAID_SELECT_OWNER,
+  summarizePaid,
+  type PaidTrafficEntry,
+  type PaidTrafficSummary,
+} from "@/lib/paid-traffic";
 import { AI_TIMEOUT_MESSAGE, AI_TIMEOUT_MS, isAiTimeoutError } from "@/lib/ai-timeout";
 
 const MODEL = "gemini-flash-latest";
@@ -21,13 +28,19 @@ const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MO
 /** O limite inclui o raciocínio interno do modelo; 400 cortava a resposta (t_e32ba130). */
 const MAX_OUTPUT_TOKENS = 2048;
 
-const Input = z.object({ code: z.string().min(3).max(60) });
+const DataIso = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const Input = z.object({
+  code: z.string().min(3).max(60),
+  /** Período do relatório (o mesmo da tela): só o tráfego pago lançado dentro dele entra (t_f3f64be0). */
+  periodo: z.object({ de: DataIso, ate: DataIso }).optional(),
+});
 
 const SYSTEM = [
   "Você ajuda um corretor da RE/MAX a escrever a recomendação de um relatório semanal para o proprietário de um imóvel à venda.",
   "Escreva SEMPRE em português do Brasil, tom humano, cordial e direto, em 2 ou 3 frases curtas e completas, terminadas com ponto, sem saudação e sem assinatura.",
   "Use apenas os números fornecidos; nunca invente números, prazos, preços ou valores.",
   "Não prometa venda nem resultado. Não cite números sem período confirmado.",
+  "Se houver tráfego pago, trate-o separado dos portais, cite só os canais informados e nunca fale de valor investido.",
   "Nunca sugira um valor de preço nem percentual de desconto; o preço anunciado é só contexto e não deve ser citado.",
   "Se houver média da imobiliária, compare com cuidado (acima, parecido ou abaixo da média), sem exagero.",
   "Se a exposição for baixa, sugira reforçar fotos, título e destaque; se houver muitas visualizações e poucos contatos, sugira conversar sobre preço e primeiras fotos com cuidado;",
@@ -153,8 +166,13 @@ export const suggestOwnerRecommendation = createServerFn({ method: "POST" })
       .order("collected_on", { ascending: false })
       .limit(40);
     if (error) return { ok: false as const, error: "Não foi possível ler os números." };
-    const listing = groupByListing((rows ?? []) as Snapshot[])[0];
-    if (!listing) return { ok: false as const, error: "Imóvel não encontrado." };
+    // Sem coleta dos portais ainda (ex.: só XML + tráfego pago): segue com o imóvel sem linhas de portal.
+    const listing: ListingFeedback = groupByListing((rows ?? []) as Snapshot[])[0] ?? {
+      code: data.code,
+      brokerId: null,
+      lines: [],
+      lastCollectedOn: "",
+    };
     const orgId = (rows?.[0] as { organization_id?: string } | undefined)?.organization_id;
 
     let ctx: ListingContext | undefined;
@@ -163,7 +181,27 @@ export const suggestOwnerRecommendation = createServerFn({ method: "POST" })
     } catch {
       console.error("[feedback-ia] contexto do imóvel indisponível");
     }
-    const facts = `Números do anúncio:\n${aiFacts(listing, ctx)}`;
+    // Tráfego pago lançado à mão: mesma RLS do Feedback (cliente do usuário), sem o valor investido.
+    let paid: PaidTrafficSummary | null = null;
+    try {
+      const periodo =
+        data.periodo ??
+        defaultReportPeriod(
+          [],
+          new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }),
+        );
+      const { data: pt } = await db
+        .from("listing_paid_traffic_entries")
+        .select(PAID_SELECT_OWNER)
+        .eq("code_key", codeKey(data.code))
+        .limit(200);
+      paid = summarizePaid((pt ?? []) as PaidTrafficEntry[], periodo);
+    } catch {
+      console.error("[feedback-ia] tráfego pago indisponível");
+    }
+    if (!listing.lines.some((l) => l.confirmed) && !paid)
+      return { ok: false as const, error: "Sem números confirmados para a IA analisar." };
+    const facts = `Números do anúncio:\n${aiFacts(listing, ctx, paid)}`;
 
     let res: Response;
     try {

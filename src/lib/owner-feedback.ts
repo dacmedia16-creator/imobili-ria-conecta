@@ -4,6 +4,13 @@
  * Regra: só vai para o proprietário número com período confirmado; erro de coleta fica sem número.
  */
 
+import {
+  paidChannelsText,
+  paidOwnerLabel,
+  paidPeriodText,
+  type PaidTrafficSummary,
+} from "@/lib/paid-traffic";
+
 export type PortalKey = "zap" | "imovelweb" | "cliqueimudei" | "chavesnamao";
 export type WindowKind = "cumulative" | "last30" | "unknown";
 
@@ -42,6 +49,9 @@ export interface PortalLine {
   confirmed: boolean;
   error: string | null;
   collectedOn: string;
+  /** Janela da coleta (só "últimos 30 dias" tem datas); usada como período padrão do relatório. */
+  windowFrom?: string | null;
+  windowTo?: string | null;
 }
 
 export interface ListingFeedback {
@@ -211,6 +221,8 @@ export function groupByListing(rows: Snapshot[]): ListingFeedback[] {
         confirmed: !cur.error && cur.window_kind !== "unknown",
         error: cur.error,
         collectedOn: cur.collected_on,
+        windowFrom: cur.window_kind === "last30" ? cur.window_from : null,
+        windowTo: cur.window_kind === "last30" ? cur.window_to : null,
       });
     }
     out.push({
@@ -234,12 +246,21 @@ export function totalContacts(l: ListingFeedback): number {
   return l.lines.reduce((s, x) => s + (x.contacts ?? 0), 0);
 }
 
-/** Diagnóstico simples (regra fixa; a IA entra depois). Usa só números confirmados. */
-export function diagnosis(l: ListingFeedback): string {
+/**
+ * Diagnóstico simples (regra fixa; a IA entra depois). Usa só números confirmados dos portais
+ * + o tráfego pago lançado dentro do período do relatório (t_f3f64be0), quando houver.
+ */
+export function diagnosis(l: ListingFeedback, paid?: PaidTrafficSummary | null): string {
   const ok = l.lines.filter((x) => x.confirmed);
+  // Exposição/conversão olham os PORTAIS: anúncio pago tem muita visualização e pouco contato por natureza e
+  // distorceria a razão. O tráfego pago entra como contatos extras e como texto próprio.
   const v = ok.reduce((s, x) => s + (x.views ?? 0), 0);
-  const c = ok.reduce((s, x) => s + (x.contacts ?? 0), 0);
-  if (!ok.length) return "";
+  const c = ok.reduce((s, x) => s + (x.contacts ?? 0), 0) + (paid?.contacts ?? 0);
+  if (!ok.length && !paid) return "";
+  if (!ok.length && paid)
+    return paid.contacts > 0
+      ? "O tráfego pago está trazendo contatos. Seguimos acompanhando os interessados."
+      : "O tráfego pago está gerando visualizações. Seguimos acompanhando para transformar em contatos.";
   if (v < 20)
     return "O anúncio está com pouca exposição. Vale reforçar fotos, título e destaque nos portais.";
   if (c === 0 || c / v < 0.01)
@@ -259,13 +280,25 @@ export function ownerMessage(opts: {
   recommendation: string;
   /** Bloco "O que já fizemos / Próximos passos" do Plano da captação ligada (opcional). */
   planText?: string;
+  /** Tráfego pago lançado no período do relatório (sem valor investido, por construção). */
+  paid?: PaidTrafficSummary | null;
 }): string {
-  const { listing } = opts;
+  const { listing, paid } = opts;
   const ok = listing.lines.filter((x) => x.confirmed);
   const linhas = ok.map(
     (x) =>
       `• ${x.label} (${x.periodText}): ${n(x.views ?? 0)} visualizações e ${n(x.contacts ?? 0)} contatos`,
   );
+  if (paid)
+    linhas.push(
+      `• ${paidOwnerLabel(paid)} (${paidPeriodText(paid)}): ${n(paid.views)} visualizações e ${n(paid.contacts)} contatos`,
+    );
+  // Linha "Total" só quando há tráfego pago junto (sem ele, a mensagem fica igual à de antes).
+  if (paid && linhas.length > 1) {
+    const tv = ok.reduce((s, x) => s + (x.views ?? 0), 0) + (paid?.views ?? 0);
+    const tc = ok.reduce((s, x) => s + (x.contacts ?? 0), 0) + (paid?.contacts ?? 0);
+    linhas.push(`Total: ${n(tv)} visualizações e ${n(tc)} contatos`);
+  }
   const outros = listing.lines.filter((x) => !x.confirmed && !x.error).map((x) => x.label);
   const agency = opts.agencyName?.trim();
   const assinatura = opts.brokerName
@@ -273,7 +306,9 @@ export function ownerMessage(opts: {
     : "";
   const partes = [
     `Olá${opts.ownerName ? `, ${opts.ownerName.split(" ")[0]}` : ""}! Tudo bem?`,
-    `Segue o acompanhamento do seu imóvel (código ${listing.code}) nos portais:`,
+    paid
+      ? `Segue o acompanhamento do seu imóvel (código ${listing.code}) nos portais e no tráfego pago:`
+      : `Segue o acompanhamento do seu imóvel (código ${listing.code}) nos portais:`,
     linhas.join("\n"),
     outros.length ? `Ele também está anunciado em: ${outros.join(", ")}.` : "",
     (opts.planText ?? "").trim(),
@@ -329,8 +364,16 @@ export function diasDesde(iso: string, hoje: string): number | null {
   return Math.round((b - a) / 86_400_000);
 }
 
-/** Resumo só com números confirmados, para a IA escrever a recomendação. Sem dados pessoais. */
-export function aiFacts(l: ListingFeedback, ctx?: ListingContext): string {
+/**
+ * Resumo só com números confirmados, para a IA escrever a recomendação. Sem dados pessoais.
+ * Tráfego pago (t_f3f64be0): entra separado e com o canal lançado, sem valor investido, para a IA não
+ * confundir com portal nem inventar origem.
+ */
+export function aiFacts(
+  l: ListingFeedback,
+  ctx?: ListingContext,
+  paid?: PaidTrafficSummary | null,
+): string {
   const ok = l.lines.filter((x) => x.confirmed);
   const linhas = ok.map((x) => {
     const parts = [
@@ -367,8 +410,16 @@ export function aiFacts(l: ListingFeedback, ctx?: ListingContext): string {
         `- Média da imobiliária em ${PORTAL_LABEL[c.portal]} (${c.periodText}), ${c.criterio} (${c.n} imóveis): ${n(c.mediaViews)} visualizações e ${n(c.mediaContatos)} contatos por imóvel.`,
       );
   }
+  const pago = paid
+    ? `- Tráfego pago lançado pelo corretor (${paidChannelsText(paid) || "canal não informado"}, ${paidPeriodText(paid)}): ${paid.views} visualizações, ${paid.contacts} contatos. Não é portal; cite só como "tráfego pago" e só esses canais.`
+    : "";
   return [
-    linhas.length ? linhas.join("\n") : "- Nenhum número com período confirmado.",
+    linhas.length
+      ? linhas.join("\n")
+      : paid
+        ? "- Nenhum número de portal com período confirmado."
+        : "- Nenhum número com período confirmado.",
+    pago,
     outros.length ? `Também anunciado em: ${outros.join(", ")} (sem números confirmados).` : "",
     imovel.length ? `Dados do imóvel:\n${imovel.join("\n")}` : "",
   ]
