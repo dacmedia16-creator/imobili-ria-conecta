@@ -37,8 +37,13 @@ export type CaptureCandidate = {
 
 /** Validade de um cartão no mural (dias). */
 export const VALIDADE_DIAS = 7;
-/** Margem aceita acima do teto do cliente (10%). */
+/** Margem aceita acima do teto do cliente (10%). Também é a folga abaixo do mínimo informado. */
 export const MARGEM_TETO = 0.1;
+/**
+ * Procura só com teto ("até R$ 800 mil"): o imóvel precisa valer ao menos esta fração do teto
+ * (0,7 = 70%). Abaixo disso o cliente não quer (t_e0d21a44, Denis 22/11). Ajuste aqui.
+ */
+export const PISO_FRACAO_TETO = 0.7;
 /** No máximo N alertas por corretor por dia; o resto fica só no mural. */
 export const LIMITE_DIARIO_ALERTAS = 3;
 /** A captação do ADM não registra venda/locação: por ora todas contam como VENDA (decisão do card). */
@@ -352,16 +357,19 @@ export function bairroCasa(
     .some((p) => alvos.some((a) => a.length >= 3 && (a.includes(p) || p.includes(a))));
 }
 
-/** Valor da oferta dentro da faixa da procura, com 10% de folga acima do teto e abaixo do piso. */
+/**
+ * Valor da oferta dentro da faixa da procura: até o teto + 10%; por baixo, o mínimo do cliente
+ * com 10% de folga ou, sem mínimo, PISO_FRACAO_TETO do teto.
+ */
 export function valorCasa(
   procura: Pick<OpportunityPost, "valor_min" | "valor_max">,
   valor: number | null,
 ): boolean {
   if (!valor || !procura.valor_max) return false;
-  return (
-    valor <= procura.valor_max * (1 + MARGEM_TETO) &&
-    valor >= (procura.valor_min ?? 0) * (1 - MARGEM_TETO)
-  );
+  const piso = procura.valor_min
+    ? procura.valor_min * (1 - MARGEM_TETO)
+    : procura.valor_max * PISO_FRACAO_TETO;
+  return valor <= procura.valor_max * (1 + MARGEM_TETO) && valor >= piso;
 }
 
 type Ofertavel = {
