@@ -26,6 +26,7 @@ import {
   salvarLinkPreLocacao,
   type PreLinkResult,
 } from "@/lib/locacao-pre-links.functions";
+import { mensagemErro } from "@/lib/errors";
 
 type Campo = { k: string; label: string; tipo?: "date" | "email" | "tel" | "reais" | "cpf" };
 const CAMPOS: Record<"locatario" | "fiador", Campo[]> = {
@@ -125,7 +126,7 @@ function Page() {
     try {
       await fn();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível concluir. Tente novamente.");
+      toast.error(mensagemErro(e, "Não foi possível concluir. Tente novamente."));
     } finally {
       setBusy(false);
     }

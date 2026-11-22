@@ -104,7 +104,7 @@ export function LocacaoLinks({
       "locacao_links_lista" as never,
       { _id: id } as never,
     );
-    if (error) throw new Error(error.message);
+    if (error) throw error;
     const s = data as unknown as StatusLink;
     setEstado(s);
     onStatus?.(s);
@@ -135,7 +135,7 @@ export function LocacaoLinks({
         "locacao_links_modo" as never,
         { _id: id, _modo: m } as never,
       );
-      if (error) throw new Error(error.message);
+      if (error) throw error;
       setLinks({});
       await ler();
       toast.success(

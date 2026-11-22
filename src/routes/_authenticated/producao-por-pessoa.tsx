@@ -19,6 +19,7 @@ import { Filters } from "@/components/producao-por-pessoa/Filters";
 import { TotalsCards } from "@/components/producao-por-pessoa/TotalsCards";
 import { SummaryTable } from "@/components/producao-por-pessoa/SummaryTable";
 import { DetailTable } from "@/components/producao-por-pessoa/DetailTable";
+import { mensagemErro } from "@/lib/errors";
 
 export const Route = createFileRoute("/_authenticated/producao-por-pessoa")({
   head: () => ({ meta: [{ title: "Produção por pessoa" }] }),
@@ -53,8 +54,7 @@ function ProducaoPorPessoaPage() {
       })
       .catch((err: unknown) => {
         console.error("fetchProducaoPorPessoa:", err);
-        if (!cancelado)
-          setErro(err instanceof Error ? err.message : "Não foi possível carregar o relatório.");
+        if (!cancelado) setErro(mensagemErro(err, "Não foi possível carregar o relatório."));
       })
       .finally(() => {
         if (!cancelado) setLoading(false);

@@ -13,6 +13,7 @@ import appCss from "../styles.css?url";
 import { Toaster } from "@/components/ui/sonner";
 import type { RouterAuth } from "@/lib/route-access";
 import { APP_ORIGIN } from "@/lib/dominios";
+import { TEXTO_ERRO_PAGINA, TEXTO_PAGINA_NAO_ENCONTRADA } from "@/lib/error-page";
 
 const IS_HOMOLOG = import.meta.env.VITE_HOMOLOG_ONLY === "true";
 const HOMOLOG_URL = "https://adm-max-homolog.dacmedia16.workers.dev";
@@ -32,16 +33,18 @@ function NotFoundComponent() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-bold text-foreground">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-foreground">Page not found</h2>
+        <h2 className="mt-4 text-xl font-semibold text-foreground">
+          {TEXTO_PAGINA_NAO_ENCONTRADA.titulo}
+        </h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          The page you're looking for doesn't exist or has been moved.
+          {TEXTO_PAGINA_NAO_ENCONTRADA.explicacao}
         </p>
         <div className="mt-6">
           <Link
             to="/"
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Go home
+            {TEXTO_PAGINA_NAO_ENCONTRADA.inicio}
           </Link>
         </div>
       </div>
@@ -57,11 +60,9 @@ function ErrorComponent({ error, reset }: { error: unknown; reset: () => void })
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          This page didn't load
+          {TEXTO_ERRO_PAGINA.titulo}
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. You can try refreshing or head back home.
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">{TEXTO_ERRO_PAGINA.explicacao}</p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
@@ -70,13 +71,13 @@ function ErrorComponent({ error, reset }: { error: unknown; reset: () => void })
             }}
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Try again
+            {TEXTO_ERRO_PAGINA.tentarDeNovo}
           </button>
           <a
             href="/"
             className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
           >
-            Go home
+            {TEXTO_ERRO_PAGINA.inicio}
           </a>
         </div>
       </div>

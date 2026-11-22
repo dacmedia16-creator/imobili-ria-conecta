@@ -33,6 +33,7 @@ import { usePlano, type StatusSalvar } from "./usePlano";
 import { BotaoBaixarPlano } from "./BaixarPdf";
 import { IndiceTelas } from "./IndiceTelas";
 import { OQueFalta } from "./OQueFalta";
+import { mensagemErro } from "@/lib/errors";
 
 /** "inicio" = continuar de onde parou (ui.ult) ou a 1ª tela. Também recebe o link antigo ?v=trilha. */
 export type Vista =
@@ -270,7 +271,7 @@ export function MeuPlano({
         });
       } else toast.success("Meta oficial de 2027 gravada em Minha carreira.");
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(mensagemErro(e));
     } finally {
       setOcupado(false);
     }
@@ -292,7 +293,7 @@ export function MeuPlano({
           : "Pacto assinado. Agora é a vez do seu broker.",
       );
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(mensagemErro(e));
     } finally {
       setOcupado(false);
     }

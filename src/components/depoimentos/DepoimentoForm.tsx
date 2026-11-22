@@ -23,6 +23,7 @@ import {
   type DepSituacao,
 } from "@/lib/depoimentos";
 import { enviarDepoimento, enviarFotoCadastro } from "@/lib/depoimentos-db";
+import { mensagemErro } from "@/lib/errors";
 
 type SituacaoOk = Extract<DepSituacao, { pode_enviar: true }>;
 
@@ -160,7 +161,7 @@ export function DepoimentoForm({
       setFoto(await enviarFotoCadastro(userId, arq));
       toast.success("Foto do cadastro atualizada.");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível enviar a foto.");
+      toast.error(mensagemErro(e, "Não foi possível enviar a foto."));
     } finally {
       setEnviandoFoto(false);
     }
@@ -177,7 +178,7 @@ export function DepoimentoForm({
       const r = await enviarDepoimento(f, situacao.termo.versao, origem);
       onEnviado({ publicavel: r.publicavel });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível enviar agora.");
+      toast.error(mensagemErro(e, "Não foi possível enviar agora."));
     } finally {
       setEnviando(false);
     }

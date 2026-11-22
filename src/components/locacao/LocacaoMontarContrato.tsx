@@ -28,6 +28,7 @@ import {
 } from "@/lib/locacao-montagem";
 import { chaveBaseModelo, modelosDaGarantia } from "@/lib/locacao-modelos";
 import { linhasPessoas, parseSexos } from "@/lib/locacao-concordancia";
+import { mensagemErro } from "@/lib/errors";
 
 export function LocacaoMontarContrato({
   d,
@@ -54,7 +55,7 @@ export function LocacaoMontarContrato({
         setValores(camposIniciais(d, x));
       })
       .catch((e) => {
-        if (ativo) setErro(e instanceof Error ? e.message : "Montagem indisponível");
+        if (ativo) setErro(mensagemErro(e, "Montagem indisponível"));
       });
     return () => {
       ativo = false;
@@ -100,7 +101,7 @@ export function LocacaoMontarContrato({
       setDirty(false);
       toast.success("Montagem salva. Nenhuma cobrança ou assinatura foi enviada.");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Falha ao salvar montagem");
+      toast.error(mensagemErro(e, "Falha ao salvar montagem"));
     } finally {
       setBusy(false);
     }
@@ -144,7 +145,7 @@ export function LocacaoMontarContrato({
       a.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Falha ao gerar PDF");
+      toast.error(mensagemErro(e, "Falha ao gerar PDF"));
     } finally {
       setBusy(false);
     }
@@ -157,7 +158,7 @@ export function LocacaoMontarContrato({
       toast.success(`Minuta v${v} guardada. Agora é só enviar ao corretor.`);
       await onGuardada?.();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Falha ao guardar a minuta");
+      toast.error(mensagemErro(e, "Falha ao guardar a minuta"));
     } finally {
       setBusy(false);
     }

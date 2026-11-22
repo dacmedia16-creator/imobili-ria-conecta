@@ -14,6 +14,7 @@ import {
 import { ClicksignConfigPanel } from "@/components/clicksign/ClicksignConfigPanel";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/visual/base";
+import { mensagemErro } from "@/lib/errors";
 
 // Tela "Assinatura digital" (t_7508c6b6): só super_admin. A rota esconde dos demais; a edge e o
 // banco (clicksign_config_authorize) recusam qualquer outro papel e escolhem a org pelo contexto.
@@ -38,7 +39,7 @@ function AssinaturaDigitalPage() {
     try {
       setConfig((await callClicksignConfig(db, { action: "view" })).config);
     } catch (e) {
-      setLoadError(e instanceof Error ? e.message : "Não foi possível carregar a configuração");
+      setLoadError(mensagemErro(e, "Não foi possível carregar a configuração"));
     }
   }, []);
 
@@ -61,11 +62,11 @@ function AssinaturaDigitalPage() {
       if (res.test) {
         setLastTest(res.test);
         if (res.test.ok) toast.success(res.test.message);
-        else toast.error(res.test.message);
+        else toast.error(mensagemErro(res.test));
       } else toast.success(ok);
       return true;
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível salvar");
+      toast.error(mensagemErro(e, "Não foi possível salvar"));
       return false;
     } finally {
       setBusy(false);

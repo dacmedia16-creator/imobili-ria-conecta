@@ -31,6 +31,7 @@ import { type Saver, useAutosave, AutosaveStatus, FieldGrid, Field } from "./sha
 import type { BankAccountRow, PartyRow } from "@/lib/database.types";
 import { type ClientesDb, mensagemErroCliente, resolverClienteDaParte } from "@/lib/clientes";
 import { bankMode, sharedBank } from "@/lib/sale-bank-mode";
+import { mensagemErro } from "@/lib/errors";
 
 type PartyForm = Partial<PartyRow>;
 type BankForm = Partial<BankAccountRow>;
@@ -376,7 +377,7 @@ export function PartiesStep({
           ? await supabase.from("sale_parties").update(data).eq("id", existing.id)
           : await supabase.from("sale_parties").insert({ sale_id: saleId, papel, ...data });
         if (error) {
-          toast.error(error.message);
+          toast.error(mensagemErro(error));
           return false;
         }
       }
@@ -396,7 +397,7 @@ export function PartiesStep({
               .from("sale_bank_accounts")
               .insert({ sale_id: saleId, parte: papel, ...bankData });
         if (error) {
-          toast.error(error.message);
+          toast.error(mensagemErro(error));
           return false;
         }
       }
@@ -404,7 +405,7 @@ export function PartiesStep({
         const { error } = await supabase.from("sales")
           .update({ contas_vendedores_individuais: individual }).eq("id", saleId);
         if (error) {
-          toast.error(error.message);
+          toast.error(mensagemErro(error));
           return false;
         }
       }

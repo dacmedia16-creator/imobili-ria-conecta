@@ -24,6 +24,7 @@ import {
 } from "@/lib/ficha-colaborador";
 import { salvarMinhaFicha } from "@/lib/ficha-colaborador-db";
 import { ComemoraAniversarioCampo } from "@/components/ComemoraAniversarioCampo";
+import { mensagemErro } from "@/lib/errors";
 
 const validarNascimento = (d: string) => erroCampoDataNascimento(d, true);
 
@@ -66,7 +67,7 @@ export function FichaColaboradorForm({
       toast.success("Ficha salva. Obrigado!");
       onSalvo(nova);
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível salvar agora.");
+      toast.error(mensagemErro(e, "Não foi possível salvar agora."));
     } finally {
       setSalvando(false);
     }
