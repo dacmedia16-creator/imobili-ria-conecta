@@ -33,6 +33,8 @@ export type CaptureCandidate = {
   bairro: string | null;
   municipio: string | null;
   valor: number | null;
+  /** Quartos da ficha da captação (null = não informado). */
+  quartos?: number | null;
 };
 
 /** Validade de um cartão no mural (dias). */
@@ -44,6 +46,12 @@ export const MARGEM_TETO = 0.1;
  * (0,7 = 70%). Abaixo disso o cliente não quer (t_e0d21a44, Denis 22/11). Ajuste aqui.
  */
 export const PISO_FRACAO_TETO = 0.7;
+/**
+ * "Mesma procura" para não repetir aviso (t_b832cf00, Denis 22/11): mesmo corretor, mesmo tipo,
+ * mesma finalidade e teto com até esta diferença (0,1 = 10%), dentro de JANELA_MESMA_PROCURA_DIAS.
+ */
+export const DIFERENCA_TETO_MESMA_PROCURA = 0.1;
+export const JANELA_MESMA_PROCURA_DIAS = 30;
 /** No máximo N alertas por corretor por dia; o resto fica só no mural. */
 export const LIMITE_DIARIO_ALERTAS = 3;
 /** A captação do ADM não registra venda/locação: por ora todas contam como VENDA (decisão do card). */
@@ -357,6 +365,60 @@ export function bairroCasa(
     .some((p) => alvos.some((a) => a.length >= 3 && (a.includes(p) || p.includes(a))));
 }
 
+const NUM_EXTENSO: Record<string, number> = {
+  um: 1,
+  uma: 1,
+  dois: 2,
+  duas: 2,
+  tres: 3,
+  quatro: 4,
+  cinco: 5,
+  seis: 6,
+};
+const QTD = String.raw`(?:\d{1,2}|um|uma|dois|duas|tres|quatro|cinco|seis)`;
+// "2 ou 3", "2/3/4", "2 a 3", "3+", "2 ou mais" + dorm/quarto/qto/suíte
+const QUARTOS_RE = new RegExp(
+  String.raw`\b(${QTD}(?:(?:\s+(?:a|ou|e)\s+|\s*[/,-]\s*)${QTD})*)\s*(?:\+|ou mais)?\s*(dorm\w*|quartos?|qtos?|suites?)\b`,
+  "g",
+);
+/** "até 3 quartos" / "no máximo 2 dorm" é teto, não mínimo: não barra ninguém. */
+const TETO_QUARTOS = /(?:\bate|\bmaximo|\bmax\.?)\s*(?:de\s*)?$/;
+const qtd = (s: string) => NUM_EXTENSO[s] ?? Number(s);
+
+/**
+ * Mínimo de quartos pedido no texto da procura ("3 dormitórios", "2 ou 3 quartos" = 2,
+ * "três suítes"). Suíte também é quarto: só vale se o texto não falar em quartos/dormitórios.
+ * null = não informado. shortcut: lê só número colado à palavra (não entende "quartos: 3").
+ */
+export function quartosPedidos(texto: string | null | undefined): number | null {
+  let quartos: number | null = null;
+  let suites: number | null = null;
+  const t = sem(texto ?? "");
+  for (const m of t.matchAll(QUARTOS_RE)) {
+    if (TETO_QUARTOS.test(t.slice(Math.max(0, m.index - 15), m.index))) continue;
+    const n = Math.min(...m[1].split(/\s+(?:a|ou|e)\s+|\s*[/,-]\s*/).map(qtd));
+    if (!(n >= 1 && n <= 10)) continue;
+    if (m[2].startsWith("suite")) suites = Math.max(suites ?? 0, n);
+    else quartos = Math.max(quartos ?? 0, n);
+  }
+  return quartos ?? suites;
+}
+
+/** Quartos da ficha da captação ("3", "02"); vazio, 0 ou valor absurdo (> 20) = não informado. */
+export function quartosCaptacao(
+  ficha: string | null | undefined,
+  tipoImovel?: string | null,
+): number | null {
+  const n = Number((ficha ?? "").trim());
+  if (Number.isInteger(n) && n >= 1 && n <= 20) return n;
+  return quartosPedidos(tipoImovel); // "APARTAMENTO 2 QUARTOS"
+}
+
+/** Procura e captação com quartos informados: a captação precisa ter pelo menos o pedido. */
+export function quartosCasa(pedido: number | null, oferta: number | null | undefined): boolean {
+  return !pedido || !oferta || oferta >= pedido;
+}
+
 /**
  * Valor da oferta dentro da faixa da procura: até o teto + 10%; por baixo, o mínimo do cliente
  * com 10% de folga ou, sem mínimo, PISO_FRACAO_TETO do teto.
@@ -378,12 +440,15 @@ type Ofertavel = {
   bairro: string | null;
   municipio?: string | null;
   valor: number | null;
+  /** Só captações trazem quartos; ofertas do grupo não são barradas por quartos. */
+  quartos?: number | null;
 };
 
 export function encaixa(procura: OpportunityPost, oferta: Ofertavel): boolean {
   if (procura.kind !== "procura" || !procura.tipo || procura.tipo !== oferta.tipo) return false;
   if (!procura.finalidade || procura.finalidade !== oferta.finalidade) return false;
   if (!bairroCasa(procura.bairro, oferta.bairro, oferta.municipio)) return false;
+  if (!quartosCasa(quartosPedidos(procura.texto), oferta.quartos)) return false;
   return valorCasa(procura, oferta.valor);
 }
 
@@ -394,6 +459,28 @@ const mesmoNome = (a: string, b: string) => {
 };
 
 export const pairKey = (postId: string, targetId: string) => `${postId}|${targetId}`;
+
+/**
+ * Duas procuras são a "mesma procura" (repostagem com outro texto): mesmo corretor (cadastro
+ * ligado ou, sem cadastro nos dois, o mesmo nome), mesmo tipo, mesma finalidade e teto até
+ * DIFERENCA_TETO_MESMA_PROCURA de diferença (sem teto nos dois também conta). Bairro não entra:
+ * o aviso é sobre o MESMO imóvel, e ele já foi mostrado a esse corretor.
+ */
+const nomeNorm = (s: string) => sem(s).replace(/\s+/g, " ").trim();
+
+export function mesmaProcura(
+  a: Pick<OpportunityPost, "corretor" | "author_profile_id" | "tipo" | "finalidade" | "valor_max">,
+  b: Pick<OpportunityPost, "corretor" | "author_profile_id" | "tipo" | "finalidade" | "valor_max">,
+): boolean {
+  const autor =
+    a.author_profile_id && b.author_profile_id
+      ? a.author_profile_id === b.author_profile_id
+      : nomeNorm(a.corretor) === nomeNorm(b.corretor);
+  if (!autor || a.tipo !== b.tipo || a.finalidade !== b.finalidade) return false;
+  if (!a.valor_max || !b.valor_max) return !a.valor_max && !b.valor_max;
+  const [x, y] = [Math.min(a.valor_max, b.valor_max), Math.max(a.valor_max, b.valor_max)];
+  return y - x <= y * DIFERENCA_TETO_MESMA_PROCURA;
+}
 
 /** Mesmo autor identificado nos dois lados (não é encaixe). */
 const mesmoAutor = (a: string | null | undefined, b: string | null | undefined) =>
@@ -508,6 +595,8 @@ export function captureCandidate(row: {
   bairro: string | null;
   municipio: string | null;
   valor_imovel: string | null;
+  /** form_data->ficha->>quartos (opcional: quem não lê fica sem filtro de quartos). */
+  quartos?: string | null;
 }): CaptureCandidate {
   const v = extractValues(`R$ ${row.valor_imovel ?? ""}`);
   return {
@@ -519,6 +608,7 @@ export function captureCandidate(row: {
     bairro: row.bairro?.trim() || null,
     municipio: row.municipio?.trim() || null,
     valor: v[0] ?? null,
+    quartos: quartosCaptacao(row.quartos, row.tipo_imovel),
   };
 }
 

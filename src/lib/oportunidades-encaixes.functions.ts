@@ -60,7 +60,7 @@ export const encaixesDoMural = createServerFn({ method: "POST" })
       admin
         .from("exclusive_captures")
         .select(
-          "id,captor_id,broker_name,tipo_imovel:form_data->imovel->>tipo_imovel,bairro:form_data->imovel->>bairro,municipio:form_data->imovel->>municipio,valor_imovel:form_data->imovel->>valor_imovel",
+          "id,captor_id,broker_name,tipo_imovel:form_data->imovel->>tipo_imovel,bairro:form_data->imovel->>bairro,municipio:form_data->imovel->>municipio,valor_imovel:form_data->imovel->>valor_imovel,quartos:form_data->ficha->>quartos",
         )
         .eq("organization_id", orgId)
         .eq("status", "aprovada")
@@ -81,6 +81,7 @@ export const encaixesDoMural = createServerFn({ method: "POST" })
       bairro: string | null;
       municipio: string | null;
       valor_imovel: string | null;
+      quartos: string | null;
     }[];
     const semNome = [
       ...new Set(capRows.filter((r) => !r.broker_name?.trim()).map((r) => r.captor_id)),
