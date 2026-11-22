@@ -67,6 +67,36 @@ describe("mensagemErro", () => {
     );
   });
 
+  it.each([
+    [{ code: "42501", message: "Login necessario" }, "Login necessario"],
+    [
+      { code: "22023", message: "Morador repetido (mesmo nome ou CPF)." },
+      "Morador repetido (mesmo nome ou CPF).",
+    ],
+    [
+      { code: "22023", message: "Horario fora da agenda liberada do fotografo" },
+      "Horario fora da agenda liberada do fotografo",
+    ],
+    [
+      { code: "23P01", message: "Horario indisponivel (sessao de 2 h + 1 h de intervalo)" },
+      "Horario indisponivel (sessao de 2 h + 1 h de intervalo)",
+    ],
+    [
+      { code: "42501", message: "Lead encerrado: so gestor ou administrador reabre" },
+      "Lead encerrado: so gestor ou administrador reabre",
+    ],
+    [{ code: "22023", message: "Limite de 10 aparelhos" }, "Limite de 10 aparelhos"],
+    [
+      { code: "P0001", message: "Chamado resolvido. Abra um novo chamado." },
+      "Chamado resolvido. Abra um novo chamado.",
+    ],
+    [new Error("Arquivo maior que 16 MB."), "Arquivo maior que 16 MB."],
+    [new Error("Logo acima de 1 MB."), "Logo acima de 1 MB."],
+    [new Error("Envie PDF ou imagem (JPG, PNG, WEBP)."), "Envie PDF ou imagem (JPG, PNG, WEBP)."],
+  ])("português sem acento do banco/app passa como está (revisão): %#", (erro, esperado) => {
+    expect(mensagemErro(erro, "Reserva da tela")).toBe(esperado);
+  });
+
   it("português com nome técnico (tabela.coluna, snake_case) não passa: vira a frase do código", () => {
     expect(mensagemErro(pg("23503", "Registro pai sem organizacao (sales.sale_id)"))).toMatch(
       /ligado a outro/,

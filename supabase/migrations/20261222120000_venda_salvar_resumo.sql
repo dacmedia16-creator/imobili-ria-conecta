@@ -15,9 +15,11 @@
 -- mudar quem pode salvar. Como INVOKER, a atomicidade é a mesma (uma chamada = uma transação) e o acesso é
 -- exatamente o de hoje. A função ainda confere explicitamente login, venda visível e imobiliária do usuário.
 --
--- Igual a hoje também no caso em que a regra de acesso esconde a linha: o UPDATE passa com 0 linhas, sem erro
--- (antes o navegador fazia o mesmo). A função só devolve as contagens (venda_linhas, extras_sem_alteracao),
--- para um ajuste futuro avisar a pessoa, sem mudar quem consegue avançar a venda agora.
+-- Venda que a pessoa nem enxerga (sem acesso ou de outra imobiliária): erro 42501 e nada é gravado. Antes o
+-- navegador recebia "0 linhas" sem erro; as regras dos extras também exigem acesso à venda, então ninguém
+-- conseguia gravar nada nesse caso de qualquer jeito. Venda visível mas que a regra não deixa editar (ex.:
+-- travada): igual a hoje, o UPDATE passa com 0 linhas e sem erro. A função devolve as contagens
+-- (venda_linhas, extras_sem_alteracao) para um ajuste futuro poder avisar, sem mudar o comportamento agora.
 BEGIN;
 
 CREATE OR REPLACE FUNCTION public.venda_salvar_resumo(

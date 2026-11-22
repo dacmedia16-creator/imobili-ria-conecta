@@ -95,10 +95,19 @@ function campo(error: unknown, nome: "message" | "code"): string {
   return typeof v === "string" ? v : "";
 }
 
-/** Texto de erro escrito em português para a pessoa (pode ir para a tela como está). */
+// Inglês típico de biblioteca/servidor (sem nenhum sinal de português, o texto é tratado como técnico).
+const INGLES =
+  /\b(the|of|is|are|was|be|not|could|cannot|can't|failed|failure|error|invalid|denied|unable|found|does|exist|exists|request|unexpected|token|fetch|network|object|null|undefined|aborted|signal|without|reason|row|value|type|already|must|should|please|unauthorized|forbidden|internal|server|something|went|wrong|missing|required|expected|received|empty|load|loading|timeout|this|that|with|from|detected|deadlock|canceling|cancelled|statement|connection|refused|reset|closed|denied|rejected|limit|exceeded|conflict|duplicate|unknown|bad|gateway|unavailable|service)\b/i;
+
+/**
+ * Texto de erro escrito para a pessoa (pode ir para a tela como está): não parece técnico e não está em
+ * inglês. Muitas mensagens do banco são português sem acento ("Login necessario"), por isso a regra é
+ * "passa, a menos que pareça técnico/inglês", e não "só passa se tiver acento".
+ */
 export function ehMensagemEmPortugues(msg: string): boolean {
   const m = msg.trim();
-  return m.length > 0 && PORTUGUES.test(m) && !TECNICO.test(m);
+  if (!m || TECNICO.test(m)) return false;
+  return PORTUGUES.test(m) || !INGLES.test(m);
 }
 
 /** Frase em português, com orientação, para mostrar na tela. Nunca devolve detalhe interno. */

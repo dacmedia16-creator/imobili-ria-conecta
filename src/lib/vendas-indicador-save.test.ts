@@ -846,6 +846,18 @@ describe("remoção de indicadores e retomada — handlers reais, backend MOCK o
     );
     expect(h.calls.filter((c) => c.name === "venda_salvar_resumo")).toHaveLength(2);
   });
+  it("linha extra incompleta não impede salvar o Resumo (igual a antes); extras esperam a correção", async () => {
+    const h = harness();
+    h.context.updResumo({ matricula: "resumo salvo" });
+    h.context.formExtras = [
+      { id: "new-vazio", _new: true, nome: "", papel: "outro", user_id: null },
+    ];
+    h.context.dirtyExtras = true;
+    expect(await h.context.saveResumo()).toBe(false);
+    expect(h.db().matricula).toBe("resumo salvo");
+    expect(h.calls.filter((c) => c.table === "sale_commission_extras")).toEqual([]);
+    expect(h.errors.at(-1)).toContain("participação extra sem pessoa");
+  });
   it("preserva tratamento amigável de imóvel ativo duplicado", async () => {
     const h = harness();
     h.select("captador", "none");

@@ -1217,31 +1217,26 @@ function SaleDetail() {
       // Extras resolvidos com id real do banco — usado pra sincronizar com a Ocorrência logo abaixo.
       // Sem isso, um extra recém-criado ainda estaria com o id temporário ("new-...") nesse ponto.
       let resolvedExtras = formExtras;
+      // Linha extra incompleta: avisa antes, com o nome da linha (mesmo critério do CHECK 23514 do banco).
+      // Como antes, o Resumo continua sendo salvo; só os extras esperam a correção.
+      let extrasErro: string | null = null;
       if (dirtyExtras && formExtras.some((r) => !r.user_id && !(r.nome ?? "").trim())) {
-        setResumoSaveFailed(true);
-        toast.error(
-          "Há uma participação extra sem pessoa. Escolha a pessoa ou remova a linha antes de salvar.",
-        );
-        return false;
+        extrasErro =
+          "Há uma participação extra sem pessoa. Escolha a pessoa ou remova a linha antes de salvar.";
+      } else {
+        const extraSemPessoa = dirtyExtras ? extraSemPessoaCadastrada(formExtras) : null;
+        if (extraSemPessoa)
+          extrasErro = `A parte extra "${(extraSemPessoa.nome ?? "").trim() || "sem nome"}" está como ${COMISSAO_PAPEIS.find((p) => p.key === extraSemPessoa.papel)?.label ?? extraSemPessoa.papel}, mas sem pessoa cadastrada. Escolha a pessoa na lista ou, se for parceiro sem cadastro, mude o papel para "Outro".`;
       }
-      const extraSemPessoa = dirtyExtras ? extraSemPessoaCadastrada(formExtras) : null;
-      if (extraSemPessoa) {
-        // Mesmo critério do CHECK do banco (23514): avisa antes, com o nome da linha.
-        setResumoSaveFailed(true);
-        toast.error(
-          `A parte extra "${(extraSemPessoa.nome ?? "").trim() || "sem nome"}" está como ${COMISSAO_PAPEIS.find((p) => p.key === extraSemPessoa.papel)?.label ?? extraSemPessoa.papel}, mas sem pessoa cadastrada. Escolha a pessoa na lista ou, se for parceiro sem cadastro, mude o papel para "Outro".`,
-        );
-        return false;
-      }
+      const enviarExtras = dirtyExtras && !extrasErro;
       // Tudo ou nada (t_8ab6c348): venda + remoções + inclusões/alterações de extras vão numa única
       // chamada ao banco (RPC venda_salvar_resumo, uma transação). Se qualquer parte falhar, nada é
       // gravado — antes, cada passo era uma requisição e uma falha no meio deixava a comissão pela metade.
       // A RPC roda com o papel de quem chama: as mesmas regras de acesso de antes continuam valendo.
-      const hasPatch = Object.keys(patch).length > 0;
-      if (hasPatch || dirtyExtras) {
+      if (Object.keys(patch).length > 0 || enviarExtras) {
         const currentIds = new Set(formExtras.filter((r) => !r._new).map((r) => r.id));
-        const removed = dirtyExtras ? commissionExtras.filter((r) => !currentIds.has(r.id)) : [];
-        const extrasPayload = dirtyExtras
+        const removed = enviarExtras ? commissionExtras.filter((r) => !currentIds.has(r.id)) : [];
+        const extrasPayload = enviarExtras
           ? formExtras.map((r) => ({
               ...(r._new ? {} : { id: r.id }),
               nome: r.nome || null,
@@ -1270,10 +1265,17 @@ function SaleDetail() {
           }
           return false;
         }
-        if (dirtyExtras) {
-          const ids = ((saved as { extras?: string[] } | null)?.extras ?? []) as string[];
+        if (enviarExtras) {
+          const ids = (saved as { extras?: unknown } | null)?.extras;
+          if (!Array.isArray(ids) || ids.length !== formExtras.length) {
+            // Resposta fora do esperado: não marca os extras como salvos (evita duplicar no retry).
+            setResumoSaveFailed(true);
+            toast.error(resumoSaveErrorMessage(null));
+            await load();
+            return false;
+          }
           resolvedExtras = formExtras.map((r, i) =>
-            r._new && ids[i] ? { ...r, id: ids[i], _new: false } : r,
+            r._new ? { ...r, id: String(ids[i]), _new: false } : r,
           );
           // Aplica os ids reais no estado IMEDIATAMENTE, não só via load() — load() só reescreve
           // formExtras quando dirtyExtras é false (pra não apagar edição em digitação), e a falha de
@@ -1283,6 +1285,11 @@ function SaleDetail() {
           setFormExtras(resolvedExtras);
           setCommissionExtras(resolvedExtras as CommissionExtraRow[]);
         }
+      }
+      if (extrasErro) {
+        setResumoSaveFailed(true);
+        toast.error(extrasErro);
+        return false;
       }
       // Mesmo sem patch: uma tentativa anterior pode ter salvo sales e falhado na ocorrência,
       // inclusive antes de recarregar a página. Não depender de flag volátil para decidir o sync.
