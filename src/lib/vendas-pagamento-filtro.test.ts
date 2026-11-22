@@ -351,7 +351,9 @@ describe("telas usam o filtro e a etiqueta", () => {
     expect(src).toContain("pagamentoFilter,\n        } satisfies SalesListState");
     expect(src).toContain("filters.pagamento = pagamentoFilterParam(pagamentoFilter)");
     expect(src).toContain("fetchSelecaoPorPagamento(pagamentoFilter)");
-    expect(src).toContain("[dataDe, dataAte, esteira, midiaFilter, pagamentoFilter]");
+    expect(src).toContain(
+      "[dataDe, dataAte, esteira, midiaFilter, pagamentoFilter, incluirInconsistencias]",
+    );
     expect(src).toContain("<ListaVendas");
     expect(ler("src/components/vendas/ListaVendas.tsx").match(/<FinanciadaBadge/g)).toHaveLength(2);
   });

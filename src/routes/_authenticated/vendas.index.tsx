@@ -66,9 +66,10 @@ import {
   aplicarFiltrosEfetivacao,
   calcularResumo,
   filtrosPadraoFinanceiro,
+  podeAcessarCentralFinanceira,
 } from "@/lib/financeiro-dashboard-calc";
 import { fetchFinanceiroBundle } from "@/lib/financeiro-dashboard-query";
-import { resolverResumoOpcional } from "@/lib/vendas-resumo";
+import { resolverResumo } from "@/lib/vendas-resumo";
 import { criarCacheConsultas, ehErroDePermissao, type CacheConsultas } from "@/lib/cache-consultas";
 import { fetchVendasComerciaisPaginadas } from "@/lib/vendas-comerciais-query";
 import { linhaNoChipDaEsteira, resumoEsteira } from "@/lib/esteira-resumo";
@@ -237,6 +238,8 @@ function SalesList() {
   const [efetivadasValorCheio, setEfetivadasValorCheio] = useState(0);
   const [efetivadasComParceria, setEfetivadasComParceria] = useState(0);
   const [parceriaValorCheio, setParceriaValorCheio] = useState(0);
+  // Falha de verdade (rede/500) no pacote do cartão Efetivadas: mostra aviso, nunca R$ 0 calado.
+  const [efetivadasFalhou, setEfetivadasFalhou] = useState(false);
   const [soMinhaVez, setSoMinhaVez] = useState(savedListState?.soMinhaVez ?? false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [teamOptions, setTeamOptions] = useState<{ id: string; label: string }[]>([]);
@@ -507,12 +510,18 @@ function SalesList() {
 
   // A segunda linha mantém o indicador financeiro existente, cujo marco é a efetivação.
   // Retornar o resultado sem setters permite descartar respostas de filtros antigos.
+  // A conferência de inconsistências (Comparativo 6%) só responde a financeiro/admin/super_admin.
+  // Para os demais papéis ela nem é pedida: antes, o 403 dela derrubava o pacote inteiro e o
+  // cartão Efetivadas mostrava R$ 0 sem aviso (t_a42027c1). Nenhuma permissão do banco muda.
+  const incluirInconsistencias = podeAcessarCentralFinanceira([...roles]);
   const fetchSummary = useCallback(async () => {
     const cache = resumoCacheRef.current!;
     return !esteira && dataDe && dataAte
-      ? resolverResumoOpcional(
+      ? resolverResumo(
           Promise.all([
-            cache.buscar("bundle", fetchFinanceiroBundle),
+            cache.buscar(`bundle:${incluirInconsistencias ? "fin" : "base"}`, () =>
+              fetchFinanceiroBundle({ incluirInconsistencias }),
+            ),
             cache.buscar(`midia:${midiaFilter}`, () => fetchSaleIdsPorMidia(midiaFilter)),
             cache.buscar(`pagamento:${pagamentoFilter}`, () =>
               fetchSelecaoPorPagamento(pagamentoFilter),
@@ -554,7 +563,18 @@ function SalesList() {
           }),
         )
       : Promise.resolve(null);
-  }, [dataDe, dataAte, esteira, midiaFilter, pagamentoFilter]);
+  }, [dataDe, dataAte, esteira, midiaFilter, pagamentoFilter, incluirInconsistencias]);
+
+  // Só usa setters (estáveis): não precisa de dependências.
+  const aplicarResumoFinanceiro = useCallback((r: Awaited<ReturnType<typeof fetchSummary>>) => {
+    const dados = r?.dados ?? null;
+    setEfetivadasFalhou(r?.falhou ?? false);
+    setContratosAssinadosCount(dados?.quantidade ?? 0);
+    setContratosAssinadosValor(dados?.vgv ?? 0);
+    setEfetivadasValorCheio(dados?.vgvCheio ?? 0);
+    setEfetivadasComParceria(dados?.comParceria ?? 0);
+    setParceriaValorCheio(dados?.comParceriaValorCheio ?? 0);
+  }, []);
 
   // "Nesta etapa há X dias": timestamp da última troca de status (fallback: criação da venda, se nunca mudou)
   const mergeStageSince = async (ids: string[], requestId: number, signal?: AbortSignal) => {
@@ -636,11 +656,7 @@ function SalesList() {
             setTotalCount(primeiroLote?.total_count ?? todas.length);
             setTotalValor(Number(primeiroLote?.total_valor) || 0);
           }
-          setContratosAssinadosCount(resumoFinanceiro?.quantidade ?? 0);
-          setContratosAssinadosValor(resumoFinanceiro?.vgv ?? 0);
-          setEfetivadasValorCheio(resumoFinanceiro?.vgvCheio ?? 0);
-          setEfetivadasComParceria(resumoFinanceiro?.comParceria ?? 0);
-          setParceriaValorCheio(resumoFinanceiro?.comParceriaValorCheio ?? 0);
+          aplicarResumoFinanceiro(resumoFinanceiro);
           setStageSince({});
           await mergeStageSince(
             todas.map((s) => s.id),
@@ -660,11 +676,7 @@ function SalesList() {
         setSales(rows);
         setTotalCount(pageResult.total_count);
         setTotalValor(Number(pageResult.total_valor) || 0);
-        setContratosAssinadosCount(resumoFinanceiro?.quantidade ?? 0);
-        setContratosAssinadosValor(resumoFinanceiro?.vgv ?? 0);
-        setEfetivadasValorCheio(resumoFinanceiro?.vgvCheio ?? 0);
-        setEfetivadasComParceria(resumoFinanceiro?.comParceria ?? 0);
-        setParceriaValorCheio(resumoFinanceiro?.comParceriaValorCheio ?? 0);
+        aplicarResumoFinanceiro(resumoFinanceiro);
         setStageSince({});
         await mergeStageSince(
           rows.map((s) => s.id),
@@ -681,7 +693,15 @@ function SalesList() {
         if (requestIdRef.current === myRequestId) setLoading(false);
       }
     },
-    [fetchSales, fetchSummary, esteira, carregarTudo, buildFilters, soMinhaVez],
+    [
+      fetchSales,
+      fetchSummary,
+      aplicarResumoFinanceiro,
+      esteira,
+      carregarTudo,
+      buildFilters,
+      soMinhaVez,
+    ],
   );
 
   const filterKey = [
@@ -1190,9 +1210,18 @@ function SalesList() {
               <ResumoCartao
                 titulo="Efetivadas"
                 destaque
-                valor={brl0(contratosAssinadosValor)}
-                linha={`${contratosAssinadosCount} ${contratosAssinadosCount === 1 ? "venda" : "vendas"} · VGV REMAX`}
-                aviso="Não segue o filtro de status."
+                valor={efetivadasFalhou ? "—" : brl0(contratosAssinadosValor)}
+                linha={
+                  efetivadasFalhou
+                    ? "Não foi possível carregar as efetivadas."
+                    : `${contratosAssinadosCount} ${contratosAssinadosCount === 1 ? "venda" : "vendas"} · VGV REMAX`
+                }
+                aviso={
+                  efetivadasFalhou
+                    ? "Atualize a página ou tente de novo em instantes."
+                    : "Não segue o filtro de status."
+                }
+                alerta={efetivadasFalhou}
                 explicacao={
                   <>
                     Vendas com contrato assinado no período.{" "}
@@ -1408,6 +1437,7 @@ function ResumoCartao({
   aviso,
   explicacao,
   destaque = false,
+  alerta = false,
 }: {
   titulo: string;
   valor: string;
@@ -1415,6 +1445,7 @@ function ResumoCartao({
   aviso?: string;
   explicacao: ReactNode;
   destaque?: boolean;
+  alerta?: boolean;
 }) {
   return (
     <div
@@ -1439,7 +1470,12 @@ function ResumoCartao({
         </Popover>
       </div>
       <p className="text-lg font-semibold leading-tight tabular-nums">{valor}</p>
-      <p className="text-sm text-muted-foreground">{linha}</p>
+      <p
+        className={`text-sm ${alerta ? "font-medium text-destructive" : "text-muted-foreground"}`}
+        role={alerta ? "alert" : undefined}
+      >
+        {linha}
+      </p>
       {aviso && <p className="mt-1 text-xs text-muted-foreground">{aviso}</p>}
     </div>
   );
