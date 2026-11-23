@@ -1,6 +1,7 @@
 -- Suíte "plano assinado só leitura" (migration 20261209140000, t_850a0d39). Transação revertida, homologação ou
 -- banco descartável; nunca produção. Dados fictícios. Precisa de 20261209120000 (trava de valores) e
--- 20261209130000 (reabrir) aplicadas antes (o runner aplica).
+-- 20261209130000 (reabrir) aplicadas antes (o runner aplica). Desde 20261227120000 (t_359e9e2a) a recusa sai com
+-- SQLSTATE PT409 (HTTP 409 no PostgREST), não mais 55000.
 CREATE TEMP TABLE r(ok bool, msg text);
 GRANT ALL ON r TO authenticated, anon;
 CREATE FUNCTION pg_temp.ok(_ok bool, _msg text) RETURNS void LANGUAGE sql AS
@@ -80,16 +81,16 @@ SET LOCAL ROLE authenticated;
 
 -- 1) Plano ASSINADO: campos de meta/cálculo recusados pela RPC -------------------------------------------------
 SELECT pg_temp.as_user(:'c1');
-SELECT pg_temp.ok(pg_temp.err(format(:'salvar', '{"mt.tCapt":"99"}')) LIKE '55000' || :'msg', 'assinado: salvar meta (mt.tCapt) recusado com a mensagem clara');
-SELECT pg_temp.ok(pg_temp.err(format(:'salvar', '{"m.ticket":"900000"}')) LIKE '55000%', 'assinado: salvar ticket (m.*) recusado');
-SELECT pg_temp.ok(pg_temp.err(format(:'salvar', '{"fu.v2cre":"80"}')) LIKE '55000%', 'assinado: taxa do funil (fu.*) recusada');
-SELECT pg_temp.ok(pg_temp.err(format(:'salvar', '{"mt.mes.com.3":"50000"}')) LIKE '55000%', 'assinado: distribuicao mes a mes (mt.mes.*) recusada');
-SELECT pg_temp.ok(pg_temp.err(format(:'salvar', '{"ms.lig":31}')) LIKE '55000%', 'assinado: copia ms.* (salvamento automatico) recusada');
-SELECT pg_temp.ok(pg_temp.err(format(:'salvar', '{"pq.frase":"outra"}')) LIKE '55000%', 'assinado: texto do plano (pq.*) recusado');
-SELECT pg_temp.ok(pg_temp.err(format(:'salvar', '{"pa.c.0":"novo compromisso"}')) LIKE '55000%', 'assinado: compromisso do pacto recusado');
-SELECT pg_temp.ok(pg_temp.err(format(:'salvar', '{"mt.tCapt":null}')) LIKE '55000%', 'assinado: APAGAR campo de meta recusado');
-SELECT pg_temp.ok(pg_temp.err(format(:'salvar', '{"zz.novo":"x"}')) LIKE '55000%', 'assinado: prefixo novo/desconhecido nasce travado');
-SELECT pg_temp.ok(pg_temp.err(format(:'salvar', '{"ac.1.1":"7","mt.tCapt":"99"}')) LIKE '55000%', 'assinado: lote misto (livre + travado) recusado inteiro');
+SELECT pg_temp.ok(pg_temp.err(format(:'salvar', '{"mt.tCapt":"99"}')) LIKE 'PT409' || :'msg', 'assinado: salvar meta (mt.tCapt) recusado com a mensagem clara');
+SELECT pg_temp.ok(pg_temp.err(format(:'salvar', '{"m.ticket":"900000"}')) LIKE 'PT409%', 'assinado: salvar ticket (m.*) recusado');
+SELECT pg_temp.ok(pg_temp.err(format(:'salvar', '{"fu.v2cre":"80"}')) LIKE 'PT409%', 'assinado: taxa do funil (fu.*) recusada');
+SELECT pg_temp.ok(pg_temp.err(format(:'salvar', '{"mt.mes.com.3":"50000"}')) LIKE 'PT409%', 'assinado: distribuicao mes a mes (mt.mes.*) recusada');
+SELECT pg_temp.ok(pg_temp.err(format(:'salvar', '{"ms.lig":31}')) LIKE 'PT409%', 'assinado: copia ms.* (salvamento automatico) recusada');
+SELECT pg_temp.ok(pg_temp.err(format(:'salvar', '{"pq.frase":"outra"}')) LIKE 'PT409%', 'assinado: texto do plano (pq.*) recusado');
+SELECT pg_temp.ok(pg_temp.err(format(:'salvar', '{"pa.c.0":"novo compromisso"}')) LIKE 'PT409%', 'assinado: compromisso do pacto recusado');
+SELECT pg_temp.ok(pg_temp.err(format(:'salvar', '{"mt.tCapt":null}')) LIKE 'PT409%', 'assinado: APAGAR campo de meta recusado');
+SELECT pg_temp.ok(pg_temp.err(format(:'salvar', '{"zz.novo":"x"}')) LIKE 'PT409%', 'assinado: prefixo novo/desconhecido nasce travado');
+SELECT pg_temp.ok(pg_temp.err(format(:'salvar', '{"ac.1.1":"7","mt.tCapt":"99"}')) LIKE 'PT409%', 'assinado: lote misto (livre + travado) recusado inteiro');
 SELECT pg_temp.ok((SELECT NOT (respostas ? 'ac.1.1') FROM public.carreira_plano WHERE user_id = :'c1'), 'lote misto recusado nao gravou nem a parte livre');
 SELECT pg_temp.ok(public.carreira_plano_salvar(2027, '{"mt.tCapt":"12"}') IS NOT NULL, 'assinado: regravar o MESMO valor nao da erro (nada muda)');
 
@@ -102,9 +103,9 @@ SELECT pg_temp.ok((SELECT respostas->>'pm.1.comissao' = '25000' AND respostas->>
 SELECT pg_temp.ok(public.carreira_plano_salvar(2027, '{"ac.0.0":null,"pm.1.trans":null}') IS NOT NULL, 'assinado: apagar anotacao funciona');
 
 -- 3) Outras RPCs que mudam o plano assinado ------------------------------------------------------------------------
-SELECT pg_temp.ok(pg_temp.err($$SELECT public.carreira_plano_trilha(2027, 'ativacao')$$) LIKE '55000%', 'assinado: trocar trilha recusado');
+SELECT pg_temp.ok(pg_temp.err($$SELECT public.carreira_plano_trilha(2027, 'ativacao')$$) LIKE 'PT409%', 'assinado: trocar trilha recusado');
 SELECT pg_temp.ok(public.carreira_plano_trilha(2027, 'planejamento') IS NULL, 'assinado: trilha igual nao da erro');
-SELECT pg_temp.ok(pg_temp.err($$SELECT public.carreira_plano_usar_meta(2027, 999000, NULL, 40, 30, true)$$) LIKE '55000%',
+SELECT pg_temp.ok(pg_temp.err($$SELECT public.carreira_plano_usar_meta(2027, 999000, NULL, 40, 30, true)$$) LIKE 'PT409%',
   'assinado: regravar meta oficial (usar_meta substituir) recusado');
 SELECT pg_temp.ok((public.carreira_plano_usar_meta(2027, 999000, NULL, 40, 30, false))->>'status' = 'existe',
   'assinado: usar_meta sem substituir so informa (nao grava)');
@@ -125,17 +126,17 @@ SELECT pg_temp.ok(pg_temp.n(format($$INSERT INTO public.minhas_metas (organizati
   VALUES (%L, %L, 'ano', '2028-01-01', 30000)$$, :'org_a', :'c1')) = 1, 'meta de OUTRO ano continua livre');
 SELECT pg_temp.ok(public.carreira_plano_assinado(:'org_a', :'c3', 2027) = false, 'funcao auxiliar nao revela plano de outra pessoa');
 RESET ROLE;
-SELECT pg_temp.ok(pg_temp.err(format($$UPDATE public.carreira_plano SET respostas = respostas || '{"mt.tCapt":"99"}' WHERE user_id = %L$$, :'c1')) LIKE '55000%',
+SELECT pg_temp.ok(pg_temp.err(format($$UPDATE public.carreira_plano SET respostas = respostas || '{"mt.tCapt":"99"}' WHERE user_id = %L$$, :'c1')) LIKE 'PT409%',
   'nem o service/postgres muda o plano assinado direto (gatilho)');
-SELECT pg_temp.ok(pg_temp.err(format($$UPDATE public.carreira_plano SET meta_oficial = '{"meta_comissao":1}' WHERE user_id = %L$$, :'c1')) LIKE '55000%',
+SELECT pg_temp.ok(pg_temp.err(format($$UPDATE public.carreira_plano SET meta_oficial = '{"meta_comissao":1}' WHERE user_id = %L$$, :'c1')) LIKE 'PT409%',
   'nem o service/postgres muda a meta oficial do plano assinado');
-SELECT pg_temp.ok(pg_temp.err(format($$UPDATE public.carreira_plano SET assinado_corretor_em = now() WHERE user_id = %L$$, :'c1')) LIKE '55000%',
+SELECT pg_temp.ok(pg_temp.err(format($$UPDATE public.carreira_plano SET assinado_corretor_em = now() WHERE user_id = %L$$, :'c1')) LIKE 'PT409%',
   'data da assinatura nao pode ser trocada');
 SET LOCAL ROLE authenticated;
 
 -- 5) Plano assinado há dias SEM meta: a meta não é gravada fora da janela da assinatura --------------------------------
 SELECT pg_temp.as_user(:'c4');
-SELECT pg_temp.ok(pg_temp.err($$SELECT public.carreira_plano_usar_meta(2027, 100000, NULL, 10, 10, true)$$) LIKE '55000%',
+SELECT pg_temp.ok(pg_temp.err($$SELECT public.carreira_plano_usar_meta(2027, 100000, NULL, 10, 10, true)$$) LIKE 'PT409%',
   'assinado antigo sem meta: usar_meta recusado (so reabrindo)');
 SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM public.minhas_metas WHERE user_id = :'c4'), 'e nada foi para minhas_metas');
 
@@ -157,9 +158,9 @@ SELECT pg_temp.as_user(:'c2');
 SELECT pg_temp.ok(public.carreira_plano_assinar(2027) IS NOT NULL, 'c2 assina');
 SELECT pg_temp.ok((public.carreira_plano_usar_meta(2027, 192000, NULL, 16, 20, true))->>'status' = 'gravada',
   'logo apos assinar: a meta oficial da assinatura grava');
-SELECT pg_temp.ok(pg_temp.err($$SELECT public.carreira_plano_usar_meta(2027, 500000, NULL, 30, 20, true)$$) LIKE '55000%',
+SELECT pg_temp.ok(pg_temp.err($$SELECT public.carreira_plano_usar_meta(2027, 500000, NULL, 30, 20, true)$$) LIKE 'PT409%',
   'segunda gravacao de meta depois de assinar: recusada');
-SELECT pg_temp.ok(pg_temp.err(format(:'salvar', '{"mt.tCapt":"11"}')) LIKE '55000%', 'c2 recem-assinado: campos travados');
+SELECT pg_temp.ok(pg_temp.err(format(:'salvar', '{"mt.tCapt":"11"}')) LIKE 'PT409%', 'c2 recem-assinado: campos travados');
 SELECT pg_temp.ok((SELECT (meta_oficial->>'meta_comissao')::numeric = 192000 FROM public.carreira_plano WHERE user_id = :'c2'),
   'meta oficial de c2 = a da assinatura');
 
@@ -173,8 +174,8 @@ SELECT pg_temp.ok((public.carreira_plano_usar_meta(2027, 200000, NULL, 20, 20, t
   'reassinado: meta nova da assinatura grava (minhas_metas + meta_oficial)');
 SELECT pg_temp.ok((SELECT meta_comissao = 200000 FROM public.minhas_metas WHERE user_id = :'c3' AND periodo = 'ano'),
   'minhas_metas de c3 = meta da nova assinatura');
-SELECT pg_temp.ok(pg_temp.err(format(:'salvar', '{"mt.tCapt":"11"}')) LIKE '55000%', 'reassinado: trava de novo');
-SELECT pg_temp.ok(pg_temp.err($$SELECT public.carreira_plano_usar_meta(2027, 300000, NULL, 25, 20, true)$$) LIKE '55000%',
+SELECT pg_temp.ok(pg_temp.err(format(:'salvar', '{"mt.tCapt":"11"}')) LIKE 'PT409%', 'reassinado: trava de novo');
+SELECT pg_temp.ok(pg_temp.err($$SELECT public.carreira_plano_usar_meta(2027, 300000, NULL, 25, 20, true)$$) LIKE 'PT409%',
   'reassinado: meta trava de novo');
 
 -- 8) Gestor/admin seguem iguais: assinar como broker e ver a equipe ------------------------------------------------

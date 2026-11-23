@@ -24,9 +24,15 @@ export const campoLivre = (k: string) =>
 /** Mesma mensagem do banco. */
 export const MSG_PLANO_ASSINADO = "Plano assinado. Para mudar, peça ao seu gestor para reabrir.";
 
-/** Erro do banco é a trava do plano assinado? */
-export const erroPlanoAssinado = (msg: string | null | undefined) =>
-  /Plano assinado\. Para mudar/i.test(msg ?? "");
+/**
+ * SQLSTATE da trava no banco (migration 20261227120000, t_359e9e2a): 'PT409' faz o PostgREST responder HTTP 409
+ * (antes era 55000, que saía como HTTP 500 e contava como erro do servidor no alerta diário).
+ */
+export const CODIGO_PLANO_ASSINADO = "PT409";
+
+/** Erro do banco é a trava do plano assinado? (pelo código novo ou pela mensagem, que vale também para o 55000) */
+export const erroPlanoAssinado = (msg: string | null | undefined, code?: string | null) =>
+  code === CODIGO_PLANO_ASSINADO || /Plano assinado\. Para mudar/i.test(msg ?? "");
 
 /** Só as chaves livres (o que a tela ainda pode gravar num plano assinado). */
 export function soLivres<T extends Record<string, unknown>>(campos: T): Partial<T> {
