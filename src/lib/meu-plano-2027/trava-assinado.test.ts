@@ -174,7 +174,10 @@ describe("hook do plano assinado", () => {
           : { data: "2026-11-20T12:00:00Z", error: null },
       ),
     );
-    linhaPlano = { respostas: { "mt.tCapt": "12" }, assinado_corretor_em: null };
+    linhaPlano = {
+      respostas: { "mt.tCapt": "12", "mt.comMedia": "15000" },
+      assinado_corretor_em: null,
+    };
     const { result } = renderHook(() => usePlano("u1"));
     await waitFor(() => expect(result.current.plano).not.toBeNull());
     act(() => result.current.set("mt.tCapt", "30"));
@@ -193,7 +196,10 @@ describe("hook do plano assinado", () => {
           : { data: { status: "gravada", meta: null }, error: null },
       ),
     );
-    linhaPlano = { respostas: { "mt.tCapt": "12" }, assinado_corretor_em: null };
+    linhaPlano = {
+      respostas: { "mt.tCapt": "12", "mt.comMedia": "15000" },
+      assinado_corretor_em: null,
+    };
     const { result } = renderHook(() => usePlano("u1"));
     await waitFor(() => expect(result.current.plano).not.toBeNull());
     await act(async () => {

@@ -27,6 +27,7 @@ import { metasDoCalc, snapshotMudou } from "@/lib/meta-atividades";
 import { PlanoCtx, Aviso, Bloco, Stat } from "./campos";
 import { CorpoTela } from "./telas";
 import { conferirPlano } from "@/lib/meu-plano-2027/conferencia";
+import { faltaParaMeta, msgFaltaMeta } from "@/lib/meu-plano-2027/meta-calculavel";
 import { MSG_PLANO_ASSINADO, TELAS_LIVRES } from "@/lib/meu-plano-2027/trava-assinado";
 import { Leitor, PaginaOriginal, destinoExercicios } from "./Leitor";
 import { usePlano, type StatusSalvar } from "./usePlano";
@@ -284,6 +285,10 @@ export function MeuPlano({
       );
       return;
     }
+    if (faltaMeta.length) {
+      toast.error(msgFaltaMeta(faltaMeta));
+      return;
+    }
     setOcupado(true);
     try {
       const r = await h.assinar();
@@ -408,6 +413,34 @@ export function MeuPlano({
     </div>
   ) : null;
 
+  // Só assina com a meta oficial calculada (t_3d55d20c). Valor em vermelho tem a mensagem própria acima.
+  const faltaMeta = travado ? [] : faltaParaMeta(S);
+  const avisoFaltaMeta =
+    faltaMeta.length && !bloqueios.length ? (
+      <div
+        role="alert"
+        data-testid="falta-meta-assinatura"
+        className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[13px] text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+      >
+        <b>Para assinar, falta a meta oficial.</b> O plano está salvo, mas ainda não dá para
+        calcular a sua meta de 2027:
+        <ul className="mt-1 list-disc space-y-0.5 pl-5">
+          {faltaMeta.map((f) => (
+            <li key={f.campo}>{f.msg}</li>
+          ))}
+        </ul>
+        {t.id === "p32" ? null : (
+          <button
+            type="button"
+            className="mt-1 font-semibold underline"
+            onClick={() => irTela("p32")}
+          >
+            Ir para a tela Metas
+          </button>
+        )}
+      </div>
+    ) : null;
+
   const extras = {
     irPara: (id: string) => irTela(id),
     p15: (
@@ -454,6 +487,7 @@ export function MeuPlano({
           </p>
         ) : null}
         {conf.bloqueiaMeta ? travaAssinatura : null}
+        {avisoFaltaMeta}
         {metaPendente && !metaNoPrazo ? (
           <p
             className="mt-1 text-xs text-amber-800 dark:text-amber-200"
@@ -492,9 +526,15 @@ export function MeuPlano({
           </span>
         </div>
         {plano.assinado_corretor_em ? null : travaAssinatura}
+        {avisoFaltaMeta}
         <Button
           className="mt-1 w-full"
-          disabled={ocupado || !!plano.assinado_corretor_em || conf.bloqueiaAssinatura}
+          disabled={
+            ocupado ||
+            !!plano.assinado_corretor_em ||
+            conf.bloqueiaAssinatura ||
+            faltaMeta.length > 0
+          }
           onClick={() => void assinar()}
           data-testid="assinar-pacto"
         >
