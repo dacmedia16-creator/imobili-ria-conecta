@@ -1,0 +1,57 @@
+[
+  { "nome": "vazio", "r": {}, "falta": ["mt.tCapt", "mt.comMedia"] },
+  {
+    "nome": "book completo (tudo sugerido: estilo de vida, faixa, ticket e %)",
+    "r": {
+      "op.0": "3450", "op.1": "760", "op.2": "1080", "op.3": "1600", "op.4": "600", "op.5": "940", "op.6": "110", "op.7": "30",
+      "on.0": "980", "on.1": "200", "on.2": "1350", "on.3": "59,99", "on.4": "570", "on.5": "200",
+      "so.0.v": "40000", "so.1.v": "30000", "so.2.v": "5000",
+      "es.aliq": "15", "m.faixa": "45", "m.ticket": "700000", "m.pct": "3"
+    },
+    "falta": []
+  },
+  { "nome": "captação e comissão média digitadas", "r": { "mt.tCapt": "12", "mt.comMedia": "15.000" }, "falta": [] },
+  { "nome": "só comissão média (sem captação nem estilo de vida)", "r": { "mt.comMedia": "15000" }, "falta": ["mt.tCapt"] },
+  { "nome": "só captação (sem comissão nem ticket)", "r": { "mt.tCapt": "12", "mt.tVenda": "8" }, "falta": ["mt.comMedia"] },
+  { "nome": "captação + ticket e % (comissão = ticket × %)", "r": { "mt.tCapt": "12", "m.ticket": "450.000", "m.pct": "3" }, "falta": [] },
+  { "nome": "ticket do diagnóstico entra quando m.ticket em branco", "r": { "mt.tCapt": "12", "d.ticket": "450000", "m.pct": "3" }, "falta": [] },
+  { "nome": "ticket do diagnóstico 0 = sem ticket", "r": { "mt.tCapt": "12", "d.ticket": "0", "m.pct": "3" }, "falta": ["mt.comMedia"] },
+  { "nome": "% zero não calcula comissão", "r": { "mt.tCapt": "12", "m.ticket": "450000", "m.pct": "0" }, "falta": ["mt.comMedia"] },
+  { "nome": "captação não numérica", "r": { "mt.tCapt": "doze", "mt.comMedia": "15000" }, "falta": ["mt.tCapt"] },
+  { "nome": "comissão média com % é lida como número (40)", "r": { "mt.tCapt": "12", "mt.comMedia": "40%" }, "falta": [] },
+  { "nome": "venda vazia conta 0", "r": { "mt.tCapt": "12", "mt.tVenda": "", "mt.comMedia": "15000" }, "falta": [] },
+  { "nome": "captação zero digitada também é número", "r": { "mt.tCapt": "0", "mt.comMedia": "15000" }, "falta": [] },
+  { "nome": "números JSON (não texto)", "r": { "mt.tCapt": 12, "mt.comMedia": 15000 }, "falta": [] },
+  { "nome": "booleano não é número", "r": { "mt.tCapt": true, "mt.comMedia": false }, "falta": ["mt.tCapt", "mt.comMedia"] },
+  {
+    "nome": "sugestão sem alíquota não calcula captação",
+    "r": { "op.0": "5000", "m.faixa": "45", "m.ticket": "700000", "m.pct": "3" },
+    "falta": ["mt.tCapt"]
+  },
+  {
+    "nome": "alíquota 100% não calcula captação",
+    "r": { "op.0": "5000", "es.aliq": "100", "m.faixa": "45", "m.ticket": "700000", "m.pct": "3" },
+    "falta": ["mt.tCapt"]
+  },
+  {
+    "nome": "faixa em branco não calcula captação",
+    "r": { "op.0": "5000", "es.aliq": "15", "m.ticket": "700000", "m.pct": "3" },
+    "falta": ["mt.tCapt"]
+  },
+  {
+    "nome": "só sonhos já dá estilo de vida",
+    "r": { "so.1.v": "30000", "es.aliq": "10", "m.faixa": "60", "d.ticket": "500.000", "m.pct": "6" },
+    "falta": []
+  },
+  {
+    "nome": "despesas negativas zeram o subtotal",
+    "r": { "op.0": "-100", "es.aliq": "10", "m.faixa": "60", "m.ticket": "500000", "m.pct": "6" },
+    "falta": ["mt.tCapt"]
+  },
+  {
+    "nome": "comissão média digitada sem ticket + sugestão de captação sem ticket",
+    "r": { "op.0": "5000", "es.aliq": "15", "m.faixa": "45", "mt.comMedia": "20000" },
+    "falta": ["mt.tCapt"]
+  },
+  { "nome": "valor em reais com R$ e vírgula", "r": { "mt.tCapt": " 12 ", "mt.comMedia": "R$ 12.500,50" }, "falta": [] }
+]

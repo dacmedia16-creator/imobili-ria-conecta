@@ -55,6 +55,10 @@ export function erroPlano(msg: string | undefined | null): string {
   // Trava de valores (t_125c4dd3): o banco explica o motivo depois dos dois pontos.
   const trava = m.match(/Plano com valor fora do limite:\s*(.+)$/i);
   if (trava) return trava[1];
+  // Assinatura sem meta oficial calculada (t_3d55d20c): o banco diz o que falta depois de "falta".
+  const semMeta = m.match(/Plano sem meta calculada:\s*falta\s+(.+?)\.\s/i);
+  if (semMeta || /Plano sem meta calculada/i.test(m))
+    return `Para assinar, falta a meta oficial: complete ${semMeta ? semMeta[1] : "a tela Metas"} na tela Metas.`;
   if (/Meta inválida/i.test(m)) return "A meta tem valor fora do permitido. Confira a tela Metas.";
   if (/líder de equipe vê a equipe/i.test(m)) return "Você ainda não lidera nenhuma equipe.";
   if (/reabrir o seu próprio plano/i.test(m)) return "Você não pode reabrir o seu próprio plano.";

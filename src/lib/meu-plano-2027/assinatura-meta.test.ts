@@ -124,7 +124,8 @@ describe("assinar grava a meta anual oficial de 2027", () => {
     await waitFor(() => expect(result.current.plano?.meta_oficial).toEqual(META_ANA));
   });
 
-  it("plano incompleto: assina sem gravar meta", async () => {
+  // t_3d55d20c (Denis 23/11): antes assinava sem gravar meta ("Assinou, falta a meta"); agora nem assina.
+  it("plano incompleto: não assina nem grava meta", async () => {
     banco();
     linhaPlano = {
       respostas: { "d.comissao": "1" },
@@ -133,11 +134,8 @@ describe("assinar grava a meta anual oficial de 2027", () => {
     };
     const { result } = renderHook(() => usePlano("u1"));
     await waitFor(() => expect(result.current.plano).not.toBeNull());
-    let r: { metaGravada: boolean } | undefined;
-    await act(async () => {
-      r = await result.current.assinar();
-    });
-    expect(r?.metaGravada).toBe(false);
+    await expect(result.current.assinar()).rejects.toThrow(/falta a meta oficial/);
+    expect(rpc.mock.calls.filter((c) => c[0] === "carreira_plano_assinar")).toHaveLength(0);
     expect(chamadasMeta()).toHaveLength(0);
   });
 

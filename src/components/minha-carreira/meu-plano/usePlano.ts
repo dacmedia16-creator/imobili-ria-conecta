@@ -10,6 +10,7 @@ import {
 import { erroPlano, planoDb } from "@/lib/meu-plano-2027/modulo";
 import { campoLivre, erroPlanoAssinado, filaPermitida } from "@/lib/meu-plano-2027/trava-assinado";
 import { mensagemErro } from "@/lib/errors";
+import { faltaParaMeta, msgFaltaMeta } from "@/lib/meu-plano-2027/meta-calculavel";
 
 /**
  * Estado do plano do corretor logado + gravação a cada campo.
@@ -301,6 +302,9 @@ export function usePlano(userId: string) {
 
   const sincronizando = useRef(false);
   const assinar = useCallback(async () => {
+    // Só assina com a meta oficial calculada (t_3d55d20c); o banco repete a regra em carreira_plano_assinar.
+    const falta = faltaParaMeta(plano?.respostas);
+    if (falta.length) throw new Error(msgFaltaMeta(falta));
     // Plano assinado trava (t_850a0d39): só assina com tudo gravado, senão o que faltou se perderia.
     for (let i = 0; i < 20 && enviando.current; i++) await new Promise((r) => setTimeout(r, 150));
     await enviar();
