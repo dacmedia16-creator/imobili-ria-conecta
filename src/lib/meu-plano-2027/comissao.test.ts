@@ -90,7 +90,7 @@ describe("tela Metas (p32): campo Comissão média por transação", () => {
 
   it("plano antigo com valor baixo (ex.: 40 gravado): só aviso ao abrir, nada é gravado", () => {
     const { set, campo } = p32({ ...S, "mt.comMedia": "40" });
-    expect(campo.value).toBe("40");
+    expect(campo.value).toBe("R$ 40"); // campo em R$ mostra formatado (t_cd9141ab); o gravado não muda
     expect(screen.getByTestId("aviso-baixo-mt.comMedia")).toBeTruthy();
     expect(set).not.toHaveBeenCalled();
   });

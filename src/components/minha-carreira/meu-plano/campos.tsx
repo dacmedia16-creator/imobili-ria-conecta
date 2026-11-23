@@ -1,4 +1,5 @@
-import { createContext, useContext, useId, useState, type ReactNode } from "react";
+import { createContext, useContext, useId, useRef, useState, type ReactNode } from "react";
+import { mascaraDinheiro, mostraDinheiro } from "@/lib/meu-plano-2027/dinheiro";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -88,12 +89,25 @@ export function Inp({
   const ctxPlano = usePlanoCtx();
   const { S, C, set: setCtx } = ctxPlano;
   const ro = campoBloqueado(ctxPlano, k);
+  const money = tipo === "money";
+  // R$ (t_cd9141ab): o campo mostra "R$ 400.000" e grava o número puro ("400000"). `edit` guarda o texto
+  // mascarado enquanto o campo está em edição (null = mostra o valor gravado formatado).
+  const [edit, setEdit] = useState<string | null>(null);
+  const colou = useRef(false);
   const set = (kk: string, val: Valor) => {
     if (aceita && typeof val === "string" && !aceita(val)) return;
+    if (money && typeof val === "string") {
+      const m = mascaraDinheiro(val, colou.current);
+      colou.current = false;
+      setEdit(m.texto);
+      setCtx(kk, m.valor);
+      return;
+    }
     setCtx(kk, val);
   };
   const v = S[k];
-  const valor = v === undefined || v === null || typeof v === "boolean" ? "" : String(v);
+  const cru = v === undefined || v === null || typeof v === "boolean" ? "" : String(v);
+  const valor = money ? (edit ?? mostraDinheiro(v)) : cru;
   // Campo vazio com sugestão (t_7af25f25): a sugestão aparece escura, como valor, com o selo "sugerido".
   // Não é gravada (acompanha as telas anteriores); digitar troca, apagar volta para ela.
   const sg = valor === "" ? sugestoes(S, C)[k] : undefined;
@@ -135,6 +149,14 @@ export function Inp({
           className,
         )}
         onChange={(e) => set(k, e.target.value)}
+        onPaste={
+          money
+            ? () => {
+                colou.current = true;
+              }
+            : undefined
+        }
+        onBlur={money ? () => setEdit(null) : undefined}
       />
       {txt ? (
         <div className="mt-0.5 flex flex-wrap items-center justify-end gap-x-1.5 gap-y-0.5">

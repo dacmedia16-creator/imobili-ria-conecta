@@ -122,7 +122,8 @@ describe("tela: sugestão em preto com selo 'sugerido', sem botão (t_f219bc57)"
     expect(set).not.toHaveBeenCalled();
     const inp = container.querySelector('input[data-k="m.ticket"]') as HTMLInputElement;
     fireEvent.change(inp, { target: { value: "650.000" } });
-    expect(set).toHaveBeenCalledWith("m.ticket", "650.000");
+    // Campo em R$ (t_cd9141ab): grava o número puro.
+    expect(set).toHaveBeenCalledWith("m.ticket", "650000");
   });
 
   it("campo digitado não mostra selo; apagar volta a mostrar a sugestão com selo", () => {
@@ -157,12 +158,13 @@ describe("foco: digitar num campo vazio com sugestão não perde o cursor (t_f99
   }
 
   // Campos de quantidade aceitam no máximo 500 (trava t_125c4dd3): neles digita "120".
-  const casos: [string, string, string][] = [
-    ["p27", "m.ticket", "12000"],
-    ["p32", "mt.comMedia", "12000"],
-    ["p32", "mt.creFim", "120"],
+  // 4º item: como o campo mostra o digitado (R$ formatado nos campos de dinheiro, t_cd9141ab).
+  const casos: [string, string, string, string][] = [
+    ["p27", "m.ticket", "12000", "R$ 12.000"],
+    ["p32", "mt.comMedia", "12000", "R$ 12.000"],
+    ["p32", "mt.creFim", "120", "120"],
   ];
-  for (const [id, k, digita] of casos)
+  for (const [id, k, digita, mostra] of casos)
     it(`${k}: vários caracteres seguidos ficam no mesmo campo, com foco`, () => {
       const { container } = render(createElement(TelaViva, { id, inicial: S }));
       const sel = `input[data-k="${k}"]`;
@@ -176,7 +178,7 @@ describe("foco: digitar num campo vazio com sugestão não perde o cursor (t_f99
         expect(container.querySelector(sel)).toBe(inp); // mesmo elemento: não foi recriado
         expect(document.activeElement).toBe(inp); // foco continua no campo
       }
-      expect(inp.value).toBe(digita);
+      expect(inp.value).toBe(mostra);
       expect(screen.queryByTestId(`selo-sugerido-${k}`)).toBeNull();
       // Apagar volta a mostrar a sugestão no MESMO campo, ainda com foco.
       fireEvent.change(inp, { target: { value: "" } });
