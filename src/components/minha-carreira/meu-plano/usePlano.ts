@@ -16,12 +16,13 @@ import { mensagemErro } from "@/lib/errors";
  * - Cada alteração entra numa fila local (também guardada no aparelho) e é enviada ~0,7 s depois, em lote,
  *   por carreira_plano_salvar (merge atômico no banco). Muitos corretores ao mesmo tempo = chamadas pequenas.
  * - Sem internet / erro: a fila fica guardada e é reenviada com espera crescente (até 30 s), ao voltar a
- *   conexão e ao reabrir a tela. Nada digitado se perde ao recarregar.
+ *   conexão e ao reabrir a tela. Nada digitado se perde ao recarregar. Para depois de MAX_TENTATIVAS erros
+ *   seguidos ("Não foi possível salvar") e nunca agenda nova tentativa depois de sair da tela (t_359e9e2a).
  * shortcut: a fila do aparelho vale por usuário + ano; dois aparelhos editando o MESMO campo = vale o último.
  * - Plano ASSINADO (t_850a0d39): só os campos de acompanhamento (campoLivre) são gravados; os outros nem entram
  *   na fila, a fila antiga do aparelho é limpa deles e a meta oficial não é regravada sozinha. O banco também
- *   recusa (gatilho em carreira_plano); se recusar mesmo assim (ex.: assinou em outro aparelho), a tela recarrega
- *   o plano em vez de mostrar erro.
+ *   recusa (gatilho em carreira_plano, HTTP 409 / PT409); se recusar mesmo assim (ex.: assinou em outro aparelho),
+ *   a tela tira os campos travados da fila e recarrega o plano em vez de mostrar erro, SEM nova tentativa.
  */
 export type Plano = {
   respostas: Respostas;
@@ -48,6 +49,8 @@ const VAZIO: Plano = {
   meta_oficial_em: null,
 };
 const chaveFila = (uid: string) => `meu-plano-${ANO_PLANO}:fila:${uid}`;
+/** Tentativas seguidas com erro antes de parar e mostrar "Não foi possível salvar" (t_359e9e2a). */
+export const MAX_TENTATIVAS = 5;
 
 /** Meta gravada (snapshot do banco) igual à conta atual do plano? */
 export function metaIgual(
@@ -94,7 +97,14 @@ export function usePlano(userId: string) {
   // Plano assinado (t_850a0d39): lido dentro de set/enviar sem recriar as funções.
   const travado = useRef(false);
   const recarregarRef = useRef<() => Promise<void>>(async () => undefined);
-  const recusasTrava = useRef(0);
+  // Tela aberta? Depois de sair (desmontar), nenhuma nova tentativa é agendada (t_359e9e2a).
+  const montado = useRef(true);
+  useEffect(() => {
+    montado.current = true;
+    return () => {
+      montado.current = false;
+    };
+  }, []);
 
   const enviar = useCallback(async () => {
     if (timer.current) clearTimeout(timer.current);
@@ -125,36 +135,47 @@ export function usePlano(userId: string) {
       _campos: corpo,
     });
     enviando.current = false;
-    if (error && erroPlanoAssinado(error.message) && recusasTrava.current < 1) {
-      // Assinado em outro aparelho/aba: descarta o que é travado e relê o plano, sem erro na tela (uma vez só;
-      // se recusar de novo, cai no erro normal com espera crescente, sem laço).
-      recusasTrava.current += 1;
+    if (error && erroPlanoAssinado(error.message, (error as { code?: string }).code)) {
+      // Plano assinado (talvez em outro aparelho/aba): recusa DEFINITIVA, toda vez (t_359e9e2a; antes só a 1ª,
+      // e a aba ficou repetindo a cada 30 s). Descarta o que é travado, relê o plano e NÃO agenda nova tentativa.
+      // O que sobrar na fila (campos livres) segue na releitura (carregar envia a fila).
       travado.current = true;
       for (const k of Object.keys(fila.current)) if (!campoLivre(k)) delete fila.current[k];
       gravarFila(userId, fila.current);
       tentativas.current = 0;
       setMsg(null);
+      if (!chaves.some((k) => !campoLivre(k))) {
+        // Só campos livres e mesmo assim recusou (não deveria): mostra o erro e para, sem reler em laço.
+        setStatus("erro");
+        setMsg(erroPlano(error.message));
+        return;
+      }
       setStatus(Object.keys(fila.current).length ? "pendente" : "ok");
-      void recarregarRef.current();
+      if (montado.current) void recarregarRef.current();
       return;
     }
     if (error) {
       tentativas.current += 1;
       setStatus("erro");
+      if (tentativas.current >= MAX_TENTATIVAS) {
+        // Para de tentar sozinho (t_359e9e2a). A fila fica no aparelho: nova edição, voltar a conexão ou
+        // reabrir a tela tenta de novo.
+        setMsg("Não foi possível salvar");
+        return;
+      }
       setMsg(erroPlano(error.message));
       const espera = Math.min(30_000, 2_000 * 2 ** Math.min(4, tentativas.current - 1));
-      timer.current = setTimeout(() => void enviar(), espera);
+      if (montado.current) timer.current = setTimeout(() => void enviar(), espera);
       return;
     }
     tentativas.current = 0;
-    recusasTrava.current = 0;
     setMsg(null);
     // Tira da fila só o que não mudou enquanto enviava.
     for (const k of chaves) if (fila.current[k] === lote[k]) delete fila.current[k];
     gravarFila(userId, fila.current);
     if (Object.keys(fila.current).length) {
       setStatus("pendente");
-      timer.current = setTimeout(() => void enviar(), 300);
+      if (montado.current) timer.current = setTimeout(() => void enviar(), 300);
     } else setStatus("ok");
   }, [userId]);
 
@@ -234,9 +255,10 @@ export function usePlano(userId: string) {
       setPlano((p) => (p ? { ...p, respostas: { ...p.respostas, [k]: v } } : p));
       fila.current[k] = v;
       gravarFila(userId, fila.current);
+      tentativas.current = 0; // nova edição: volta a ter as 5 tentativas
       setStatus("pendente");
       if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => void enviar(), 700);
+      if (montado.current) timer.current = setTimeout(() => void enviar(), 700);
     },
     [userId, enviar],
   );

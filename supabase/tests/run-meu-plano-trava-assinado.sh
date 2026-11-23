@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Plano assinado só leitura (migration 20261209140000, t_850a0d39) numa ÚNICA transação revertida
 # (homologação ou banco descartável, NUNCA produção): pré-requisitos (20261119120000 se faltar, 20261209120000 e
-# 20261209130000) -> fingerprint A -> up -> suíte -> rollback -> fingerprint == A -> reaplica 2x -> ROLLBACK.
+# 20261209130000) -> fingerprint A -> up -> fingerprint B -> up 20261227120000 (recusa PT409 = HTTP 409, t_359e9e2a)
+# -> suíte -> rollback 409 -> fingerprint == B -> rollback -> fingerprint == A -> reaplica 2x -> ROLLBACK.
 # Nada fica gravado.
 # Uso: PSQL="psql <conninfo da homologação>" bash supabase/tests/run-meu-plano-trava-assinado.sh
-#      MIG=<outro arquivo> para o controle negativo (a suíte tem de falhar).
+#      MIG=<outro arquivo> ou MIG409=<outro arquivo> para o controle negativo (a suíte tem de falhar).
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
@@ -12,6 +13,9 @@ PSQL="${PSQL:?defina PSQL (homologação ou banco descartável; nunca produção
 V=20261209140000
 MIG="${MIG:-$ROOT/supabase/migrations/${V}_meu_plano_trava_assinado.sql}"
 RB="$ROOT/docs/sql/rollback/${V}_meu_plano_trava_assinado.rollback.sql"
+V409=20261227120000
+MIG409="${MIG409:-$ROOT/supabase/migrations/${V409}_meu_plano_trava_assinado_409.sql}"
+RB409="$ROOT/docs/sql/rollback/${V409}_meu_plano_trava_assinado_409.rollback.sql"
 strip() { grep -v -E '^(BEGIN|COMMIT|ROLLBACK);\s*$' "$1"; }
 FP="SELECT 'FP=' || md5(coalesce((SELECT string_agg(x, ',' ORDER BY x) FROM (
   SELECT 'fn:'||p.oid::regprocedure::text||':'||p.prosecdef::text||':'||coalesce(p.proacl::text,'')||':'||md5(p.prosrc) x
@@ -38,15 +42,23 @@ FP="SELECT 'FP=' || md5(coalesce((SELECT string_agg(x, ',' ORDER BY x) FROM (
   echo "$FP"
   strip "$MIG"
   echo "\\echo [migration ok]"
+  echo "$FP"
+  strip "$MIG409"
+  echo "\\echo [migration 409 ok]"
   echo "SAVEPOINT suite;"
   strip "$HERE/meu_plano_trava_assinado.sql"
   echo "RESET ROLE;"
   echo "ROLLBACK TO SAVEPOINT suite;"
+  strip "$RB409"
+  echo "\\echo [rollback 409 ok]"
+  echo "$FP"
   strip "$RB"
   echo "\\echo [rollback ok]"
   echo "$FP"
   strip "$MIG"
+  strip "$MIG409"
   strip "$MIG"
+  strip "$MIG409"
   echo "\\echo [reaplicada 2x ok]"
   echo "ROLLBACK;"
 } | $PSQL -X -q -At -v ON_ERROR_STOP=1 2>&1 | grep -E "^\[|^(ok|FALHA|TOTAL=|FP=)|ERROR|LINE|DETAIL|CONTEXT|psql:" || true
