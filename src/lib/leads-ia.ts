@@ -1415,13 +1415,16 @@ export function precoVendaPlausivel(p: Pick<ImovelParecido, "preco" | "tipo">): 
   const v = Number(p.preco.replace(/[^\d,]/g, "").replace(",", "."));
   return Number.isFinite(v) && v >= VENDA_RESIDENCIAL_MIN;
 }
-/** Só no piloto: também omite "bairro" quando o XML repetiu o nome da cidade. */
+/** Só no piloto: também omite "bairro" quando o XML repetiu o nome da cidade.
+ * t_f32decca erro 2: imóvel de venda e locação mostra só o valor do negócio pedido (compra = preço, sem o
+ * aluguel; aluguel = aluguel, sem o preço). Antes o valorCurto usava o aluguel primeiro e a compra virava aluguel. */
 export function imoveisSegurosPiloto(itens: ImovelParecido[], negocio: NegocioParecido = "venda"): ImovelParecido[] {
-  return itens.filter((p) => negocio === "locacao" || precoVendaPlausivel(p)).map((p) =>
-    p.bairro && p.cidade && norm(p.bairro) === norm(p.cidade)
-      ? { ...p, bairro: undefined, mesmo_bairro: undefined }
-      : p,
-  );
+  return itens
+    .filter((p) => negocio === "locacao" || (precoVendaPlausivel(p) && (!!p.preco || !p.aluguel)))
+    .map((p) => {
+      const q = negocio === "locacao" ? (p.aluguel ? { ...p, preco: undefined } : p) : { ...p, aluguel: undefined };
+      return q.bairro && q.cidade && norm(q.bairro) === norm(q.cidade) ? { ...q, bairro: undefined, mesmo_bairro: undefined } : q;
+    });
 }
 
 /** Só aceita do banco as chaves conhecidas, como texto curto (nada inesperado chega ao cliente). */
@@ -2139,7 +2142,9 @@ export async function proximaResposta(
     const res = pre !== undefined ? pre : await busca!(filtro).catch(() => null);
     // Nunca oferece de novo um imóvel que não atende o que o cliente pediu (\"3 suítes\", t_a9f1b447) nem um com
     // quartos muito diferentes do imóvel do cliente (t_37cf21e3 item 1: casa de 3 quartos -> 2 a 4 quartos).
-    const serve = (i: ImovelParecido) => !ja.includes(i.codigo) && atendeCaracteristica(i, dados.filtro_pedido) && quartosParecidos(i, ficha, dados.filtro_pedido);
+    // t_f32decca erro 2: no modo equipe, \"2 quartos\" é 2 quartos (não 3), como na busca por característica.
+    const serve = (i: ImovelParecido) => !ja.includes(i.codigo) && atendeCaracteristica(i, dados.filtro_pedido) && quartosParecidos(i, ficha, dados.filtro_pedido) &&
+      (!op.pedidoSeguro || contagemExata(i, dados.filtro_pedido ?? {}));
     let p = res?.itens.find(serve);
     // t_37cf21e3 item 2: nada no bairro pedido -> diz isso com clareza e só então mostra outro bairro, avisando.
     let foraRegiao: string | undefined;
@@ -2538,8 +2543,8 @@ export async function proximaResposta(
     } else if (QUER_VISITA.test(n) || GOSTOU.test(n) || SIM_P.test(n)) {
       dados.parecido_interesse = p.codigo;
       dados.parecido_atual = undefined;
-      // t_37cf21e3 item 5: \"Gostaria\" sozinho não é elogio.
-      const abre = SO_GOSTARIA.test(n) ? "Ótimo!" : "Que bom que gostou!";
+      // t_37cf21e3 item 5 / t_f32decca erro 3: \"Gostaria\", \"pode ser\" e \"sim\" não são elogio.
+      const abre = DISSE_QUE_GOSTOU.test(n) ? "Que bom que gostou!" : "Ótimo!";
       if (QUER_VISITA.test(n)) return ofereceVisita(abre, `conhecer ${oImovel(p.tipo, true)}`);
       // t_a9f1b447 item 7: primeiro o convite simples; as datas só depois que o cliente quiser visitar.
       dados.convite_visita = true;

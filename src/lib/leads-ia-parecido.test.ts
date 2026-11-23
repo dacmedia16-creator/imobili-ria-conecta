@@ -232,7 +232,8 @@ describe("conteúdo e passagem (regra 4)", () => {
     const rs = await conversa(["tem outras opções?", "quero visitar"], buscaFake());
     expect(rs[1].fim).toBeNull();
     expect(rs[1].passo).toBe("visita");
-    expect(rs[1].resposta).toMatch(/^Que bom que gostou! Para conhecer esse apartamento, qual dia e período/);
+    // t_f32decca erro 3: \"quero visitar\" não é \"gostei\" (regra 18): abre com \"Ótimo!\".
+    expect(rs[1].resposta).toMatch(/^Ótimo! Para conhecer esse apartamento, qual dia e período/);
   });
 
   it("dúvida sobre o parecido: responde só pelo XML; disponibilidade/permuta ficam para confirmar", async () => {

@@ -603,6 +603,7 @@ export async function responderEEnviar(banco: RespostaBanco, msg: MensagemZion, 
         registrar: (u) => usos.push(u),
         fetchFn: deps.fetchFn,
         modo,
+        pedidoSeguro: modoEquipe,
       });
       semResposta = !!red.sem_resposta;
       r = red;

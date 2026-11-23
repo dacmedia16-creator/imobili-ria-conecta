@@ -36,6 +36,7 @@ import {
   norm,
   pediuFotos,
   quartosParecidos,
+  contagemExata,
   valorFaixa,
   opcoesVisita,
   PERGUNTA_PERIODO,
@@ -1306,6 +1307,8 @@ export type OpcoesRedacao = {
   agora?: Date;
   /** Padrão "bloquear". */
   modo?: ModoValidador;
+  /** t_f32decca erro 2 (modo equipe): candidato com os quartos/suítes EXATOS do pedido (2 quartos != 3 quartos). */
+  pedidoSeguro?: boolean;
 };
 
 /** "Não" curto a uma pergunta da Nicole (não é motivo para passar ao corretor, t_a9f1b447 item 5). */
@@ -1484,6 +1487,7 @@ async function redigirRespostaBase(
   // Busca por nome: o que achou é o que o cliente pediu (mesmo já mostrado ou com outro nº de quartos).
   const candidatos = (res?.itens ?? [])
     .filter((i) => itensNome.length || (!ja.includes(i.codigo) && (busca ? true : quartosParecidos(i, ctx.ficha, dadosIn.filtro_pedido))))
+    .filter((i) => !op.pedidoSeguro || itensNome.length > 0 || contagemExata(i, dadosIn.filtro_pedido ?? {}))
     .slice(0, 3);
   // t_82c89141 item 1: a Nicole só pode dizer "não tenho outra" se a busca RODOU e voltou vazia.
   // t_0c590c55 item 3: já mostrou as 3 opções (a busca não roda de novo) = \"sem_resultado\": dizer \"essas são as
