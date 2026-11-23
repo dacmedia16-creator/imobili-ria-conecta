@@ -5,7 +5,8 @@
  * mostra o que sai de montarPainelCorretor().
  *
  * Fontes (todas do próprio corretor, na imobiliária ativa):
- * - meta: carreira_plano (respostas + assinado_corretor_em) → metaDoPlano/situacaoPlano;
+ * - meta: carreira_plano (respostas + assinado_corretor_em + meta_oficial gravada) → planoComSelo (consolidado.ts),
+ *   a mesma regra do selo da Equipe e da soma da equipe/imobiliária (t_bd480fee);
  * - vendas: RPC minha_comissao_vendas (venda na ASSINATURA; só a parte dele + o descontado DELE);
  * - captações: meu_realizado (contagem oficial do ano e do mês) + lista de captações aprovadas (data e imóvel).
  */
@@ -14,15 +15,20 @@ import { ANO_PLANO } from "@/lib/meu-plano-2027/telas";
 import type { Respostas, TaxasFunil } from "@/lib/meu-plano-2027/regras";
 import { conferirPlano, type AvisoPlano } from "@/lib/meu-plano-2027/conferencia";
 import {
-  avaliar,
-  metaDoPlano,
   posicaoNoAno,
-  situacaoPlano,
   type Avaliacao,
   type MetaPlano,
   type Posicao,
+  type SituacaoPlano,
   type Valores,
 } from "./regra";
+import {
+  avaliarPessoa,
+  contaNaMeta,
+  planoComSelo,
+  type MetaOficialGravada,
+  type SeloMeta,
+} from "./consolidado";
 import { mesNoAno, realizadoMensal, type ParticipacaoVenda } from "./realizado";
 import type { VisaoCorretorComissao } from "./comissao";
 
@@ -63,7 +69,9 @@ export type Cumprida =
   | { tipo: "captacao"; data: string; imovel: string };
 
 export type PainelCorretor = {
-  situacao: ReturnType<typeof situacaoPlano>;
+  situacao: SituacaoPlano;
+  /** Conta na meta? Mesma regra do selo da Equipe (assinado ou meta oficial gravada pelo clique). */
+  selo: SeloMeta;
   pos: Posicao;
   meta: MetaPlano | null;
   avaliacao: Avaliacao;
@@ -167,17 +175,22 @@ export function listaCumpridas(
 export function montarPainelCorretor(e: {
   userId: string;
   hoje: string;
-  plano: { respostas?: Respostas | null; assinadoEm?: string | null } | null;
+  plano: {
+    respostas?: Respostas | null;
+    assinadoEm?: string | null;
+    metaOficial?: MetaOficialGravada | null;
+    metaOficialEm?: string | null;
+  } | null;
   padrao?: Partial<TaxasFunil> | null;
   vendas: readonly ComissaoVendaCorretor[];
   captacoesContagem: { ano: number | null; mes: number | null };
   captacoes: readonly CaptacaoCorretor[];
 }): PainelCorretor {
   const pos = posicaoNoAno(e.hoje);
-  const situacao = situacaoPlano(e.plano);
-  const meta = metaDoPlano(e.plano?.respostas, e.padrao);
+  // Regra ÚNICA do selo (consolidado.ts): a mesma que soma a meta da equipe e da imobiliária (t_bd480fee).
+  const { situacao, meta, selo } = planoComSelo(e.plano, e.padrao);
   const real = realizadoDoCorretor(e.userId, e.vendas, e.captacoesContagem, pos);
-  const avaliacao = avaliar(situacao, meta, real, pos);
+  const avaliacao = avaliarPessoa({ situacao, meta, selo }, real, pos);
   // Antes de jan/2027 a lista mostra o ano corrente (a tela carrega as vendas desse ano).
   const anoLista = pos.fase === "antes" ? Number(e.hoje.slice(0, 4)) : ANO_PLANO;
   const cumpridas = listaCumpridas(e.vendas, e.captacoes, anoLista);
@@ -195,8 +208,9 @@ export function montarPainelCorretor(e: {
   };
   return {
     situacao,
+    selo,
     pos,
-    meta: situacao === "assinado" ? meta : null,
+    meta: contaNaMeta(selo) ? meta : null,
     avaliacao,
     cumpridas,
     totalAno,

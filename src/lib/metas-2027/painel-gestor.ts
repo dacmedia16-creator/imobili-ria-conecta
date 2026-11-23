@@ -43,9 +43,14 @@ import {
 } from "./realizado";
 import {
   avaliarGrupo,
+  avaliarPessoa,
   coberturaPlanos,
   contaNaCobertura,
+  contaNaMeta,
+  planoComSelo,
   somarPlanos,
+  type MetaOficialGravada,
+  type SeloMeta,
   type Cobertura,
   type PessoaCobertura,
   type SomaPlanos,
@@ -102,6 +107,9 @@ export type PessoaRpc = {
   tem_plano: boolean;
   respostas: Respostas | null;
   assinado_em: string | null;
+  /** Meta oficial gravada pelo clique "Usar como minha meta oficial" (t_bd480fee); ausente no banco antigo. */
+  meta_oficial?: MetaOficialGravada | null;
+  meta_oficial_em?: string | null;
 };
 export type PlanosRpc = {
   todas: boolean;
@@ -143,6 +151,8 @@ export type CartaoCorretor = {
   nome: string;
   teamId: string | null;
   situacao: SituacaoPlano;
+  /** Conta na meta? Mesma regra do selo da Equipe do Meu Plano (consolidado.ts seloMeta). */
+  selo: SeloMeta;
   avaliacao: Avaliacao;
   /** Realizado do ano que a tela mostra (ano do plano; antes de 2027, o ano corrente). */
   realizadoAno: Valores;
@@ -354,22 +364,39 @@ export function montarPainelGestor(e: {
     notasDe.set(a.user_id, xs);
   }
 
-  type Base = { p: PessoaRpc; situacao: SituacaoPlano; meta: MetaPlano | null; aConferir: boolean };
+  type Base = {
+    p: PessoaRpc;
+    situacao: SituacaoPlano;
+    meta: MetaPlano | null;
+    oficial: boolean;
+    selo: SeloMeta;
+    aConferir: boolean;
+  };
   const vistos = new Set<string>();
   const base: Base[] = [];
   for (const p of e.planos.pessoas) {
     if (vistos.has(p.user_id)) continue;
     vistos.add(p.user_id);
-    const plano = p.tem_plano ? { respostas: p.respostas, assinadoEm: p.assinado_em } : null;
+    // Regra ÚNICA do selo (consolidado.ts): assinado = meta do plano; meta oficial gravada = valores do clique.
+    const x = p.tem_plano
+      ? planoComSelo(
+          {
+            respostas: p.respostas,
+            assinadoEm: p.assinado_em,
+            metaOficial: p.meta_oficial,
+            metaOficialEm: p.meta_oficial_em,
+          },
+          e.padrao,
+        )
+      : planoComSelo(null);
     base.push({
       p,
-      situacao: situacaoPlano(plano),
-      meta: p.tem_plano ? metaDoPlano(p.respostas, e.padrao) : null,
+      ...x,
       aConferir: p.tem_plano && conferirPlano(p.respostas, e.padrao).aConferir,
     });
   }
 
-  const cartao = ({ p, situacao, meta, aConferir }: Base): CartaoCorretor => {
+  const cartao = ({ p, situacao, meta, selo, aConferir }: Base): CartaoCorretor => {
     const real = realizadoDoGrupo(e.realizadoAno, new Set([p.user_id]), anoDados);
     const papeis = p.papeis ?? [];
     const vende = situacao !== "sem_plano" || ultVenda.has(p.user_id) || ultCapt.has(p.user_id);
@@ -382,7 +409,8 @@ export function montarPainelGestor(e: {
       nome: p.nome?.trim() || "Sem nome",
       teamId: p.team_id,
       situacao,
-      avaliacao: avaliar(situacao, meta, real, pos),
+      selo,
+      avaliacao: avaliarPessoa({ situacao, meta, selo }, real, pos),
       realizadoAno: totalAte(real, ateMes),
       anotacoes: notasDe.get(p.user_id) ?? [],
       diasSemVender: uv ? Math.max(0, diasEntre(uv, e.hoje)) : null,
@@ -402,12 +430,17 @@ export function montarPainelGestor(e: {
   ): GrupoPainel => {
     const ids = new Set(membros.map((m) => m.p.user_id));
     const soma = somarPlanos(
-      membros.map((m) => ({ userId: m.p.user_id, situacao: m.situacao, meta: m.meta })),
+      membros.map((m) => ({
+        userId: m.p.user_id,
+        situacao: m.situacao,
+        meta: m.meta,
+        oficial: m.oficial,
+      })),
     );
-    // Opção A (Denis 20/11): a meta é só dos planos assinados, então o realizado comparado com ela também é só de
-    // quem assinou (o ano inteiro dessa pessoa, mesmo que tenha assinado no meio do ano). O resto aparece à parte.
+    // Opção A (Denis 20/11): o realizado comparado com a meta é só de quem CONTA NA META (assinado ou meta oficial
+    // gravada, t_bd480fee), o ano inteiro dessa pessoa. O resto aparece à parte.
     const assinados = new Set(
-      membros.filter((m) => m.situacao === "assinado").map((m) => m.p.user_id),
+      membros.filter((m) => contaNaMeta(m.selo)).map((m) => m.p.user_id),
     );
     const todosMeses = realizadoDoGrupo(e.realizadoAno, todos ? null : ids, anoDados, true);
     const realAss = realizadoDoGrupo(e.realizadoAno, assinados, anoDados, true);
