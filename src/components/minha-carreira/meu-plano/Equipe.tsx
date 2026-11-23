@@ -15,7 +15,12 @@ import { BotaoBaixarPlano } from "./BaixarPdf";
 import { OQueFalta } from "./OQueFalta";
 import { BotaoReabrirPlano } from "./ReabrirPlano";
 import { useAuth } from "@/lib/auth";
-import { contarNaMeta, planoComSelo, SELO_META } from "@/lib/metas-2027/consolidado";
+import {
+  contarNaMeta,
+  planoComSelo,
+  SELO_META,
+  type MetaOficialGravada,
+} from "@/lib/metas-2027/consolidado";
 
 type Membro = {
   user_id: string;
@@ -27,6 +32,8 @@ type Membro = {
   assinado_corretor_em: string | null;
   assinado_broker_em: string | null;
   meta_oficial_em: string | null;
+  /** Lido à parte de carreira_plano (a RPC só devolve a data). */
+  meta_oficial?: MetaOficialGravada | null;
   updated_at: string | null;
 };
 /**
@@ -68,22 +75,35 @@ export function EquipePlano({
 
   const carregar = useCallback(async () => {
     setErro(null);
-    const [r, t] = await Promise.all([
+    const [r, t, mo] = await Promise.all([
       planoDb.rpc("carreira_plano_equipe", { _ano: ANO_PLANO }),
       planoDb
         .from("carreira_taxas")
         .select("funil_v2_cre,funil_v1_v2,funil_folga")
         .is("user_id", null)
         .maybeSingle(),
+      // Valores da meta oficial GRAVADA no clique (t_bd480fee). A RLS de carreira_plano deixa ler exatamente as
+      // mesmas pessoas da lista (admin: imobiliária; gestor/TL: a equipe que lidera).
+      planoDb
+        .from("carreira_plano")
+        .select("user_id,meta_oficial")
+        .eq("ano", ANO_PLANO)
+        .not("meta_oficial", "is", null),
     ]);
-    if (r.error) {
-      setErro(erroPlano(r.error.message));
+    if (r.error || mo.error) {
+      setErro(erroPlano((r.error ?? mo.error)!.message));
       return;
     }
+    const gravadas = new Map(
+      ((mo.data ?? []) as { user_id: string; meta_oficial: MetaOficialGravada | null }[]).map(
+        (x) => [x.user_id, x.meta_oficial] as const,
+      ),
+    );
     setLista(
       ((r.data ?? []) as Membro[]).map((m) => ({
         ...m,
         respostas: (m.respostas ?? {}) as Respostas,
+        meta_oficial: gravadas.get(m.user_id) ?? null,
       })),
     );
     const x = t.data as {
@@ -98,8 +118,8 @@ export function EquipePlano({
   }, [carregar]);
 
   const linhas = useMemo(() => {
-    // Mesma regra do somarPlanos (seloMeta): situacaoPlano + metaDoPlano com as taxas padrão (em número, como o
-    // painel de metas lê em lerTaxasPadrao). Só exibição; nada é gravado.
+    // Mesma regra do somarPlanos e dos painéis de metas (seloMeta): assinado = meta do plano (taxas padrão em
+    // número, como lerTaxasPadrao); sem assinatura = meta oficial GRAVADA no clique. Só exibição; nada é gravado.
     const n = (v: unknown) => (v == null ? null : Number(v));
     const padrao = taxas
       ? { v2cre: n(taxas.v2cre), v1v2: n(taxas.v1v2), folga: n(taxas.folga) }
@@ -107,8 +127,15 @@ export function EquipePlano({
     return (lista ?? []).map((m) => ({
       m,
       p: progresso(m.respostas),
-      selo: planoComSelo({ assinadoEm: m.assinado_corretor_em, respostas: m.respostas }, padrao)
-        .selo,
+      selo: planoComSelo(
+        {
+          assinadoEm: m.assinado_corretor_em,
+          respostas: m.respostas,
+          metaOficial: m.meta_oficial,
+          metaOficialEm: m.meta_oficial_em,
+        },
+        padrao,
+      ).selo,
     }));
   }, [lista, taxas]);
 
@@ -313,7 +340,7 @@ export function EquipePlano({
         </b>{" "}
         já contam na meta{" "}
         <span className="text-xs text-muted-foreground">
-          (plano assinado e com meta de comissão)
+          (meta oficial gravada em "Usar como minha meta oficial" ou plano assinado)
         </span>
       </p>
       {linhas.length === 0 ? (

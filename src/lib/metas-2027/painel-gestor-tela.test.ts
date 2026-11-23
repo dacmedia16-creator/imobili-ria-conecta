@@ -145,8 +145,8 @@ describe("Painel de metas 2027 · Equipes", () => {
       /12\/mar.*Liguei para 3 proprietários.*Visita sexta · 19\/mar/,
     );
     const beta = cartoes.find((c) => c.textContent?.includes("Corretora Beta"))!;
-    expect(beta.textContent).toMatch(/⚪ Sem plano assinado/);
-    expect(beta.textContent).toMatch(/Sem meta oficial até assinar o plano/);
+    expect(beta.textContent).toMatch(/⚪ Sem meta oficial/);
+    expect(beta.textContent).toMatch(/Sem meta oficial gravada/);
     expect(beta.textContent).toMatch(/Sem anotações recentes/);
   });
 
@@ -261,7 +261,7 @@ describe("Painel de metas 2027 · Equipes", () => {
       expect(within(azul).getByTestId(`info-${k}`), k).toBeTruthy();
     fireEvent.click(within(azul).getByRole("button", { name: "O que é: Comissão" }));
     expect((await screen.findByTestId("info-balao")).textContent).toMatch(
-      /Comissão 2026 = .*quem já assinou.*não há barra, % nem farol até janeiro/,
+      /Comissão 2026 = .*quem conta na meta.*não há barra, % nem farol até janeiro/,
     );
     expect(rpc).toHaveBeenCalledWith("metas_equipe_realizado", {
       _inicio: "2026-01-01",

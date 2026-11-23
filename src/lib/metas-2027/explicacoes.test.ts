@@ -44,24 +44,25 @@ describe("textos do ícone i", () => {
     expect(Object.keys(EXPLICACOES).filter((k) => !usadas.has(k))).toEqual([]);
   });
 
-  it("Opção A fica explícita: meta e realizado só de quem assinou; resto à parte; direção × casa toda", () => {
+  it("Opção A fica explícita: meta e realizado só de quem conta na meta; resto à parte; direção × casa toda", () => {
     const antes = { ano: 2026, anoPlano: 2027 };
     const dur = { ano: 2027, anoPlano: 2027 };
-    expect(explicacao("equipe_meta_assinados", antes).texto).toMatch(/ASSINADOS/);
+    // t_bd480fee: conta na meta = meta oficial gravada (mesmo sem assinar) ou plano assinado.
     expect(explicacao("equipe_meta_assinados", antes).texto).toMatch(
-      /em preenchimento.*não entram/,
+      /Usar como minha meta oficial/,
     );
+    expect(explicacao("equipe_meta_assinados", antes).texto).toMatch(/mesmo sem assinar.*ASSINADO/);
     const com = explicacao("equipe_comissao_ano", antes);
-    expect(com.texto).toMatch(/Comissão 2026 = .*de quem já assinou o plano/);
+    expect(com.texto).toMatch(/Comissão 2026 = .*de quem conta na meta/);
     expect(com.texto).toMatch(/não a bruta/);
     expect(com.texto).toMatch(/não há barra, % nem farol até janeiro/);
     expect(explicacao("equipe_comissao_ano", dur).texto).not.toMatch(/até janeiro/);
-    expect(explicacao("equipe_barra_ano", dur).texto).toMatch(/SÓ de quem assinou/);
-    expect(explicacao("equipe_vendas", antes).texto).toMatch(/só de quem assinou/);
+    expect(explicacao("equipe_barra_ano", dur).texto).toMatch(/SÓ de quem conta na meta/);
+    expect(explicacao("equipe_vendas", antes).texto).toMatch(/só de quem conta na meta/);
     expect(explicacao("equipe_vgv", antes).texto).toMatch(/conta 1 vez, inteira/);
     expect(explicacao("equipe_nao_assinados", dur).texto).toMatch(/não entra na meta.*farol/);
     expect(explicacao("imob_realizado_casa", dur).texto).toMatch(/imobiliária INTEIRA/);
-    expect(explicacao("imob_realizado", dur).texto).toMatch(/de quem tem plano 2027 assinado/);
+    expect(explicacao("imob_realizado", dur).texto).toMatch(/de quem conta na meta 2027/);
   });
 });
 
@@ -78,7 +79,7 @@ function abrir(chave: ChaveExplicacao) {
       ),
     ),
   );
-  return screen.getByRole("button", { name: /O que é: Meta 2027 \(assinados\)/ });
+  return screen.getByRole("button", { name: /O que é: Meta 2027 \(metas oficiais\)/ });
 }
 
 describe("componente InfoDica", () => {
@@ -88,7 +89,7 @@ describe("componente InfoDica", () => {
     expect(screen.queryByTestId("info-balao")).toBeNull();
     fireEvent.click(b);
     const balao = await screen.findByTestId("info-balao");
-    expect(balao.textContent).toMatch(/planos 2027 já ASSINADOS/);
+    expect(balao.textContent).toMatch(/Usar como minha meta oficial/);
     // Radix registra o "tocar fora" no próximo ciclo.
     await act(() => new Promise((r) => setTimeout(r, 0)));
     fireEvent.pointerDown(screen.getByText("fora"));

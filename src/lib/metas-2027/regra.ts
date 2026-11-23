@@ -245,7 +245,7 @@ export const FAROL_META_ROTULO: Record<FarolMeta, string> = {
   verde: "🟢 No ritmo",
   amarelo: "🟡 Atenção",
   vermelho: "🔴 Atrás",
-  cinza: "⚪ Sem plano assinado",
+  cinza: "⚪ Sem meta oficial",
   aguardando: "⚪ Plano vale a partir de jan/2027",
 };
 export const LIMITE_VERDE = 1;

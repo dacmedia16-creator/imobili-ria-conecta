@@ -165,7 +165,7 @@ describe("Painel de metas 2027 · Imobiliária", () => {
         "VGC (comissão do ano)",
       );
     expect(within(topo).getByTestId("diferenca").textContent).toMatch(
-      /Faltam R\$\s?80\.000,00 nos planos assinados.*\(60%\)/,
+      /Faltam R\$\s?80\.000,00 nas metas oficiais.*\(60%\)/,
     );
     const tab = within(topo).getByTestId("tabela-direcao").textContent ?? "";
     expect(tab).toMatch(/Vendas20/);
@@ -183,7 +183,7 @@ describe("Painel de metas 2027 · Imobiliária", () => {
       /Imobiliária inteira × meta da direção.*10% da meta da direção/,
     );
     expect(within(real).getByTestId("nao-assinados").textContent).toMatch(
-      /Produção de quem não assinou/,
+      /Produção de quem não conta na meta/,
     );
     expect(screen.getByTestId("cobertura").textContent).toMatch(/1 de 2/);
   });

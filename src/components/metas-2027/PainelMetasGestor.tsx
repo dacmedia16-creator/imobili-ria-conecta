@@ -31,6 +31,7 @@ import { InfoDica, RotuloInfo } from "./InfoDica";
 import { BotaoReabrirPlano } from "@/components/minha-carreira/meu-plano/ReabrirPlano";
 import { useAuth } from "@/lib/auth";
 import { ContextoInfo } from "./contexto-info";
+import { contaNaMeta } from "@/lib/metas-2027/consolidado";
 
 // Painéis de metas 2027 — ETAPA 3 (cartão t_863b7590, Denis 20/11): painel do gestor/broker/Team Leader.
 // Tela NOVA: não altera o Painel da Equipe nem o Farol. A tela não faz conta: tudo sai de montarPainelGestor()
@@ -279,7 +280,7 @@ function ResumoGrupo({
           <span className="inline-flex items-center gap-0.5" data-testid="farol-equipe">
             <Pill tom={TOM_FAROL[grupo.avaliacao.farol]}>
               {grupo.avaliacao.farol === "cinza"
-                ? "⚪ Sem plano assinado"
+                ? "⚪ Sem meta oficial"
                 : FAROL_META_ROTULO[grupo.avaliacao.farol]}
             </Pill>
             <InfoDica chave="equipe_farol" />
@@ -323,13 +324,13 @@ function ResumoGrupo({
         </div>
       ) : grupo.soma.qtdAssinados === 0 ? (
         <p className="text-sm text-muted-foreground" data-testid="sem-assinados">
-          Ninguém assinou o plano ainda: sem meta para comparar.
+          Ninguém gravou a meta oficial nem assinou o plano ainda: sem meta para comparar.
           <InfoDica chave="equipe_meta_assinados" />
         </p>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Barra
-            titulo="Meta do ANO (planos assinados)"
+            titulo="Meta do ANO (metas oficiais)"
             info="equipe_barra_ano"
             a={c}
             feito={c.realAno}
@@ -420,13 +421,19 @@ function ResumoGrupo({
         <RotuloInfo chave="equipe_planos_assinados">Planos assinados:</RotuloInfo>{" "}
         <b>{grupo.cobertura.assinados}</b> de {grupo.cobertura.elegiveis} (
         {pct(grupo.cobertura.pct)})
+        {grupo.soma.qtdFaltaAssinar > 0 ? (
+          <>
+            {" "}
+            · <b>{grupo.soma.qtdFaltaAssinar}</b> com meta oficial contando, falta assinar
+          </>
+        ) : null}
         {grupo.soma.qtdPreenchimento > 0 ? (
           <>
             {" "}
             · <RotuloInfo chave="equipe_preenchimento">em preenchimento:</RotuloInfo>{" "}
             {grupo.soma.qtdPreenchimento}
             {grupo.soma.preenchimentoAno.comissao != null ? (
-              <> (somam {brl(grupo.soma.preenchimentoAno.comissao)}, fora da meta oficial)</>
+              <> (somam {brl(grupo.soma.preenchimentoAno.comissao)}, sem meta oficial)</>
             ) : null}
           </>
         ) : null}
@@ -500,6 +507,8 @@ function CartaoPessoa({
   const k = c.avaliacao.indicadores.comissao;
   const b = larguraBarra(k.realAno, k.metaAno, k.esperado);
   const assinado = c.situacao === "assinado";
+  // Conta na meta (t_bd480fee): assinado OU meta oficial gravada pelo corretor ("Usar como minha meta oficial").
+  const temMeta = contaNaMeta(c.selo);
   return (
     <div
       className="min-w-0 space-y-2 break-words rounded-lg border p-3"
@@ -516,7 +525,10 @@ function CartaoPessoa({
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
-          <RotuloInfo chave="pessoa_plano">Plano: {ROTULO_PLANO[c.situacao]}</RotuloInfo>
+          <RotuloInfo chave="pessoa_plano">
+            Plano: {ROTULO_PLANO[c.situacao]}
+            {c.selo === "conta_falta_assinar" ? " · conta na meta (falta assinar)" : ""}
+          </RotuloInfo>
         </p>
         {/* Reabrir (t_495e4305): o banco confere quem pode (broker = imobiliária; TL = só a equipe dele). */}
         {assinado && c.userId !== user?.id ? (
@@ -524,7 +536,7 @@ function CartaoPessoa({
         ) : null}
       </div>
       {c.aConferir ? <SeloConferir /> : null}
-      {assinado && painel.pos.fase !== "antes" ? (
+      {temMeta && painel.pos.fase !== "antes" ? (
         <>
           <p className="text-sm">
             Ano: <b>{brl(k.realAno)}</b> de {brlOuTraco(k.metaAno)}
@@ -544,7 +556,7 @@ function CartaoPessoa({
             <InfoDica chave="pessoa_falta" />
           </p>
         </>
-      ) : assinado ? (
+      ) : temMeta ? (
         <p className="text-sm">
           Meta {ANO_PLANO}: <b>{brlOuTraco(k.metaAno)}</b> · comissão em {painel.anoDados}:{" "}
           {brl(c.realizadoAno.comissao ?? 0)}
@@ -552,7 +564,7 @@ function CartaoPessoa({
         </p>
       ) : (
         <p className="text-sm text-muted-foreground">
-          Sem meta oficial até assinar o plano. Comissão no ano:{" "}
+          Sem meta oficial gravada. Comissão no ano:{" "}
           <b className="text-foreground">{brl(c.realizadoAno.comissao ?? 0)}</b>
           <InfoDica chave="pessoa_sem_meta" />
         </p>
