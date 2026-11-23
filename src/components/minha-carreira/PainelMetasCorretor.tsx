@@ -31,6 +31,7 @@ import { lerTaxasPadrao } from "./Diario";
 import type { ChaveExplicacao } from "@/lib/metas-2027/explicacoes";
 import { InfoDica, RotuloInfo } from "@/components/metas-2027/InfoDica";
 import { ContextoInfo } from "@/components/metas-2027/contexto-info";
+import { contaNaMeta, type MetaOficialGravada } from "@/lib/metas-2027/consolidado";
 
 // Painéis de metas 2027 — ETAPA 2 (cartão t_2fa76ce2, Denis 19/11): painel do corretor. SUBSTITUI o "Meu mês".
 // A tela não faz conta: tudo sai de montarPainelCorretor() (src/lib/metas-2027). O banco garante que só vêm
@@ -152,13 +153,13 @@ export function PainelMetasCorretor({ userId }: { userId: string }) {
           .join(" · ") || null,
     }));
 
-    let plano: { respostas?: Respostas | null; assinadoEm?: string | null } | null = null;
+    let plano: Parameters<typeof montarPainelCorretor>[0]["plano"] = null;
     let padrao: TaxasFunil | null = null;
     if (await meuPlanoEnabled()) {
       const [pl, tx] = await Promise.all([
         planoDb
           .from("carreira_plano")
-          .select("respostas,assinado_corretor_em")
+          .select("respostas,assinado_corretor_em,meta_oficial,meta_oficial_em")
           .eq("user_id", userId)
           .eq("ano", ANO_PLANO)
           .maybeSingle(),
@@ -169,8 +170,20 @@ export function PainelMetasCorretor({ userId }: { userId: string }) {
         setErro(errorMessage(pl.error, "Não foi possível carregar o seu Meu Plano 2027."));
         return;
       }
-      const row = pl.data as { respostas?: Respostas; assinado_corretor_em?: string | null } | null;
-      plano = row ? { respostas: row.respostas, assinadoEm: row.assinado_corretor_em } : null;
+      const row = pl.data as {
+        respostas?: Respostas;
+        assinado_corretor_em?: string | null;
+        meta_oficial?: MetaOficialGravada | null;
+        meta_oficial_em?: string | null;
+      } | null;
+      plano = row
+        ? {
+            respostas: row.respostas,
+            assinadoEm: row.assinado_corretor_em,
+            metaOficial: row.meta_oficial,
+            metaOficialEm: row.meta_oficial_em,
+          }
+        : null;
       padrao = tx;
     }
     const first = (x: unknown) => (Array.isArray(x) ? x[0] : x) as Record<string, unknown>;
@@ -207,8 +220,8 @@ export function PainelMetasCorretor({ userId }: { userId: string }) {
           <Target className="h-5 w-5" aria-hidden /> Meu painel de metas {ANO_PLANO}
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          A meta vem do seu Meu Plano {ANO_PLANO} assinado. O realizado entra sozinho pelas suas
-          vendas e captações no sistema.
+          A meta vem da meta oficial do seu Meu Plano {ANO_PLANO}. O realizado entra sozinho pelas
+          suas vendas e captações no sistema.
         </p>
       </CardHeader>
       <CardContent className="space-y-4" data-testid="painel-metas-corretor">
@@ -234,7 +247,9 @@ export function PainelMetasCorretor({ userId }: { userId: string }) {
 
 function Conteudo({ dados }: { dados: Dados }) {
   const { painel, agora } = dados;
-  const { avaliacao, pos, situacao } = painel;
+  const { avaliacao, pos, situacao, selo } = painel;
+  // Conta na meta (t_bd480fee): assinado OU meta oficial gravada em "Usar como minha meta oficial".
+  const temMeta = contaNaMeta(selo);
   const c = avaliacao.indicadores.comissao;
   const mesNome = MES_LONGO[pos.mes - 1];
   const farol = (
@@ -275,11 +290,25 @@ function Conteudo({ dados }: { dados: Dados }) {
         </div>
       ) : null}
 
-      {situacao !== "assinado" ? (
+      {selo === "conta_falta_assinar" ? (
+        <p
+          className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+          data-testid="falta-assinar"
+        >
+          Sua meta oficial já conta na meta da equipe. Falta assinar o pacto no Meu Plano.{" "}
+          <Link to="/minha-carreira/plano" className="font-semibold underline">
+            Abrir o plano
+          </Link>
+        </p>
+      ) : null}
+
+      {!temMeta ? (
         <EmptyState icon={Target}>
-          {situacao === "preenchimento"
-            ? "Seu Meu Plano 2027 ainda está em preenchimento. A meta entra aqui quando você assinar."
-            : "Você ainda não tem o Meu Plano 2027. A meta entra aqui quando o plano for assinado."}{" "}
+          {situacao === "assinado"
+            ? "Seu plano está assinado, mas não fecha a meta de comissão."
+            : situacao === "preenchimento"
+              ? 'Seu Meu Plano 2027 ainda está em preenchimento. A meta entra aqui quando você clicar em "Usar como minha meta oficial" ou assinar.'
+              : 'Você ainda não tem o Meu Plano 2027. A meta entra aqui quando você gravar a meta oficial ("Usar como minha meta oficial") ou assinar.'}{" "}
           <Link to="/minha-carreira/plano" className="underline">
             Abrir o plano
           </Link>
@@ -289,10 +318,10 @@ function Conteudo({ dados }: { dados: Dados }) {
       {pos.fase === "antes" ? (
         <div className="space-y-2 rounded-lg border p-3" data-testid="antes-vigencia">
           <p className="text-sm">
-            {situacao === "assinado"
+            {temMeta
               ? `Sua meta de ${ANO_PLANO} é ${brl(c.metaAno ?? 0)} de comissão. A contagem começa em 1º de janeiro.`
               : `As metas valem a partir de janeiro de ${ANO_PLANO}.`}
-            {situacao === "assinado" ? <InfoDica chave="corretor_meta_ano_antes" /> : null}
+            {temMeta ? <InfoDica chave="corretor_meta_ano_antes" /> : null}
           </p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Kpi
@@ -317,7 +346,7 @@ function Conteudo({ dados }: { dados: Dados }) {
             />
           </div>
         </div>
-      ) : situacao === "assinado" ? (
+      ) : temMeta ? (
         <>
           <div className="grid gap-3 md:grid-cols-2">
             <BarraGrande

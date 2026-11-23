@@ -12,9 +12,16 @@ const rpc = vi.fn();
 const taxas = {
   select: () => ({ is: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }),
 };
+// Leitura das metas oficiais gravadas (carreira_plano.meta_oficial, t_bd480fee): nenhuma neste teste.
+const semMetas = {
+  select: () => ({ eq: () => ({ not: async () => ({ data: [], error: null }) }) }),
+};
 vi.mock("@/lib/meu-plano-2027/modulo", async (orig) => ({
   ...(await orig<typeof import("@/lib/meu-plano-2027/modulo")>()),
-  planoDb: { rpc: (...a: unknown[]) => rpc(...a), from: () => taxas },
+  planoDb: {
+    rpc: (...a: unknown[]) => rpc(...a),
+    from: (t: string) => (t === "carreira_plano" ? semMetas : taxas),
+  },
 }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: "admin-1" }, roles: ["admin"] }) }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));

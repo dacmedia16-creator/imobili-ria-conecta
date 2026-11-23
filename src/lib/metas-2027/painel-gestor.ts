@@ -439,9 +439,7 @@ export function montarPainelGestor(e: {
     );
     // Opção A (Denis 20/11): o realizado comparado com a meta é só de quem CONTA NA META (assinado ou meta oficial
     // gravada, t_bd480fee), o ano inteiro dessa pessoa. O resto aparece à parte.
-    const assinados = new Set(
-      membros.filter((m) => contaNaMeta(m.selo)).map((m) => m.p.user_id),
-    );
+    const assinados = new Set(membros.filter((m) => contaNaMeta(m.selo)).map((m) => m.p.user_id));
     const todosMeses = realizadoDoGrupo(e.realizadoAno, todos ? null : ids, anoDados, true);
     const realAss = realizadoDoGrupo(e.realizadoAno, assinados, anoDados, true);
     const pessoas = membros

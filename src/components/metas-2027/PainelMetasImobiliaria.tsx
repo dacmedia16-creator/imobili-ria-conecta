@@ -227,8 +227,8 @@ function Conteudo({
         <Bloco
           titulo={
             antes
-              ? `Comissão em ${p.base.anoDados} de quem assinou o plano`
-              : "Realizado de quem assinou × meta oficial"
+              ? `Comissão em ${p.base.anoDados} de quem conta na meta`
+              : "Realizado de quem conta na meta × meta oficial"
           }
           info="imob_realizado"
           testid="realizado"
@@ -236,19 +236,19 @@ function Conteudo({
           <p className="text-2xl font-bold">{brl(p.total.realizadoAno.comissao ?? 0)}</p>
           {antes ? (
             <p className="text-xs text-muted-foreground">
-              meta {ANO_PLANO} (assinados): <b>{brlOuTraco(c.metaAno)}</b>
+              meta oficial {ANO_PLANO}: <b>{brlOuTraco(c.metaAno)}</b>
             </p>
           ) : (
             <>
               <BarraMeta feito={c.realAno} alvo={c.metaAno} esperado={c.esperado} />
               <p className="text-xs text-muted-foreground">
-                {pct(c.pctAno)} da meta oficial (soma dos planos assinados)
+                {pct(c.pctAno)} da meta oficial (soma das metas oficiais)
               </p>
             </>
           )}
           <p className="text-xs text-muted-foreground" data-testid="nao-assinados">
             <RotuloInfo chave="imob_nao_assinados">
-              Produção de quem não assinou (inclui quem já saiu):
+              Produção de quem não conta na meta (inclui quem já saiu):
             </RotuloInfo>{" "}
             <b className="text-foreground">{brl(p.total.naoAssinados.realizado.comissao ?? 0)}</b> ·{" "}
             {p.total.naoAssinados.pessoas}{" "}
@@ -274,7 +274,7 @@ function Conteudo({
         <Bloco titulo="Ritmo esperado até hoje" info="imob_ritmo" testid="ritmo">
           {antes || c.diferenca == null ? (
             <p className="text-sm text-muted-foreground">
-              {antes ? `Começa em jan/${ANO_PLANO}.` : "Sem plano assinado para medir o ritmo."}
+              {antes ? `Começa em jan/${ANO_PLANO}.` : "Sem meta oficial para medir o ritmo."}
             </p>
           ) : (
             <>
@@ -323,7 +323,7 @@ function Conteudo({
         />
       </div>
       <p className="text-xs text-muted-foreground">
-        Farol: 🟢 ≥100% do esperado até hoje · 🟡 80–99% · 🔴 abaixo de 80% · ⚪ sem plano assinado.
+        Farol: 🟢 ≥100% do esperado até hoje · 🟡 80–99% · 🔴 abaixo de 80% · ⚪ sem meta oficial.
         <InfoDica chave="imob_farol" />
       </p>
     </div>
@@ -405,7 +405,7 @@ function TopoMetas({
         </div>
         <div className="min-w-0">
           <p className="text-xs font-semibold text-muted-foreground">
-            <RotuloInfo chave="imob_soma_assinados">Soma dos planos ASSINADOS (oficial)</RotuloInfo>
+            <RotuloInfo chave="imob_soma_assinados">Soma das metas OFICIAIS</RotuloInfo>
           </p>
           <p className="text-2xl font-bold" data-testid="soma-assinados">
             {brlOuTraco(cc.somaAssinados)}
@@ -417,12 +417,12 @@ function TopoMetas({
             VGC (comissão do ano)
           </p>
           <p className="text-xs text-muted-foreground">
-            {p.total.soma.qtdAssinados} plano(s) assinado(s)
+            {p.total.soma.qtdContam} meta(s) oficial(is) · {p.total.soma.qtdAssinados} assinado(s)
           </p>
         </div>
         <div className="min-w-0">
           <p className="text-xs font-semibold text-muted-foreground">
-            <RotuloInfo chave="imob_preenchimento">Em preenchimento (não conta)</RotuloInfo>
+            <RotuloInfo chave="imob_preenchimento">Sem meta oficial (não conta)</RotuloInfo>
           </p>
           <p className="text-2xl font-bold text-muted-foreground" data-testid="soma-preenchimento">
             {brlOuTraco(p.preenchimento.comissao)}
@@ -434,7 +434,7 @@ function TopoMetas({
             VGC (comissão do ano)
           </p>
           <p className="text-xs text-muted-foreground">
-            {p.total.soma.qtdPreenchimento} plano(s) ainda sem assinatura
+            {p.total.soma.qtdPreenchimento} plano(s) sem meta oficial gravada
           </p>
         </div>
       </div>
@@ -462,8 +462,8 @@ function TopoMetas({
           data-testid="diferenca"
         >
           {cc.diferenca >= 0
-            ? `✅ Os planos assinados passam a meta da direção em ${brl(cc.diferenca)} (${pct(cc.pct)}).`
-            : `⚠️ Faltam ${brl(-cc.diferenca)} nos planos assinados para chegar na meta da direção (${pct(cc.pct)}).`}
+            ? `✅ As metas oficiais passam a meta da direção em ${brl(cc.diferenca)} (${pct(cc.pct)}).`
+            : `⚠️ Faltam ${brl(-cc.diferenca)} nas metas oficiais para chegar na meta da direção (${pct(cc.pct)}).`}
           <InfoDica chave="imob_diferenca" />
         </p>
       )}
@@ -476,7 +476,7 @@ function TopoMetas({
                 <RotuloInfo chave="imob_tabela_direcao">Indicador do ano</RotuloInfo>
               </th>
               <th className="py-1 text-right font-medium">Direção</th>
-              <th className="py-1 text-right font-medium">Assinados</th>
+              <th className="py-1 text-right font-medium">Metas oficiais</th>
               <th className="py-1 text-right font-medium">Diferença</th>
             </tr>
           </thead>
@@ -663,11 +663,7 @@ function Grafico({ p }: { p: PainelImobiliaria }) {
   const mx = Math.max(1, ...p.meses.map((m) => Math.max(m.meta ?? 0, m.realizado))) * 1.1;
   const H = 140;
   return (
-    <Bloco
-      titulo="Mês a mês — meta (planos assinados) × realizado"
-      info="imob_grafico"
-      testid="grafico"
-    >
+    <Bloco titulo="Mês a mês — meta oficial × realizado" info="imob_grafico" testid="grafico">
       <div
         className="grid h-[164px] grid-cols-12 items-end gap-1"
         role="img"

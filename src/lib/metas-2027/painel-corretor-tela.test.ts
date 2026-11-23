@@ -183,7 +183,7 @@ describe("Painel de metas do corretor (substitui o Meu mês)", () => {
     tabelas.carreira_plano = { respostas: PLANO, assinado_corretor_em: null };
     render(createElement(PainelMetasCorretor, { userId: "00000000-0000-4000-8000-0000000000a1" }));
     const farol = await screen.findByTestId("farol-meta");
-    expect(farol.textContent).toContain("⚪ Sem plano assinado");
+    expect(farol.textContent).toContain("⚪ Sem meta oficial");
     expect(screen.queryByTestId("barra-ano")).toBeNull();
     expect(screen.getByTestId("painel-metas-corretor").textContent).toContain("em preenchimento");
   });

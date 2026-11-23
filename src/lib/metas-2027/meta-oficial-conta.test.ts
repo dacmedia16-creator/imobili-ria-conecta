@@ -46,7 +46,12 @@ const QUANDO = "2026-11-20T12:00:00Z";
 
 describe("selo e conta: meta oficial gravada conta mesmo sem assinatura", () => {
   it("não assinado + meta oficial gravada → conta (falta assinar), com os valores GRAVADOS", () => {
-    const r = planoComSelo({ assinadoEm: null, respostas: PLANO, metaOficial: GRAVADA, metaOficialEm: QUANDO });
+    const r = planoComSelo({
+      assinadoEm: null,
+      respostas: PLANO,
+      metaOficial: GRAVADA,
+      metaOficialEm: QUANDO,
+    });
     expect(r.selo).toBe("conta_falta_assinar");
     expect(r.situacao).toBe("preenchimento"); // a assinatura continua separada
     expect(r.meta!.ano).toEqual({ comissao: 150000, vgv: 6000000, vendas: 30, captacoes: 20 });
@@ -57,7 +62,12 @@ describe("selo e conta: meta oficial gravada conta mesmo sem assinatura", () => 
   });
 
   it("sem meta oficial e sem assinatura → não conta", () => {
-    const r = planoComSelo({ assinadoEm: null, respostas: PLANO, metaOficial: null, metaOficialEm: null });
+    const r = planoComSelo({
+      assinadoEm: null,
+      respostas: PLANO,
+      metaOficial: null,
+      metaOficialEm: null,
+    });
     expect(r.selo).toBe("falta_meta");
     const s = somarPlanos([{ userId: "x", ...r }]);
     expect(s.assinados).toBeNull();
@@ -66,7 +76,12 @@ describe("selo e conta: meta oficial gravada conta mesmo sem assinatura", () => 
   });
 
   it("assinado continua contando, com a meta do plano travado (igual a antes)", () => {
-    const r = planoComSelo({ assinadoEm: QUANDO, respostas: PLANO, metaOficial: GRAVADA, metaOficialEm: QUANDO });
+    const r = planoComSelo({
+      assinadoEm: QUANDO,
+      respostas: PLANO,
+      metaOficial: GRAVADA,
+      metaOficialEm: QUANDO,
+    });
     expect(r.selo).toBe("conta");
     expect(r.meta).toEqual(metaDoPlano(PLANO));
     // Assinou, mas a meta oficial não foi gravada (falha logo após assinar): continua contando como hoje.
@@ -77,10 +92,17 @@ describe("selo e conta: meta oficial gravada conta mesmo sem assinatura", () => 
   });
 
   it("plano reaberto (assinatura e meta oficial apagadas pela reabertura) → não conta", () => {
-    const reaberto = planoComSelo({ assinadoEm: null, respostas: PLANO, metaOficial: null, metaOficialEm: null });
+    const reaberto = planoComSelo({
+      assinadoEm: null,
+      respostas: PLANO,
+      metaOficial: null,
+      metaOficialEm: null,
+    });
     expect(reaberto.selo).toBe("falta_meta");
     // Meta gravada sem a data (ou vice-versa) não é meta oficial válida: não conta.
-    expect(planoComSelo({ assinadoEm: null, respostas: PLANO, metaOficial: GRAVADA }).selo).toBe("falta_meta");
+    expect(planoComSelo({ assinadoEm: null, respostas: PLANO, metaOficial: GRAVADA }).selo).toBe(
+      "falta_meta",
+    );
     expect(planoComSelo({ assinadoEm: null, respostas: PLANO, metaOficialEm: QUANDO }).selo).toBe(
       "falta_meta",
     );
@@ -88,15 +110,34 @@ describe("selo e conta: meta oficial gravada conta mesmo sem assinatura", () => 
 
   it("meta gravada sem VGC ou sem formato do plano: sem VGC não conta; sem formato divide o ano por 12", () => {
     expect(metaDaGravada({ ...GRAVADA, meta_comissao: null }, null)).toBeNull();
-    const m = metaDaGravada({ meta_comissao: "120000", meta_vendas: 24, meta_vgv: null, meta_captacoes: null }, null)!;
+    const m = metaDaGravada(
+      { meta_comissao: "120000", meta_vendas: 24, meta_vgv: null, meta_captacoes: null },
+      null,
+    )!;
     expect(m.ano).toEqual({ comissao: 120000, vendas: 24, vgv: null, captacoes: null });
     expect(m.meses[5]).toEqual({ comissao: 10000, vendas: 2, vgv: null, captacoes: null });
   });
 
   it("soma e contador: assinados + metas oficiais sem assinatura; pactos assinados contados à parte", () => {
     const planos = [
-      { userId: "a", ...planoComSelo({ assinadoEm: QUANDO, respostas: PLANO, metaOficial: GRAVADA, metaOficialEm: QUANDO }) },
-      { userId: "b", ...planoComSelo({ assinadoEm: null, respostas: PLANO, metaOficial: GRAVADA, metaOficialEm: QUANDO }) },
+      {
+        userId: "a",
+        ...planoComSelo({
+          assinadoEm: QUANDO,
+          respostas: PLANO,
+          metaOficial: GRAVADA,
+          metaOficialEm: QUANDO,
+        }),
+      },
+      {
+        userId: "b",
+        ...planoComSelo({
+          assinadoEm: null,
+          respostas: PLANO,
+          metaOficial: GRAVADA,
+          metaOficialEm: QUANDO,
+        }),
+      },
       { userId: "c", ...planoComSelo({ assinadoEm: null, respostas: PLANO }) },
       { userId: "d", ...planoComSelo(null) },
     ];
@@ -144,8 +185,22 @@ describe("painéis usam a mesma regra", () => {
       realizadoAno: {
         captacoes_ligadas: true,
         vendas: [
-          { sale_id: "v1", user_id: "b", venda_em: "2027-02-10", comissao: 9000, vgv: 300000, lados: 1 },
-          { sale_id: "v2", user_id: "c", venda_em: "2027-02-11", comissao: 4000, vgv: 200000, lados: 1 },
+          {
+            sale_id: "v1",
+            user_id: "b",
+            venda_em: "2027-02-10",
+            comissao: 9000,
+            vgv: 300000,
+            lados: 1,
+          },
+          {
+            sale_id: "v2",
+            user_id: "c",
+            venda_em: "2027-02-11",
+            comissao: 4000,
+            vgv: 200000,
+            lados: 1,
+          },
         ],
         captacoes: [],
       },
