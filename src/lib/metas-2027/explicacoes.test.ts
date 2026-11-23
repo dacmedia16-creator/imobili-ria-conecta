@@ -51,7 +51,9 @@ describe("textos do ícone i", () => {
     expect(explicacao("equipe_meta_assinados", antes).texto).toMatch(
       /Usar como minha meta oficial/,
     );
-    expect(explicacao("equipe_meta_assinados", antes).texto).toMatch(/mesmo sem assinar.*valor gravado/);
+    expect(explicacao("equipe_meta_assinados", antes).texto).toMatch(
+      /mesmo sem assinar.*valor gravado/,
+    );
     expect(explicacao("imob_soma_assinados", antes).texto).toMatch(
       /^Meta oficial = soma das metas 2027 gravadas.*botão verde/,
     );

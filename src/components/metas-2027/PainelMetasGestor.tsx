@@ -122,8 +122,9 @@ export function PainelMetasGestor() {
           <Target className="h-5 w-5" aria-hidden /> Painel de metas {ANO_PLANO} · Equipes
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          A meta vem só dos planos ASSINADOS (Meu Plano {ANO_PLANO}) e é comparada só com o
-          realizado de quem assinou. A produção de quem ainda não assinou aparece à parte.
+          Meta oficial = soma das metas marcadas pelos corretores no botão verde "Usar como minha
+          meta oficial" (Meu Plano {ANO_PLANO}), mesmo sem assinar, comparada só com o realizado
+          deles. A produção de quem não tem meta oficial aparece à parte.
         </p>
       </CardHeader>
       <CardContent className="space-y-4 px-3 sm:px-6" data-testid="painel-metas-gestor">
@@ -393,7 +394,7 @@ function ResumoGrupo({
         data-testid="nao-assinados"
       >
         <RotuloInfo chave="equipe_nao_assinados">
-          Produção de quem ainda não assinou o plano{antes ? ` (${painel.anoDados})` : ""}:
+          Produção de quem não tem meta oficial gravada{antes ? ` (${painel.anoDados})` : ""}:
         </RotuloInfo>{" "}
         <b className="text-foreground">{brl(grupo.naoAssinados.realizado.comissao ?? 0)}</b> ·{" "}
         {grupo.naoAssinados.pessoas} {grupo.naoAssinados.pessoas === 1 ? "corretor" : "corretores"}{" "}

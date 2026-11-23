@@ -44,12 +44,22 @@ const INFLADO: Respostas = {
   "e.renda": "15000",
 };
 const G = (c: number, n: number, k: number | null = 20, v: number | null = 6_000_000) =>
-  ({ meta_comissao: c, meta_vendas: n, meta_captacoes: k, meta_vgv: v }) satisfies MetaOficialGravada;
+  ({
+    meta_comissao: c,
+    meta_vendas: n,
+    meta_captacoes: k,
+    meta_vgv: v,
+  }) satisfies MetaOficialGravada;
 const EM = "2026-11-20T12:00:00Z";
 
 describe("regra única: conta na meta = tem meta oficial gravada", () => {
   it("meta gravada SEM assinatura conta (selo 'Conta na meta · falta assinar')", () => {
-    const r = planoComSelo({ assinadoEm: null, respostas: PLANO, metaOficial: G(150000, 30), metaOficialEm: EM });
+    const r = planoComSelo({
+      assinadoEm: null,
+      respostas: PLANO,
+      metaOficial: G(150000, 30),
+      metaOficialEm: EM,
+    });
     expect(r.selo).toBe("conta_falta_assinar");
     expect(r.meta!.ano.comissao).toBe(150000);
   });
@@ -80,9 +90,19 @@ describe("regra única: conta na meta = tem meta oficial gravada", () => {
     expect(metaGravadaForaDoLimite(G(1_071_000, 42, 840))).toMatch(/captações/);
     expect(metaGravadaForaDoLimite(G(600_000, 1001))).toMatch(/transações/);
     expect(metaGravadaForaDoLimite(G(5_000_000, 1000, 500))).toBeNull(); // no limite ainda vale
-    const fora = planoComSelo({ assinadoEm: null, respostas: PLANO, metaOficial: G(5_040_000, 84), metaOficialEm: EM });
+    const fora = planoComSelo({
+      assinadoEm: null,
+      respostas: PLANO,
+      metaOficial: G(5_040_000, 84),
+      metaOficialEm: EM,
+    });
     expect(fora.selo).toBe("meta_a_conferir");
-    const ok = planoComSelo({ assinadoEm: null, respostas: PLANO, metaOficial: G(150000, 30), metaOficialEm: EM });
+    const ok = planoComSelo({
+      assinadoEm: null,
+      respostas: PLANO,
+      metaOficial: G(150000, 30),
+      metaOficialEm: EM,
+    });
     const s = somarPlanos([
       { userId: "fora", ...fora },
       { userId: "ok", ...ok },
@@ -94,10 +114,20 @@ describe("regra única: conta na meta = tem meta oficial gravada", () => {
   });
 
   it("soma oficial = soma exata das metas gravadas (ano e meses fecham)", () => {
-    const gs = [G(504000, 21, 36), G(1_657_782, 118, 61), G(150000, 30, 20), G(240000, 40, 36, null)];
+    const gs = [
+      G(504000, 21, 36),
+      G(1_657_782, 118, 61),
+      G(150000, 30, 20),
+      G(240000, 40, 36, null),
+    ];
     const planos = gs.map((g, i) => ({
       userId: `p${i}`,
-      ...planoComSelo({ assinadoEm: i < 2 ? EM : null, respostas: i === 0 ? INFLADO : PLANO, metaOficial: g, metaOficialEm: EM }),
+      ...planoComSelo({
+        assinadoEm: i < 2 ? EM : null,
+        respostas: i === 0 ? INFLADO : PLANO,
+        metaOficial: g,
+        metaOficialEm: EM,
+      }),
     }));
     for (const p of planos) expect(seloMeta(p)).toBe(p.selo);
     const s = somarPlanos(planos);
@@ -126,7 +156,13 @@ describe("os 3 painéis e o selo/contador da Equipe batem", () => {
     ...p,
   });
   const pessoas = [
-    pessoa({ user_id: "ass_gravada", assinado_em: EM, respostas: INFLADO, meta_oficial: G(504000, 21, 36), meta_oficial_em: EM }),
+    pessoa({
+      user_id: "ass_gravada",
+      assinado_em: EM,
+      respostas: INFLADO,
+      meta_oficial: G(504000, 21, 36),
+      meta_oficial_em: EM,
+    }),
     pessoa({ user_id: "clique", meta_oficial: G(150000, 30), meta_oficial_em: EM }),
     pessoa({ user_id: "ass_sem_meta", assinado_em: EM }),
     pessoa({ user_id: "fora_limite", meta_oficial: G(5_040_000, 84), meta_oficial_em: EM }),
@@ -139,9 +175,30 @@ describe("os 3 painéis e o selo/contador da Equipe batem", () => {
     pessoas,
   };
   const vendas = [
-    { sale_id: "v1", user_id: "clique", venda_em: "2027-02-10", comissao: 9000, vgv: 300000, lados: 1 },
-    { sale_id: "v2", user_id: "ass_sem_meta", venda_em: "2027-02-11", comissao: 4000, vgv: 200000, lados: 1 },
-    { sale_id: "v3", user_id: "fora_limite", venda_em: "2027-02-12", comissao: 3000, vgv: 100000, lados: 1 },
+    {
+      sale_id: "v1",
+      user_id: "clique",
+      venda_em: "2027-02-10",
+      comissao: 9000,
+      vgv: 300000,
+      lados: 1,
+    },
+    {
+      sale_id: "v2",
+      user_id: "ass_sem_meta",
+      venda_em: "2027-02-11",
+      comissao: 4000,
+      vgv: 200000,
+      lados: 1,
+    },
+    {
+      sale_id: "v3",
+      user_id: "fora_limite",
+      venda_em: "2027-02-12",
+      comissao: 3000,
+      vgv: 100000,
+      lados: 1,
+    },
   ];
   const entrada = {
     hoje: "2027-03-15",
@@ -189,19 +246,35 @@ describe("os 3 painéis e o selo/contador da Equipe batem", () => {
   });
 
   it("Minha carreira: assinado sem meta gravada fica sem meta; com meta gravada usa o valor gravado", () => {
-    const base = { userId: "u", hoje: "2027-03-15", vendas: [], captacoesContagem: { ano: 0, mes: 0 }, captacoes: [] };
+    const base = {
+      userId: "u",
+      hoje: "2027-03-15",
+      vendas: [],
+      captacoesContagem: { ano: 0, mes: 0 },
+      captacoes: [],
+    };
     const sem = montarPainelCorretor({ ...base, plano: { respostas: PLANO, assinadoEm: EM } });
     expect(sem.selo).toBe("assinado_sem_meta");
     expect(sem.meta).toBeNull();
     expect(sem.avaliacao.farol).toBe("cinza");
     const com = montarPainelCorretor({
       ...base,
-      plano: { respostas: INFLADO, assinadoEm: EM, metaOficial: G(504000, 21, 36), metaOficialEm: EM },
+      plano: {
+        respostas: INFLADO,
+        assinadoEm: EM,
+        metaOficial: G(504000, 21, 36),
+        metaOficialEm: EM,
+      },
     });
     expect(com.meta!.ano.vendas).toBe(21);
     const fora = montarPainelCorretor({
       ...base,
-      plano: { respostas: PLANO, assinadoEm: null, metaOficial: G(5_040_000, 84), metaOficialEm: EM },
+      plano: {
+        respostas: PLANO,
+        assinadoEm: null,
+        metaOficial: G(5_040_000, 84),
+        metaOficialEm: EM,
+      },
     });
     expect(fora.selo).toBe("meta_a_conferir");
     expect(fora.meta).toBeNull();

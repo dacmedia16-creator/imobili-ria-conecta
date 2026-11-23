@@ -254,7 +254,7 @@ describe("Painel de metas 2027 · Equipes", () => {
     expect(pares).toMatch(/comissão 2026:\s*R\$\s?0meta 2027:\s*R\$\s?120\.000/);
     expect(azul.textContent).not.toMatch(/\d+ \/ \d+/);
     expect(within(azul).getByTestId("nao-assinados").textContent).toMatch(
-      /Produção de quem ainda não assinou o plano \(2026\)/,
+      /Produção de quem não tem meta oficial gravada \(2026\)/,
     );
     // Ícone "i" (t_065a0ff9): antes de 2027, a comissão é de 2026 e o "i" diz isso.
     for (const k of [

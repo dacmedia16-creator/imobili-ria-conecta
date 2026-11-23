@@ -167,8 +167,9 @@ export function PainelMetasImobiliaria() {
           <Building2 className="h-5 w-5" aria-hidden /> Painel de metas {ANO_PLANO} · Imobiliária
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          Meta oficial = soma dos planos ASSINADOS, comparada com o realizado só de quem assinou. A
-          meta da direção é comparada com a imobiliária inteira.
+          Meta oficial = soma das metas marcadas pelos corretores no botão verde "Usar como minha
+          meta oficial", mesmo sem assinar, comparada com o realizado só deles. A meta da direção é
+          comparada com a imobiliária inteira.
         </p>
       </CardHeader>
       <CardContent className="space-y-4 px-3 sm:px-6" data-testid="painel-metas-imobiliaria">

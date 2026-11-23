@@ -51,11 +51,7 @@ const r2 = (v: number) => Math.round(v * 100) / 100;
  * - "falta_meta": sem assinatura e sem meta oficial gravada (ou plano reaberto) → não conta.
  */
 export type SeloMeta =
-  | "conta"
-  | "conta_falta_assinar"
-  | "meta_a_conferir"
-  | "assinado_sem_meta"
-  | "falta_meta";
+  "conta" | "conta_falta_assinar" | "meta_a_conferir" | "assinado_sem_meta" | "falta_meta";
 export function seloMeta(
   p: Pick<PlanoPessoa, "situacao" | "meta" | "oficial" | "foraDoLimite">,
 ): SeloMeta {
@@ -175,8 +171,7 @@ export function planoComSelo(
 } {
   const situacao = situacaoPlano(p);
   const doPlano = situacao === "sem_plano" ? null : metaDoPlano(p?.respostas, padrao);
-  const gravada =
-    p?.metaOficial && p.metaOficialEm ? metaDaGravada(p.metaOficial, doPlano) : null;
+  const gravada = p?.metaOficial && p.metaOficialEm ? metaDaGravada(p.metaOficial, doPlano) : null;
   const oficial = gravada != null;
   const meta = gravada ?? doPlano;
   const motivoAConferir = oficial ? metaGravadaForaDoLimite(p?.metaOficial) : null;
