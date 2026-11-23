@@ -187,6 +187,30 @@ export type SaleSendInput = {
 export type SaleSendCheck = { missing: MissingEmail[]; errors: string[] };
 
 /**
+ * Linhas da confirmação de envio: papel + nome de cada signatário, na ordem da tela (t_bd3361f1).
+ * Antes a confirmação só dizia a quantidade, e a gestora não via quem faltava.
+ */
+export function envioResumo(input: {
+  parties: SaleParty[];
+  corretores: Array<{ nome: string }>;
+  imobiliaria: Array<{ nome: string }>;
+  testemunhas: Testemunha[];
+  extras: ExtraDraft[];
+}): string[] {
+  const partes = input.parties.filter((p) => /^(vendedor|comprador)_\d+$/.test(p.papel));
+  return [
+    ...partes.map(
+      (p) =>
+        `${SALE_ROLE_LABEL[p.papel.startsWith("vendedor") ? "seller" : "buyer"]}: ${p.nome || "(sem nome)"}`,
+    ),
+    ...input.corretores.map((c) => `Corretor(a): ${c.nome}`),
+    ...input.imobiliaria.map((p) => `Pela imobiliária: ${p.nome}`),
+    ...input.testemunhas.map((t) => `Testemunha: ${t.nome.trim()}`),
+    ...input.extras.map((x) => `${SALE_ROLE_LABEL[x.role] ?? x.role}: ${x.nome.trim()}`),
+  ];
+}
+
+/**
  * Mesmas regras do servidor (buildSaleSigners) para travar o botão com mensagem clara. As partes
  * sem e-mail ficam em `missing` (atalho para a aba Partes); nada é preenchido sozinho.
  */
