@@ -62,7 +62,7 @@ INSERT INTO public.carreira_plano (organization_id, user_id, ano, trilha, respos
                                    assinado_broker_em, assinado_broker_por, meta_oficial, meta_oficial_em) VALUES
   (:'org_a', :'c1', 2027, 'planejamento', '{"mt.tCapt":"12","mt.tVenda":"10","mt.comMedia":"15.000,00","pq.frase":"da Ana"}',
    '2026-11-18 19:31:00+00', NULL, NULL, '{"meta_comissao":165000}', '2026-11-18 19:31:05+00'),
-  (:'org_a', :'c2', 2027, 'ativacao', '{"mt.tCapt":"8","pq.frase":"da Bia"}',
+  (:'org_a', :'c2', 2027, 'ativacao', '{"mt.tCapt":"8","mt.comMedia":"12000","pq.frase":"da Bia"}',
    '2026-11-19 12:42:00+00', '2026-11-19 15:00:00+00', :'gestor', NULL, NULL),
   (:'org_a', :'c3', 2027, 'ativacao', '{"pq.frase":"do Caio"}', '2026-11-19 10:00:00+00', NULL, NULL, NULL, NULL),
   (:'org_a', :'tl', 2027, 'ativacao', '{"pq.frase":"da Lia"}', '2026-11-19 11:00:00+00', NULL, NULL, NULL, NULL),

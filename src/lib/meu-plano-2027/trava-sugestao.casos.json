@@ -1,0 +1,127 @@
+[
+  { "nome": "vazio passa", "r": {}, "bloqueia": false },
+  {
+    "nome": "book completo (tudo sugerido) passa",
+    "r": {
+      "op.0": "3450",
+      "op.1": "760",
+      "op.2": "1080",
+      "op.3": "1600",
+      "op.4": "600",
+      "op.5": "940",
+      "op.6": "110",
+      "op.7": "30",
+      "on.0": "980",
+      "on.1": "200",
+      "on.2": "1350",
+      "on.3": "59,99",
+      "on.4": "570",
+      "on.5": "200",
+      "so.0.v": "40000",
+      "so.1.v": "30000",
+      "so.2.v": "5000",
+      "es.aliq": "15",
+      "m.faixa": "45",
+      "m.ticket": "700000",
+      "m.pct": "3"
+    },
+    "bloqueia": false
+  },
+  {
+    "nome": "brecha: ticket R$ 800 com captação e venda em branco (sugestão 2.778 captações) bloqueia",
+    "r": { "op.0": "5000", "es.aliq": "10", "m.faixa": "60", "m.ticket": "800", "m.pct": "3" },
+    "bloqueia": true
+  },
+  {
+    "nome": "brecha: ticket do diagnóstico R$ 800 (m.ticket em branco) também bloqueia",
+    "r": { "op.0": "5000", "es.aliq": "10", "m.faixa": "60", "d.ticket": "800", "m.pct": "3" },
+    "bloqueia": true
+  },
+  {
+    "nome": "sugestão entre 150 e 500 só avisa (não bloqueia)",
+    "r": { "op.0": "5000", "es.aliq": "10", "m.faixa": "60", "m.ticket": "10000", "m.pct": "3" },
+    "bloqueia": false
+  },
+  {
+    "nome": "brecha: VGC pela sugestão (6 transações × comissão digitada R$ 1 mi) acima de 5 mi bloqueia",
+    "r": {
+      "op.0": "5000",
+      "es.aliq": "10",
+      "m.faixa": "60",
+      "m.ticket": "700000",
+      "m.pct": "3",
+      "mt.comMedia": "1000000"
+    },
+    "bloqueia": true
+  },
+  {
+    "nome": "brecha: venda em branco usa a sugestão no VGC ((10 + 2) × 450 mil = 5,4 mi) bloqueia",
+    "r": {
+      "op.0": "5000",
+      "es.aliq": "10",
+      "m.faixa": "60",
+      "m.ticket": "700000",
+      "m.pct": "3",
+      "mt.tCapt": "10",
+      "mt.comMedia": "450000"
+    },
+    "bloqueia": true
+  },
+  {
+    "nome": "mesmo plano com venda digitada 0 ((10 + 0) × 450 mil = 4,5 mi) passa",
+    "r": {
+      "op.0": "5000",
+      "es.aliq": "10",
+      "m.faixa": "60",
+      "m.ticket": "700000",
+      "m.pct": "3",
+      "mt.tCapt": "10",
+      "mt.tVenda": "0",
+      "mt.comMedia": "450000"
+    },
+    "bloqueia": false
+  },
+  {
+    "nome": "captação digitada normal com sugestão absurda da venda não bloqueia pela captação, mas a venda sugerida (1.852) bloqueia",
+    "r": {
+      "op.0": "5000",
+      "es.aliq": "10",
+      "m.faixa": "60",
+      "m.ticket": "800",
+      "m.pct": "3",
+      "mt.tCapt": "20",
+      "mt.comMedia": "10000"
+    },
+    "bloqueia": true
+  },
+  {
+    "nome": "captação e venda digitadas normais: sugestão absurda não importa",
+    "r": {
+      "op.0": "5000",
+      "es.aliq": "10",
+      "m.faixa": "60",
+      "m.ticket": "800",
+      "m.pct": "3",
+      "mt.tCapt": "20",
+      "mt.tVenda": "10",
+      "mt.comMedia": "10000"
+    },
+    "bloqueia": false
+  },
+  {
+    "nome": "dígitos de largura total bloqueiam com mensagem clara (não erro técnico)",
+    "r": { "mt.tCapt": "１２", "mt.comMedia": "15000" },
+    "bloqueia": true,
+    "msg": "não é um número inteiro"
+  },
+  {
+    "nome": "digitado 42.000 continua bloqueando",
+    "r": { "mt.tCapt": "42.000", "mt.comMedia": "15000" },
+    "bloqueia": true
+  },
+  {
+    "nome": "digitado 500 + 500 com VGC 5 mi exato passa",
+    "r": { "mt.tCapt": "500", "mt.tVenda": "500", "mt.comMedia": "5000" },
+    "bloqueia": false
+  }
+]
