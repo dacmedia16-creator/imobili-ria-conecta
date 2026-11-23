@@ -202,6 +202,11 @@ export type GrupoPainel = {
   pessoas: CartaoCorretor[];
   /** Planos com valor a conferir (assinados e em preenchimento), já incluídos nas somas. */
   aConferir: { assinados: number; preenchimento: number; nomes: string[] };
+  /**
+   * Metas oficiais GRAVADAS fora dos limites de bloqueio (t_91ec7aa3, Denis 23/11): FORA da soma, à parte.
+   * `comissao` = soma da meta de comissão delas (só informa).
+   */
+  metaAConferir: { nomes: string[]; comissao: number | null };
 };
 
 export type AlertaParado = {
@@ -369,6 +374,7 @@ export function montarPainelGestor(e: {
     situacao: SituacaoPlano;
     meta: MetaPlano | null;
     oficial: boolean;
+    foraDoLimite: boolean;
     selo: SeloMeta;
     aConferir: boolean;
   };
@@ -377,7 +383,7 @@ export function montarPainelGestor(e: {
   for (const p of e.planos.pessoas) {
     if (vistos.has(p.user_id)) continue;
     vistos.add(p.user_id);
-    // Regra ÚNICA do selo (consolidado.ts): assinado = meta do plano; meta oficial gravada = valores do clique.
+    // Regra ÚNICA do selo (consolidado.ts): conta = meta oficial GRAVADA (valores gravados), assinado ou não.
     const x = p.tem_plano
       ? planoComSelo(
           {
@@ -435,10 +441,11 @@ export function montarPainelGestor(e: {
         situacao: m.situacao,
         meta: m.meta,
         oficial: m.oficial,
+        foraDoLimite: m.foraDoLimite,
       })),
     );
-    // Opção A (Denis 20/11): o realizado comparado com a meta é só de quem CONTA NA META (assinado ou meta oficial
-    // gravada, t_bd480fee), o ano inteiro dessa pessoa. O resto aparece à parte.
+    // Opção A (Denis 20/11): o realizado comparado com a meta é só de quem CONTA NA META (meta oficial gravada dentro
+    // do limite, t_91ec7aa3), o ano inteiro dessa pessoa. O resto aparece à parte.
     const assinados = new Set(membros.filter((m) => contaNaMeta(m.selo)).map((m) => m.p.user_id));
     const todosMeses = realizadoDoGrupo(e.realizadoAno, todos ? null : ids, anoDados, true);
     const realAss = realizadoDoGrupo(e.realizadoAno, assinados, anoDados, true);
@@ -482,6 +489,10 @@ export function montarPainelGestor(e: {
         assinados: pessoas.filter((c) => c.aConferir && c.situacao === "assinado").length,
         preenchimento: pessoas.filter((c) => c.aConferir && c.situacao === "preenchimento").length,
         nomes: pessoas.filter((c) => c.aConferir).map((c) => c.nome),
+      },
+      metaAConferir: {
+        nomes: pessoas.filter((c) => c.selo === "meta_a_conferir").map((c) => c.nome),
+        comissao: soma.aConferirAno.comissao,
       },
     };
   };

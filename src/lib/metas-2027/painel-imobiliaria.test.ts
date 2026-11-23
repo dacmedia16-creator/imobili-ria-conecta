@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 import type { Respostas } from "@/lib/meu-plano-2027/regras";
+import { comGravada } from "./teste-gravada";
 import {
   direcaoDeRpc,
   lerValorDirecao,
@@ -22,10 +23,12 @@ const P = (tc: string, tv: string): Respostas => ({
   "mt.comMedia": "5000",
   "m.ticket": "400000",
 });
+// A assinatura grava a meta oficial (fonte única, t_91ec7aa3).
 const ass = (r: Respostas) => ({
   tem_plano: true,
   respostas: r,
   assinado_em: "2026-12-10T13:00:00Z",
+  ...comGravada(r),
 });
 const pre = (r: Respostas) => ({ tem_plano: true, respostas: r, assinado_em: null });
 const sem = { tem_plano: false, respostas: null, assinado_em: null };

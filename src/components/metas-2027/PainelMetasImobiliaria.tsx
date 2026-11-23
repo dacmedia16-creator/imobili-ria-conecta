@@ -417,7 +417,8 @@ function TopoMetas({
             VGC (comissão do ano)
           </p>
           <p className="text-xs text-muted-foreground">
-            {p.total.soma.qtdContam} meta(s) oficial(is) · {p.total.soma.qtdAssinados} assinado(s)
+            {p.total.soma.qtdContam} meta(s) oficial(is) gravada(s) ·{" "}
+            {p.total.soma.qtdContam - p.total.soma.qtdFaltaAssinar} já assinada(s)
           </p>
         </div>
         <div className="min-w-0">
@@ -447,6 +448,21 @@ function TopoMetas({
           <b>{p.total.aConferir.assinados}</b> assinado(s) e{" "}
           <b>{p.total.aConferir.preenchimento}</b> em preenchimento (
           {p.total.aConferir.nomes.join(", ")}). Já incluídos nas somas acima.
+        </p>
+      ) : null}
+      {p.total.metaAConferir.nomes.length > 0 ? (
+        <p
+          className="rounded-md bg-red-50 px-2 py-1.5 text-xs text-red-900 dark:bg-red-950/40 dark:text-red-200"
+          data-testid="imob-meta-a-conferir"
+        >
+          <RotuloInfo chave="meta_gravada_a_conferir">
+            ⛔ Metas gravadas fora do limite (a conferir):
+          </RotuloInfo>{" "}
+          <b>{p.total.metaAConferir.nomes.length}</b> ({p.total.metaAConferir.nomes.join(", ")})
+          {p.total.metaAConferir.comissao != null
+            ? `, somam ${brlOuTraco(p.total.metaAConferir.comissao)}`
+            : ""}
+          . NÃO entram na soma oficial.
         </p>
       ) : null}
 

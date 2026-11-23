@@ -128,7 +128,7 @@ export const EXPLICACOES = {
   equipe_meta_assinados: ({ anoPlano }) =>
     e(
       `Meta ${anoPlano} (metas oficiais)`,
-      `Soma das metas de comissão do ano de quem desta equipe conta na meta: meta oficial gravada em "Usar como minha meta oficial" (mesmo sem assinar) ou plano ASSINADO. É comparada só com o realizado dessas pessoas: sem nenhuma, não há meta nem farol.`,
+      `Soma das metas oficiais gravadas pelos corretores desta equipe (botão verde "Usar como minha meta oficial" ou assinatura), mesmo sem assinar, com o valor gravado. É comparada só com o realizado dessas pessoas; meta fora do limite e plano sem meta gravada não entram.`,
     ),
   equipe_comissao_ano: ({ ano, anoPlano }) =>
     e(
@@ -195,7 +195,7 @@ export const EXPLICACOES = {
   pessoa_plano: ({ anoPlano }) =>
     e(
       "Situação do plano",
-      `Assinado = o corretor assinou o Meu Plano ${anoPlano}; em preenchimento = começou e não assinou, ou o plano foi reaberto pelo gestor/líder; sem plano = nem começou. Conta na meta quem gravou a meta oficial (mesmo sem assinar) ou assinou; "Reabrir plano" desfaz a assinatura e a meta oficial, sem apagar valores.`,
+      `Assinado = o corretor assinou o Meu Plano ${anoPlano}; em preenchimento = começou e não assinou, ou o plano foi reaberto pelo gestor/líder; sem plano = nem começou. Conta na meta só quem tem meta oficial gravada (botão verde ou assinatura), mesmo sem assinar; "Reabrir plano" desfaz a assinatura e a meta oficial, sem apagar valores.`,
     ),
   pessoa_ano: () =>
     e(
@@ -215,7 +215,7 @@ export const EXPLICACOES = {
   pessoa_sem_meta: ({ ano }) =>
     e(
       "Comissão no ano",
-      `Parte do corretor na comissão das vendas assinadas em ${ano}, de 1º de janeiro até hoje. Não há meta porque ele não gravou a meta oficial nem assinou o plano.`,
+      `Parte do corretor na comissão das vendas assinadas em ${ano}, de 1º de janeiro até hoje. Não há meta porque ele não tem meta oficial gravada (ou ela está fora do limite).`,
     ),
   pessoa_vendas_captacoes: ({ ano }) =>
     e(
@@ -234,12 +234,12 @@ export const EXPLICACOES = {
   imob_soma_assinados: ({ anoPlano }) =>
     e(
       "Soma das metas oficiais",
-      `Soma das metas de comissão do ano de quem está ativo na imobiliária e conta na meta: meta oficial ${anoPlano} gravada (mesmo sem assinar) ou plano assinado. É a meta oficial usada no farol, no ritmo e no gráfico.`,
+      `Meta oficial = soma das metas ${anoPlano} gravadas pelos corretores ativos no botão verde "Usar como minha meta oficial" (ou na assinatura), já no clique, mesmo sem assinar. Usa o valor gravado; meta fora do limite fica à parte e não entra.`,
     ),
   imob_preenchimento: () =>
     e(
       "Sem meta oficial (não conta)",
-      "Soma das metas de comissão dos planos começados, sem meta oficial gravada e sem assinatura. Só informa: não entra na meta oficial.",
+      "Soma das metas de comissão calculadas nos planos começados que ainda não têm meta oficial gravada. Só informa: não entra na meta oficial.",
     ),
   imob_diferenca: () =>
     e(
@@ -351,6 +351,11 @@ export const EXPLICACOES = {
     e(
       "Plano com valor a conferir",
       "O plano tem número fora do comum: transações acima de 150 por ano (ou com ponto/vírgula), ticket abaixo de R$ 50 mil ou acima de R$ 10 mi, comissão por transação abaixo de R$ 1.000 ou fora de 1% a 10%, ou meta acima de R$ 1 mi. Só marca para revisar: o plano continua na soma e no farol como está.",
+    ),
+  meta_gravada_a_conferir: () =>
+    e(
+      "Meta gravada a conferir",
+      "Meta oficial gravada acima do limite de bloqueio: comissão do ano acima de R$ 5 mi, mais de 1.000 transações ou mais de 500 captações. Fica FORA da soma oficial e do farol até o corretor corrigir o plano e gravar de novo.",
     ),
   corretor_a_conferir: () =>
     e(

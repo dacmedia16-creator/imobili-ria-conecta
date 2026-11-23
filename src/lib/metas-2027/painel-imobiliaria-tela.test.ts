@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { createElement } from "react";
 import type { Respostas } from "@/lib/meu-plano-2027/regras";
+import { comGravada } from "./teste-gravada";
 
 const rpc = vi.fn();
 const escritas: string[] = [];
@@ -55,6 +56,7 @@ const PLANOS = {
       tem_plano: true,
       respostas: PLANO,
       assinado_em: "2026-12-10T13:00:00Z",
+      ...comGravada(PLANO), // a assinatura grava a meta oficial (t_91ec7aa3)
     },
     {
       user_id: "b",

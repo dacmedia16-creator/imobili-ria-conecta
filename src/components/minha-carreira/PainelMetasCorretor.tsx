@@ -304,8 +304,10 @@ function Conteudo({ dados }: { dados: Dados }) {
 
       {!temMeta ? (
         <EmptyState icon={Target}>
-          {situacao === "assinado"
-            ? "Seu plano está assinado, mas não fecha a meta de comissão."
+          {selo === "meta_a_conferir"
+            ? `Sua meta oficial gravada está fora do limite (${painel.motivoMetaAConferir}) e não conta na meta da equipe. Corrija o plano e clique de novo em "Usar como minha meta oficial".`
+            : situacao === "assinado"
+            ? 'Seu plano está assinado, mas a meta oficial não foi gravada. Peça ao seu gestor para reabrir o plano e grave a meta em "Usar como minha meta oficial".'
             : situacao === "preenchimento"
               ? 'Seu Meu Plano 2027 ainda está em preenchimento. A meta entra aqui quando você clicar em "Usar como minha meta oficial" ou assinar.'
               : 'Você ainda não tem o Meu Plano 2027. A meta entra aqui quando você gravar a meta oficial ("Usar como minha meta oficial") ou assinar.'}{" "}

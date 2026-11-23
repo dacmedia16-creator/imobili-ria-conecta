@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Respostas } from "@/lib/meu-plano-2027/regras";
+import { gravadaDe } from "./teste-gravada";
 import {
   dataAprovacao,
   larguraBarra,
@@ -24,7 +25,13 @@ const PLANO: Respostas = {
   "mt.comMedia": "5000",
   "m.ticket": "400000",
 };
-const ASSINADO = { respostas: PLANO, assinadoEm: "2026-12-10T13:00:00Z" };
+// A assinatura grava a meta oficial (fonte única, t_91ec7aa3).
+const ASSINADO = {
+  respostas: PLANO,
+  assinadoEm: "2026-12-10T13:00:00Z",
+  metaOficial: gravadaDe(PLANO),
+  metaOficialEm: "2026-12-10T13:00:00Z",
+};
 
 const venda = (p: Partial<ComissaoVendaCorretor> & { sale_id: string; venda_em: string }) =>
   ({

@@ -118,8 +118,8 @@ export function EquipePlano({
   }, [carregar]);
 
   const linhas = useMemo(() => {
-    // Mesma regra do somarPlanos e dos painéis de metas (seloMeta): assinado = meta do plano (taxas padrão em
-    // número, como lerTaxasPadrao); sem assinatura = meta oficial GRAVADA no clique. Só exibição; nada é gravado.
+    // Mesma regra do somarPlanos e dos painéis de metas (seloMeta, t_91ec7aa3): conta quem tem a meta oficial
+    // GRAVADA (botão verde ou assinatura), dentro do limite. Só exibição; nada é gravado.
     const n = (v: unknown) => (v == null ? null : Number(v));
     const padrao = taxas
       ? { v2cre: n(taxas.v2cre), v1v2: n(taxas.v1v2), folga: n(taxas.folga) }
@@ -340,7 +340,7 @@ export function EquipePlano({
         </b>{" "}
         já contam na meta{" "}
         <span className="text-xs text-muted-foreground">
-          (meta oficial gravada em "Usar como minha meta oficial" ou plano assinado)
+          (meta oficial gravada no botão verde "Usar como minha meta oficial", mesmo sem assinar)
         </span>
       </p>
       {linhas.length === 0 ? (

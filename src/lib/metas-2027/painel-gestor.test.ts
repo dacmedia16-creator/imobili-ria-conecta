@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Respostas } from "@/lib/meu-plano-2027/regras";
+import { comGravada } from "./teste-gravada";
 import {
   montarPainelGestor,
   periodosDoPainel,
@@ -34,10 +35,12 @@ const pessoa = (p: Partial<PessoaRpc> & { user_id: string }): PessoaRpc => ({
   assinado_em: null,
   ...p,
 });
+// A assinatura grava a meta oficial (fonte única, t_91ec7aa3).
 const assinado = (r: Respostas) => ({
   tem_plano: true,
   respostas: r,
   assinado_em: "2026-12-10T13:00:00Z",
+  ...comGravada(r),
 });
 
 const PLANOS: PlanosRpc = {

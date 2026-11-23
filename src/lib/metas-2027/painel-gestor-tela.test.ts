@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createElement } from "react";
 import type { Respostas } from "@/lib/meu-plano-2027/regras";
+import { comGravada } from "./teste-gravada";
 
 const rpc = vi.fn();
 const escritas: string[] = [];
@@ -45,7 +46,13 @@ const PLANO: Respostas = {
   "mt.comMedia": "5000",
   "m.ticket": "400000",
 };
-const assinado = { tem_plano: true, respostas: PLANO, assinado_em: "2026-12-10T13:00:00Z" };
+// A assinatura grava a meta oficial (fonte única, t_91ec7aa3).
+const assinado = {
+  tem_plano: true,
+  respostas: PLANO,
+  assinado_em: "2026-12-10T13:00:00Z",
+  ...comGravada(PLANO),
+};
 const semPlano = { tem_plano: false, respostas: null, assinado_em: null };
 const PLANOS_ADMIN = {
   todas: true,
