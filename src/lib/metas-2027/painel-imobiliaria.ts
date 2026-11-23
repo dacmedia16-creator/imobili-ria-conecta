@@ -3,7 +3,7 @@
  *
  * Monta em cima do painel do gestor (montarPainelGestor, etapa 3: mesmas RPCs metas_equipe_planos e
  * metas_equipe_realizado) e acrescenta:
- * - meta da DIREÇÃO (metas_direcao, digitada pelo admin) × soma dos planos ASSINADOS (oficial) × soma em
+ * - meta da DIREÇÃO (metas_direcao, digitada pelo admin) × soma das metas oficiais GRAVADAS (botão verde ou assinatura; oficial) × soma em
  *   preenchimento (fora da meta), com a diferença (compararComDirecao);
  * - meta × realizado mês a mês da imobiliária (gráfico);
  * - ranking por equipe e por corretor com farol de meta;
