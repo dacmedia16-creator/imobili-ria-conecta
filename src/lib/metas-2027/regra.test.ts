@@ -311,9 +311,10 @@ describe("soma de equipe/imobiliária sem venda em dobro", () => {
 describe("soma dos planos, meta da direção e cobertura", () => {
   const meta = metaDoPlano(PLANO)!;
   const planos: PlanoPessoa[] = [
-    { userId: "A", situacao: "assinado", meta },
-    { userId: "A", situacao: "assinado", meta }, // repetido: soma 1 vez
-    { userId: "B", situacao: "assinado", meta: metaDoPlano(PLANO_SAZONAL) },
+    // oficial = a assinatura gravou a meta oficial (fonte única, t_91ec7aa3).
+    { userId: "A", situacao: "assinado", meta, oficial: true },
+    { userId: "A", situacao: "assinado", meta, oficial: true }, // repetido: soma 1 vez
+    { userId: "B", situacao: "assinado", meta: metaDoPlano(PLANO_SAZONAL), oficial: true },
     { userId: "C", situacao: "preenchimento", meta },
     { userId: "D", situacao: "sem_plano", meta: null },
   ];

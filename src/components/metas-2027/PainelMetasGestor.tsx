@@ -122,8 +122,9 @@ export function PainelMetasGestor() {
           <Target className="h-5 w-5" aria-hidden /> Painel de metas {ANO_PLANO} · Equipes
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          A meta vem só dos planos ASSINADOS (Meu Plano {ANO_PLANO}) e é comparada só com o
-          realizado de quem assinou. A produção de quem ainda não assinou aparece à parte.
+          Meta oficial = soma das metas marcadas pelos corretores no botão verde "Usar como minha
+          meta oficial" (Meu Plano {ANO_PLANO}), mesmo sem assinar, comparada só com o realizado
+          deles. A produção de quem não tem meta oficial aparece à parte.
         </p>
       </CardHeader>
       <CardContent className="space-y-4 px-3 sm:px-6" data-testid="painel-metas-gestor">
@@ -393,7 +394,7 @@ function ResumoGrupo({
         data-testid="nao-assinados"
       >
         <RotuloInfo chave="equipe_nao_assinados">
-          Produção de quem ainda não assinou o plano{antes ? ` (${painel.anoDados})` : ""}:
+          Produção de quem não tem meta oficial gravada{antes ? ` (${painel.anoDados})` : ""}:
         </RotuloInfo>{" "}
         <b className="text-foreground">{brl(grupo.naoAssinados.realizado.comissao ?? 0)}</b> ·{" "}
         {grupo.naoAssinados.pessoas} {grupo.naoAssinados.pessoas === 1 ? "corretor" : "corretores"}{" "}
@@ -413,7 +414,27 @@ function ResumoGrupo({
               : "planos com valor a conferir"}
             :
           </RotuloInfo>{" "}
-          {grupo.aConferir.nomes.join(", ")}. Já incluídos nas somas.
+          {grupo.aConferir.nomes.join(", ")}. Só marcados para revisar; acima do limite de bloqueio
+          ficam fora das somas.
+        </p>
+      ) : null}
+      {grupo.metaAConferir.nomes.length > 0 ? (
+        <p
+          className="rounded-md bg-red-50 px-2 py-1.5 text-xs text-red-900 dark:bg-red-950/40 dark:text-red-200"
+          data-testid="grupo-meta-a-conferir"
+        >
+          <RotuloInfo chave="meta_gravada_a_conferir">
+            ⛔ {grupo.metaAConferir.nomes.length}{" "}
+            {grupo.metaAConferir.nomes.length === 1
+              ? "meta gravada fora do limite"
+              : "metas gravadas fora do limite"}
+            :
+          </RotuloInfo>{" "}
+          {grupo.metaAConferir.nomes.join(", ")}
+          {grupo.metaAConferir.comissao != null
+            ? ` (somam ${brl(grupo.metaAConferir.comissao)})`
+            : ""}
+          . NÃO entram na soma: a conferir.
         </p>
       ) : null}
 
@@ -424,7 +445,7 @@ function ResumoGrupo({
         {grupo.soma.qtdFaltaAssinar > 0 ? (
           <>
             {" "}
-            · <b>{grupo.soma.qtdFaltaAssinar}</b> com meta oficial contando, falta assinar
+            · <b>{grupo.soma.qtdFaltaAssinar}</b> com meta oficial gravada contando, falta assinar
           </>
         ) : null}
         {grupo.soma.qtdPreenchimento > 0 ? (
@@ -434,6 +455,13 @@ function ResumoGrupo({
             {grupo.soma.qtdPreenchimento}
             {grupo.soma.preenchimentoAno.comissao != null ? (
               <> (somam {brl(grupo.soma.preenchimentoAno.comissao)}, sem meta oficial)</>
+            ) : null}
+            {grupo.preenchimentoAConferir.nomes.length > 0 ? (
+              <span data-testid="equipe-preenchimento-a-conferir">
+                {" "}
+                · ⛔ {grupo.preenchimentoAConferir.nomes.join(", ")} com valor fora do limite, a
+                conferir, fora dessa soma
+              </span>
             ) : null}
           </>
         ) : null}
@@ -527,7 +555,13 @@ function CartaoPessoa({
         <p className="text-xs text-muted-foreground">
           <RotuloInfo chave="pessoa_plano">
             Plano: {ROTULO_PLANO[c.situacao]}
-            {c.selo === "conta_falta_assinar" ? " · conta na meta (falta assinar)" : ""}
+            {c.selo === "conta_falta_assinar"
+              ? " · conta na meta (falta assinar)"
+              : c.selo === "meta_a_conferir"
+                ? " · meta gravada fora do limite (não conta)"
+                : c.selo === "assinado_sem_meta"
+                  ? " · sem meta oficial gravada (não conta)"
+                  : ""}
           </RotuloInfo>
         </p>
         {/* Reabrir (t_495e4305): o banco confere quem pode (broker = imobiliária; TL = só a equipe dele). */}

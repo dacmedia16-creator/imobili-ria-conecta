@@ -1,10 +1,11 @@
 /**
  * "Plano com valor a conferir" nos 3 painéis (t_125c4dd3). Mesma regra (conferirPlano) do Meu Plano 2027.
- * O plano marcado CONTINUA na soma e no farol (nada muda nas contas); plano antigo assinado acima do limite
- * continua assinado e aparece marcado.
+ * Aviso amarelo só marca (o plano continua na soma). Desde t_91ec7aa3 (Denis 23/11): META GRAVADA acima do limite de
+ * BLOQUEIO sai da soma e aparece à parte, "a conferir"; o plano continua assinado.
  */
 import { describe, expect, it } from "vitest";
 import type { Respostas } from "@/lib/meu-plano-2027/regras";
+import { comGravada, gravadaDe } from "./teste-gravada";
 import {
   montarPainelGestor,
   type PessoaRpc,
@@ -46,6 +47,8 @@ const p = (id: string, r: Respostas | null, assinado: boolean): PessoaRpc => ({
   tem_plano: r != null,
   respostas: r,
   assinado_em: assinado ? "2026-11-10T12:00:00Z" : null,
+  // A assinatura gravou a meta oficial com a conta das respostas (fonte única, t_91ec7aa3).
+  ...(assinado ? comGravada(r, "2026-11-10T12:00:00Z") : {}),
 });
 const planos = (ps: PessoaRpc[]): PlanosRpc => ({
   todas: true,
@@ -80,11 +83,14 @@ describe("painel das equipes", () => {
       nomes: expect.arrayContaining(["errado", "alto"]),
     });
   });
-  it("o plano antigo acima do limite continua assinado e DENTRO da soma (contas iguais a antes)", () => {
+  it("plano antigo assinado com meta GRAVADA acima do limite: continua assinado, mas FORA da soma (Denis 23/11, t_91ec7aa3)", () => {
     const c = g.pessoas.find((x) => x.userId === "errado")!;
     expect(c.situacao).toBe("assinado");
+    expect(c.selo).toBe("meta_a_conferir");
     expect(g.soma.qtdAssinados).toBe(2);
-    expect(g.soma.assinados?.ano.comissao).toBe(120000 + 680400000);
+    expect(g.soma.assinados?.ano.comissao).toBe(120000);
+    expect(g.soma.qtdAConferir).toBe(1);
+    expect(g.metaAConferir).toEqual({ nomes: ["errado"], comissao: 680400000 });
     expect(g.soma.preenchimentoAno.comissao).toBe(1400000);
   });
   it("sem nenhum plano fora da faixa: nada marcado", () => {
@@ -94,7 +100,7 @@ describe("painel das equipes", () => {
 });
 
 describe("painel da imobiliária", () => {
-  it("total e ranking mostram a marca; a soma dos assinados não muda", () => {
+  it("total e ranking mostram a marca; meta gravada fora do limite sai da soma oficial", () => {
     const ps = [p("bom", BOM, true), p("errado", ERRADO, true), p("alto", ALTO, false)];
     const i = montarPainelImobiliaria({
       ...entrada(ps),
@@ -104,7 +110,8 @@ describe("painel da imobiliária", () => {
     });
     expect(i.total.aConferir.assinados).toBe(1);
     expect(i.total.aConferir.preenchimento).toBe(1);
-    expect(i.comparacao.comissao.somaAssinados).toBe(680520000);
+    expect(i.comparacao.comissao.somaAssinados).toBe(120000);
+    expect(i.total.metaAConferir.nomes).toEqual(["errado"]);
     expect(i.rankingCorretores.find((l) => l.id === "errado")?.aConferir).toBe(1);
     expect(i.rankingCorretores.find((l) => l.id === "bom")?.aConferir).toBe(0);
     expect(i.rankingEquipes[0].aConferir).toBe(2);
@@ -119,13 +126,20 @@ describe("painel do corretor", () => {
     captacoesContagem: { ano: 0, mes: 0 },
     captacoes: [],
   };
-  it("plano antigo assinado acima do limite: meta igual, com o aviso", () => {
+  it("plano antigo assinado com meta gravada acima do limite: sem meta (a conferir), com o aviso", () => {
     const c = montarPainelCorretor({
       ...base,
-      plano: { respostas: ERRADO, assinadoEm: "2026-11-10T12:00:00Z" },
+      plano: {
+        respostas: ERRADO,
+        assinadoEm: "2026-11-10T12:00:00Z",
+        metaOficial: gravadaDe(ERRADO),
+        metaOficialEm: "2026-11-10T12:00:00Z",
+      },
     });
     expect(c.situacao).toBe("assinado");
-    expect(c.meta?.ano.comissao).toBe(680400000);
+    expect(c.selo).toBe("meta_a_conferir");
+    expect(c.meta).toBeNull();
+    expect(c.motivoMetaAConferir).toMatch(/R\$ 5 milhões/);
     expect(c.aConferir.map((a) => a.campo)).toEqual(["mt.tCapt", "mt.tVenda", "vgc"]);
   });
   it("plano bom: sem aviso", () => {

@@ -6,7 +6,7 @@
  *
  * Fontes (todas do próprio corretor, na imobiliária ativa):
  * - meta: carreira_plano (respostas + assinado_corretor_em + meta_oficial gravada) → planoComSelo (consolidado.ts),
- *   a mesma regra do selo da Equipe e da soma da equipe/imobiliária (t_bd480fee);
+ *   a mesma regra do selo da Equipe e da soma da equipe/imobiliária: vale a meta oficial GRAVADA (t_91ec7aa3);
  * - vendas: RPC minha_comissao_vendas (venda na ASSINATURA; só a parte dele + o descontado DELE);
  * - captações: meu_realizado (contagem oficial do ano e do mês) + lista de captações aprovadas (data e imóvel).
  */
@@ -70,8 +70,10 @@ export type Cumprida =
 
 export type PainelCorretor = {
   situacao: SituacaoPlano;
-  /** Conta na meta? Mesma regra do selo da Equipe (assinado ou meta oficial gravada pelo clique). */
+  /** Conta na meta? Mesma regra do selo da Equipe (meta oficial gravada dentro do limite, t_91ec7aa3). */
   selo: SeloMeta;
+  /** Meta gravada fora do limite de bloqueio: motivo (não conta); null = dentro ou sem meta gravada. */
+  motivoMetaAConferir: string | null;
   pos: Posicao;
   meta: MetaPlano | null;
   avaliacao: Avaliacao;
@@ -188,7 +190,7 @@ export function montarPainelCorretor(e: {
 }): PainelCorretor {
   const pos = posicaoNoAno(e.hoje);
   // Regra ÚNICA do selo (consolidado.ts): a mesma que soma a meta da equipe e da imobiliária (t_bd480fee).
-  const { situacao, meta, selo } = planoComSelo(e.plano, e.padrao);
+  const { situacao, meta, selo, motivoAConferir } = planoComSelo(e.plano, e.padrao);
   const real = realizadoDoCorretor(e.userId, e.vendas, e.captacoesContagem, pos);
   const avaliacao = avaliarPessoa({ situacao, meta, selo }, real, pos);
   // Antes de jan/2027 a lista mostra o ano corrente (a tela carrega as vendas desse ano).
@@ -209,6 +211,7 @@ export function montarPainelCorretor(e: {
   return {
     situacao,
     selo,
+    motivoMetaAConferir: motivoAConferir,
     pos,
     meta: contaNaMeta(selo) ? meta : null,
     avaliacao,

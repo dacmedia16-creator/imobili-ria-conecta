@@ -47,11 +47,17 @@ describe("textos do ícone i", () => {
   it("Opção A fica explícita: meta e realizado só de quem conta na meta; resto à parte; direção × casa toda", () => {
     const antes = { ano: 2026, anoPlano: 2027 };
     const dur = { ano: 2027, anoPlano: 2027 };
-    // t_bd480fee: conta na meta = meta oficial gravada (mesmo sem assinar) ou plano assinado.
+    // t_91ec7aa3: conta na meta = SÓ meta oficial gravada (botão verde ou assinatura), mesmo sem assinar.
     expect(explicacao("equipe_meta_assinados", antes).texto).toMatch(
       /Usar como minha meta oficial/,
     );
-    expect(explicacao("equipe_meta_assinados", antes).texto).toMatch(/mesmo sem assinar.*ASSINADO/);
+    expect(explicacao("equipe_meta_assinados", antes).texto).toMatch(
+      /mesmo sem assinar.*valor gravado/,
+    );
+    expect(explicacao("imob_soma_assinados", antes).texto).toMatch(
+      /^Meta oficial = soma das metas 2027 gravadas.*botão verde/,
+    );
+    expect(explicacao("meta_gravada_a_conferir", antes).texto).toMatch(/FORA da soma/);
     const com = explicacao("equipe_comissao_ano", antes);
     expect(com.texto).toMatch(/Comissão 2026 = .*de quem conta na meta/);
     expect(com.texto).toMatch(/não a bruta/);

@@ -1,9 +1,10 @@
 /**
  * Soma de planos da equipe/imobiliária, meta da direção e cobertura (cartão t_f87b2ae5). Puro.
  *
- * - OFICIAL = soma de quem CONTA NA META: planos ASSINADOS + metas oficiais gravadas pelo clique "Usar como minha
- *   meta oficial" ainda sem assinatura (t_bd480fee, Denis 23/11). "Em preenchimento" sem meta oficial vem separado
- *   e NUNCA entra na meta oficial nem no farol.
+ * - OFICIAL = soma das METAS OFICIAIS GRAVADAS (carreira_plano.meta_oficial), FONTE ÚNICA (t_91ec7aa3, Denis 23/11):
+ *   conta quem gravou a meta pelo botão verde "Usar como minha meta oficial" (já no clique, mesmo sem assinar) ou
+ *   pela assinatura. Os valores são os GRAVADOS, para todos: o painel não recalcula mais pelas respostas.
+ *   Sem meta gravada (mesmo assinado) não conta. Meta gravada fora dos LIMITES de bloqueio fica fora, "a conferir".
  * - Meta da direção (comissão, vendas, VGV e captações do ANO, sem mês a mês por enquanto) é comparada
  *   com a soma dos assinados: diferença positiva = os planos passam da direção.
  * - Cobertura = quem tem plano assinado ÷ quem deveria ter (corretores ativos + gestor/TL que vendem).
@@ -22,48 +23,61 @@ import {
   situacaoPlano,
 } from "./regra";
 import type { Respostas, TaxasFunil } from "@/lib/meu-plano-2027/regras";
+import { LIMITES } from "@/lib/meu-plano-2027/conferencia";
 
 export type PlanoPessoa = {
   userId: string;
   situacao: SituacaoPlano;
   /**
-   * Meta que vale para a pessoa: assinado = metaDoPlano(respostas); não assinado com meta oficial gravada =
-   * metaDaGravada (valores do clique); senão metaDoPlano(respostas) só para informar. null = sem meta.
+   * Meta da pessoa: com meta oficial gravada = metaDaGravada (valores GRAVADOS); sem ela = metaDoPlano(respostas)
+   * só para informar ("em preenchimento", não conta). null = sem meta.
    */
   meta: MetaPlano | null;
-  /** true = `meta` veio da meta oficial GRAVADA pelo clique "Usar como minha meta oficial" (sem assinatura). */
+  /** true = `meta` veio da meta oficial GRAVADA (botão verde ou assinatura). Só essa conta na meta. */
   oficial?: boolean;
+  /** Meta gravada acima dos limites de bloqueio: fica fora da soma, à parte como "a conferir". */
+  foraDoLimite?: boolean;
 };
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
 /**
- * Selo de cada pessoa na meta da equipe (cartões t_a4fff17e e t_bd480fee). Regra ÚNICA, usada pelo somarPlanos,
- * pelos 3 painéis de metas e pelo selo da lista da Equipe do Meu Plano, para nunca divergirem:
- * - "conta": plano assinado E com meta (VGC) → entra na soma (igual a antes);
- * - "conta_falta_assinar": não assinou, mas gravou a meta oficial ("Usar como minha meta oficial", Denis 23/11)
- *   → entra na soma com os valores GRAVADOS; o pacto continua sem assinatura;
- * - "assinado_sem_meta": assinou, mas o plano não fecha meta (sem VGC) → não soma;
+ * Selo de cada pessoa na meta da equipe (cartões t_a4fff17e, t_bd480fee e t_91ec7aa3). Regra ÚNICA, usada pelo
+ * somarPlanos, pelos 3 painéis de metas e pelo selo/contador da lista da Equipe do Meu Plano:
+ * - "conta": tem meta oficial gravada e assinou → entra na soma com os valores GRAVADOS;
+ * - "conta_falta_assinar": tem meta oficial gravada (botão verde) e não assinou → entra na soma igual;
+ * - "meta_a_conferir": tem meta gravada, mas acima dos LIMITES de bloqueio → fica FORA da soma, à parte;
+ * - "assinado_sem_meta": assinou, mas não tem meta oficial gravada → não conta;
  * - "falta_meta": sem assinatura e sem meta oficial gravada (ou plano reaberto) → não conta.
  */
-export type SeloMeta = "conta" | "conta_falta_assinar" | "assinado_sem_meta" | "falta_meta";
-export function seloMeta(p: Pick<PlanoPessoa, "situacao" | "meta" | "oficial">): SeloMeta {
-  if (p.situacao === "assinado") return p.meta ? "conta" : "assinado_sem_meta";
-  return p.oficial && p.meta ? "conta_falta_assinar" : "falta_meta";
+export type SeloMeta =
+  "conta" | "conta_falta_assinar" | "meta_a_conferir" | "assinado_sem_meta" | "falta_meta";
+export function seloMeta(
+  p: Pick<PlanoPessoa, "situacao" | "meta" | "oficial" | "foraDoLimite">,
+): SeloMeta {
+  if (p.oficial && p.meta) {
+    if (p.foraDoLimite) return "meta_a_conferir";
+    return p.situacao === "assinado" ? "conta" : "conta_falta_assinar";
+  }
+  return p.situacao === "assinado" ? "assinado_sem_meta" : "falta_meta";
 }
 
 /** O selo entra na meta da equipe/imobiliária (soma, realizado comparado e farol)? */
 export const contaNaMeta = (selo: SeloMeta) => selo === "conta" || selo === "conta_falta_assinar";
 
 /** Texto e cor do selo na lista da Equipe do Meu Plano. */
-export const SELO_META: Record<SeloMeta, { texto: string; tom: "green" | "amber" | "slate" }> = {
+export const SELO_META: Record<
+  SeloMeta,
+  { texto: string; tom: "green" | "amber" | "red" | "slate" }
+> = {
   conta: { texto: "Conta na meta", tom: "green" },
   conta_falta_assinar: { texto: "Conta na meta · falta assinar", tom: "amber" },
+  meta_a_conferir: { texto: "Meta a conferir · não conta", tom: "red" },
   assinado_sem_meta: { texto: "Assinou, falta a meta", tom: "amber" },
   falta_meta: { texto: "Falta a meta oficial", tom: "slate" },
 };
 
-/** Contador "X de N já contam na meta": quantos entram no somarPlanos (assinados + metas oficiais gravadas). */
+/** Contador "X de N já contam na meta": quantos entram no somarPlanos (metas gravadas dentro do limite). */
 export const contarNaMeta = (linhas: readonly { selo: SeloMeta }[]) =>
   linhas.filter((l) => contaNaMeta(l.selo)).length;
 
@@ -80,6 +94,39 @@ const numOuNull = (v: unknown): number | null => {
   const x = Number(v);
   return Number.isFinite(x) ? x : null;
 };
+
+/**
+ * Meta gravada acima dos LIMITES de bloqueio (conferencia.ts) → motivo; dentro → null. Denis 23/11: fica FORA da
+ * soma oficial e aparece à parte, "a conferir". Mesmos tetos da tela e do banco (carreira_plano_usar_meta):
+ * comissão (VGC) acima de R$ 5 mi; transações (captação + venda, até 500 cada) acima de 1.000; captações acima de
+ * 500 (mesmo critério usado para desmarcar as metas absurdas em t_b26b7b26).
+ */
+export function metaGravadaForaDoLimite(g: MetaOficialGravada | null | undefined): string | null {
+  if (!g) return null;
+  const c = numOuNull(g.meta_comissao);
+  const v = numOuNull(g.meta_vendas);
+  const k = numOuNull(g.meta_captacoes);
+  const maxTrans = LIMITES.transBloqueio * 2;
+  if (c != null && c > LIMITES.vgcBloqueio) return "meta de comissão do ano acima de R$ 5 milhões";
+  if (v != null && v > maxTrans) return `mais de ${maxTrans} transações no ano`;
+  if (k != null && k > LIMITES.transBloqueio)
+    return `mais de ${LIMITES.transBloqueio} captações no ano`;
+  return null;
+}
+
+/**
+ * Mesma checagem de limite para uma meta CALCULADA pelas respostas (plano sem meta oficial gravada). Pedido de
+ * Denis/MAX 23/11: o cartão "Sem meta oficial (não conta)" não pode somar valor que dispara bloqueio (ex.: 81.000
+ * transações → R$ 2,2 bi); esse plano sai da soma informativa e aparece à parte, "a conferir".
+ */
+export const valoresForaDoLimite = (v: Valores | null | undefined): string | null =>
+  v
+    ? metaGravadaForaDoLimite({
+        meta_comissao: v.comissao,
+        meta_vendas: v.vendas,
+        meta_captacoes: v.captacoes,
+      })
+    : null;
 
 /**
  * Meta do ANO = valores GRAVADOS no clique (não recalcula das respostas). Mês a mês = o formato do próprio plano
@@ -112,9 +159,9 @@ export function metaDaGravada(
 }
 
 /**
- * Plano cru (assinatura + respostas + meta oficial gravada, como vem da RPC) → situação, meta e selo, com a MESMA
- * conta do painel de metas (situacaoPlano + metaDoPlano com as taxas padrão). Vai direto para o somarPlanos.
- * Meta oficial só vale com o valor E a data gravados (a reabertura do plano apaga os dois).
+ * Plano cru (assinatura + respostas + meta oficial gravada, como vem da RPC) → situação, meta e selo. Vai direto
+ * para o somarPlanos. FONTE ÚNICA (t_91ec7aa3): a meta que conta é a GRAVADA (valor E data; a reabertura apaga os
+ * dois), assinado ou não. As respostas só dão o formato mês a mês e, sem meta gravada, a soma informativa.
  */
 export function planoComSelo(
   p:
@@ -127,16 +174,30 @@ export function planoComSelo(
     | null
     | undefined,
   padrao?: Partial<TaxasFunil> | null,
-): { situacao: SituacaoPlano; meta: MetaPlano | null; oficial: boolean; selo: SeloMeta } {
+): {
+  situacao: SituacaoPlano;
+  meta: MetaPlano | null;
+  oficial: boolean;
+  foraDoLimite: boolean;
+  /** Motivo do "a conferir" (meta gravada fora do limite); null = dentro. */
+  motivoAConferir: string | null;
+  selo: SeloMeta;
+} {
   const situacao = situacaoPlano(p);
   const doPlano = situacao === "sem_plano" ? null : metaDoPlano(p?.respostas, padrao);
-  const gravada =
-    situacao !== "assinado" && p?.metaOficial && p.metaOficialEm
-      ? metaDaGravada(p.metaOficial, doPlano)
-      : null;
+  const gravada = p?.metaOficial && p.metaOficialEm ? metaDaGravada(p.metaOficial, doPlano) : null;
   const oficial = gravada != null;
   const meta = gravada ?? doPlano;
-  return { situacao, meta, oficial, selo: seloMeta({ situacao, meta, oficial }) };
+  const motivoAConferir = oficial ? metaGravadaForaDoLimite(p?.metaOficial) : null;
+  const foraDoLimite = motivoAConferir != null;
+  return {
+    situacao,
+    meta,
+    oficial,
+    foraDoLimite,
+    motivoAConferir,
+    selo: seloMeta({ situacao, meta, oficial, foraDoLimite }),
+  };
 }
 
 function somar(alvo: Valores, v: Valores) {
@@ -149,12 +210,21 @@ function somar(alvo: Valores, v: Valores) {
 
 export type SomaPlanos = {
   /**
-   * Meta OFICIAL do grupo = soma de quem CONTA NA META (assinados + metas oficiais gravadas sem assinatura,
-   * Denis 23/11); null em mês/indicador sem nenhum valor. O nome ficou por compatibilidade.
+   * Meta OFICIAL do grupo = soma das metas oficiais GRAVADAS dentro do limite (fonte única, Denis 23/11); null
+   * sem nenhuma. O nome ficou por compatibilidade.
    */
   assinados: MetaPlano | null;
-  /** Soma do ano dos planos em preenchimento SEM meta oficial gravada (só informativo, não conta). */
+  /** Metas gravadas fora do limite: NÃO entram na soma; aparecem à parte, "a conferir". */
+  qtdAConferir: number;
+  /** Soma do ano dessas metas fora do limite (só informativo). */
+  aConferirAno: Valores;
+  /**
+   * Soma do ano dos planos em preenchimento SEM meta oficial gravada (só informativo, não conta). Plano com meta
+   * calculada acima dos limites de bloqueio fica fora desta soma (ver preenchimentoAConferir).
+   */
   preenchimentoAno: Valores;
+  /** Planos sem meta gravada cuja meta calculada passa dos limites: fora da soma informativa, "a conferir". */
+  preenchimentoAConferir: { userIds: string[]; ano: Valores };
   /** Pactos assinados (com ou sem meta): continua separado para o broker cobrar a assinatura. */
   qtdAssinados: number;
   /** Quantos entram na soma (selo "conta" + "conta_falta_assinar"). */
@@ -172,6 +242,9 @@ export function somarPlanos(planos: readonly PlanoPessoa[]): SomaPlanos {
   const ano = valoresVazios();
   const meses = Array.from({ length: 12 }, valoresVazios);
   const preenchimentoAno = valoresVazios();
+  const aConferirAno = valoresVazios();
+  const preenchimentoAConferir = { userIds: [] as string[], ano: valoresVazios() };
+  let qtdAConferir = 0;
   let qtdAssinados = 0;
   let qtdContam = 0;
   let qtdFaltaAssinar = 0;
@@ -181,18 +254,24 @@ export function somarPlanos(planos: readonly PlanoPessoa[]): SomaPlanos {
     if (vistos.has(p.userId)) continue;
     vistos.add(p.userId);
     const selo = seloMeta(p);
+    // Pactos assinados: contados à parte, com ou sem meta (o broker cobra a assinatura).
+    if (p.situacao === "assinado") qtdAssinados++;
     if (contaNaMeta(selo) && p.meta) {
       qtdContam++;
-      if (selo === "conta") qtdAssinados++;
-      else qtdFaltaAssinar++;
+      if (selo === "conta_falta_assinar") qtdFaltaAssinar++;
       somar(ano, p.meta.ano);
       p.meta.meses.forEach((m, i) => somar(meses[i], m));
+    } else if (selo === "meta_a_conferir") {
+      qtdAConferir++;
+      if (p.meta) somar(aConferirAno, p.meta.ano);
     } else if (selo === "assinado_sem_meta") {
-      // Assinado mas incompleto (sem VGC): conta como assinado, sem somar meta.
-      qtdAssinados++;
+      // Assinou sem meta oficial gravada: só o pacto conta (acima); não soma meta.
     } else if (p.situacao === "preenchimento") {
       qtdPreenchimento++;
-      if (p.meta) somar(preenchimentoAno, p.meta.ano);
+      if (p.meta && valoresForaDoLimite(p.meta.ano)) {
+        preenchimentoAConferir.userIds.push(p.userId);
+        somar(preenchimentoAConferir.ano, p.meta.ano);
+      } else if (p.meta) somar(preenchimentoAno, p.meta.ano);
     } else qtdSemPlano++;
   }
   const diverge = Object.fromEntries(INDICADORES.map((k) => [k, false])) as Record<
@@ -200,8 +279,11 @@ export function somarPlanos(planos: readonly PlanoPessoa[]): SomaPlanos {
     boolean
   >;
   return {
-    assinados: qtdAssinados + qtdFaltaAssinar > 0 ? { ano, meses, diverge } : null,
+    assinados: qtdContam > 0 ? { ano, meses, diverge } : null,
     preenchimentoAno,
+    preenchimentoAConferir,
+    qtdAConferir,
+    aConferirAno,
     qtdAssinados,
     qtdContam,
     qtdFaltaAssinar,
@@ -212,7 +294,7 @@ export function somarPlanos(planos: readonly PlanoPessoa[]): SomaPlanos {
 
 /**
  * Avaliação de UMA pessoa (painel do corretor e cartões do gestor), com a mesma regra do selo: quem conta na meta
- * (assinado ou meta oficial gravada) tem meta, %, ritmo e farol; os demais ficam ⚪ sem meta.
+ * (meta oficial gravada dentro do limite) tem meta, %, ritmo e farol; os demais ficam ⚪ sem meta.
  */
 export function avaliarPessoa(
   p: { situacao: SituacaoPlano; meta: MetaPlano | null; selo: SeloMeta },

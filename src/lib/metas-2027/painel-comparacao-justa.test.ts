@@ -1,11 +1,12 @@
 /**
  * Comparação justa meta × realizado — OPÇÃO A (cartão t_e4943168, decisão de Denis 20/11, tópico 6238).
- * A meta da equipe soma só os planos ASSINADOS, então o realizado comparado com ela (%, ritmo, falta, farol) também
+ * A meta da equipe soma só as metas oficiais GRAVADAS (botão verde, mesmo sem assinar), então o realizado comparado com ela (%, ritmo, falta, farol) também
  * soma só quem assinou. A produção de quem não assinou aparece à parte. Na imobiliária, a meta da DIREÇÃO continua
  * comparada com a casa inteira. Venda dividida conta 1 vez; venda conta na assinatura.
  */
 import { describe, expect, it } from "vitest";
 import type { Respostas } from "@/lib/meu-plano-2027/regras";
+import { comGravada } from "./teste-gravada";
 import {
   montarPainelGestor,
   realizadoDoGrupo,
@@ -37,6 +38,8 @@ const pessoa = (
   tem_plano: assinadoEm != null,
   respostas: assinadoEm != null ? PLANO : null,
   assinado_em: assinadoEm,
+  // A assinatura grava a meta oficial (fonte única, t_91ec7aa3).
+  ...(assinadoEm != null ? comGravada(PLANO, assinadoEm) : {}),
   ...extra,
 });
 const planos = (ps: PessoaRpc[]): PlanosRpc => ({

@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 import type { Respostas } from "@/lib/meu-plano-2027/regras";
+import { comGravada } from "@/lib/metas-2027/teste-gravada";
 
 type Linhas = Record<string, unknown>[] | Record<string, unknown> | null;
 let tabelas: Record<string, Linhas> = {};
@@ -99,7 +100,12 @@ beforeEach(() => {
   moduloOn = true;
   inseridos.length = 0;
   tabelas = {
-    carreira_plano: { respostas: PLANO, assinado_corretor_em: "2026-12-10T13:00:00Z" },
+    // A assinatura grava a meta oficial (fonte única, t_91ec7aa3).
+    carreira_plano: {
+      respostas: PLANO,
+      assinado_corretor_em: "2026-12-10T13:00:00Z",
+      ...comGravada(PLANO),
+    },
     exclusive_captures: [
       {
         id: "c1",

@@ -75,7 +75,7 @@ describe("selo e conta: meta oficial gravada conta mesmo sem assinatura", () => 
     expect(s.qtdPreenchimento).toBe(1);
   });
 
-  it("assinado continua contando, com a meta do plano travado (igual a antes)", () => {
+  it("assinado conta pela meta GRAVADA; sem meta gravada não conta (fonte única, t_91ec7aa3)", () => {
     const r = planoComSelo({
       assinadoEm: QUANDO,
       respostas: PLANO,
@@ -83,9 +83,10 @@ describe("selo e conta: meta oficial gravada conta mesmo sem assinatura", () => 
       metaOficialEm: QUANDO,
     });
     expect(r.selo).toBe("conta");
-    expect(r.meta).toEqual(metaDoPlano(PLANO));
-    // Assinou, mas a meta oficial não foi gravada (falha logo após assinar): continua contando como hoje.
-    expect(planoComSelo({ assinadoEm: QUANDO, respostas: PLANO }).selo).toBe("conta");
+    expect(r.meta!.ano).toEqual({ comissao: 150000, vgv: 6000000, vendas: 30, captacoes: 20 });
+    expect(r.meta!.ano.comissao).not.toBe(metaDoPlano(PLANO)!.ano.comissao);
+    // Assinou, mas a meta oficial não foi gravada: não conta (Denis 23/11: conta = tem meta gravada).
+    expect(planoComSelo({ assinadoEm: QUANDO, respostas: PLANO }).selo).toBe("assinado_sem_meta");
     expect(planoComSelo({ assinadoEm: QUANDO, respostas: { "pq.frase": "x" } }).selo).toBe(
       "assinado_sem_meta",
     );
@@ -149,7 +150,8 @@ describe("selo e conta: meta oficial gravada conta mesmo sem assinatura", () => 
     expect(s.qtdAssinados).toBe(1);
     expect(s.qtdPreenchimento).toBe(1);
     expect(s.qtdSemPlano).toBe(1);
-    expect(s.assinados!.ano.comissao).toBe(120000 + 150000);
+    // Fonte única (t_91ec7aa3): o assinado "a" também entra pelo valor GRAVADO.
+    expect(s.assinados!.ano.comissao).toBe(150000 + 150000);
     expect(s.preenchimentoAno.comissao).toBe(120000); // só o "c" (sem meta oficial)
   });
 });
@@ -208,7 +210,7 @@ describe("painéis usam a mesma regra", () => {
       anotacoes: [],
     });
     const g = p.grupos[0];
-    expect(g.soma.assinados!.ano.comissao).toBe(120000 + 150000);
+    expect(g.soma.assinados!.ano.comissao).toBe(150000 + 150000); // valores gravados (t_91ec7aa3)
     expect(g.soma.qtdContam).toBe(2);
     expect(g.cobertura.assinados).toBe(1); // "Planos assinados" continua separado para cobrar a assinatura
     // Realizado comparado com a meta = de quem conta (b entra; c não).
