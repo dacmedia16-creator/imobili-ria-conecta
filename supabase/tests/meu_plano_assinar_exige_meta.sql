@@ -56,7 +56,9 @@ SELECT pg_temp.ok(jsonb_array_length(:'casos'::jsonb) >= 20, 'casos compartilhad
 
 -- 2b) Brecha da trava (Denis 23/11, item 1): sugestão e VGC pela sugestão, mesmos casos da tela (conferirPlano)
 INSERT INTO r
-SELECT (public.carreira_plano_trava(c->'r') IS NOT NULL) = (c->>'bloqueia')::boolean,
+SELECT (pg_temp.err(format('SELECT public.carreira_plano_trava(%L::jsonb)', c->'r')) IS NULL)
+       AND (public.carreira_plano_trava(c->'r') IS NOT NULL) = (c->>'bloqueia')::boolean
+       AND (c->>'msg' IS NULL OR public.carreira_plano_trava(c->'r') LIKE '%' || (c->>'msg') || '%'),
        'trava: ' || (c->>'nome') || ' -> ' || coalesce(public.carreira_plano_trava(c->'r'), 'passa')
   FROM jsonb_array_elements(:'trava_casos'::jsonb) c;
 SELECT pg_temp.ok(jsonb_array_length(:'trava_casos'::jsonb) >= 10, 'casos da trava carregados (>= 10)');

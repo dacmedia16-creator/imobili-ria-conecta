@@ -50,6 +50,7 @@
     "r": { "op.0": "5000", "es.aliq": "10", "m.faixa": "60", "m.ticket": "800", "m.pct": "3", "mt.tCapt": "20", "mt.tVenda": "10", "mt.comMedia": "10000" },
     "bloqueia": false
   },
+  { "nome": "dígitos de largura total bloqueiam com mensagem clara (não erro técnico)", "r": { "mt.tCapt": "１２", "mt.comMedia": "15000" }, "bloqueia": true, "msg": "não é um número inteiro" },
   { "nome": "digitado 42.000 continua bloqueando", "r": { "mt.tCapt": "42.000", "mt.comMedia": "15000" }, "bloqueia": true },
   { "nome": "digitado 500 + 500 com VGC 5 mi exato passa", "r": { "mt.tCapt": "500", "mt.tVenda": "500", "mt.comMedia": "5000" }, "bloqueia": false }
 ]

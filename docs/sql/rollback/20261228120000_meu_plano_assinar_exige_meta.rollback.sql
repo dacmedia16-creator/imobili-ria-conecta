@@ -69,4 +69,23 @@ END $function$;
 REVOKE ALL ON FUNCTION public.carreira_plano_trava(jsonb) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.carreira_plano_trava(jsonb) TO service_role;
 
+-- Número BR: volta ao corpo de 20261209120000.
+CREATE OR REPLACE FUNCTION public.carreira_plano_num(_v jsonb)
+RETURNS numeric LANGUAGE plpgsql IMMUTABLE SET search_path TO '' AS $function$
+DECLARE s text;
+BEGIN
+  IF _v IS NULL OR jsonb_typeof(_v) NOT IN ('number', 'string') THEN RETURN NULL; END IF;
+  IF jsonb_typeof(_v) = 'number' THEN RETURN (_v #>> '{}')::numeric; END IF;
+  s := regexp_replace(_v #>> '{}', 'R\$|\s|%', '', 'g');
+  IF s = '' THEN RETURN NULL; END IF;
+  IF position(',' IN s) > 0 THEN s := replace(replace(s, '.', ''), ',', '.');
+  ELSIF s ~ '^\d{1,3}(\.\d{3})+$' THEN s := replace(s, '.', '');
+  END IF;
+  IF s !~ '^[+-]?(\d+\.?\d*|\.\d+)$' THEN RETURN NULL; END IF;
+  RETURN s::numeric;
+EXCEPTION WHEN others THEN RETURN NULL;
+END $function$;
+REVOKE ALL ON FUNCTION public.carreira_plano_num(jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.carreira_plano_num(jsonb) TO service_role;
+
 COMMIT;

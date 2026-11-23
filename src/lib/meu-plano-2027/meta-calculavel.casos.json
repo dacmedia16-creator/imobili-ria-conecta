@@ -53,5 +53,6 @@
     "r": { "op.0": "5000", "es.aliq": "15", "m.faixa": "45", "mt.comMedia": "20000" },
     "falta": ["mt.tCapt"]
   },
+  { "nome": "valor colado de planilha com BOM/NBSP invisível é lido", "r": { "mt.tCapt": "\ufeff12", "mt.comMedia": "15\u00a0000", "m.ticket": "\ufeff450000" }, "falta": [] },
   { "nome": "valor em reais com R$ e vírgula", "r": { "mt.tCapt": " 12 ", "mt.comMedia": "R$ 12.500,50" }, "falta": [] }
 ]

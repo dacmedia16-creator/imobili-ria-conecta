@@ -13,6 +13,26 @@
 -- Rollback: docs/sql/rollback/20261228120000_meu_plano_assinar_exige_meta.rollback.sql
 BEGIN;
 
+-- Número no padrão brasileiro: igual à versão de 20261209120000, agora também ignorando BOM (U+FEFF) e NBSP
+-- (U+00A0) colados de planilha, como o trim() da tela. Antes, NULL aqui só deixava de conferir; agora impede assinar.
+CREATE OR REPLACE FUNCTION public.carreira_plano_num(_v jsonb)
+RETURNS numeric LANGUAGE plpgsql IMMUTABLE SET search_path TO '' AS $function$
+DECLARE s text;
+BEGIN
+  IF _v IS NULL OR jsonb_typeof(_v) NOT IN ('number', 'string') THEN RETURN NULL; END IF;
+  IF jsonb_typeof(_v) = 'number' THEN RETURN (_v #>> '{}')::numeric; END IF;
+  s := regexp_replace(_v #>> '{}', 'R\$|\s|%|' || chr(160) || '|' || chr(65279), '', 'g');
+  IF s = '' THEN RETURN NULL; END IF;
+  IF position(',' IN s) > 0 THEN s := replace(replace(s, '.', ''), ',', '.');
+  ELSIF s ~ '^[0-9]{1,3}(\.[0-9]{3})+$' THEN s := replace(s, '.', '');
+  END IF;
+  IF s !~ '^[+-]?([0-9]+\.?[0-9]*|\.[0-9]+)$' THEN RETURN NULL; END IF;
+  RETURN s::numeric;
+EXCEPTION WHEN others THEN RETURN NULL;
+END $function$;
+REVOKE ALL ON FUNCTION public.carreira_plano_num(jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.carreira_plano_num(jsonb) TO service_role;
+
 -- O que falta para a meta oficial sair (null = está calculada). Uso interno.
 -- shortcut: número em notação científica/hex ("1e3", "0x10") a tela lê e o banco não (carreira_plano_num);
 -- nesse caso raro o banco recusa e o corretor digita o número normal.
@@ -68,7 +88,7 @@ BEGIN
     -- Tira espaço comum, tab, quebra de linha, NBSP e BOM das pontas (igual ao trim() da tela).
     _t := regexp_replace(_v #>> '{}', '^[\s' || chr(160) || chr(65279) || ']+|[\s' || chr(160) || chr(65279) || ']+$', '', 'g');
     IF _t = '' THEN CONTINUE; END IF;
-    IF _t !~ '^\d+$' THEN
+    IF _t !~ '^[0-9]+$' THEN -- só 0-9: o \d do PG aceita dígitos Unicode e quebra o ::numeric
       RETURN format('%s: "%s" não é um número inteiro. Corrija na tela Metas.', _nomes ->> _k, left(_t, 20));
     END IF;
     IF _t::numeric > 500 THEN
