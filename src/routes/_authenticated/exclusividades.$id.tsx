@@ -46,6 +46,7 @@ import {
   captureOwners,
   ownerDocKinds,
   ownerNumber,
+  ownerRemovalMessage,
   ownerScope,
   removeOwner,
   withOwners,
@@ -87,6 +88,7 @@ import {
 import {
   limparArquivoSubstituido,
   removerDocumentoCaptacao,
+  removerProprietarioCaptacao,
 } from "@/lib/captacao-remover-documento.functions";
 import {
   blocoCorretorContrato,
@@ -607,14 +609,35 @@ function ExclusiveDetail() {
     setDirty(true);
   };
   const removeOwnerFromForm = (n: number) => {
-    setForm((f) => (f ? removeOwner(f, n) : f));
     // Sugestões pendentes do removido e dos seguintes perdem a referência.
-    setSuggestions((current) =>
-      current.filter((item) => {
-        const k = ownerNumber(item.scope);
-        return k === null || k < n;
-      }),
-    );
+    const limparSugestoes = () =>
+      setSuggestions((current) =>
+        current.filter((item) => {
+          const k = ownerNumber(item.scope);
+          return k === null || k < n;
+        }),
+      );
+    // Ele ou um seguinte tem documento: o banco remove e renumera tudo numa transação só
+    // (t_b3a9ed4f). Antes grava o que estiver pendente, para o banco ver a mesma lista da tela.
+    if (form && docs.some((d) => d.owner_index >= n)) {
+      // Salvamento automático em andamento ainda grava a lista antiga: esperar ele terminar.
+      if (autosave.saving) {
+        toast.info("Salvando alterações… tente remover de novo em instantes.");
+        return;
+      }
+      const atual = form;
+      void run(async () => {
+        if (dirty) await saveCapture(id, atual, cpf, creci);
+        await removerProprietarioCaptacao({
+          data: { captureId: id, owner: n, total: captureOwners(atual).length },
+        });
+        limparSugestoes();
+        toast.success(`Proprietário ${n} removido com os documentos dele.`);
+      });
+      return;
+    }
+    setForm((f) => (f ? removeOwner(f, n) : f));
+    limparSugestoes();
     setDirty(true);
   };
   const edit = <K extends "imovel" | "condicoes" | "testemunha_1" | "testemunha_2">(
@@ -1347,6 +1370,7 @@ function ExclusiveDetail() {
       const r = canRemoveOwner(form, docs, n);
       return r.ok ? null : (r.reason ?? "Não é possível remover");
     },
+    removeMessage: (n: number) => ownerRemovalMessage(docs, n),
   };
   // Mesma regra do banco (exclusive_archive): contrato gerado ou fora do rascunho → arquivar.
   const validity = captureValidity(capture, hojeSaoPaulo());
