@@ -207,6 +207,8 @@ export type GrupoPainel = {
    * `comissao` = soma da meta de comissão delas (só informa).
    */
   metaAConferir: { nomes: string[]; comissao: number | null };
+  /** Sem meta gravada e com meta CALCULADA acima dos limites: fora da soma "Sem meta oficial", à parte. */
+  preenchimentoAConferir: { nomes: string[]; comissao: number | null };
 };
 
 export type AlertaParado = {
@@ -493,6 +495,12 @@ export function montarPainelGestor(e: {
       metaAConferir: {
         nomes: pessoas.filter((c) => c.selo === "meta_a_conferir").map((c) => c.nome),
         comissao: soma.aConferirAno.comissao,
+      },
+      preenchimentoAConferir: {
+        nomes: pessoas
+          .filter((c) => soma.preenchimentoAConferir.userIds.includes(c.userId))
+          .map((c) => c.nome),
+        comissao: soma.preenchimentoAConferir.ano.comissao,
       },
     };
   };

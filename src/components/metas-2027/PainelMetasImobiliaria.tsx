@@ -167,9 +167,10 @@ export function PainelMetasImobiliaria() {
           <Building2 className="h-5 w-5" aria-hidden /> Painel de metas {ANO_PLANO} · Imobiliária
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          Meta oficial = soma das metas marcadas pelos corretores no botão verde "Usar como minha
-          meta oficial", mesmo sem assinar, comparada com o realizado só deles. A meta da direção é
-          comparada com a imobiliária inteira.
+          Meta oficial = soma das metas gravadas pelos corretores no botão verde "Usar como minha
+          meta oficial" (assinado ou não), comparada com o realizado de quem tem meta oficial. Meta
+          acima do limite fica à parte, a conferir. A meta da direção é comparada com a imobiliária
+          inteira.
         </p>
       </CardHeader>
       <CardContent className="space-y-4 px-3 sm:px-6" data-testid="painel-metas-imobiliaria">
@@ -437,6 +438,9 @@ function TopoMetas({
           </p>
           <p className="text-xs text-muted-foreground">
             {p.total.soma.qtdPreenchimento} plano(s) sem meta oficial gravada
+            {p.total.preenchimentoAConferir.nomes.length > 0
+              ? ` · ${p.total.preenchimentoAConferir.nomes.length} a conferir, fora da soma`
+              : ""}
           </p>
         </div>
       </div>
@@ -464,6 +468,22 @@ function TopoMetas({
             ? `, somam ${brlOuTraco(p.total.metaAConferir.comissao)}`
             : ""}
           . NÃO entram na soma oficial.
+        </p>
+      ) : null}
+      {p.total.preenchimentoAConferir.nomes.length > 0 ? (
+        <p
+          className="rounded-md bg-red-50 px-2 py-1.5 text-xs text-red-900 dark:bg-red-950/40 dark:text-red-200"
+          data-testid="imob-preenchimento-a-conferir"
+        >
+          <RotuloInfo chave="preenchimento_a_conferir">
+            ⛔ Planos sem meta oficial com valor fora do limite (a conferir):
+          </RotuloInfo>{" "}
+          <b>{p.total.preenchimentoAConferir.nomes.length}</b> (
+          {p.total.preenchimentoAConferir.nomes.join(", ")})
+          {p.total.preenchimentoAConferir.comissao != null
+            ? `, somam ${brlOuTraco(p.total.preenchimentoAConferir.comissao)}`
+            : ""}
+          . NÃO entram em "Sem meta oficial".
         </p>
       ) : null}
 

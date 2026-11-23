@@ -115,6 +115,20 @@ export function metaGravadaForaDoLimite(g: MetaOficialGravada | null | undefined
 }
 
 /**
+ * Mesma checagem de limite para uma meta CALCULADA pelas respostas (plano sem meta oficial gravada). Pedido de
+ * Denis/MAX 23/11: o cartão "Sem meta oficial (não conta)" não pode somar valor que dispara bloqueio (ex.: 81.000
+ * transações → R$ 2,2 bi); esse plano sai da soma informativa e aparece à parte, "a conferir".
+ */
+export const valoresForaDoLimite = (v: Valores | null | undefined): string | null =>
+  v
+    ? metaGravadaForaDoLimite({
+        meta_comissao: v.comissao,
+        meta_vendas: v.vendas,
+        meta_captacoes: v.captacoes,
+      })
+    : null;
+
+/**
  * Meta do ANO = valores GRAVADOS no clique (não recalcula das respostas). Mês a mês = o formato do próprio plano
  * (`formato` = metaDoPlano das respostas atuais), reescalado para fechar no valor gravado; sem formato, ano ÷ 12.
  * null = gravada sem meta de comissão (VGC), que é a meta principal.
@@ -204,8 +218,13 @@ export type SomaPlanos = {
   qtdAConferir: number;
   /** Soma do ano dessas metas fora do limite (só informativo). */
   aConferirAno: Valores;
-  /** Soma do ano dos planos em preenchimento SEM meta oficial gravada (só informativo, não conta). */
+  /**
+   * Soma do ano dos planos em preenchimento SEM meta oficial gravada (só informativo, não conta). Plano com meta
+   * calculada acima dos limites de bloqueio fica fora desta soma (ver preenchimentoAConferir).
+   */
   preenchimentoAno: Valores;
+  /** Planos sem meta gravada cuja meta calculada passa dos limites: fora da soma informativa, "a conferir". */
+  preenchimentoAConferir: { userIds: string[]; ano: Valores };
   /** Pactos assinados (com ou sem meta): continua separado para o broker cobrar a assinatura. */
   qtdAssinados: number;
   /** Quantos entram na soma (selo "conta" + "conta_falta_assinar"). */
@@ -224,6 +243,7 @@ export function somarPlanos(planos: readonly PlanoPessoa[]): SomaPlanos {
   const meses = Array.from({ length: 12 }, valoresVazios);
   const preenchimentoAno = valoresVazios();
   const aConferirAno = valoresVazios();
+  const preenchimentoAConferir = { userIds: [] as string[], ano: valoresVazios() };
   let qtdAConferir = 0;
   let qtdAssinados = 0;
   let qtdContam = 0;
@@ -248,7 +268,10 @@ export function somarPlanos(planos: readonly PlanoPessoa[]): SomaPlanos {
       // Assinou sem meta oficial gravada: só o pacto conta (acima); não soma meta.
     } else if (p.situacao === "preenchimento") {
       qtdPreenchimento++;
-      if (p.meta) somar(preenchimentoAno, p.meta.ano);
+      if (p.meta && valoresForaDoLimite(p.meta.ano)) {
+        preenchimentoAConferir.userIds.push(p.userId);
+        somar(preenchimentoAConferir.ano, p.meta.ano);
+      } else if (p.meta) somar(preenchimentoAno, p.meta.ano);
     } else qtdSemPlano++;
   }
   const diverge = Object.fromEntries(INDICADORES.map((k) => [k, false])) as Record<
@@ -258,6 +281,7 @@ export function somarPlanos(planos: readonly PlanoPessoa[]): SomaPlanos {
   return {
     assinados: qtdContam > 0 ? { ano, meses, diverge } : null,
     preenchimentoAno,
+    preenchimentoAConferir,
     qtdAConferir,
     aConferirAno,
     qtdAssinados,

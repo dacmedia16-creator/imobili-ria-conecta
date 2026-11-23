@@ -4,7 +4,7 @@
  * (1) o que o número é; (2) de onde vem e qual período cobre.
  *
  * Escritos a partir do código real (não mudam regra nenhuma):
- * - regra.ts / realizado.ts / consolidado.ts / painel-*.ts (meta só do plano ASSINADO, ritmo, farol, falta);
+ * - regra.ts / realizado.ts / consolidado.ts / painel-*.ts (meta = meta oficial GRAVADA no botão verde, ritmo, farol, falta);
  * - RPCs: meu_realizado e minha_comissao_vendas (corretor), metas_equipe_planos e metas_equipe_realizado
  *   (equipes e imobiliária), metas_comissao_quebra e metas_imobiliaria_estoque (imobiliária), tabela metas_direcao.
  * Comissão do realizado = soma de occurrence_commissions de cada pessoa com cadastro (a parte dela, não a bruta),
@@ -180,7 +180,7 @@ export const EXPLICACOES = {
   equipe_preenchimento: () =>
     e(
       "Em preenchimento",
-      "Planos começados, sem meta oficial gravada e sem assinatura (inclusive os reabertos), e a soma das metas de comissão deles. Só informa: não entra na meta oficial nem no farol.",
+      "Planos começados sem meta oficial gravada no botão verde (inclusive os reabertos) e a soma das metas de comissão calculadas deles, sem os planos com valor acima do limite de bloqueio (ficam à parte, a conferir). Só informa: não entra na meta oficial nem no farol.",
     ),
   equipe_parados: () =>
     e(
@@ -239,7 +239,12 @@ export const EXPLICACOES = {
   imob_preenchimento: () =>
     e(
       "Sem meta oficial (não conta)",
-      "Soma das metas de comissão calculadas nos planos começados que ainda não têm meta oficial gravada. Só informa: não entra na meta oficial.",
+      "Soma das metas de comissão calculadas nos planos começados que ainda não têm meta oficial gravada no botão verde, sem os planos com valor acima do limite de bloqueio (comissão acima de R$ 5 mi, mais de 1.000 transações ou mais de 500 captações), que aparecem à parte, a conferir. Só informa: não entra na meta oficial.",
+    ),
+  preenchimento_a_conferir: () =>
+    e(
+      "Planos sem meta oficial a conferir",
+      'Planos sem meta oficial gravada cuja meta calculada passa do limite de bloqueio (comissão acima de R$ 5 mi, mais de 1.000 transações ou mais de 500 captações), quase sempre por erro de digitação. Ficam fora da soma "Sem meta oficial" até o corretor corrigir o plano.',
     ),
   imob_diferenca: () =>
     e(

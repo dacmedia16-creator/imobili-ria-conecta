@@ -280,3 +280,48 @@ describe("os 3 painéis e o selo/contador da Equipe batem", () => {
     expect(fora.meta).toBeNull();
   });
 });
+
+describe("cartão 'Sem meta oficial (não conta)': valor que dispara bloqueio fica à parte", () => {
+  // Caso real (sem nome): plano sem meta gravada com 81.000 transações digitadas → R$ 2,2 bi calculados.
+  const ABSURDO: Respostas = { ...PLANO, "mt.tCapt": "40500", "mt.tVenda": "40500" };
+  const pessoa = (p: Partial<PessoaRpc> & { user_id: string }): PessoaRpc => ({
+    nome: p.user_id,
+    team_id: "t1",
+    papeis: ["corretor"],
+    tem_plano: true,
+    respostas: PLANO,
+    assinado_em: null,
+    meta_oficial: null,
+    meta_oficial_em: null,
+    ...p,
+  });
+  const entrada = {
+    hoje: "2027-03-15",
+    planos: {
+      todas: true,
+      modulo_plano: true,
+      equipes: [{ id: "t1", nome: "Equipe Azul", lider_id: null, lider_nome: null }],
+      pessoas: [
+        pessoa({ user_id: "normal" }),
+        pessoa({ user_id: "absurdo", respostas: ABSURDO }),
+        pessoa({ user_id: "clique", meta_oficial: G(150000, 30), meta_oficial_em: EM }),
+      ],
+    } satisfies PlanosRpc,
+    realizadoAno: { captacoes_ligadas: true, vendas: [], captacoes: [] },
+    ultimos12: { captacoes_ligadas: true, vendas: [], captacoes: [] },
+    anotacoes: [],
+  };
+
+  it("a soma 'Sem meta oficial' só tem o plano normal; o absurdo aparece à parte, a conferir", () => {
+    const normal = planoComSelo({ respostas: PLANO }).meta!.ano.comissao!;
+    const absurdo = planoComSelo({ respostas: ABSURDO }).meta!.ano;
+    expect(absurdo.vendas!).toBeGreaterThan(1000);
+    const i = montarPainelImobiliaria({ ...entrada, direcao: null, quebra: null, estoque: null });
+    expect(i.preenchimento.comissao).toBe(normal);
+    expect(i.total.preenchimentoAConferir.nomes).toEqual(["absurdo"]);
+    expect(i.total.preenchimentoAConferir.comissao).toBe(absurdo.comissao);
+    // Continua contado como "sem meta oficial" (2 planos) e a meta oficial não muda.
+    expect(i.total.soma.qtdPreenchimento).toBe(2);
+    expect(i.comparacao.comissao.somaAssinados).toBe(150000);
+  });
+});

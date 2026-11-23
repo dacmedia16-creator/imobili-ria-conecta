@@ -455,6 +455,13 @@ function ResumoGrupo({
             {grupo.soma.preenchimentoAno.comissao != null ? (
               <> (somam {brl(grupo.soma.preenchimentoAno.comissao)}, sem meta oficial)</>
             ) : null}
+            {grupo.preenchimentoAConferir.nomes.length > 0 ? (
+              <span data-testid="equipe-preenchimento-a-conferir">
+                {" "}
+                · ⛔ {grupo.preenchimentoAConferir.nomes.join(", ")} com valor fora do limite, a
+                conferir, fora dessa soma
+              </span>
+            ) : null}
           </>
         ) : null}
       </p>
