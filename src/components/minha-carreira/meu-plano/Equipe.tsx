@@ -1,20 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ChevronLeft, Eye } from "lucide-react";
+import { ChevronLeft, ChevronRight, Eye, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState, ListSkeleton, Pill } from "@/components/visual/base";
 import { calc, type Respostas, type TaxasFunil } from "@/lib/meu-plano-2027/regras";
-import {
-  ANO_PLANO,
-  ORDEM,
-  feitosDaTela,
-  inicioNoventaDias,
-  progresso,
-  tela,
-} from "@/lib/meu-plano-2027/telas";
+import { ANO_PLANO, ORDEM, inicioNoventaDias, progresso, tela } from "@/lib/meu-plano-2027/telas";
 import { erroPlano, planoDb } from "@/lib/meu-plano-2027/modulo";
 import { PlanoCtx, Bloco, Stat } from "./campos";
 import { Cockpit, CorpoTela } from "./telas";
+import { IndiceTelas } from "./IndiceTelas";
+import { SeloPagina } from "./Leitor";
+import { NavInferior } from "./MeuPlano";
 import { BotaoBaixarPlano } from "./BaixarPdf";
 import { OQueFalta } from "./OQueFalta";
 import { BotaoReabrirPlano } from "./ReabrirPlano";
@@ -33,6 +29,13 @@ type Membro = {
   meta_oficial_em: string | null;
   updated_at: string | null;
 };
+/**
+ * Telas que o broker/TL percorre ao abrir o plano (t_fb929978, Denis 23/11): a ordem do corretor, sem a p52 (o
+ * cockpit, que já está no resumo do fim). Passo = posição nesta lista; `RESUMO` (= tamanho da lista) = o resumo.
+ */
+export const TELAS_EQUIPE = ORDEM.filter((id) => id !== "p52");
+const RESUMO = TELAS_EQUIPE.length;
+
 const quando = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—";
 
@@ -58,6 +61,9 @@ export function EquipePlano({
   const [erro, setErro] = useState<string | null>(null);
   const [taxas, setTaxas] = useState<TaxasFunil | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  // Abrir entra na 1ª tela; trocar de corretor volta para a 1ª tela.
+  const [passo, setPasso] = useState(0);
+  useEffect(() => setPasso(0), [aberto]);
   const { user } = useAuth();
 
   const carregar = useCallback(async () => {
@@ -134,83 +140,156 @@ export function EquipePlano({
         await carregar();
       }
     }
+    const irPasso = (n: number) => {
+      setPasso(Math.max(0, Math.min(RESUMO, n)));
+      if (typeof window.scrollTo === "function") window.scrollTo({ top: 0 });
+    };
+    // O índice também lista a p52 (cockpit): ela leva ao resumo, onde o cockpit está.
+    const irTela = (id: string) => {
+      const i = TELAS_EQUIPE.indexOf(id);
+      irPasso(i >= 0 ? i : RESUMO);
+    };
+    const noResumo = passo >= RESUMO;
+    const t = noResumo ? null : tela(TELAS_EQUIPE[passo])!;
     return (
       <PlanoCtx.Provider value={ctx}>
-        <div className="space-y-3" data-testid="broker-plano">
-          <Button variant="outline" size="sm" onClick={() => abrir(null)}>
-            <ChevronLeft className="mr-1 h-4 w-4" aria-hidden /> Equipe
-          </Button>
-          <Bloco className="border-dashed border-rose-700/60">
-            <p className="text-sm">
+        <div className="space-y-3 pb-20 md:pb-0" data-testid="broker-plano">
+          <div className="sticky top-0 z-20 -mx-4 space-y-1.5 border-b border-dashed border-rose-700/60 bg-background/95 px-4 py-1.5 backdrop-blur md:mx-0 md:rounded-lg md:border">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Button variant="outline" size="sm" onClick={() => abrir(null)}>
+                <ChevronLeft className="mr-1 h-4 w-4" aria-hidden /> Equipe
+              </Button>
+              {noResumo ? null : (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => irPasso(RESUMO)}
+                  data-testid="ir-resumo"
+                >
+                  <FileText className="mr-1 h-4 w-4" aria-hidden /> Ir direto ao resumo
+                </Button>
+              )}
+            </div>
+            <p className="text-sm" data-testid="faixa-somente-leitura">
               <Eye className="mr-1 inline h-4 w-4" aria-hidden />
               Somente leitura · plano de <b>{m.nome}</b> · {p.telas}/{p.total} telas · {p.pct}%
               preenchido
             </p>
-          </Bloco>
-          <OQueFalta S={S} />
-          <BotaoBaixarPlano userId={m.user_id} nome={m.nome} S={S} rotulo="Baixar o plano em PDF" />
-          <h3 className="text-base font-semibold">Cockpit (plano em uma página)</h3>
-          <Cockpit />
-          <Bloco titulo="Pacto com o broker">
-            <div className="flex justify-between border-b border-dashed py-2 text-sm">
-              <span>Corretor</span>
-              <span className={m.assinado_corretor_em ? "font-semibold" : "text-muted-foreground"}>
-                {m.assinado_corretor_em ? `✔ ${quando(m.assinado_corretor_em)}` : "pendente"}
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span data-testid="posicao-tela">
+                {noResumo ? "Resumo do plano" : `Tela ${passo + 1} de ${RESUMO}`}
               </span>
+              <IndiceTelas atual={t?.id ?? "p52"} S={S} irTela={irTela} />
             </div>
-            <div className="flex justify-between py-2 text-sm">
-              <span>Broker</span>
-              <span className={m.assinado_broker_em ? "font-semibold" : "text-muted-foreground"}>
-                {m.assinado_broker_em ? `✔ ${quando(m.assinado_broker_em)}` : "pendente"}
-              </span>
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+              <i
+                className="block h-full rounded-full bg-primary"
+                style={{ width: `${(100 * Math.min(passo + 1, RESUMO)) / RESUMO}%` }}
+              />
             </div>
-            {!podeAssinar ? null : m.assinado_corretor_em ? (
+          </div>
+          {t ? (
+            <div className="space-y-3" data-testid={`equipe-tela-${t.id}`}>
+              <Bloco className="border-primary/40">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-primary">{t.ev}</p>
+                <h2 className="text-lg font-semibold">
+                  {t.t}{" "}
+                  <span className="align-middle" data-testid="selo-tela">
+                    <SeloPagina id={t.id} S={S} />
+                  </span>
+                </h2>
+                {t.opcional ? (
+                  <p className="text-xs text-muted-foreground">
+                    Tela opcional: não conta no % do plano.
+                  </p>
+                ) : null}
+              </Bloco>
+              {/* Trava dupla: ctx.ro + fieldset disabled (nenhum campo aceita digitação). */}
+              <fieldset disabled className="min-w-0 space-y-3">
+                <CorpoTela id={t.id} />
+              </fieldset>
+            </div>
+          ) : (
+            <div className="space-y-3" data-testid="equipe-resumo">
+              <OQueFalta S={S} />
+              <BotaoBaixarPlano
+                userId={m.user_id}
+                nome={m.nome}
+                S={S}
+                rotulo="Baixar o plano em PDF"
+              />
+              <h3 className="text-base font-semibold">Cockpit (plano em uma página)</h3>
+              <Cockpit />
+              <Bloco titulo="Pacto com o broker">
+                <div className="flex justify-between border-b border-dashed py-2 text-sm">
+                  <span>Corretor</span>
+                  <span
+                    className={m.assinado_corretor_em ? "font-semibold" : "text-muted-foreground"}
+                  >
+                    {m.assinado_corretor_em ? `✔ ${quando(m.assinado_corretor_em)}` : "pendente"}
+                  </span>
+                </div>
+                <div className="flex justify-between py-2 text-sm">
+                  <span>Broker</span>
+                  <span
+                    className={m.assinado_broker_em ? "font-semibold" : "text-muted-foreground"}
+                  >
+                    {m.assinado_broker_em ? `✔ ${quando(m.assinado_broker_em)}` : "pendente"}
+                  </span>
+                </div>
+                {!podeAssinar ? null : m.assinado_corretor_em ? (
+                  <Button
+                    className="w-full"
+                    disabled={ocupado || !!m.assinado_broker_em}
+                    onClick={() => void assinarBroker()}
+                    data-testid="assinar-broker"
+                  >
+                    {m.assinado_broker_em ? "Pacto assinado ✔" : "Assinar o pacto como broker"}
+                  </Button>
+                ) : (
+                  <p className="text-xs text-muted-foreground">O corretor ainda não assinou.</p>
+                )}
+                {/* Reabrir: broker (imobiliária) e TL (só a equipe dele; o banco confere). Nunca o próprio plano. */}
+                {m.assinado_corretor_em && m.user_id !== user?.id ? (
+                  <div className="pt-2">
+                    <BotaoReabrirPlano userId={m.user_id} nome={m.nome} aoReabrir={carregar} />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Desfaz a assinatura para o corretor corrigir o plano. Nenhum valor é apagado.
+                    </p>
+                  </div>
+                ) : null}
+              </Bloco>
+            </div>
+          )}
+          <NavInferior>
+            <Button
+              variant="outline"
+              className="flex-1"
+              disabled={passo === 0}
+              onClick={() => irPasso(passo - 1)}
+              data-testid="equipe-anterior"
+            >
+              <ChevronLeft className="mr-1 h-4 w-4" aria-hidden /> Anterior
+            </Button>
+            {noResumo ? (
               <Button
-                className="w-full"
-                disabled={ocupado || !!m.assinado_broker_em}
-                onClick={() => void assinarBroker()}
-                data-testid="assinar-broker"
+                className="flex-1"
+                onClick={() => abrir(null)}
+                data-testid="equipe-voltar-lista"
               >
-                {m.assinado_broker_em ? "Pacto assinado ✔" : "Assinar o pacto como broker"}
+                Voltar à equipe
               </Button>
             ) : (
-              <p className="text-xs text-muted-foreground">O corretor ainda não assinou.</p>
+              <Button
+                className="flex-1"
+                onClick={() => irPasso(passo + 1)}
+                data-testid="equipe-proxima"
+              >
+                {passo === RESUMO - 1 ? "Ver resumo" : "Próxima"}
+                <ChevronRight className="ml-1 h-4 w-4" aria-hidden />
+              </Button>
             )}
-            {/* Reabrir: broker (imobiliária) e TL (só a equipe dele; o banco confere). Nunca o próprio plano. */}
-            {m.assinado_corretor_em && m.user_id !== user?.id ? (
-              <div className="pt-2">
-                <BotaoReabrirPlano userId={m.user_id} nome={m.nome} aoReabrir={carregar} />
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Desfaz a assinatura para o corretor corrigir o plano. Nenhum valor é apagado.
-                </p>
-              </div>
-            ) : null}
-          </Bloco>
-          <h3 className="pt-2 text-base font-semibold">Todas as respostas, página por página</h3>
-          {ORDEM.filter((id) => id !== "p52").map((id) => {
-            const t = tela(id)!;
-            const f = feitosDaTela(id, S);
-            return (
-              <details key={id} className="rounded-xl border bg-card">
-                <summary className="flex cursor-pointer items-center justify-between gap-2 px-3 py-2.5 text-sm font-semibold">
-                  <span>
-                    {t.t}
-                    {t.opcional ? (
-                      <span className="ml-1 text-xs font-normal text-muted-foreground">
-                        (opcional)
-                      </span>
-                    ) : null}
-                  </span>
-                  <Pill tom={t.req.length && f === t.req.length ? "green" : "slate"}>
-                    {t.req.length ? `${f}/${t.req.length}` : "—"}
-                  </Pill>
-                </summary>
-                <fieldset disabled className="space-y-3 px-3 pb-3">
-                  <CorpoTela id={id} />
-                </fieldset>
-              </details>
-            );
-          })}
+          </NavInferior>
         </div>
       </PlanoCtx.Provider>
     );
