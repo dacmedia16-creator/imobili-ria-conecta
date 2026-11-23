@@ -414,7 +414,8 @@ function ResumoGrupo({
               : "planos com valor a conferir"}
             :
           </RotuloInfo>{" "}
-          {grupo.aConferir.nomes.join(", ")}. Já incluídos nas somas.
+          {grupo.aConferir.nomes.join(", ")}. Só marcados para revisar; acima do limite de bloqueio
+          ficam fora das somas.
         </p>
       ) : null}
       {grupo.metaAConferir.nomes.length > 0 ? (

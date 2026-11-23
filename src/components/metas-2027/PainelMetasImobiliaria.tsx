@@ -452,7 +452,8 @@ function TopoMetas({
           <RotuloInfo chave="plano_a_conferir">⚠ Planos com valor a conferir:</RotuloInfo>{" "}
           <b>{p.total.aConferir.assinados}</b> assinado(s) e{" "}
           <b>{p.total.aConferir.preenchimento}</b> em preenchimento (
-          {p.total.aConferir.nomes.join(", ")}). Já incluídos nas somas acima.
+          {p.total.aConferir.nomes.join(", ")}). Só marcados para revisar; os acima do limite de
+          bloqueio ficam fora das somas (avisos vermelhos).
         </p>
       ) : null}
       {p.total.metaAConferir.nomes.length > 0 ? (
