@@ -134,6 +134,7 @@ SELECT pg_temp.ok((SELECT count(*) FROM public.carreira_plano) = 2, 'religado: p
 SELECT pg_temp.ok(pg_temp.err(format('SELECT public.carreira_plano_assinar_broker(%L, 2027)', :'c1')) LIKE '22023%',
   'broker nao assina antes do corretor');
 SELECT pg_temp.as_user(:'c1');
+SELECT pg_temp.ok(public.carreira_plano_salvar(2027, '{"mt.tCapt":"12","mt.comMedia":"15000"}') IS NOT NULL, 'c1 completa a meta (exigida para assinar desde t_3d55d20c)');
 SELECT pg_temp.ok(public.carreira_plano_assinar(2027) IS NOT NULL, 'corretor assina o pacto');
 SELECT pg_temp.as_user(:'gestor');
 SELECT pg_temp.ok(public.carreira_plano_assinar_broker(:'c1', 2027) IS NOT NULL, 'gestor assina depois do corretor');
