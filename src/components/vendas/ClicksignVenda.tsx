@@ -46,6 +46,7 @@ import {
   clicksignSaleCandidates,
   clicksignSaleSigned,
   editSaleSigner,
+  envioResumo,
   EXTRA_ROLE_OPTIONS,
   missingEmailMessage,
   needsAutoCancel,
@@ -550,7 +551,7 @@ function MissingEmailList({
   );
 }
 
-function EnvioDialog({
+export function EnvioDialog({
   db,
   saleId,
   config,
@@ -578,11 +579,17 @@ function EnvioDialog({
   const [busy, setBusy] = useState(false);
   const [serverMissing, setServerMissing] = useState<MissingEmail[]>([]);
 
+  // Zera a tela só quando a janela ABRE (t_bd3361f1, cenário D): um recarregamento da venda com a
+  // janela aberta traz um config.imobiliaria novo (mesmo conteúdo) e antes apagava as partes extras.
+  const wasOpen = useRef(false);
   useEffect(() => {
-    if (!open) return;
+    const abriu = open && !wasOpen.current;
+    wasOpen.current = open;
+    if (!abriu) return;
     setImobIds(config.imobiliaria.length === 1 ? [config.imobiliaria[0].id] : []);
     setTestemunhas(emptyWitnesses());
     setExtras([]);
+    setFora({ nome: "", email: "", cpf: "", role: "lawyer" });
     setCands(null);
     setQ("");
     setServerMissing([]);
@@ -610,7 +617,11 @@ function EnvioDialog({
     ],
   );
   const missing = check.missing.length ? check.missing : serverMissing;
-  const blocked = missing.length > 0 || check.errors.length > 0 || !config.contrato;
+  // Pessoa de fora digitada e ainda não incluída: bloqueia o envio para não sair sem ela (t_bd3361f1).
+  const foraPendente = fora.nome.trim() || fora.email.trim();
+  const blocked =
+    missing.length > 0 || check.errors.length > 0 || !config.contrato || Boolean(foraPendente);
+  const foraIncluidas = extras.filter((x) => x.origem === "externo").length;
   const partes = parties.filter((p) => /^(vendedor|comprador)_\d+$/.test(p.papel));
 
   const buscar = async () => {
@@ -644,9 +655,16 @@ function EnvioDialog({
 
   const enviar = async () => {
     if (blocked) return;
+    const lista = envioResumo({
+      parties,
+      corretores: config.corretores,
+      imobiliaria: config.imobiliaria.filter((p) => imobIds.includes(p.id)),
+      testemunhas,
+      extras,
+    });
     if (
       !window.confirm(
-        `Enviar o contrato para ${partes.length + config.corretores.length + imobIds.length + WITNESS_COUNT + extras.length} signatários pela Clicksign? Todos assinam ao mesmo tempo, com prazo de ${config.deadline_days} dias.`,
+        `Enviar o contrato para ${lista.length} signatários pela Clicksign?\n\n${lista.map((l) => `• ${l}`).join("\n")}\n\nTodos assinam ao mesmo tempo, com prazo de ${config.deadline_days} dias.`,
       )
     )
       return;
@@ -766,7 +784,7 @@ function EnvioDialog({
           <section className="space-y-2">
             <h4 className="font-medium">Partes extras (opcional)</h4>
             {extras.length > 0 && (
-              <ul className="divide-y rounded-md border">
+              <ul className="divide-y rounded-md border" data-testid="clicksign-extras-lista">
                 {extras.map((x, i) => (
                   <li
                     key={i}
@@ -878,14 +896,33 @@ function EnvioDialog({
                   </SelectContent>
                 </Select>
               </div>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={!fora.nome.trim() || !fora.email.trim()}
-                onClick={addFora}
-              >
-                <Plus className="mr-1 h-4 w-4" /> Incluir pessoa de fora
-              </Button>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Button
+                  size="sm"
+                  disabled={!fora.nome.trim() || !fora.email.trim()}
+                  onClick={addFora}
+                >
+                  <Plus className="mr-1 h-4 w-4" /> Incluir esta pessoa
+                </Button>
+                <span
+                  className="text-xs text-muted-foreground"
+                  data-testid="clicksign-fora-contador"
+                  aria-live="polite"
+                >
+                  Pessoas de fora incluídas: {foraIncluidas}
+                  {foraIncluidas > 0 ? " (veja a lista acima)" : ""}
+                </span>
+              </div>
+              {foraPendente && (
+                <p
+                  role="alert"
+                  className="rounded-md border border-amber-300 bg-amber-50 p-2 text-amber-900"
+                  data-testid="clicksign-fora-pendente"
+                >
+                  Você digitou {fora.nome.trim() || fora.email.trim()} mas não clicou em Incluir.
+                  Inclua ou limpe os campos antes de enviar.
+                </p>
+              )}
             </div>
           </section>
 
