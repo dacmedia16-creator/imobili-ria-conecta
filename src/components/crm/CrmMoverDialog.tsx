@@ -170,6 +170,10 @@ export function CrmMoverDialog({
                 “Converter em venda” cria a venda já preenchida (comprador, imóvel e captador quando
                 houver) e vincula ao lead. Depois é só completar na tela da venda.
               </p>
+            ) : f === "locacao" ? (
+              <p className="text-muted-foreground">
+                O lead vai para Fechado. O contrato de locação é feito no módulo Locação.
+              </p>
             ) : captacaoLigada ? (
               <>
                 <p className="text-muted-foreground">

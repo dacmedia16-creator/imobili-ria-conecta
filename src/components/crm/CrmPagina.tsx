@@ -27,6 +27,7 @@ import type { ExclusiveUnit } from "@/lib/exclusive-captures";
 import {
   diaMes,
   FUNIL,
+  FUNIS,
   filaDoDia,
   funilDe,
   hojeSP,
@@ -48,10 +49,17 @@ const FILA_TXT = {
   hoje: { t: "Hoje", tom: "amber" },
 } as const;
 
+// Texto do botão "É …? Trocar de funil" para cada funil de destino.
+const TROCA_TXT: Record<Funil, string> = {
+  venda: "comprador (Venda)",
+  captacao: "proprietário (Captação)",
+  locacao: "locação (Locação)",
+};
+
 type Pedido = PedidoMover | { lead: Lead; para: null; tipo: "proximo" } | null;
 
 /**
- * CRM com dois funis (Venda e Captação) e fila do dia. Individual para todos os papéis (Denis 24/11,
+ * CRM com três funis (Venda, Captação e Locação — t_d4c8b724) e fila do dia. Individual para todos os papéis (Denis 24/11,
  * t_b855dbb8): só os leads em que o usuário é o responsável. Visão de equipe fica no painel Leads.
  */
 export function CrmPagina() {
@@ -199,24 +207,28 @@ export function CrmPagina() {
                   </option>
                 ))}
             </select>
-            {!convertido && l.etapa !== "perdido" && (f === "venda" || captacaoLigada) && (
-              <Button
-                size="sm"
-                onClick={() => setPedido({ lead: l, para: "ganho", tipo: "fechar" })}
-              >
-                {FUNIL[f].conv}
-              </Button>
-            )}
-            {(l.etapa === "novo" || l.etapa === "em_atendimento") && (
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={busy}
-                onClick={() => void trocarFunil(l, f === "venda" ? "captacao" : "venda")}
-              >
-                É {f === "venda" ? "proprietário (Captação)" : "comprador (Venda)"}? Trocar de funil
-              </Button>
-            )}
+            {!convertido &&
+              l.etapa !== "perdido" &&
+              (f === "venda" || (f === "captacao" && captacaoLigada)) && (
+                <Button
+                  size="sm"
+                  onClick={() => setPedido({ lead: l, para: "ganho", tipo: "fechar" })}
+                >
+                  {FUNIL[f].conv}
+                </Button>
+              )}
+            {(l.etapa === "novo" || l.etapa === "em_atendimento") &&
+              FUNIS.filter((o) => o !== f).map((o) => (
+                <Button
+                  key={o}
+                  size="sm"
+                  variant="ghost"
+                  disabled={busy}
+                  onClick={() => void trocarFunil(l, o)}
+                >
+                  É {TROCA_TXT[o]}? Trocar de funil
+                </Button>
+              ))}
           </div>
         )}
       </section>
@@ -252,7 +264,7 @@ export function CrmPagina() {
       <PageHeader
         icon={KanbanSquare}
         title="CRM"
-        description="Funil de Venda (compradores) e Funil de Captação (proprietários). Todo lead em andamento precisa de um próximo contato."
+        description="Funil de Venda (compradores), Funil de Captação (proprietários) e Funil de Locação (aluguel). Todo lead em andamento precisa de um próximo contato."
         actions={
           gestor ? (
             <Button onClick={() => setNovo(true)}>
@@ -268,11 +280,13 @@ export function CrmPagina() {
           <TabsTrigger value="captacao">
             Funil de Captação ({doFunil("captacao").length})
           </TabsTrigger>
+          <TabsTrigger value="locacao">Funil de Locação ({doFunil("locacao").length})</TabsTrigger>
           <TabsTrigger value="fila">Minha fila do dia ({fila.length})</TabsTrigger>
         </TabsList>
 
         {quadro("venda")}
         {quadro("captacao")}
+        {quadro("locacao")}
 
         <TabsContent value="fila" className="space-y-2">
           <p className="text-sm text-muted-foreground">
