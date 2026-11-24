@@ -58,7 +58,12 @@ describe("faixa e histórico com nome", () => {
   it("última devolução com nome, nunca UUID", () => {
     const d = ultimaDevolucao([
       { action: "devolver", detail: "antigo", created_at: "2026-10-01T12:00:00Z", actor_nome: "A" },
-      { action: "devolver", detail: "Falta IPTU", created_at: "2026-10-05T12:00:00Z", actor_nome: "Gestor Teste" },
+      {
+        action: "devolver",
+        detail: "Falta IPTU",
+        created_at: "2026-10-05T12:00:00Z",
+        actor_nome: "Gestor Teste",
+      },
       { action: "enviar", detail: null, created_at: "2026-10-06T12:00:00Z", actor_nome: "C" },
     ]);
     expect(d).toEqual({ motivo: "Falta IPTU", quem: "Gestor Teste", quando: "05/10/2026" });
@@ -74,9 +79,14 @@ describe("faixa e histórico com nome", () => {
 describe("avisos nos três eventos", () => {
   it("enviar/devolver/aprovar chamam o aviso; assinatura não", async () => {
     const notify = vi.fn().mockResolvedValue({});
-    for (const a of ["enviar", "devolver", "aprovar"]) expect(await avisarTransicao(a, ID, notify)).toBe(true);
+    for (const a of ["enviar", "devolver", "aprovar"])
+      expect(await avisarTransicao(a, ID, notify)).toBe(true);
     expect(await avisarTransicao("assinatura", ID, notify)).toBe(false);
-    expect(notify.mock.calls.map((c) => c[0].data.evento)).toEqual(["enviada", "devolvida", "aprovada"]);
+    expect(notify.mock.calls.map((c) => c[0].data.evento)).toEqual([
+      "enviada",
+      "devolvida",
+      "aprovada",
+    ]);
     expect(eventoDaAcao("x")).toBeNull();
   });
   it("falha do aviso não lança (a transição já valeu)", async () => {
@@ -85,7 +95,13 @@ describe("avisos nos três eventos", () => {
   });
   it("textos curtos com link, sem dados do proprietário", () => {
     const t = (evento: "enviada" | "devolvida" | "aprovada") =>
-      textoAvisoCaptacao({ evento, captureId: ID, corretor: "Corretor Teste", motivo: "Falta IPTU", appUrl: "https://app.test" });
+      textoAvisoCaptacao({
+        evento,
+        captureId: ID,
+        corretor: "Corretor Teste",
+        motivo: "Falta IPTU",
+        appUrl: "https://app.test",
+      });
     expect(t("enviada").whatsapp).toBe(
       `*Nova captação para aprovar*\n\nCaptação: #E5D5F854\nCorretor: Corretor Teste\n\nAcesse: https://app.test/exclusividades/${ID}`,
     );
@@ -95,7 +111,13 @@ describe("avisos nos três eventos", () => {
 });
 
 describe("enviarAvisosCaptacao (sem envio real: fetch simulado)", () => {
-  const texto = textoAvisoCaptacao({ evento: "aprovada", captureId: ID, corretor: null, motivo: null, appUrl: "x" });
+  const texto = textoAvisoCaptacao({
+    evento: "aprovada",
+    captureId: ID,
+    corretor: null,
+    motivo: null,
+    appUrl: "x",
+  });
   const comum = {
     texto,
     url: "https://zion.test",
@@ -104,7 +126,13 @@ describe("enviarAvisosCaptacao (sem envio real: fetch simulado)", () => {
     paraWhatsapp: (s: string) => s,
     semDadosPessoais: (s: string) => s.replace(/\d{6,}/g, "[numero]"),
   };
-  const d = (o: Partial<DestinoAviso>): DestinoAviso => ({ id: "u", telefone: "15999990000", ativo: true, querWhatsapp: true, ...o });
+  const d = (o: Partial<DestinoAviso>): DestinoAviso => ({
+    id: "u",
+    telefone: "15999990000",
+    ativo: true,
+    querWhatsapp: true,
+    ...o,
+  });
 
   it("sem telefone, opt-out ou inativo: só sino, sem erro", async () => {
     const fetchImpl = vi.fn();
@@ -115,7 +143,11 @@ describe("enviarAvisosCaptacao (sem envio real: fetch simulado)", () => {
       fetchImpl: fetchImpl as unknown as typeof fetch,
       gravarSino,
       registrar: vi.fn().mockResolvedValue(undefined),
-      destinos: [d({ id: "a", telefone: null }), d({ id: "b", querWhatsapp: false }), d({ id: "c", ativo: false })],
+      destinos: [
+        d({ id: "a", telefone: null }),
+        d({ id: "b", querWhatsapp: false }),
+        d({ id: "c", ativo: false }),
+      ],
     });
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(gravarSino.mock.calls[0][0]).toHaveLength(3);
@@ -126,7 +158,9 @@ describe("enviarAvisosCaptacao (sem envio real: fetch simulado)", () => {
     const r = await enviarAvisosCaptacao({
       ...comum,
       apiKey: "k",
-      fetchImpl: vi.fn().mockRejectedValue(new Error("falhou 5515999990000")) as unknown as typeof fetch,
+      fetchImpl: vi
+        .fn()
+        .mockRejectedValue(new Error("falhou 5515999990000")) as unknown as typeof fetch,
       gravarSino: vi.fn().mockResolvedValue(undefined),
       registrar,
       destinos: [d({})],
@@ -139,7 +173,9 @@ describe("enviarAvisosCaptacao (sem envio real: fetch simulado)", () => {
     const r = await enviarAvisosCaptacao({
       ...comum,
       apiKey: "k",
-      fetchImpl: vi.fn().mockResolvedValue(new Response("", { status: 201 })) as unknown as typeof fetch,
+      fetchImpl: vi
+        .fn()
+        .mockResolvedValue(new Response("", { status: 201 })) as unknown as typeof fetch,
       gravarSino: vi.fn().mockResolvedValue(undefined),
       registrar: vi.fn().mockResolvedValue(undefined),
       destinos: [d({})],
