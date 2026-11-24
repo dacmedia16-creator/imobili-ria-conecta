@@ -21,6 +21,9 @@ ALTER TABLE public.leads
   ADD COLUMN IF NOT EXISTS sem_prazo boolean NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS imovel_interesse text CHECK (char_length(imovel_interesse) <= 300);
 
+-- leads usa permissão por coluna (20261025160000: telefone/e-mail fora). A tela lê as 2 colunas novas (LEAD_COLS).
+GRANT SELECT (sem_prazo, imovel_interesse) ON public.leads TO authenticated;
+
 ALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_origem_check;
 ALTER TABLE public.leads ADD CONSTRAINT leads_origem_check
   CHECK (origem IN ('manual', 'formulario', 'simulador', 'whatsapp', 'olx', 'meta', 'site', 'outro', 'grupo_olx', 'c2s'));

@@ -203,6 +203,11 @@ describe("só leads novos, tudo desligado, permissões e rollback", () => {
       expect(MIG).toContain(`GRANT EXECUTE ON FUNCTION public.${n} TO service_role;`);
     }
   });
+  it("a tela consegue ler as colunas novas (permissão por coluna em leads)", () => {
+    expect(MIG).toContain(
+      "GRANT SELECT (sem_prazo, imovel_interesse) ON public.leads TO authenticated;",
+    );
+  });
   it("origem C2S aparece na tela", () => {
     expect(ORIGENS_TODAS).toContain("c2s");
     expect(ORIGENS).not.toContain("c2s"); // não entra no cadastro manual
