@@ -48,7 +48,7 @@ export const ORIGENS = [
   "outro",
 ] as const;
 /** Todas as origens do banco. "grupo_olx" só entra pelo Canal Pro (webhook), nunca pelo cadastro manual. */
-export const ORIGENS_TODAS = [...ORIGENS, "grupo_olx"] as const;
+export const ORIGENS_TODAS = [...ORIGENS, "grupo_olx", "c2s"] as const;
 export type Origem = (typeof ORIGENS_TODAS)[number];
 export const ORIGEM_LABEL: Record<Origem, string> = {
   manual: "Manual",
@@ -60,6 +60,7 @@ export const ORIGEM_LABEL: Record<Origem, string> = {
   site: "Site",
   outro: "Outro",
   grupo_olx: "Grupo ZAP (ZAP/Viva Real/OLX)",
+  c2s: "C2S",
 };
 
 export type Lead = {
@@ -92,6 +93,9 @@ export type Lead = {
   portal_tipo?: string | null;
   portal_temperatura?: "baixa" | "media" | "alta" | null;
   portal_transacao?: "venda" | "aluguel" | null;
+  // C2S (migration 20270102120000, t_32f5458d): fica com o corretor até ser arquivado, sem prazo.
+  sem_prazo?: boolean;
+  imovel_interesse?: string | null;
   // CRM (migration 20261029100000, t_188fb282). Opcionais: sem o CRM a tela de leads segue igual.
   funil?: "venda" | "captacao";
   proximo_contato_em?: string | null;
@@ -386,7 +390,7 @@ export function duracaoTxt(ms: number): string {
 }
 
 export type PrazoLead =
-  | { tipo: "encerrado" | "banco" | "sem_responsavel" }
+  | { tipo: "encerrado" | "banco" | "sem_responsavel" | "sem_prazo" }
   | { tipo: "aceite" | "primeira_interacao" | "sem_interacao"; vence: Date; restante: number };
 
 /** Qual prazo está correndo para o lead agora (para mostrar na tela). */
@@ -394,6 +398,8 @@ export function prazoDoLead(l: Lead, c: LeadConfig, agora = new Date()): PrazoLe
   if (encerrado(l.etapa)) return { tipo: "encerrado" };
   if (l.no_banco_desde) return { tipo: "banco" };
   if (!l.responsavel_id) return { tipo: "sem_responsavel" };
+  // t_32f5458d: lead do C2S fica com o corretor até ser arquivado (sem aceite nem banco por tempo).
+  if (l.sem_prazo) return { tipo: "sem_prazo" };
   const base = (iso: string | null, extra: number) =>
     new Date(new Date(iso ?? l.created_at).getTime() + extra);
   let tipo: "aceite" | "primeira_interacao" | "sem_interacao";
@@ -416,6 +422,7 @@ export function textoPrazo(p: PrazoLead): string | null {
   switch (p.tipo) {
     case "encerrado":
     case "sem_responsavel":
+    case "sem_prazo":
       return null;
     case "banco":
       return "No banco da imobiliária";
