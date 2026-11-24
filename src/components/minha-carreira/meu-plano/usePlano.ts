@@ -50,6 +50,17 @@ const VAZIO: Plano = {
   meta_oficial_em: null,
 };
 const chaveFila = (uid: string) => `meu-plano-${ANO_PLANO}:fila:${uid}`;
+/** Fila do administrador editando o plano de outra pessoa (t_c9b0f633): separada da fila do próprio plano. */
+const chaveFilaAdmin = (uid: string) => `meu-plano-${ANO_PLANO}:fila-admin:${uid}`;
+
+/**
+ * Como o hook abre o plano (t_c9b0f633):
+ * - "proprio" (padrão): o plano de quem está logado, como sempre.
+ * - "editar": administrador editando o plano de `userId` (carreira_plano_admin_salvar/_usar_meta; o banco confere
+ *   o papel). O plano assinado continua assinado e os campos seguem editáveis para ele; não assina.
+ * - "ver": gestor/líder vendo o plano de `userId`, sem gravar nada.
+ */
+export type ModoPlano = "proprio" | "editar" | "ver";
 /** Tentativas seguidas com erro antes de parar e mostrar "Não foi possível salvar" (t_359e9e2a). */
 export const MAX_TENTATIVAS = 5;
 
@@ -68,24 +79,29 @@ export function metaIgual(
   );
 }
 
-function lerFila(uid: string): Respostas {
+function lerFila(uid: string, admin = false): Respostas {
   try {
-    const x = JSON.parse(window.localStorage.getItem(chaveFila(uid)) ?? "null");
+    const x = JSON.parse(
+      window.localStorage.getItem(admin ? chaveFilaAdmin(uid) : chaveFila(uid)) ?? "null",
+    );
     return x && typeof x === "object" ? (x as Respostas) : {};
   } catch {
     return {};
   }
 }
-function gravarFila(uid: string, fila: Respostas) {
+function gravarFila(uid: string, fila: Respostas, admin = false) {
+  const chave = admin ? chaveFilaAdmin(uid) : chaveFila(uid);
   try {
-    if (Object.keys(fila).length) window.localStorage.setItem(chaveFila(uid), JSON.stringify(fila));
-    else window.localStorage.removeItem(chaveFila(uid));
+    if (Object.keys(fila).length) window.localStorage.setItem(chave, JSON.stringify(fila));
+    else window.localStorage.removeItem(chave);
   } catch {
     /* navegador sem armazenamento: segue só em memória */
   }
 }
 
-export function usePlano(userId: string) {
+export function usePlano(userId: string, modo: ModoPlano = "proprio") {
+  const admin = modo === "editar";
+  const soVer = modo === "ver";
   const [plano, setPlano] = useState<Plano | null>(null);
   const [taxasPadrao, setTaxasPadrao] = useState<TaxasFunil | null>(null);
   const [erroCarga, setErroCarga] = useState<string | null>(null);
@@ -119,7 +135,7 @@ export function usePlano(userId: string) {
           delete fila.current[k];
           tirou = true;
         }
-      if (tirou) gravarFila(userId, fila.current);
+      if (tirou) gravarFila(userId, fila.current, admin);
     }
     const lote = { ...fila.current };
     const chaves = Object.keys(lote);
@@ -131,10 +147,16 @@ export function usePlano(userId: string) {
     setStatus("salvando");
     const corpo: Record<string, Valor> = {};
     for (const k of chaves) corpo[k] = lote[k] === undefined || lote[k] === "" ? null : lote[k];
-    const { error } = await planoDb.rpc("carreira_plano_salvar", {
-      _ano: ANO_PLANO,
-      _campos: corpo,
-    });
+    const { error } = admin
+      ? await planoDb.rpc("carreira_plano_admin_salvar", {
+          _corretor: userId,
+          _ano: ANO_PLANO,
+          _campos: corpo,
+        })
+      : await planoDb.rpc("carreira_plano_salvar", {
+          _ano: ANO_PLANO,
+          _campos: corpo,
+        });
     enviando.current = false;
     if (error && erroPlanoAssinado(error.message, (error as { code?: string }).code)) {
       // Plano assinado (talvez em outro aparelho/aba): recusa DEFINITIVA, toda vez (t_359e9e2a; antes só a 1ª,
@@ -142,7 +164,7 @@ export function usePlano(userId: string) {
       // O que sobrar na fila (campos livres) segue na releitura (carregar envia a fila).
       travado.current = true;
       for (const k of Object.keys(fila.current)) if (!campoLivre(k)) delete fila.current[k];
-      gravarFila(userId, fila.current);
+      gravarFila(userId, fila.current, admin);
       tentativas.current = 0;
       setMsg(null);
       if (!chaves.some((k) => !campoLivre(k))) {
@@ -173,12 +195,12 @@ export function usePlano(userId: string) {
     setMsg(null);
     // Tira da fila só o que não mudou enquanto enviava.
     for (const k of chaves) if (fila.current[k] === lote[k]) delete fila.current[k];
-    gravarFila(userId, fila.current);
+    gravarFila(userId, fila.current, admin);
     if (Object.keys(fila.current).length) {
       setStatus("pendente");
       if (montado.current) timer.current = setTimeout(() => void enviar(), 300);
     } else setStatus("ok");
-  }, [userId]);
+  }, [userId, admin]);
 
   const carregar = useCallback(async () => {
     setErroCarga(null);
@@ -206,12 +228,13 @@ export function usePlano(userId: string) {
       : VAZIO;
     // Fila guardada no aparelho (ex.: caiu a internet) vale por cima do banco e é reenviada.
     // Plano assinado: só as chaves livres seguem (o resto o banco recusaria; o plano assinado é o que vale).
-    travado.current = !!base.assinado_corretor_em;
-    const pend = lerFila(userId);
+    // Administrador editando (t_c9b0f633): o plano assinado segue editável para ele (o banco confere o papel).
+    travado.current = !!base.assinado_corretor_em && !admin;
+    const pend = soVer ? {} : lerFila(userId, admin);
     for (const k of Object.keys(pend)) if (!CAMPO_VALIDO.test(k)) delete pend[k];
     const f = filaPermitida({ ...pend, ...fila.current }, travado.current);
     fila.current = f.fica;
-    if (f.descartou) gravarFila(userId, fila.current);
+    if (f.descartou) gravarFila(userId, fila.current, admin);
     setPlano({ ...base, respostas: { ...base.respostas, ...fila.current } });
     const tx = t.data as {
       funil_v2_cre: number | null;
@@ -228,7 +251,7 @@ export function usePlano(userId: string) {
         : null,
     );
     if (Object.keys(fila.current).length) void enviar();
-  }, [userId, enviar]);
+  }, [userId, enviar, admin, soVer]);
 
   useEffect(() => {
     recarregarRef.current = carregar;
@@ -251,17 +274,17 @@ export function usePlano(userId: string) {
 
   const set = useCallback(
     (k: string, v: Valor) => {
-      if (!CAMPO_VALIDO.test(k)) return;
+      if (soVer || !CAMPO_VALIDO.test(k)) return; // modo leitura: nada é gravado
       if (travado.current && !campoLivre(k)) return; // plano assinado: campo travado não muda
       setPlano((p) => (p ? { ...p, respostas: { ...p.respostas, [k]: v } } : p));
       fila.current[k] = v;
-      gravarFila(userId, fila.current);
+      gravarFila(userId, fila.current, admin);
       tentativas.current = 0; // nova edição: volta a ter as 5 tentativas
       setStatus("pendente");
       if (timer.current) clearTimeout(timer.current);
       if (montado.current) timer.current = setTimeout(() => void enviar(), 700);
     },
-    [userId, enviar],
+    [userId, enviar, admin, soVer],
   );
 
   const setVarios = useCallback(
@@ -281,14 +304,18 @@ export function usePlano(userId: string) {
       m: { comissao: number; vgv: number | null; vendas: number; captacoes: number | null },
       substituir: boolean,
     ) => {
-      const { data, error } = await planoDb.rpc("carreira_plano_usar_meta", {
+      if (soVer) throw new Error("Plano aberto só para leitura.");
+      const args = {
         _ano: ANO_PLANO,
         _comissao: m.comissao,
         _vgv: m.vgv,
         _vendas: m.vendas,
         _captacoes: m.captacoes,
         _substituir: substituir,
-      });
+      };
+      const { data, error } = admin
+        ? await planoDb.rpc("carreira_plano_admin_usar_meta", { _corretor: userId, ...args })
+        : await planoDb.rpc("carreira_plano_usar_meta", args);
       if (error) throw new Error(erroPlano(error.message));
       const r = data as MetaResp;
       if (r.status === "gravada")
@@ -297,11 +324,13 @@ export function usePlano(userId: string) {
         );
       return r;
     },
-    [],
+    [admin, soVer, userId],
   );
 
   const sincronizando = useRef(false);
   const assinar = useCallback(async () => {
+    // A assinatura é sempre do corretor (t_c9b0f633): o administrador não assina pela pessoa.
+    if (modo !== "proprio") throw new Error("Só o próprio corretor assina o plano.");
     // Só assina com a meta oficial calculada (t_3d55d20c); o banco repete a regra em carreira_plano_assinar.
     const falta = faltaParaMeta(plano?.respostas);
     if (falta.length) throw new Error(msgFaltaMeta(falta));
@@ -328,7 +357,7 @@ export function usePlano(userId: string) {
       sincronizando.current = false;
     }
     return { metaGravada: !!m };
-  }, [enviar, plano, taxasPadrao, usarMeta]);
+  }, [enviar, plano, taxasPadrao, usarMeta, modo]);
 
   // Plano assinado (t_850a0d39): a meta oficial NÃO é regravada sozinha. Antes, abrir o plano assinado tentava
   // regravar a meta quando a conta mudava; agora só a própria assinatura grava (assinar acima) e, para mudar,

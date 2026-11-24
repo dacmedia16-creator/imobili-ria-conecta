@@ -78,6 +78,10 @@ export type QuebraTotal = {
 export type LinhaRanking = {
   id: string;
   nome: string;
+  /** De quem é o plano aberto ao clicar no nome (t_c9b0f633): a pessoa; equipe = o líder. null = sem clique. */
+  planoDe: string | null;
+  /** Equipe: nome do líder, mostrado embaixo do nome da equipe. */
+  liderNome?: string | null;
   sub: string | null;
   meta: number | null;
   realizado: number;
@@ -181,6 +185,8 @@ function linhaGrupo(g: GrupoPainel): LinhaRanking {
   return {
     id: g.id ?? "sem",
     nome: g.nome,
+    planoDe: g.liderId ?? null,
+    liderNome: g.liderNome,
     sub: `${g.cobertura.assinados}/${g.cobertura.elegiveis} planos assinados`,
     meta: c.metaAno,
     realizado: c.realAno,
@@ -196,6 +202,7 @@ function linhaPessoa(p: CartaoCorretor, equipe: string): LinhaRanking {
   return {
     id: p.userId,
     nome: p.nome,
+    planoDe: p.userId,
     sub: equipe,
     meta: c.metaAno,
     realizado: p.realizadoAno.comissao ?? 0,

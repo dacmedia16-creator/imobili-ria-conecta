@@ -32,6 +32,7 @@ import { BotaoReabrirPlano } from "@/components/minha-carreira/meu-plano/Reabrir
 import { useAuth } from "@/lib/auth";
 import { ContextoInfo } from "./contexto-info";
 import { contaNaMeta } from "@/lib/metas-2027/consolidado";
+import { NomeComPlano } from "./NomeComPlano";
 
 // Painéis de metas 2027 — ETAPA 3 (cartão t_863b7590, Denis 20/11): painel do gestor/broker/Team Leader.
 // Tela NOVA: não altera o Painel da Equipe nem o Farol. A tela não faz conta: tudo sai de montarPainelGestor()
@@ -273,7 +274,12 @@ function ResumoGrupo({
         <div className="min-w-0">
           <p className="font-semibold">{grupo.nome}</p>
           {grupo.liderNome ? (
-            <p className="text-xs text-muted-foreground">Líder: {grupo.liderNome}</p>
+            <p className="text-xs text-muted-foreground">
+              Líder:{" "}
+              <NomeComPlano userId={grupo.liderId} ativo={painel.moduloPlano}>
+                {grupo.liderNome}
+              </NomeComPlano>
+            </p>
           ) : null}
         </div>
         {/* Antes de jan/2027 não há farol de equipe (o realizado é de outro ano). */}
@@ -543,7 +549,11 @@ function CartaoPessoa({
       data-testid="cartao-corretor"
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="min-w-0 truncate font-semibold">{c.nome}</p>
+        <p className="min-w-0 truncate font-semibold">
+          <NomeComPlano userId={c.userId} ativo={painel.moduloPlano}>
+            {c.nome}
+          </NomeComPlano>
+        </p>
         <span className="inline-flex shrink-0 items-center gap-0.5">
           <Pill tom={TOM_FAROL[c.avaliacao.farol]} className="shrink-0">
             {FAROL_META_ROTULO[c.avaliacao.farol]}
