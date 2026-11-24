@@ -7,7 +7,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { createElement } from "react";
 
 const rpc = vi.fn();
@@ -87,6 +87,63 @@ describe("lista Planos 2027 · Preenchimento", () => {
     expect(within(linhaAna).getByText(`${pctAna}%`)).toBeTruthy();
     expect(within(linhaBia).getByText("0%")).toBeTruthy();
     expect(within(lista).getByText("1/2")).toBeTruthy(); // começaram
+  });
+
+  it("busca sem acento + filtro (t_8960c522): mostra 'X de Y pessoas', Limpar volta tudo e o topo não muda", async () => {
+    const pessoa = (user_id: string, nome: string, extra: Record<string, unknown> = {}) => ({
+      user_id,
+      nome,
+      trilha: null,
+      ativacao_inicio: null,
+      respostas: { "pq.frase": "x" },
+      assinado_corretor_em: null,
+      assinado_broker_em: null,
+      meta_oficial_em: null,
+      updated_at: "2026-11-20T12:00:00Z",
+      ...extra,
+    });
+    rpc.mockResolvedValue({
+      data: [
+        pessoa("u-1", "Juan Pérez", { assinado_corretor_em: "2026-11-21T12:00:00Z" }),
+        pessoa("u-2", "Ana Simões"),
+        pessoa("u-3", "Bia Nunca", { respostas: null, updated_at: null }),
+      ],
+      error: null,
+    });
+    const abrir = vi.fn();
+    render(createElement(EquipePlano, { aberto: null, abrir, broker: true }));
+    const lista = await screen.findByTestId("broker-equipe");
+    const topo = () => [
+      within(lista).getByText("2/3").textContent,
+      within(lista).getByText("pactos assinados").previousSibling?.textContent,
+    ];
+    const antes = topo();
+    expect(screen.getByTestId("contagem-filtro").textContent).toBe("3 de 3 pessoas");
+    expect(screen.queryByTestId("limpar-filtro")).toBeNull();
+
+    fireEvent.change(screen.getByTestId("busca-equipe"), { target: { value: "PEREZ" } });
+    expect(screen.getByTestId("contagem-filtro").textContent).toBe("1 de 3 pessoas");
+    expect(within(lista).getByText("Juan Pérez")).toBeTruthy();
+    expect(within(lista).queryByText("Ana Simões")).toBeNull();
+    expect(topo()).toEqual(antes); // contadores do topo seguem no total
+    // O "Abrir" continua abrindo a mesma pessoa.
+    fireEvent.click(within(lista).getByTestId("abrir-plano"));
+    expect(abrir).toHaveBeenCalledWith("u-1");
+
+    fireEvent.change(screen.getByTestId("busca-equipe"), { target: { value: "" } });
+    fireEvent.change(screen.getByTestId("filtro-situacao"), { target: { value: "nao_comecou" } });
+    expect(screen.getByTestId("contagem-filtro").textContent).toBe("1 de 3 pessoas");
+    expect(within(lista).getByText("Bia Nunca")).toBeTruthy();
+
+    fireEvent.change(screen.getByTestId("busca-equipe"), { target: { value: "juan" } });
+    expect(screen.getByTestId("contagem-filtro").textContent).toBe("0 de 3 pessoas");
+    expect(within(lista).getByText(/Ninguém encontrado/)).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId("limpar-filtro"));
+    expect(screen.getByTestId("contagem-filtro").textContent).toBe("3 de 3 pessoas");
+    expect((screen.getByTestId("busca-equipe") as HTMLInputElement).value).toBe("");
+    expect((screen.getByTestId("filtro-situacao") as HTMLSelectElement).value).toBe("todos");
+    expect(topo()).toEqual(antes);
   });
 
   it("gestor vê só a própria equipe (t_48670ed3): texto de equipe, não de imobiliária", async () => {

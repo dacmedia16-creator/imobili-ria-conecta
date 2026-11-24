@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Eye, FileText } from "lucide-react";
+import { ChevronLeft, ChevronRight, Eye, FileText, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { EmptyState, ErrorState, ListSkeleton, Pill } from "@/components/visual/base";
 import { calc, type Respostas, type TaxasFunil } from "@/lib/meu-plano-2027/regras";
 import { ANO_PLANO, ORDEM, inicioNoventaDias, progresso, tela } from "@/lib/meu-plano-2027/telas";
 import { erroPlano, planoDb } from "@/lib/meu-plano-2027/modulo";
+import {
+  contarSituacoes,
+  filtrarEquipe,
+  OPCOES_SITUACAO,
+  type SituacaoFiltro,
+} from "@/lib/meu-plano-2027/filtro-equipe";
 import { PlanoCtx, Bloco, Stat } from "./campos";
 import { Cockpit, CorpoTela } from "./telas";
 import { IndiceTelas } from "./IndiceTelas";
@@ -71,6 +78,9 @@ export function EquipePlano({
   // Abrir entra na 1ª tela; trocar de corretor volta para a 1ª tela.
   const [passo, setPasso] = useState(0);
   useEffect(() => setPasso(0), [aberto]);
+  // Busca e filtro (t_8960c522): só nesta tela, guardados aqui para sobreviver ao "Abrir" → "Equipe".
+  const [busca, setBusca] = useState("");
+  const [situacao, setSituacao] = useState<SituacaoFiltro>("todos");
   const { user } = useAuth();
 
   const carregar = useCallback(async () => {
@@ -138,6 +148,23 @@ export function EquipePlano({
       ).selo,
     }));
   }, [lista, taxas]);
+  // Só exibição: os contadores do topo seguem usando `linhas` (o total).
+  const paraFiltro = useMemo(
+    () =>
+      linhas.map((l) => ({
+        ...l,
+        nome: l.m.nome,
+        pct: l.p.pct,
+        assinado: !!l.m.assinado_corretor_em,
+      })),
+    [linhas],
+  );
+  const visiveis = useMemo(
+    () => filtrarEquipe(paraFiltro, busca, situacao),
+    [paraFiltro, busca, situacao],
+  );
+  const porSituacao = useMemo(() => contarSituacoes(paraFiltro), [paraFiltro]);
+  const filtrando = busca.trim() !== "" || situacao !== "todos";
 
   if (erro) return <ErrorState onRetry={() => void carregar()}>{erro}</ErrorState>;
   if (!lista) return <ListSkeleton />;
@@ -350,50 +377,108 @@ export function EquipePlano({
             : "Ninguém da sua equipe começou o plano ainda."}
         </EmptyState>
       ) : (
-        <ul className="divide-y rounded-xl border bg-card">
-          {linhas.map(({ m: x, p, selo }) => (
-            <li key={x.user_id} className="flex items-center gap-2 px-3 py-2.5">
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <p className="truncate text-sm font-medium">{x.nome}</p>
-                  <Pill tom={SELO_META[selo].tom} className="py-0 text-[11px]">
-                    <span data-testid="selo-meta" data-selo={selo}>
-                      {SELO_META[selo].texto}
-                    </span>
-                  </Pill>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {p.telas}/{p.total} telas ·{" "}
-                  {x.assinado_corretor_em
-                    ? "✅ assinado · "
-                    : x.updated_at || Object.keys(x.respostas).length
-                      ? "📝 em preenchimento · "
-                      : ""}
-                  {x.updated_at ? `mexeu em ${quando(x.updated_at)}` : "não começou"}
-                </p>
-                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
-                  <i
-                    className={`block h-full rounded-full ${p.pct === 100 ? "bg-emerald-600" : "bg-primary"}`}
-                    style={{ width: `${p.pct}%` }}
-                  />
-                </div>
-              </div>
-              <b className="w-10 text-right text-sm tabular-nums">{p.pct}%</b>
-              {x.updated_at || Object.keys(x.respostas).length ? (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => abrir(x.user_id)}
-                  data-testid="abrir-plano"
-                >
-                  Abrir
-                </Button>
-              ) : (
-                <span className="w-[3.75rem]" />
-              )}
-            </li>
-          ))}
-        </ul>
+        <>
+          <div
+            className="flex flex-col gap-2 sm:flex-row sm:items-center"
+            data-testid="filtros-equipe"
+          >
+            <div className="relative flex-1">
+              <Search
+                className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden
+              />
+              <Input
+                type="search"
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                placeholder="Buscar pelo nome"
+                aria-label="Buscar pelo nome"
+                className="pl-8"
+                data-testid="busca-equipe"
+              />
+            </div>
+            <select
+              value={situacao}
+              onChange={(e) => setSituacao(e.target.value as SituacaoFiltro)}
+              aria-label="Filtrar por situação"
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm sm:w-60"
+              data-testid="filtro-situacao"
+            >
+              {OPCOES_SITUACAO.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.texto} ({porSituacao[o.id]})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex min-h-7 items-center justify-between text-xs text-muted-foreground">
+            <span data-testid="contagem-filtro" aria-live="polite">
+              {visiveis.length} de {linhas.length} pessoas
+            </span>
+            {filtrando ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs"
+                onClick={() => {
+                  setBusca("");
+                  setSituacao("todos");
+                }}
+                data-testid="limpar-filtro"
+              >
+                <X className="mr-1 h-3.5 w-3.5" aria-hidden /> Limpar
+              </Button>
+            ) : null}
+          </div>
+          {visiveis.length === 0 ? (
+            <EmptyState>Ninguém encontrado com essa busca e esse filtro.</EmptyState>
+          ) : (
+            <ul className="divide-y rounded-xl border bg-card">
+              {visiveis.map(({ m: x, p, selo }) => (
+                <li key={x.user_id} className="flex items-center gap-2 px-3 py-2.5">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <p className="truncate text-sm font-medium">{x.nome}</p>
+                      <Pill tom={SELO_META[selo].tom} className="py-0 text-[11px]">
+                        <span data-testid="selo-meta" data-selo={selo}>
+                          {SELO_META[selo].texto}
+                        </span>
+                      </Pill>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {p.telas}/{p.total} telas ·{" "}
+                      {x.assinado_corretor_em
+                        ? "✅ assinado · "
+                        : x.updated_at || Object.keys(x.respostas).length
+                          ? "📝 em preenchimento · "
+                          : ""}
+                      {x.updated_at ? `mexeu em ${quando(x.updated_at)}` : "não começou"}
+                    </p>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                      <i
+                        className={`block h-full rounded-full ${p.pct === 100 ? "bg-emerald-600" : "bg-primary"}`}
+                        style={{ width: `${p.pct}%` }}
+                      />
+                    </div>
+                  </div>
+                  <b className="w-10 text-right text-sm tabular-nums">{p.pct}%</b>
+                  {x.updated_at || Object.keys(x.respostas).length ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => abrir(x.user_id)}
+                      data-testid="abrir-plano"
+                    >
+                      Abrir
+                    </Button>
+                  ) : (
+                    <span className="w-[3.75rem]" />
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
       )}
       <p className="text-xs text-muted-foreground">
         {broker
