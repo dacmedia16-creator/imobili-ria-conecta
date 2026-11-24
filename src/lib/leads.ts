@@ -97,7 +97,7 @@ export type Lead = {
   sem_prazo?: boolean;
   imovel_interesse?: string | null;
   // CRM (migration 20261029100000, t_188fb282). Opcionais: sem o CRM a tela de leads segue igual.
-  funil?: "venda" | "captacao";
+  funil?: "venda" | "captacao" | "locacao";
   proximo_contato_em?: string | null;
   proximo_contato_motivo?: string | null;
   sale_id?: string | null;
@@ -313,7 +313,7 @@ export function textoEvento(e: LeadEvento, nome: (id: string | null) => string):
     case "convertido":
       return e.de === "captacao" ? "Convertido em captação exclusiva" : "Convertido em venda";
     case "funil":
-      return `Funil: ${e.para === "captacao" ? "Captação" : "Venda"}`;
+      return `Funil: ${e.para === "captacao" ? "Captação" : e.para === "locacao" ? "Locação" : "Venda"}`;
     case "atribuido":
       return e.de
         ? `Responsável trocado: ${nome(e.de)} → ${nome(e.para)}`

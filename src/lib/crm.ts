@@ -14,7 +14,8 @@ export type Etapa =
   | "perdido";
 const encerrado = (e: string) => e === "ganho" || e === "perdido";
 
-export const FUNIS = ["venda", "captacao"] as const;
+// "locacao": t_d4c8b724 (Denis 24/11) — leads de aluguel (C2S "Aluguel" / portal RENT) entram nele sozinhos.
+export const FUNIS = ["venda", "captacao", "locacao"] as const;
 export type Funil = (typeof FUNIS)[number];
 
 export type FunilDef = {
@@ -55,9 +56,26 @@ export const FUNIL: Record<Funil, FunilDef> = {
     },
     conv: "Converter em captação",
   },
+  // Etapas aprovadas por Denis 24/11 ("1 ok sem contrato"): as mesmas do banco que a venda usa.
+  // Sem conversão: o contrato de locação fica no módulo Locação (desligado na Única).
+  locacao: {
+    nome: "Funil de Locação",
+    publico: "locação (inquilino)",
+    etapas: ["novo", "em_atendimento", "visita_agendada", "proposta", "ganho", "perdido"],
+    label: {
+      novo: "Novo",
+      em_atendimento: "Em contato",
+      visita_agendada: "Visita",
+      proposta: "Ficha/Análise de crédito",
+      ganho: "Fechado",
+      perdido: "Perdido",
+    },
+    conv: "",
+  },
 };
 
-export const funilDe = (l: Pick<Lead, "funil">): Funil => (l.funil === "captacao" ? "captacao" : "venda");
+export const funilDe = (l: Pick<Lead, "funil">): Funil =>
+  l.funil === "captacao" || l.funil === "locacao" ? l.funil : "venda";
 export const nomeEtapa = (f: Funil, e: Etapa) => FUNIL[f].label[e] ?? e;
 
 /** Data de hoje (AAAA-MM-DD) em São Paulo — a mesma do banco (crm_hoje). */
