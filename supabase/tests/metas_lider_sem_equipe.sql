@@ -1,4 +1,4 @@
--- Suíte da migration 20261230120000 (t_a897136b): líder sem equipe vigente cai na equipe que lidera no painel
+-- Suíte da migration 20261231120000 (t_a897136b): líder sem equipe vigente cai na equipe que lidera no painel
 -- Metas 2027 · Equipes. Transação revertida (run-metas-lider-sem-equipe.sh), homologação; nunca produção.
 -- Dados fictícios. Pessoas:
 --   lsem = gestor (sem team_leader) que lidera eqL, equipe SEM membros e SEM histórico (caso da Aline);

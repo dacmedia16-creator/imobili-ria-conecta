@@ -10,7 +10,7 @@
 -- Produção por pessoa e outras telas a usam). Papéis, equipes e permissões NÃO mudam: o resultado continua
 -- filtrado por metas_equipe_times/metas_equipe_broker, como antes. Dono, SECURITY DEFINER, search_path e ACL iguais.
 --
--- Rollback: supabase/rollback/20261230120000_metas_lider_sem_equipe.sql (corpo de 20261207120000 = produção 23/11,
+-- Rollback: supabase/rollback/20261231120000_metas_lider_sem_equipe.sql (corpo de 20261207120000 = produção 23/11,
 -- md5 244f48d97b231e5112c85e0e98566919). Suíte: supabase/tests/run-metas-lider-sem-equipe.sh (MIG=… = controle negativo).
 BEGIN;
 

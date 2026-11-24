@@ -1,4 +1,4 @@
--- Rollback de 20261230120000_metas_lider_sem_equipe.sql (t_a897136b): metas_equipe_escopo volta ao corpo de
+-- Rollback de 20261231120000_metas_lider_sem_equipe.sql (t_a897136b): metas_equipe_escopo volta ao corpo de
 -- 20261207120000 (= produção 23/11, md5 244f48d97b231e5112c85e0e98566919). Quem lidera sem equipe vigente volta
 -- para "Sem equipe" no painel Metas 2027 · Equipes. Nenhum dado muda.
 BEGIN;

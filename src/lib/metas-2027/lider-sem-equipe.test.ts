@@ -6,7 +6,7 @@
  * não há histórico. equipe_vigente() devolve NULL; metas_equipe_escopo devolvia team_id NULL e a meta dela
  * (R$ 189.000 · 18 vendas · 18 captações) ia para "Sem equipe", com a aba "Aline de Souza Rodrigues" vazia.
  *
- * Correção no banco (migration 20261230120000): metas_equipe_escopo usa a equipe liderada quando
+ * Correção no banco (migration 20261231120000): metas_equipe_escopo usa a equipe liderada quando
  * equipe_vigente() vier NULL. A prova com dados roda em supabase/tests/run-metas-lider-sem-equipe.sh
  * (homologação, transação desfeita, com controle negativo). Aqui: o texto da migration e do rollback e o efeito
  * na tela (aba da equipe com a meta; "Todas" conta 1 vez só).
@@ -20,8 +20,8 @@ import {
   type RealizadoRpc,
 } from "./painel-gestor";
 
-const MIG = "supabase/migrations/20261230120000_metas_lider_sem_equipe.sql";
-const RB = "supabase/rollback/20261230120000_metas_lider_sem_equipe.sql";
+const MIG = "supabase/migrations/20261231120000_metas_lider_sem_equipe.sql";
+const RB = "supabase/rollback/20261231120000_metas_lider_sem_equipe.sql";
 const ORIGINAL = "supabase/migrations/20261207120000_metas_2027_painel_gestor.sql";
 
 const corpo = (sql: string, fn: string) => {

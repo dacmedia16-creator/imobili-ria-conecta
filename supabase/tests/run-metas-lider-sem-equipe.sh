@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Líder sem equipe vigente no painel Metas 2027 · Equipes (migration 20261230120000, t_a897136b) numa ÚNICA
+# Líder sem equipe vigente no painel Metas 2027 · Equipes (migration 20261231120000, t_a897136b) numa ÚNICA
 # transação revertida: [pré-requisitos idempotentes] -> fingerprint -> migration -> suíte -> rollback ->
 # fingerprint igual -> reaplica 2x -> ROLLBACK. Nada fica gravado.
 # Uso: PSQL="bash <hq.sh> -" bash supabase/tests/run-metas-lider-sem-equipe.sh  (homologação; nunca produção)
@@ -21,8 +21,8 @@ PRE=(
   "$M/20261218120000_meu_plano_gestor_so_equipe.sql"
   "$M/20261219120000_gestor_so_equipe_metas_pacto_1a1.sql"
 )
-MIG="$M/20261230120000_metas_lider_sem_equipe.sql"
-RB="$ROOT/supabase/rollback/20261230120000_metas_lider_sem_equipe.sql"
+MIG="$M/20261231120000_metas_lider_sem_equipe.sql"
+RB="$ROOT/supabase/rollback/20261231120000_metas_lider_sem_equipe.sql"
 strip() { grep -v -E '^(BEGIN|COMMIT|ROLLBACK);\s*$' "$1"; }
 FP="SELECT 'FP=' || md5(coalesce((SELECT string_agg(x, ',' ORDER BY x) FROM (
   SELECT 'fn:'||p.oid::regprocedure::text||':'||p.prosecdef::text||':'||coalesce(p.proconfig::text,'')||':'||coalesce(p.proacl::text,'')||':'||md5(p.prosrc) x
@@ -41,7 +41,7 @@ OUT="$(
   echo "$MD5"
   echo "$FP"
   if [[ "${SEM_MIGRATION:-}" == "1" ]]; then
-    echo "\\echo [CONTROLE NEGATIVO: sem a migration 20261230120000]"
+    echo "\\echo [CONTROLE NEGATIVO: sem a migration 20261231120000]"
   else
     strip "$MIG"
     echo "\\echo [migration ok]"
