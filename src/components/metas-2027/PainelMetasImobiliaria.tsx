@@ -34,6 +34,7 @@ import { lerTaxasPadrao } from "@/components/minha-carreira/Diario";
 import type { ChaveExplicacao } from "@/lib/metas-2027/explicacoes";
 import { InfoDica, RotuloInfo } from "./InfoDica";
 import { ContextoInfo } from "./contexto-info";
+import { NomeComPlano } from "./NomeComPlano";
 
 // Painéis de metas 2027 — ETAPA 4 (cartão t_69d29df6, Denis 20/11): painel da IMOBILIÁRIA (broker/admin).
 // Tela NOVA: não altera o Painel da Equipe, o Farol nem os relatórios financeiros. A tela não faz conta: tudo sai
@@ -316,12 +317,14 @@ function Conteudo({
           info="imob_ranking_equipes"
           linhas={p.rankingEquipes}
           testid="ranking-equipes"
+          abrePlano={p.base.moduloPlano}
         />
         <Ranking
           titulo="Ranking por corretor"
           info="imob_ranking_corretores"
           linhas={p.rankingCorretores}
           testid="ranking-corretores"
+          abrePlano={p.base.moduloPlano}
         />
       </div>
       <p className="text-xs text-muted-foreground">
@@ -872,11 +875,14 @@ function Ranking({
   info,
   linhas,
   testid,
+  abrePlano = false,
 }: {
   titulo: string;
   info: ChaveExplicacao;
   linhas: LinhaRanking[];
   testid: string;
+  /** t_c9b0f633: o nome abre o Meu Plano 2027 (pessoa; na equipe, o do líder). Só com o módulo ligado. */
+  abrePlano?: boolean;
 }) {
   return (
     <Bloco titulo={titulo} info={info} testid={testid}>
@@ -891,8 +897,27 @@ function Ranking({
             >
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">
-                  {i + 1}. {l.nome}
+                  {i + 1}.{" "}
+                  <NomeComPlano
+                    userId={l.planoDe}
+                    ativo={abrePlano}
+                    titulo={
+                      l.liderNome
+                        ? `Abrir o plano de ${l.liderNome} (líder)`
+                        : `Abrir o plano de ${l.nome}`
+                    }
+                  >
+                    {l.nome}
+                  </NomeComPlano>
                 </p>
+                {l.liderNome ? (
+                  <p className="truncate text-xs text-muted-foreground">
+                    Líder:{" "}
+                    <NomeComPlano userId={l.planoDe} ativo={abrePlano}>
+                      {l.liderNome}
+                    </NomeComPlano>
+                  </p>
+                ) : null}
                 {l.sub ? <p className="truncate text-xs text-muted-foreground">{l.sub}</p> : null}
                 {l.aConferir > 0 ? (
                   <p

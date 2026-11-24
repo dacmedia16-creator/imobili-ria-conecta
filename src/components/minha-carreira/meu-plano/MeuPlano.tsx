@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   BookOpen,
@@ -30,7 +30,7 @@ import { conferirPlano } from "@/lib/meu-plano-2027/conferencia";
 import { faltaParaMeta, msgFaltaMeta } from "@/lib/meu-plano-2027/meta-calculavel";
 import { MSG_PLANO_ASSINADO, TELAS_LIVRES } from "@/lib/meu-plano-2027/trava-assinado";
 import { Leitor, PaginaOriginal, destinoExercicios } from "./Leitor";
-import { usePlano, type StatusSalvar } from "./usePlano";
+import { usePlano, type ModoPlano, type StatusSalvar } from "./usePlano";
 import { BotaoBaixarPlano } from "./BaixarPdf";
 import { IndiceTelas } from "./IndiceTelas";
 import { OQueFalta } from "./OQueFalta";
@@ -124,17 +124,30 @@ function LeiaAntes({
   );
 }
 
-/** Tela do corretor: passo a passo (caminho único, t_296fc69e), leitor do book e fim. */
+/**
+ * Tela do corretor: passo a passo (caminho único, t_296fc69e), leitor do book e fim.
+ * `modo` (t_c9b0f633): "proprio" = o plano de quem está logado; "editar" = administrador editando o plano de
+ * `userId` (mesmas telas, sem assinar e sem "trazer meus números"); "ver" = gestor/líder só lendo.
+ */
 export function MeuPlano({
   userId,
   vista,
   ir,
+  modo = "proprio",
+  nome,
 }: {
   userId: string;
   vista: Vista;
   ir: (v: Vista, replace?: boolean) => void;
+  modo?: ModoPlano;
+  nome?: string | null;
 }) {
-  const h = usePlano(userId);
+  const h = usePlano(userId, modo);
+  const proprio = modo === "proprio";
+  const soVer = modo === "ver";
+  const admin = modo === "editar";
+  // Administrador: a cópia das metas da semana (ms.*) só é refeita depois que ele muda algo (abrir não grava).
+  const adminEditou = useRef(false);
   const { plano } = h;
   const [original, setOriginal] = useState<number | null>(null);
   const [vindoDoBook, setVindoDoBook] = useState<number | null>(null);
@@ -146,7 +159,9 @@ export function MeuPlano({
   const conf = useMemo(() => conferirPlano(S, h.taxasPadrao), [S, h.taxasPadrao]);
 
   // Plano assinado (t_850a0d39): só leitura nos campos de meta e cálculo; muda só depois de reaberto.
-  const travado = !!plano?.assinado_corretor_em;
+  // Administrador (t_c9b0f633): edita mesmo assinado; o plano continua assinado e o banco guarda o histórico.
+  const assinado = !!plano?.assinado_corretor_em;
+  const travado = assinado && !admin;
   // Assinou e a meta oficial desta assinatura ainda não foi gravada (ex.: falhou a internet logo depois).
   // O banco aceita gravar só nos 15 min seguintes à assinatura; depois disso, só reabrindo.
   const metaPendente =
@@ -161,7 +176,8 @@ export function MeuPlano({
   // lê o plano. Atualiza junto com o plano, a partir da mesma calc(). Plano assinado: a cópia é a da
   // assinatura e não é regravada ao abrir (era o salvamento automático que dava erro).
   useEffect(() => {
-    if (!plano || plano.assinado_corretor_em) return;
+    if (!plano || soVer) return;
+    if (proprio ? plano.assinado_corretor_em : !adminEditou.current) return;
     const dif = snapshotMudou(S, metasDoCalc(C));
     if (Object.keys(dif).length) h.setVarios(dif);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -169,7 +185,7 @@ export function MeuPlano({
 
   // Última página do book e última tela ficam no próprio plano (campos internos "ui.*").
   useEffect(() => {
-    if (!plano) return;
+    if (!plano || !proprio) return; // plano de outra pessoa: não mexe em onde ELA parou
     if (vista.v === "book" && String(S["ui.pag"] ?? "") !== String(vista.p))
       h.set("ui.pag", String(vista.p));
     if (vista.v === "tela" && vizinhos(vista.id).i >= 0 && S["ui.ult"] !== vista.id)
@@ -206,8 +222,13 @@ export function MeuPlano({
   const ctx = {
     S,
     C,
-    set: h.set,
-    ro: false,
+    set: admin
+      ? (k: string, v: Parameters<typeof h.set>[1]) => {
+          adminEditou.current = true;
+          h.set(k, v);
+        }
+      : h.set,
+    ro: soVer,
     travado,
     inicio: inicioNoventaDias(plano.ativacao_inicio, S),
   };
@@ -307,11 +328,17 @@ export function MeuPlano({
   const barraSalvar = (
     <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
       <span>
-        {travado
-          ? "Plano assinado: só o acompanhamento é salvo."
-          : "Cada campo é salvo assim que você digita."}
+        {soVer
+          ? "Modo leitura: nada é alterado."
+          : admin
+            ? assinado
+              ? "Plano assinado: continua assinado. Cada mudança fica no histórico."
+              : "Cada campo é salvo assim que você digita e fica no histórico."
+            : travado
+              ? "Plano assinado: só o acompanhamento é salvo."
+              : "Cada campo é salvo assim que você digita."}
       </span>
-      <SalvoIndicador status={h.status} msg={h.msg} />
+      {soVer ? null : <SalvoIndicador status={h.status} msg={h.msg} />}
     </div>
   );
 
@@ -368,6 +395,7 @@ export function MeuPlano({
         {/* t_b8aae132 (Denis 13/11/2026): o botão aparece sempre, mesmo com telas incompletas. */}
         <BotaoBaixarPlano
           userId={userId}
+          nome={proprio ? undefined : nome}
           S={S}
           antes={h.enviar}
           className="w-full border-primary text-primary"
@@ -443,7 +471,7 @@ export function MeuPlano({
 
   const extras = {
     irPara: (id: string) => irTela(id),
-    p15: (
+    p15: !proprio ? null : (
       <Bloco>
         <p className="text-sm">
           O ADM MAX já tem 5 destes números (últimos 12 meses). Toque para trazer e depois confira.
@@ -498,12 +526,14 @@ export function MeuPlano({
           </p>
         ) : null}
         <Button
-          className="mt-2 w-full bg-emerald-700 text-white hover:bg-emerald-800"
-          disabled={ocupado || !meta || conf.bloqueiaMeta || (travado && !metaNoPrazo)}
+          className={`mt-2 w-full bg-emerald-700 text-white hover:bg-emerald-800 ${soVer ? "hidden" : ""}`}
+          disabled={ocupado || soVer || !meta || conf.bloqueiaMeta || (travado && !metaNoPrazo)}
           onClick={() => void usarMeta(false)}
           data-testid="usar-meta"
         >
-          Usar como minha meta oficial de 2027
+          {admin
+            ? `Usar como meta oficial de ${nome ?? "2027"}`
+            : "Usar como minha meta oficial de 2027"}
         </Button>
       </Bloco>
     ),
@@ -527,19 +557,25 @@ export function MeuPlano({
         </div>
         {plano.assinado_corretor_em ? null : travaAssinatura}
         {avisoFaltaMeta}
-        <Button
-          className="mt-1 w-full"
-          disabled={
-            ocupado ||
-            !!plano.assinado_corretor_em ||
-            conf.bloqueiaAssinatura ||
-            faltaMeta.length > 0
-          }
-          onClick={() => void assinar()}
-          data-testid="assinar-pacto"
-        >
-          {plano.assinado_corretor_em ? "Pacto assinado ✔" : "Assinar como corretor"}
-        </Button>
+        {proprio ? (
+          <Button
+            className="mt-1 w-full"
+            disabled={
+              ocupado ||
+              !!plano.assinado_corretor_em ||
+              conf.bloqueiaAssinatura ||
+              faltaMeta.length > 0
+            }
+            onClick={() => void assinar()}
+            data-testid="assinar-pacto"
+          >
+            {plano.assinado_corretor_em ? "Pacto assinado ✔" : "Assinar como corretor"}
+          </Button>
+        ) : (
+          <p className="mt-1 text-xs text-muted-foreground" data-testid="assinatura-so-corretor">
+            A assinatura é do próprio corretor, no plano dele.
+          </p>
+        )}
       </Bloco>
     ),
   };
@@ -610,7 +646,17 @@ export function MeuPlano({
             </Button>
           </div>
         </Bloco>
-        {travado ? (
+        {admin && assinado ? (
+          <div
+            role="status"
+            data-testid="aviso-assinado-admin"
+            className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[13px] text-amber-900 dark:bg-amber-950/40 dark:text-amber-100"
+          >
+            <b>Plano assinado pelo corretor.</b> Você pode corrigir como administrador: o plano
+            continua assinado e cada mudança fica registrada (quem, o quê, antes e depois).
+          </div>
+        ) : null}
+        {travado && !soVer ? (
           <div
             role="status"
             data-testid="aviso-plano-assinado"
@@ -626,7 +672,14 @@ export function MeuPlano({
         {barraSalvar}
         <OQueFalta S={S} irTela={irTela} />
         <LeiaAntes ids={t.leia} verPagina={setOriginal} abrirBook={abrirBook} />
-        <CorpoTela id={t.id} extras={extras} />
+        {soVer ? (
+          // Trava dupla no modo leitura: ctx.ro + fieldset disabled (nenhum campo aceita digitação).
+          <fieldset disabled className="min-w-0 space-y-3">
+            <CorpoTela id={t.id} extras={extras} />
+          </fieldset>
+        ) : (
+          <CorpoTela id={t.id} extras={extras} />
+        )}
         <NavInferior>
           <Button
             variant="outline"

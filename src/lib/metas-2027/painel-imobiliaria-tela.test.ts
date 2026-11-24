@@ -280,6 +280,34 @@ describe("Painel de metas 2027 · Imobiliária", () => {
     expect(screen.getByTestId("ranking-corretores").textContent).toMatch(/Corretor Alfa/);
   });
 
+  it("t_c9b0f633: nome no ranking abre o plano da pessoa; na equipe, o do líder; sem módulo, só texto", async () => {
+    hoje("2027-03-16");
+    responder({
+      planos: {
+        ...PLANOS,
+        equipes: [{ id: "t1", nome: "Equipe Azul", lider_id: "b", lider_nome: "Corretora Beta" }],
+      },
+    });
+    render(createElement(PainelMetasImobiliaria));
+    await screen.findByTestId("topo-metas");
+    const corr = within(screen.getByTestId("ranking-corretores"));
+    const alfa = corr
+      .getAllByTestId("nome-abre-plano")
+      .find((x) => x.textContent === "Corretor Alfa")!;
+    expect(alfa.getAttribute("href")).toBe("/minha-carreira/plano?de=a");
+    const eq = within(screen.getByTestId("ranking-equipes"));
+    const links = eq.getAllByTestId("nome-abre-plano");
+    // Nome da equipe e "Líder: ..." abrem o plano do LÍDER.
+    expect(links.map((x) => x.textContent)).toEqual(["Equipe Azul", "Corretora Beta"]);
+    expect(links.every((x) => x.getAttribute("data-plano-de") === "b")).toBe(true);
+    cleanup();
+    responder({ planos: { ...PLANOS, modulo_plano: false } });
+    render(createElement(PainelMetasImobiliaria));
+    await screen.findByTestId("topo-metas");
+    expect(screen.queryAllByTestId("nome-abre-plano")).toHaveLength(0);
+    expect(escritas).toEqual([]);
+  });
+
   it("Team Leader (o banco devolve só a equipe dele) e corretor (42501): sem a imobiliária", async () => {
     hoje("2027-03-16");
     papeis = ["team_leader"];

@@ -183,6 +183,8 @@ export type GrupoPainel = {
   id: string | null;
   nome: string;
   liderNome: string | null;
+  /** Líder da equipe (t_c9b0f633: o nome da equipe no ranking abre o plano dele). null = sem líder/sem equipe. */
+  liderId?: string | null;
   soma: SomaPlanos;
   /** Meta (soma dos assinados) × realizado SÓ de quem assinou (Opção A, Denis 20/11). */
   avaliacao: Avaliacao;
@@ -435,6 +437,7 @@ export function montarPainelGestor(e: {
     liderNome: string | null,
     membros: Base[],
     todos = false,
+    liderId: string | null = null,
   ): GrupoPainel => {
     const ids = new Set(membros.map((m) => m.p.user_id));
     const soma = somarPlanos(
@@ -469,6 +472,7 @@ export function montarPainelGestor(e: {
       id,
       nome,
       liderNome,
+      liderId,
       soma,
       avaliacao: avaliarGrupo(soma, realAss, pos),
       realizadoAno: totalAte(realAss, ateMes),
@@ -513,6 +517,8 @@ export function montarPainelGestor(e: {
         t.nome,
         t.lider_nome,
         base.filter((b) => b.p.team_id === t.id),
+        false,
+        t.lider_id ?? null,
       ),
     );
   }

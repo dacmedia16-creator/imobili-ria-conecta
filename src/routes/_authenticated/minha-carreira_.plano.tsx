@@ -9,6 +9,7 @@ import { TOTAL_PAGINAS } from "@/lib/meu-plano-2027/book";
 import { tela } from "@/lib/meu-plano-2027/telas";
 import { MeuPlano, type Vista } from "@/components/minha-carreira/meu-plano/MeuPlano";
 import { EquipePlano } from "@/components/minha-carreira/meu-plano/Equipe";
+import { PlanoDaPessoa } from "@/components/minha-carreira/meu-plano/PlanoDaPessoa";
 
 // Meu Plano 2027 (cartão t_1ac2e95d). Rota própria fora do layout de Minha carreira. Só abre com o
 // módulo "meu_plano_2027" ligado na imobiliária; o banco repete a regra (RLS + RPCs).
@@ -18,6 +19,8 @@ type Busca = {
   id?: string;
   p?: number;
   m?: string;
+  /** Plano de OUTRA pessoa (t_c9b0f633): aberto pelo nome nos painéis de metas. O banco decide ver/editar. */
+  de?: string;
 };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -37,6 +40,7 @@ export const Route = createFileRoute("/_authenticated/minha-carreira_/plano")({
       b.p = Number.isInteger(p) && p >= 1 && p <= TOTAL_PAGINAS ? p : 1;
     }
     if (b.v === "equipe" && typeof raw.m === "string" && UUID.test(raw.m)) b.m = raw.m;
+    if (b.v !== "equipe" && typeof raw.de === "string" && UUID.test(raw.de)) b.de = raw.de;
     return b;
   },
   beforeLoad: guardMeuPlanoRoute,
@@ -63,9 +67,11 @@ function MeuPlanoPage() {
             : v.v === "fim"
               ? { v: "fim" }
               : {};
+      // Plano de outra pessoa: a navegação entre telas continua nele.
+      if (busca.de) search.de = busca.de;
       void navigate({ search, replace });
     },
-    [navigate],
+    [navigate, busca.de],
   );
   const abrirMembro = useCallback(
     (m: string | null) => void navigate({ search: m ? { v: "equipe", m } : { v: "equipe" } }),
@@ -123,14 +129,18 @@ function MeuPlanoPage() {
         </>
       ) : (
         <>
-          {vista.v === "inicio" ? (
+          {vista.v === "inicio" && !busca.de ? (
             <PageHeader
               icon={Target}
               title="Meu Plano 2027"
               description="O book do Agent Summit 2027 para ler e preencher no celular."
             />
           ) : null}
-          <MeuPlano userId={user.id} vista={vista} ir={ir} />
+          {busca.de && busca.de !== user.id ? (
+            <PlanoDaPessoa userId={busca.de} vista={vista} ir={ir} />
+          ) : (
+            <MeuPlano userId={user.id} vista={vista} ir={ir} />
+          )}
         </>
       )}
     </div>
