@@ -25,7 +25,7 @@ import type { ConversaIa, IaConfig, MensagemIa } from "@/lib/leads-ia";
 const db = supabase as unknown as SupabaseClient;
 
 const LEAD_COLS =
-  "id,nome,origem,mensagem,etapa,etapa_em,responsavel_id,atribuido_em,capture_id,captador_id,motivo_perda_id,motivo_perda_obs,created_at,updated_at,aceito_em,ultima_interacao_em,no_banco_desde,simulado,anuncio_codigo,anuncio_portal_id,portal_tipo,portal_temperatura,portal_transacao";
+  "id,nome,origem,mensagem,etapa,etapa_em,responsavel_id,atribuido_em,capture_id,captador_id,motivo_perda_id,motivo_perda_obs,created_at,updated_at,aceito_em,ultima_interacao_em,no_banco_desde,simulado,anuncio_codigo,anuncio_portal_id,portal_tipo,portal_temperatura,portal_transacao,sem_prazo,imovel_interesse";
 
 function falha(error: { message?: string } | null): never {
   throw new Error(mensagemErroLead(error?.message ?? ""));
@@ -244,7 +244,10 @@ export async function lerIaConfig(): Promise<IaConfig> {
     .maybeSingle();
   if (error) falha(error);
   // Roteiro novo (migration 20261026170000): lido à parte para a tela seguir funcionando sem ela.
-  const { data: rot } = await db.from("lead_config").select("ia_primeira_msg,ia_reengajar").maybeSingle();
+  const { data: rot } = await db
+    .from("lead_config")
+    .select("ia_primeira_msg,ia_reengajar")
+    .maybeSingle();
   // Lembrete de 15 min (migration 20261028190000, t_b3f753a5): lido à parte; sem a coluna, fica desligado.
   const { data: t15 } = await db.from("lead_config").select("ia_toque15").maybeSingle();
   return {
@@ -280,7 +283,11 @@ export async function salvarToque15Ia(ligado: boolean) {
 export async function nomeImobiliaria(): Promise<string | null> {
   const { data: org } = await db.rpc("current_org_id");
   if (!org) return null;
-  const { data } = await db.from("organizations").select("nome").eq("id", org as string).maybeSingle();
+  const { data } = await db
+    .from("organizations")
+    .select("nome")
+    .eq("id", org as string)
+    .maybeSingle();
   return (data as { nome?: string } | null)?.nome ?? null;
 }
 

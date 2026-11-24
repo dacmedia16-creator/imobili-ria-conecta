@@ -136,8 +136,11 @@ describe("tela", () => {
 
 describe("migration 20261025170000", () => {
   it("CHECK de origem da migration = lista da tela", () => {
-    const m = MIG.match(/ADD CONSTRAINT leads_origem_check\s+CHECK \(origem IN \(([^)]+)\)\)/);
-    expect([...(m?.[1] ?? "").matchAll(/'([a-z_]+)'/g)].map((x) => x[1])).toEqual([
+    // t_32f5458d: a origem "c2s" entrou depois; vale o CHECK da migration mais recente que o redefine.
+    const ULTIMA = readFileSync("supabase/migrations/20270102120000_leads_c2s.sql", "utf8");
+    expect(MIG).toMatch(/'grupo_olx'\)\)/);
+    const m = ULTIMA.match(/ADD CONSTRAINT leads_origem_check\s+CHECK \(origem IN \(([^)]+)\)\)/);
+    expect([...(m?.[1] ?? "").matchAll(/'([a-z0-9_]+)'/g)].map((x) => x[1])).toEqual([
       ...ORIGENS_TODAS,
     ]);
   });
