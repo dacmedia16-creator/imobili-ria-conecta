@@ -20,6 +20,8 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA pg_temp TO authenticated, anon;
 \set c1 'a4000000-0000-4000-8000-000000000005'
 \set c2 'a4000000-0000-4000-8000-000000000006'
 \set c3 'a4000000-0000-4000-8000-000000000007'
+\set c4 'a4000000-0000-4000-8000-000000000009'
+\set c5 'a4000000-0000-4000-8000-00000000000a'
 \set ab 'b4000000-0000-4000-8000-000000000001'
 \set cb 'b4000000-0000-4000-8000-000000000003'
 \set eq1 'a4000000-0000-4000-8000-00000000e001'
@@ -29,7 +31,7 @@ SET LOCAL session_replication_role = replica;
 INSERT INTO public.organizations (id, slug, nome, status) VALUES
   (:'org_a', 'teste-admin-edita-a', 'Imobiliaria Admin Edita A', 'ativa'),
   (:'org_b', 'teste-admin-edita-b', 'Imobiliaria Admin Edita B', 'ativa');
-INSERT INTO auth.users (id) SELECT unnest(ARRAY[:'admin', :'gestor', :'tl', :'c1', :'c2', :'c3', :'ab', :'cb']::uuid[]);
+INSERT INTO auth.users (id) SELECT unnest(ARRAY[:'admin', :'gestor', :'tl', :'c1', :'c2', :'c3', :'c4', :'c5', :'ab', :'cb']::uuid[]);
 INSERT INTO public.profiles (id, nome, email, ativo, organization_id) VALUES
   (:'admin', 'Dona Edita', 'dona@edita.test', true, :'org_a'),
   (:'gestor', 'Gil Gestor', 'gestor@edita.test', true, :'org_a'),
@@ -37,14 +39,18 @@ INSERT INTO public.profiles (id, nome, email, ativo, organization_id) VALUES
   (:'c1', 'Ana Assinada', 'c1@edita.test', true, :'org_a'),
   (:'c2', 'Bia Preenchendo', 'c2@edita.test', true, :'org_a'),
   (:'c3', 'Caio Sem Plano', 'c3@edita.test', true, :'org_a'),
+  (:'c4', 'Duda Saiu', 'c4@edita.test', true, :'org_a'),
+  (:'c5', 'Edu Valor Alto', 'c5@edita.test', true, :'org_a'),
   (:'ab', 'Admin B', 'ab@edita.test', true, :'org_b'),
   (:'cb', 'Corretor B', 'cb@edita.test', true, :'org_b');
 INSERT INTO public.organization_members (organization_id, user_id, ativo)
-  SELECT :'org_a'::uuid, unnest(ARRAY[:'admin', :'gestor', :'tl', :'c1', :'c2', :'c3']::uuid[]), true
+  SELECT :'org_a'::uuid, unnest(ARRAY[:'admin', :'gestor', :'tl', :'c1', :'c2', :'c3', :'c5']::uuid[]), true
+  UNION ALL SELECT :'org_a'::uuid, :'c4'::uuid, false
   UNION ALL SELECT :'org_b'::uuid, unnest(ARRAY[:'ab', :'cb']::uuid[]), true;
 INSERT INTO public.user_roles (user_id, role, organization_id) VALUES
   (:'admin', 'admin', :'org_a'), (:'gestor', 'gestor', :'org_a'), (:'tl', 'team_leader', :'org_a'),
   (:'c1', 'corretor', :'org_a'), (:'c2', 'corretor', :'org_a'), (:'c3', 'corretor', :'org_a'),
+  (:'c4', 'corretor', :'org_a'), (:'c5', 'corretor', :'org_a'),
   (:'ab', 'admin', :'org_b'), (:'cb', 'corretor', :'org_b');
 -- Equipe 1 (líder Lia, gestor Gil como co-líder pela equipe-mãe não é usado: Gil lidera a equipe 2).
 INSERT INTO public.teams (id, nome, organization_id, lider_id) VALUES
@@ -61,6 +67,9 @@ INSERT INTO public.carreira_plano (organization_id, user_id, ano, trilha, respos
    now() - interval '2 days', '{"meta_comissao":330000,"meta_vendas":22}', now() - interval '2 days' + interval '1 second'),
   (:'org_a', :'c2', 2027, NULL, '{"mt.tCapt":"8","mt.tVenda":"6","mt.comMedia":"12000","pq.frase":"da Bia"}', NULL, NULL, NULL),
   (:'org_a', :'admin', 2027, NULL, '{"pq.frase":"da Dona"}', NULL, NULL, NULL),
+  (:'org_a', :'c4', 2027, NULL, '{"pq.frase":"da Duda"}', NULL, NULL, NULL),
+  -- c5: plano que JÁ estava com valor a conferir (600 transações de captação).
+  (:'org_a', :'c5', 2027, NULL, '{"mt.tCapt":"600","mt.tVenda":"10","mt.comMedia":"15000"}', NULL, NULL, NULL),
   (:'org_b', :'cb', 2027, NULL, '{"mt.tCapt":"5","pq.frase":"de B"}', now() - interval '1 day', NULL, NULL);
 INSERT INTO public.minhas_metas (organization_id, user_id, periodo, inicio, meta_comissao, meta_vendas) VALUES
   (:'org_a', :'c1', 'ano', '2027-01-01', 330000, 22);
@@ -139,7 +148,8 @@ SELECT pg_temp.ok(EXISTS (SELECT 1 FROM public.activity_logs WHERE acao = 'meu_p
                     AND organization_id = :'org_a' AND autor_id = :'admin' AND payload->>'corretor_id' = :'c1'
                     AND payload->'campos'->'mt.tCapt'->>'antes' = '12' AND payload->'campos'->'mt.tCapt'->>'depois' = '11'
                     AND payload->'campos' ? 'pq.frase' AND NOT payload->'campos' ? 'mt.tVenda'
-                    AND (payload->>'assinado')::bool AND created_at IS NOT NULL),
+                    AND (payload->>'assinado')::bool AND payload->>'ator_id' = :'admin'
+                    AND payload->>'ator_plataforma' = 'false' AND created_at IS NOT NULL),
   'historico: quem, quando, campo antes/depois (so o que mudou)');
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.as_user(:'admin');
@@ -160,6 +170,38 @@ SELECT pg_temp.ok(pg_temp.err(format($$SELECT public.carreira_plano_admin_usar_m
 SELECT pg_temp.ok(pg_temp.err(format($$SELECT public.carreira_plano_admin_usar_meta(%L, 2027, 100000, NULL, 2000, 10, true)$$, :'c2')) LIKE '22023%1.000%',
   'meta: mais de 1.000 transacoes recusada');
 SELECT pg_temp.ok((SELECT respostas->>'mt.tCapt' = '8' FROM public.carreira_plano WHERE user_id = :'c2'), 'c2 intacto apos recusas');
+-- Plano que já tinha valor a conferir: aceita mexer em outra coisa e corrigir; NÃO aceita um problema novo.
+SELECT pg_temp.ok(public.carreira_plano_admin_salvar(:'c5', 2027, '{"pq.frase":"corrigindo"}') IS NOT NULL,
+  'plano ja a conferir: editar outro campo e aceito (mesmo motivo)');
+SELECT pg_temp.ok(pg_temp.err(format(:'asalvar', :'c5', '{"mt.comMedia":"999999999"}')) LIKE '22023%',
+  'plano ja a conferir: NAO aceita piorar (valor absurdo novo) — revisao t_c9b0f633');
+SELECT pg_temp.ok(pg_temp.err(format($$SELECT public.carreira_plano_admin_usar_meta(%L, 2027, 100000, NULL, 10, 10, true)$$, :'c5')) LIKE '22023%fora do limite%',
+  'plano ja a conferir: meta oficial recusada ate corrigir');
+SELECT pg_temp.ok(pg_temp.err(format(:'asalvar', :'c5', '{"mt.tCapt":"650"}')) LIKE '22023%',
+  'plano ja a conferir: NAO aceita subir o valor errado');
+SELECT pg_temp.ok(public.carreira_plano_admin_salvar(:'c5', 2027, '{"mt.tCapt":"12"}') IS NOT NULL,
+  'plano ja a conferir: admin corrige o valor');
+-- Dois problemas (transações em reais + comissão média absurda): corrige um de cada vez, na ordem que quiser.
+RESET ROLE;
+UPDATE public.carreira_plano SET respostas = respostas || '{"mt.tCapt":"600","mt.comMedia":"999999"}' WHERE user_id = :'c5';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.as_user(:'admin');
+SELECT pg_temp.ok(public.carreira_plano_admin_salvar(:'c5', 2027, '{"mt.tCapt":"12"}') IS NOT NULL,
+  '2 problemas: corrigir as transacoes primeiro e aceito (o outro continua a conferir)');
+SELECT pg_temp.ok(public.carreira_plano_admin_salvar(:'c5', 2027, '{"mt.comMedia":"15000"}') IS NOT NULL,
+  '2 problemas: depois corrige a comissao media');
+RESET ROLE;
+SELECT pg_temp.ok(public.carreira_plano_trava((SELECT respostas FROM public.carreira_plano WHERE user_id = :'c5')) IS NULL,
+  '2 problemas: plano limpo no fim');
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.as_user(:'admin');
+SELECT pg_temp.ok(pg_temp.err(format(:'asalvar', :'c5', '{"mt.tCapt":"700"}')) LIKE '22023%máximo de 500%',
+  'depois de corrigido: volta a recusar valor fora do limite');
+-- Quem saiu da imobiliária (membro inativo): nem abre nem edita.
+SELECT pg_temp.ok(pg_temp.err(format($$SELECT public.carreira_plano_acesso(%L)$$, :'c4')) LIKE '42501%',
+  'pessoa que saiu (membro inativo): admin nao abre para editar');
+SELECT pg_temp.ok(pg_temp.err(format(:'asalvar', :'c4', '{"pq.frase":"x"}')) LIKE '42501%',
+  'pessoa que saiu (membro inativo): admin nao edita');
 
 -- 5) Meta oficial pelo administrador (mesma regra do usar_meta) ---------------------------------------------------
 SELECT pg_temp.ok((public.carreira_plano_admin_usar_meta(:'c1', 2027, 300000, NULL, 21, 12, false))->>'status' = 'existe',

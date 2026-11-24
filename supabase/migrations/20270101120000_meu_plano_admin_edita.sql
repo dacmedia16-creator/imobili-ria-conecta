@@ -35,8 +35,10 @@ RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $f
     AND (public.meu_plano_ve_imobiliaria(auth.uid())
          OR (coalesce(public.is_platform_super_admin(auth.uid()), false)
              AND coalesce(public.mt_pc_in_context(), false)))
+    -- Só quem está ATIVO nesta imobiliária (quem saiu não tem o plano mexido aqui).
     AND EXISTS (SELECT 1 FROM public.organization_members m
-                 WHERE m.organization_id = public.current_org_id() AND m.user_id = _alvo),
+                  JOIN public.profiles pr ON pr.id = m.user_id AND pr.ativo
+                 WHERE m.organization_id = public.current_org_id() AND m.user_id = _alvo AND m.ativo),
     false)
 $function$;
 REVOKE ALL ON FUNCTION public.meu_plano_admin_edita(uuid) FROM PUBLIC, anon;
@@ -72,8 +74,7 @@ RETURNS void LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path TO '' AS $fu
                THEN auth.uid() END,
           NULL, _acao,
           _payload || jsonb_build_object('ator_id', auth.uid(),
-            'ator_plataforma', coalesce(public.is_platform_super_admin(auth.uid()), false)
-                               AND NOT public.meu_plano_ve_imobiliaria(auth.uid())),
+            'ator_plataforma', coalesce(public.mt_pc_in_context(), false)),
           _org)
 $function$;
 REVOKE ALL ON FUNCTION public.carreira_plano_admin_log(uuid, text, jsonb) FROM PUBLIC, anon, authenticated;
@@ -117,10 +118,19 @@ BEGIN
   END LOOP;
   IF _dif = '{}'::jsonb THEN RETURN _p.updated_at; END IF;   -- nada muda: não grava nem registra
 
-  -- Trava de valores (a mesma da assinatura): o admin não leva um plano limpo para um valor impossível. Plano que
-  -- já tinha valor a conferir aceita a edição (é o admin corrigindo); a meta oficial continua recusada até limpar.
+  -- Trava de valores (a mesma da assinatura, carreira_plano_trava). Se o plano fica fora do limite depois da edição:
+  --  - plano que estava limpo: recusa (o admin não leva o plano para um valor impossível);
+  --  - plano que JÁ estava a conferir: aceita só se nenhum número que entra na trava SUBIU (corrigir valor digitado
+  --    em reais sempre baixa o número) e cada transação editada é inteira e até 500. Assim dá para corrigir um
+  --    problema de cada vez, sem deixar pôr um valor absurdo novo. A meta oficial continua recusada até limpar.
   _motivo := public.carreira_plano_trava(_depois);
-  IF _motivo IS NOT NULL AND public.carreira_plano_trava(_antes) IS NULL THEN
+  IF _motivo IS NOT NULL AND (
+       public.carreira_plano_trava(_antes) IS NULL
+       OR EXISTS (
+         SELECT 1 FROM jsonb_object_keys(_campos) k
+          WHERE k ~ '^(mt\.(tCapt|tVenda|novas|vendidas|canc|creIni|creFim|comMedia)|m\.(ticket|pct|faixa)|d\.ticket|op\.[0-7]|on\.[0-5]|so\.[0-2]\.v|es\.aliq)$'
+            AND (public.carreira_plano_num(_depois -> k) > coalesce(public.carreira_plano_num(_antes -> k), 0)
+                 OR public.carreira_plano_trava(jsonb_build_object(k, _depois -> k)) IS NOT NULL))) THEN
     RAISE EXCEPTION 'Plano com valor fora do limite: %', _motivo USING ERRCODE = '22023';
   END IF;
 
