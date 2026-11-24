@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, KanbanSquare, Percent, Plus, Trophy, Users } from "lucide-react";
+import { KanbanSquare, Plus, Trophy, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { errorMessage } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { EmptyState, KpiTile, ListSkeleton, PageHeader, Pill } from "@/components/visual/base";
+import { EmptyState, ListSkeleton, PageHeader, Pill } from "@/components/visual/base";
 import { LeadDetalhe } from "@/components/leads/LeadDetalhe";
 import { NovoLeadDialog } from "@/components/leads/NovoLeadDialog";
 import { CrmQuadro } from "@/components/crm/CrmQuadro";
@@ -15,7 +15,6 @@ import {
   aguardandoMeuAceite,
   CONFIG_PADRAO,
   ORIGEM_LABEL,
-  podeVerPainelLeads,
   type CapturaOpcao,
   type Lead,
   type LeadConfig,
@@ -33,7 +32,6 @@ import {
   hojeSP,
   nomeEtapa,
   pedidoAoMover,
-  resumoGestor,
   type Etapa,
   type Funil,
 } from "@/lib/crm";
@@ -52,11 +50,14 @@ const FILA_TXT = {
 
 type Pedido = PedidoMover | { lead: Lead; para: null; tipo: "proximo" } | null;
 
-/** CRM com dois funis (Venda e Captação), fila do dia e visão do gestor. A RLS decide o que aparece. */
+/**
+ * CRM com dois funis (Venda e Captação) e fila do dia. Individual para todos os papéis (Denis 24/11,
+ * t_b855dbb8): só os leads em que o usuário é o responsável. Visão de equipe fica no painel Leads.
+ */
 export function CrmPagina() {
-  const { user, hasAny, roles } = useAuth();
+  const { user, hasAny } = useAuth();
   const gestor = hasAny(["admin", "super_admin", "gestor"]);
-  const veEquipe = podeVerPainelLeads(roles);
+  const meuId = user?.id;
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [pessoas, setPessoas] = useState<Pessoa[]>([]);
   const [capturas, setCapturas] = useState<CapturaOpcao[]>([]);
@@ -72,13 +73,14 @@ export function CrmPagina() {
   const hoje = hojeSP();
 
   const carregar = useCallback(async () => {
+    if (!meuId) return; // login ainda carregando: mantém o esqueleto
     try {
-      setLeads(await listarLeadsCrm());
+      setLeads(await listarLeadsCrm(meuId));
     } catch (e) {
       setLeads([]);
       toast.error(errorMessage(e, "Não foi possível carregar os leads."));
     }
-  }, []);
+  }, [meuId]);
 
   useEffect(() => {
     void carregar();
@@ -112,7 +114,6 @@ export function CrmPagina() {
   );
   const doFunil = (f: Funil) => (leads ?? []).filter((l) => funilDe(l) === f);
   const fila = useMemo(() => filaDoDia(leads ?? [], hoje, user?.id), [leads, hoje, user?.id]);
-  const resumo = useMemo(() => resumoGestor(leads ?? [], hoje, nomeDe), [leads, hoje, nomeDe]);
   const aberto = leads?.find((l) => l.id === abertoId) ?? null;
 
   const podeMexer = (l: Lead) =>
@@ -237,7 +238,7 @@ export function CrmPagina() {
           leads={doFunil(f)}
           hoje={hoje}
           nomeDe={nomeDe}
-          mostrarDono={veEquipe}
+          mostrarDono={false}
           podeArrastar={podeMexer}
           onSoltar={pedirMover}
           onOpen={(l) => setAbertoId(l.id)}
@@ -268,7 +269,6 @@ export function CrmPagina() {
             Funil de Captação ({doFunil("captacao").length})
           </TabsTrigger>
           <TabsTrigger value="fila">Minha fila do dia ({fila.length})</TabsTrigger>
-          {veEquipe && <TabsTrigger value="gestor">Visão do gestor</TabsTrigger>}
         </TabsList>
 
         {quadro("venda")}
@@ -310,107 +310,6 @@ export function CrmPagina() {
             </div>
           )}
         </TabsContent>
-
-        {veEquipe && (
-          <TabsContent value="gestor" className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <KpiTile icon={Users} label="Leads" value={String(resumo.total)} />
-              <KpiTile
-                icon={AlertTriangle}
-                tom="red"
-                label="Parados / sem próximo passo"
-                value={String(resumo.parados.length)}
-              />
-              <KpiTile
-                icon={Trophy}
-                tom="green"
-                label="Convertidos"
-                value={String(resumo.convertidos)}
-              />
-              <KpiTile
-                icon={Percent}
-                tom="violet"
-                label="Conversão"
-                value={resumo.pct === null ? "—" : `${resumo.pct}%`}
-              />
-            </div>
-
-            <section className="space-y-2">
-              <h3 className="font-medium">Leads parados</h3>
-              {resumo.parados.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nenhum lead parado.</p>
-              ) : (
-                <div className="grid gap-2">
-                  {resumo.parados.slice(0, 50).map(({ lead: l, estado, dias }) => (
-                    <Card
-                      key={l.id}
-                      className="cursor-pointer border-red-300 transition hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                      onClick={() => setAbertoId(l.id)}
-                      {...clicavelPorTeclado(() => setAbertoId(l.id), `Abrir lead ${l.nome}`)}
-                    >
-                      <CardContent className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
-                        <div className="min-w-0">
-                          <div className="break-words font-medium">{l.nome}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {nomeDe(l.responsavel_id)} · {FUNIL[funilDe(l)].nome} ·{" "}
-                            {nomeEtapa(funilDe(l), l.etapa as Etapa)}
-                          </div>
-                        </div>
-                        <Pill tom="red">
-                          {estado === "sem"
-                            ? "Sem próximo passo"
-                            : estado === "atrasado"
-                              ? "Atrasado"
-                              : `${dias} dias parado`}
-                        </Pill>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            {[
-              { titulo: "Conversão por corretor", linhas: resumo.porCorretor },
-              { titulo: "Conversão por portal / origem", linhas: resumo.porOrigem },
-            ].map(({ titulo, linhas }) => (
-              <section key={titulo} className="space-y-2">
-                <h3 className="font-medium">{titulo}</h3>
-                <div className="overflow-x-auto rounded-lg border">
-                  <table className="w-full text-sm">
-                    <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-                      <tr>
-                        <th className="p-2">Nome</th>
-                        <th className="p-2 text-right">Leads</th>
-                        <th className="p-2 text-right">Vendas</th>
-                        <th className="p-2 text-right">Captações</th>
-                        <th className="p-2 text-right">Conversão</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {linhas.map((r) => (
-                        <tr key={r.chave} className="border-t">
-                          <td className="p-2">{r.rotulo}</td>
-                          <td className="p-2 text-right">{r.leads}</td>
-                          <td className="p-2 text-right">{r.venda}</td>
-                          <td className="p-2 text-right">{r.captacao}</td>
-                          <td className="p-2 text-right">{r.pct === null ? "—" : `${r.pct}%`}</td>
-                        </tr>
-                      ))}
-                      {linhas.length === 0 && (
-                        <tr>
-                          <td className="p-2 text-muted-foreground" colSpan={5}>
-                            Sem leads.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            ))}
-          </TabsContent>
-        )}
       </Tabs>
 
       <LeadDetalhe

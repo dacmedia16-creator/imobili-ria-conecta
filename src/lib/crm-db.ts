@@ -32,11 +32,17 @@ export async function guardCrmRoute() {
   if (!data.session || !(await crmEnabled())) throw redirect({ to: "/dashboard" });
 }
 
-/** Leads visíveis (a RLS decide: próprio, equipe ou imobiliária) com as colunas do CRM. */
-export async function listarLeadsCrm(): Promise<Lead[]> {
+/**
+ * Leads do CRM: SÓ os do próprio usuário (responsavel_id = meuId), para qualquer papel — regra de
+ * Denis 24/11 (t_b855dbb8): "o CRM tem que ser individual". A visão de equipe/imobiliária fica só no
+ * painel Leads (lá a RLS decide: próprio, equipe ou imobiliária). Sem usuário, não lista nada.
+ */
+export async function listarLeadsCrm(meuId: string | null | undefined): Promise<Lead[]> {
+  if (!meuId) return [];
   const { data, error } = await db
     .from("leads")
     .select(CRM_LEAD_COLS)
+    .eq("responsavel_id", meuId)
     .order("created_at", { ascending: false })
     .limit(1000); // shortcut: até 1000 leads por tela (piloto); acima disso precisa paginar.
   if (error) falha(error);

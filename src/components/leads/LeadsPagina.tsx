@@ -69,7 +69,7 @@ const dataCurta = (iso: string) =>
   });
 
 /**
- * "meus": corretor vê os leads em que é o responsável.
+ * "painel": admin vê a imobiliária; gestor e Team Leader, os próprios + os da equipe (a RLS decide, t_b855dbb8).
  * "painel": gestor/admin vê a imobiliária; Team Leader vê a própria equipe (a RLS decide).
  */
 export function LeadsPagina({ modo }: { modo: "meus" | "painel" }) {
