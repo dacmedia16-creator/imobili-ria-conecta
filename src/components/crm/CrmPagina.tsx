@@ -1,13 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Link } from "@tanstack/react-router";
-import { Inbox, KanbanSquare, Plus, Trophy, Users } from "lucide-react";
+import { Inbox, KanbanSquare, Plus, Trophy, Users, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { errorMessage } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState, ListSkeleton, PageHeader, Pill, TOM_PILL } from "@/components/visual/base";
 import { gruposDaFila, tituloHoje } from "@/lib/telas-lote1";
+import {
+  contarSituacoes,
+  filtrarQuadro,
+  filtroAtivo,
+  FILTRO_VAZIO,
+  origensPresentes,
+  type FiltroQuadro,
+  type Situacao,
+} from "@/lib/telas-lote2";
 import { LeadDetalhe } from "@/components/leads/LeadDetalhe";
 import { NovoLeadDialog } from "@/components/leads/NovoLeadDialog";
 import { CrmQuadro } from "@/components/crm/CrmQuadro";
@@ -20,6 +29,7 @@ import {
   type Lead,
   type LeadConfig,
   type MotivoPerda,
+  type Origem,
   type Pessoa,
 } from "@/lib/leads";
 import { carregarOpcoes, lerConfig, listarMotivos } from "@/lib/leads-db";
@@ -71,6 +81,14 @@ export function CrmPagina() {
   const [pedido, setPedido] = useState<Pedido>(null);
   const [novo, setNovo] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Filtros rápidos por funil (t_29b7cd5e): só filtram o que já veio da mesma consulta.
+  const [filtros, setFiltros] = useState<Record<Funil, FiltroQuadro>>({
+    venda: FILTRO_VAZIO,
+    captacao: FILTRO_VAZIO,
+    locacao: FILTRO_VAZIO,
+  });
+  const mudarFiltro = (f: Funil, novo: Partial<FiltroQuadro>) =>
+    setFiltros((atual) => ({ ...atual, [f]: { ...atual[f], ...novo } }));
   const hoje = hojeSP();
 
   const carregar = useCallback(async () => {
@@ -229,29 +247,109 @@ export function CrmPagina() {
     );
   };
 
-  const quadro = (f: Funil) => (
-    <TabsContent value={f} className="space-y-2">
-      <p className="text-sm text-muted-foreground">
-        {FUNIL[f].nome}: leads de {FUNIL[f].publico}. Arraste o cartão para mudar de etapa (no
-        celular: segure o cartão ou use “Mover para…” no lead). Vermelho = sem próximo passo ou
-        atrasado.
-      </p>
-      {leads === null ? (
-        <ListSkeleton />
-      ) : (
-        <CrmQuadro
-          funil={f}
-          leads={doFunil(f)}
-          hoje={hoje}
-          nomeDe={nomeDe}
-          mostrarDono={false}
-          podeArrastar={podeMexer}
-          onSoltar={pedirMover}
-          onOpen={(l) => setAbertoId(l.id)}
-        />
-      )}
-    </TabsContent>
-  );
+  const SITUACOES: { valor: Situacao; rotulo: string }[] = [
+    { valor: "todos", rotulo: "Todos" },
+    { valor: "atrasados", rotulo: "Atrasados" },
+    { valor: "sem", rotulo: "Sem próximo passo" },
+  ];
+
+  const quadro = (f: Funil) => {
+    const todos = doFunil(f);
+    const filtro = filtros[f];
+    const conta = contarSituacoes(todos, filtro.origem, hoje);
+    const origens = origensPresentes(todos);
+    const filtrados = filtrarQuadro(todos, filtro, hoje);
+    return (
+      <TabsContent value={f} className="space-y-3">
+        <p className="text-sm text-muted-foreground">
+          {FUNIL[f].nome}: leads de {FUNIL[f].publico}. Arraste o cartão para mudar de etapa (no
+          celular: segure o cartão ou use “Mover para…” no lead). Vermelho = sem próximo passo ou
+          atrasado.
+        </p>
+        {/* Filtros rápidos (t_29b7cd5e). Cor + texto + número, como no resto do ADM MAX. */}
+        <div
+          className="flex flex-wrap items-center gap-2"
+          role="group"
+          aria-label="Filtros rápidos"
+          data-testid={`crm-filtros-${f}`}
+        >
+          {SITUACOES.map((o) => {
+            const ativo = filtro.situacao === o.valor;
+            const n = conta[o.valor];
+            const alerta = o.valor !== "todos" && n > 0;
+            return (
+              <button
+                key={o.valor}
+                type="button"
+                aria-pressed={ativo}
+                data-testid={`crm-filtro-${f}-${o.valor}`}
+                onClick={() => mudarFiltro(f, { situacao: o.valor })}
+                className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  ativo
+                    ? alerta
+                      ? TOM_PILL.red + " ring-1 ring-rose-500/40"
+                      : "border-primary bg-primary text-primary-foreground"
+                    : alerta
+                      ? "border-rose-500/30 bg-background text-rose-700 hover:bg-rose-500/5 dark:text-rose-300"
+                      : "bg-background text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {o.rotulo}
+                <span className="tabular-nums opacity-80">{n}</span>
+              </button>
+            );
+          })}
+          <select
+            className="h-8 rounded-full border border-input bg-background px-3 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+            value={filtro.origem}
+            onChange={(e) => mudarFiltro(f, { origem: e.target.value as Origem | "" })}
+            aria-label="Filtrar por origem"
+            data-testid={`crm-filtro-${f}-origem`}
+            disabled={origens.length === 0}
+          >
+            <option value="">Todas as origens</option>
+            {origens.map((o) => (
+              <option key={o.valor} value={o.valor}>
+                {o.rotulo}
+              </option>
+            ))}
+          </select>
+          {filtroAtivo(filtro) && (
+            <button
+              type="button"
+              onClick={() => mudarFiltro(f, FILTRO_VAZIO)}
+              className="inline-flex h-8 items-center gap-1 rounded-full px-2 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              data-testid={`crm-filtro-${f}-limpar`}
+            >
+              <X className="h-3.5 w-3.5" aria-hidden /> Limpar filtros
+              <span className="sr-only">
+                (mostrando {filtrados.length} de {todos.length})
+              </span>
+            </button>
+          )}
+          {filtroAtivo(filtro) && (
+            <span className="text-xs text-muted-foreground" aria-live="polite">
+              Mostrando {filtrados.length} de {todos.length}
+            </span>
+          )}
+        </div>
+        {leads === null ? (
+          <ListSkeleton />
+        ) : (
+          <CrmQuadro
+            funil={f}
+            leads={filtrados}
+            hoje={hoje}
+            nomeDe={nomeDe}
+            mostrarDono={false}
+            podeArrastar={podeMexer}
+            onSoltar={pedirMover}
+            onOpen={(l) => setAbertoId(l.id)}
+          />
+        )}
+      </TabsContent>
+    );
+  };
 
   return (
     <div className="space-y-4">

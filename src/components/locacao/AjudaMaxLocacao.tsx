@@ -281,7 +281,7 @@ export function AjudaMaxLocacao() {
         <section
           role="dialog"
           aria-label="Ajuda MAX"
-          className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-50 flex max-h-[min(600px,calc(100dvh-7rem))] w-[min(400px,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl"
+          className="fixed bottom-[calc(8.5rem+env(safe-area-inset-bottom))] md:bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-50 flex max-h-[min(600px,calc(100dvh-10.5rem))] md:max-h-[min(600px,calc(100dvh-7rem))] w-[min(400px,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl"
         >
           <header className="flex items-start gap-2 bg-primary px-4 py-3 text-primary-foreground">
             <div className="min-w-0 flex-1">
@@ -508,7 +508,7 @@ export function AjudaMaxLocacao() {
         onClick={() => setAberto((v) => !v)}
         aria-expanded={aberto}
         aria-label={aberto ? "Fechar Ajuda MAX" : "Abrir Ajuda MAX"}
-        className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] md:bottom-[calc(1rem+env(safe-area-inset-bottom))] right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       >
         {aberto ? <X className="h-6 w-6" /> : <MessageCircleQuestion className="h-6 w-6" />}
       </button>
