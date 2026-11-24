@@ -62,6 +62,15 @@ export function autorDoHistorico(
   return h.actor_nome?.trim() || "usuário";
 }
 
+/**
+ * Histórico 'proprietario_removido' (t_da66fd07): o banco grava "proprietario:2 de 3".
+ * Mostra "proprietário 2 (de 3) removido"; tolera detail vazio ou fora do formato.
+ */
+export function textoProprietarioRemovido(detail: string | null | undefined): string {
+  const m = /^proprietario:(\d+) de (\d+)$/.exec(detail?.trim() ?? "");
+  return m ? `proprietário ${m[1]} (de ${m[2]}) removido` : "proprietário removido";
+}
+
 // ------------------------------------------------------------------------------------------------
 // Avisos (sino + WhatsApp)
 // ------------------------------------------------------------------------------------------------

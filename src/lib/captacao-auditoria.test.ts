@@ -7,6 +7,7 @@ import {
   eventoDaAcao,
   podeDevolverAprovada,
   textoAvisoCaptacao,
+  textoProprietarioRemovido,
   ultimaDevolucao,
   type DestinoAviso,
 } from "./captacao-auditoria";
@@ -144,5 +145,15 @@ describe("enviarAvisosCaptacao (sem envio real: fetch simulado)", () => {
       destinos: [d({})],
     });
     expect(r.enviados).toBe(1);
+  });
+});
+
+describe("textoProprietarioRemovido (histórico 'proprietario_removido')", () => {
+  it("formato gravado pela RPC vira texto amigável", () => {
+    expect(textoProprietarioRemovido("proprietario:2 de 3")).toBe("proprietário 2 (de 3) removido");
+  });
+  it("detail vazio ou estranho: texto genérico, nunca o nome técnico", () => {
+    expect(textoProprietarioRemovido(null)).toBe("proprietário removido");
+    expect(textoProprietarioRemovido("lixo")).toBe("proprietário removido");
   });
 });

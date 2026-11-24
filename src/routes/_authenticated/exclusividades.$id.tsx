@@ -159,6 +159,7 @@ import {
   AVISO_CLICKSIGN,
   avisarTransicao,
   podeDevolverAprovada,
+  textoProprietarioRemovido,
   ultimaDevolucao,
 } from "@/lib/captacao-auditoria";
 import { notifyCaptureTransition } from "@/lib/captacao-notifications.functions";
@@ -2697,6 +2698,18 @@ function ExclusiveDetail() {
                       Em {quando} · contato do proprietário corrigido ·{" "}
                       {autorDoHistorico(h, user?.id)}
                       {h.detail ? ` · ${h.detail}` : ""}
+                    </div>
+                  );
+                }
+                if (h.action === "proprietario_removido") {
+                  return (
+                    <div
+                      key={h.id}
+                      className="border-b py-1"
+                      data-testid="historico-proprietario-removido"
+                    >
+                      Em {quando} · {textoProprietarioRemovido(h.detail)} ·{" "}
+                      {autorDoHistorico(h, user?.id)}
                     </div>
                   );
                 }
