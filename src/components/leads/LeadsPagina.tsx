@@ -12,12 +12,15 @@ import {
   Trophy,
   Users,
   UserX,
+  X,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { errorMessage } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Paginacao } from "@/components/visual/Paginacao";
+import { esperaDoLead, ordenarPorEspera, paginar, POR_PAGINA_LEADS } from "@/lib/telas-lote1";
 import {
   EmptyState,
   ErrorState,
@@ -129,7 +132,44 @@ export function LeadsPagina({ modo }: { modo: "meus" | "painel" }) {
       .then(setConfig)
       .catch(() => undefined);
 
-  const visiveis = useMemo(() => filtrarLeads(leads ?? [], filtro), [leads, filtro]);
+  // t_7bd432c2: abas Equipe/Banco, ordem por tempo sem atendimento e 25 por vez. Só tela: a lista
+  // continua vindo de listarLeads/lead_banco_listar e a RLS decide quem vê o quê (#412/#413/#414).
+  const temBanco = atende || gestor;
+  // "#banco" no endereço (botão "Ver Banco da imobiliária" da fila do dia) abre direto na aba do banco.
+  const [aba, setAba] = useState<"equipe" | "banco">(() =>
+    typeof window !== "undefined" && window.location.hash === "#banco" ? "banco" : "equipe",
+  );
+  const [totalBanco, setTotalBanco] = useState<number | null>(null);
+  const [pagina, setPagina] = useState(1);
+  useEffect(() => setPagina(1), [filtro]);
+  const agora = new Date();
+  const visiveis = useMemo(
+    () => ordenarPorEspera(filtrarLeads(leads ?? [], filtro)),
+    [leads, filtro],
+  );
+  const pag = paginar(visiveis, pagina, POR_PAGINA_LEADS);
+  const chips: { chave: string; texto: string; limpar: () => void }[] = [];
+  if (filtro.etapa)
+    chips.push({
+      chave: "etapa",
+      texto: `Etapa: ${ETAPA_LABEL[filtro.etapa]}`,
+      limpar: () => setFiltro((f) => ({ ...f, etapa: "" })),
+    });
+  if (filtro.responsavel)
+    chips.push({
+      chave: "resp",
+      texto:
+        filtro.responsavel === SEM_RESPONSAVEL
+          ? "Sem responsável"
+          : `Responsável: ${pessoas.find((p) => p.id === filtro.responsavel)?.nome ?? "Pessoa"}`,
+      limpar: () => setFiltro((f) => ({ ...f, responsavel: "" })),
+    });
+  if (filtro.busca.trim())
+    chips.push({
+      chave: "busca",
+      texto: `Busca: “${filtro.busca.trim()}”`,
+      limpar: () => setFiltro((f) => ({ ...f, busca: "" })),
+    });
   const porEtapa = useMemo(() => contarPorEtapa(leads ?? []), [leads]);
   const resumo = useMemo(() => resumoPainel(leads ?? []), [leads]);
   const nomeDe = (id: string | null) =>
@@ -196,104 +236,166 @@ export function LeadsPagina({ modo }: { modo: "meus" | "painel" }) {
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Etapas">
-        <Button
-          size="sm"
-          variant={filtro.etapa === "" ? "default" : "outline"}
-          onClick={() => setFiltro((f) => ({ ...f, etapa: "" }))}
-        >
-          Todas ({leads?.length ?? 0})
-        </Button>
-        {ETAPAS.map((e) => (
-          <Button
-            key={e}
-            size="sm"
-            variant={filtro.etapa === e ? "default" : "outline"}
-            onClick={() => setFiltro((f) => ({ ...f, etapa: e as Etapa }))}
-          >
-            {ETAPA_LABEL[e]} ({porEtapa[e]})
-          </Button>
-        ))}
-      </div>
+      <Tabs value={aba} onValueChange={(v) => setAba(v as "equipe" | "banco")}>
+        <TabsList className="flex h-auto w-full flex-wrap justify-start sm:w-auto">
+          <TabsTrigger value="equipe" data-testid="aba-equipe">
+            {painel ? "Leads da equipe" : "Meus leads"} ({leads?.length ?? 0})
+          </TabsTrigger>
+          {temBanco && (
+            <TabsTrigger value="banco" data-testid="aba-banco">
+              Banco da imobiliária ({totalBanco ?? "…"})
+            </TabsTrigger>
+          )}
+        </TabsList>
 
-      <div className="grid gap-2 sm:grid-cols-3">
-        <Input
-          placeholder="Buscar por nome, telefone ou e-mail"
-          value={filtro.busca}
-          onChange={(e) => setFiltro((f) => ({ ...f, busca: e.target.value }))}
-        />
-        {painel && (
-          <select
-            className={SELECT}
-            value={filtro.responsavel}
-            onChange={(e) => setFiltro((f) => ({ ...f, responsavel: e.target.value }))}
-            aria-label="Responsável"
-          >
-            <option value="">Todos os responsáveis</option>
-            <option value={SEM_RESPONSAVEL}>Sem responsável</option>
-            {pessoas.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.nome}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
-
-      {erroCarga ? (
-        <ErrorState onRetry={() => void carregar()} retrying={recarregando}>
-          Não foi possível carregar os leads. A lista e os contadores não foram exibidos para não
-          mostrar números errados.
-        </ErrorState>
-      ) : leads === null ? (
-        <ListSkeleton />
-      ) : visiveis.length === 0 ? (
-        <EmptyState icon={SearchX}>
-          {leads.length === 0
-            ? painel
-              ? "Nenhum lead ainda. Use “Novo lead” para cadastrar um lead de teste."
-              : "Você ainda não tem leads."
-            : "Nenhum lead com esses filtros."}
-        </EmptyState>
-      ) : (
-        <div className="grid gap-2">
-          {visiveis.map((l) => (
-            <Card
-              key={l.id}
-              className="cursor-pointer transition hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              onClick={() => setAbertoId(l.id)}
-              {...clicavelPorTeclado(() => setAbertoId(l.id), `Abrir lead ${l.nome}`)}
+        <TabsContent value="equipe" className="space-y-3">
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Etapas">
+            <Button
+              size="sm"
+              variant={filtro.etapa === "" ? "default" : "outline"}
+              aria-pressed={filtro.etapa === ""}
+              onClick={() => setFiltro((f) => ({ ...f, etapa: "" }))}
             >
-              <CardContent className="flex flex-wrap items-center justify-between gap-2 p-3">
-                <div className="min-w-0">
-                  <div className="break-words font-medium">{l.nome}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {ORIGEM_LABEL[l.origem]} · {dataCurta(l.created_at)}
-                    {painel ? ` · ${l.no_banco_desde ? "No banco" : nomeDe(l.responsavel_id)}` : ""}
-                    {l.capture_id ? " · com imóvel" : ""}
-                    {l.simulado ? " · simulado" : ""}
-                  </div>
-                  {textoPrazo(prazoDoLead(l, config)) && (
-                    <div className="text-xs text-amber-700 dark:text-amber-300">
-                      {textoPrazo(prazoDoLead(l, config))}
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {aguardandoMeuAceite(l, user?.id) && (
-                    <Pill tom="blue">Aguardando seu aceite</Pill>
-                  )}
-                  <Pill tom={ETAPA_TOM[l.etapa]}>{ETAPA_LABEL[l.etapa]}</Pill>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+              Todas ({leads?.length ?? 0})
+            </Button>
+            {ETAPAS.map((e) => (
+              <Button
+                key={e}
+                size="sm"
+                variant={filtro.etapa === e ? "default" : "outline"}
+                aria-pressed={filtro.etapa === e}
+                onClick={() => setFiltro((f) => ({ ...f, etapa: e as Etapa }))}
+              >
+                {ETAPA_LABEL[e]} ({porEtapa[e]})
+              </Button>
+            ))}
+          </div>
 
-      {(atende || gestor) && (
-        <LeadsBanco podePegar={atende} versao={versaoBanco} onChanged={() => void carregar()} />
-      )}
+          <div className="grid gap-2 sm:grid-cols-3">
+            <Input
+              placeholder="Buscar por nome, telefone ou e-mail"
+              aria-label="Buscar lead"
+              value={filtro.busca}
+              onChange={(e) => setFiltro((f) => ({ ...f, busca: e.target.value }))}
+            />
+            {painel && (
+              <select
+                className={SELECT}
+                value={filtro.responsavel}
+                onChange={(e) => setFiltro((f) => ({ ...f, responsavel: e.target.value }))}
+                aria-label="Responsável"
+              >
+                <option value="">Todos os responsáveis</option>
+                <option value={SEM_RESPONSAVEL}>Sem responsável</option>
+                {pessoas.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nome}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {chips.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 text-xs" data-testid="filtros-ativos">
+              <span className="text-muted-foreground">Filtros:</span>
+              {chips.map((c) => (
+                <button
+                  key={c.chave}
+                  type="button"
+                  onClick={c.limpar}
+                  className="inline-flex items-center gap-1 rounded-full border bg-muted/60 px-2 py-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label={`Remover filtro ${c.texto}`}
+                >
+                  {c.texto} <X className="h-3 w-3" aria-hidden />
+                </button>
+              ))}
+              <button
+                type="button"
+                className="font-medium text-primary underline-offset-2 hover:underline"
+                onClick={() => setFiltro(FILTRO_VAZIO)}
+              >
+                Limpar tudo
+              </button>
+            </div>
+          )}
+
+          {erroCarga ? (
+            <ErrorState onRetry={() => void carregar()} retrying={recarregando}>
+              Não foi possível carregar os leads. A lista e os contadores não foram exibidos para
+              não mostrar números errados.
+            </ErrorState>
+          ) : leads === null ? (
+            <ListSkeleton />
+          ) : visiveis.length === 0 ? (
+            <EmptyState icon={SearchX}>
+              {leads.length === 0
+                ? painel
+                  ? "Nenhum lead ainda. Use “Novo lead” para cadastrar um lead de teste."
+                  : "Você ainda não tem leads."
+                : "Nenhum lead com esses filtros."}
+            </EmptyState>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground">
+                Ordem: há mais tempo sem atendimento primeiro. Encerrados (ganho/perdido) no fim.
+              </p>
+              <ul className="divide-y rounded-lg border bg-card" data-testid="leads-lista">
+                {pag.itens.map((l) => {
+                  const espera = esperaDoLead(l, agora);
+                  const prazo = textoPrazo(prazoDoLead(l, config, agora));
+                  return (
+                    <li
+                      key={l.id}
+                      className="grid cursor-pointer gap-1.5 px-3 py-2.5 transition hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-3"
+                      onClick={() => setAbertoId(l.id)}
+                      {...clicavelPorTeclado(() => setAbertoId(l.id), `Abrir lead ${l.nome}`)}
+                      data-testid="lead-linha"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <span className="truncate font-medium">{l.nome}</span>
+                          {aguardandoMeuAceite(l, user?.id) && (
+                            <Pill tom="blue">Sua vez: aceitar</Pill>
+                          )}
+                        </div>
+                        <div className="truncate text-xs text-muted-foreground">
+                          {ORIGEM_LABEL[l.origem]}
+                          {painel
+                            ? ` · ${l.no_banco_desde ? "No banco" : nomeDe(l.responsavel_id)}`
+                            : ""}
+                          {` · chegou ${dataCurta(l.created_at)}`}
+                          {l.capture_id ? " · com imóvel" : ""}
+                          {l.simulado ? " · simulado" : ""}
+                        </div>
+                        {prazo && (
+                          <div className="text-xs text-amber-800 dark:text-amber-300">{prazo}</div>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
+                        <Pill tom={espera.tom}>{espera.texto}</Pill>
+                        <Pill tom={ETAPA_TOM[l.etapa]}>{ETAPA_LABEL[l.etapa]}</Pill>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+              <Paginacao {...pag} rotulo="leads" onIr={setPagina} />
+            </>
+          )}
+        </TabsContent>
+
+        {temBanco && (
+          <TabsContent value="banco" forceMount className="data-[state=inactive]:hidden">
+            <LeadsBanco
+              podePegar={atende}
+              versao={versaoBanco}
+              onChanged={() => void carregar()}
+              onTotal={setTotalBanco}
+            />
+          </TabsContent>
+        )}
+      </Tabs>
 
       <LeadDetalhe
         lead={aberto}

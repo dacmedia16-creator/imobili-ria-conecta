@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import {
   archiveCapture,
@@ -74,6 +74,8 @@ import {
   UserRoundCog,
 } from "lucide-react";
 import { EmptyState, ListSkeleton, PageHeader } from "@/components/visual/base";
+import { Paginacao } from "@/components/visual/Paginacao";
+import { paginar, POR_PAGINA_CAPTACAO } from "@/lib/telas-lote1";
 
 /** "Rua X, 268 — Apto 12 · Bairro · Sorocaba/SP" (só o que estiver preenchido). */
 function fullAddress(i: Capture["form_data"]["imovel"] | undefined): string {
@@ -146,6 +148,16 @@ function ExclusiveList() {
         ? (captureValidity(a, today)?.daysLeft ?? 0) - (captureValidity(b, today)?.daysLeft ?? 0)
         : 0,
     );
+  // Paginação (t_7bd432c2): só a lista é fatiada; KPIs, chips e "Vencendo (N)" seguem contando o total.
+  const [pagina, setPagina] = useState(1);
+  const chaveFiltro = JSON.stringify([showArchived, onlyExpiring, filters, card, etapa]);
+  useEffect(() => setPagina(1), [chaveFiltro]);
+  const pag = paginar(visible, pagina, POR_PAGINA_CAPTACAO);
+  const topoLista = useRef<HTMLDivElement>(null);
+  const irPara = (p: number) => {
+    setPagina(p);
+    topoLista.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  };
   const [removing, setRemoving] = useState<string | null>(null);
   // Agendar fotos (t_d86ab990): botão só com o módulo ligado; o banco confere imóvel próprio e aprovado.
   const [fotosLigado, setFotosLigado] = useState(false);
@@ -302,7 +314,7 @@ function ExclusiveList() {
           })}
         </div>
       )}
-      <Card>
+      <Card ref={topoLista} className="scroll-mt-4">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
           <CardTitle>{showArchived ? "Captações arquivadas" : "Captações acessíveis"}</CardTitle>
           <div className="flex flex-wrap gap-2">
@@ -390,9 +402,10 @@ function ExclusiveList() {
             units={units}
           />
           {!loading && (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground" data-testid="total-captacoes">
               {visible.length} captação(ões)
               {filtersActive(filters) ? " com os filtros aplicados" : ""}
+              {pag.paginas > 1 ? ` · ${POR_PAGINA_CAPTACAO} por página` : ""}
             </p>
           )}
         </CardContent>
@@ -414,7 +427,7 @@ function ExclusiveList() {
                       : "Nenhuma captação disponível."}
             </EmptyState>
           ) : (
-            visible.map((c) => {
+            pag.itens.map((c) => {
               // Mesma regra de exclusive_is_manager (papel + equipe), não só o papel.
               const manager = podeGerirCaptacao(c, ctxVez);
               const minhaVez = captacaoMinhaVez(c, ctxVez);
@@ -570,6 +583,11 @@ function ExclusiveList() {
             })
           )}
         </CardContent>
+        {!loading && pag.paginas > 1 && (
+          <CardContent className="border-t pt-4">
+            <Paginacao {...pag} rotulo="captações" onIr={irPara} />
+          </CardContent>
+        )}
       </Card>
       <CaptureSummaryDialog
         capture={summary}
