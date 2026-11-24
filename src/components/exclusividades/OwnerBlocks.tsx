@@ -28,6 +28,8 @@ export type OwnerBlocksProps = {
   onRemove?: (n: number) => void;
   /** Motivo para não remover o N (null = pode remover). */
   removeBlocked?: (n: number) => string | null;
+  /** Texto da confirmação antes de remover o N (padrão: "Remover o proprietário N?"). */
+  removeMessage?: (n: number) => string;
   title?: string;
 };
 
@@ -129,7 +131,8 @@ export function OwnerBlocks(p: OwnerBlocksProps) {
                     title={blocked ?? `Remover proprietário ${n}`}
                     aria-label={`Remover proprietário ${n}`}
                     onClick={() => {
-                      if (window.confirm(`Remover o proprietário ${n}?`)) p.onRemove?.(n);
+                      const msg = p.removeMessage?.(n) ?? `Remover o proprietário ${n}?`;
+                      if (window.confirm(msg)) p.onRemove?.(n);
                     }}
                   >
                     <Trash2 className="h-4 w-4" />

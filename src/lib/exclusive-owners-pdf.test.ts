@@ -77,10 +77,10 @@ describe("vários proprietários (t_58effd65)", () => {
       "Proprietário 34: RG e CPF ou CNH",
     ]);
   });
-  it("remover: mínimo 1; não troca documento de pessoa", () => {
+  it("remover: mínimo 1; documentos não bloqueiam (o banco renumera — t_b3a9ed4f)", () => {
     const f = formWith(4);
     expect(canRemoveOwner(f, [], 1).ok).toBe(false);
-    expect(canRemoveOwner(f, [doc("cnh", 4)], 3).ok).toBe(false);
+    expect(canRemoveOwner(f, [doc("cnh", 4)], 3).ok).toBe(true);
     expect(canRemoveOwner(f, [doc("cnh", 4)], 4).ok).toBe(true);
     expect(captureOwners(removeOwner(f, 3))[2].nome_completo).toContain("Número 4");
     expect(captureOwners(addOwner(f))).toHaveLength(5);
