@@ -90,11 +90,6 @@ export type LinhaRanking = {
   farol: FarolMeta;
   /** Corretor com plano com valor a conferir (t_125c4dd3); equipe: quantos planos assim. */
   aConferir: number;
-  /**
-   * Quem está na linha (corretor: ele mesmo; equipe: os membros). Só exibição (t_adaaa240): etiquetas do Meu Plano e
-   * filtro por situação. Não entra em nenhuma conta.
-   */
-  pessoas: string[];
 };
 
 export type PainelImobiliaria = {
@@ -199,7 +194,6 @@ function linhaGrupo(g: GrupoPainel): LinhaRanking {
     pctEsperado: c.pctEsperado,
     farol: g.avaliacao.farol,
     aConferir: g.aConferir.assinados + g.aConferir.preenchimento,
-    pessoas: g.pessoas.map((c) => c.userId),
   };
 }
 
@@ -216,7 +210,6 @@ function linhaPessoa(p: CartaoCorretor, equipe: string): LinhaRanking {
     pctEsperado: c.pctEsperado,
     farol: p.avaliacao.farol,
     aConferir: p.aConferir ? 1 : 0,
-    pessoas: [p.userId],
   };
 }
 

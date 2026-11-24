@@ -2,15 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Eye, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { EmptyState, ErrorState, ListSkeleton } from "@/components/visual/base";
-import { calc, type TaxasFunil } from "@/lib/meu-plano-2027/regras";
+import { EmptyState, ErrorState, ListSkeleton, Pill } from "@/components/visual/base";
+import { calc, type Respostas, type TaxasFunil } from "@/lib/meu-plano-2027/regras";
 import { ANO_PLANO, ORDEM, inicioNoventaDias, progresso, tela } from "@/lib/meu-plano-2027/telas";
 import { erroPlano, planoDb } from "@/lib/meu-plano-2027/modulo";
-import {
-  contarSituacoes,
-  filtrarEquipe,
-  type SituacaoFiltro,
-} from "@/lib/meu-plano-2027/filtro-equipe";
 import { PlanoCtx, Bloco, Stat } from "./campos";
 import { Cockpit, CorpoTela } from "./telas";
 import { IndiceTelas } from "./IndiceTelas";
@@ -20,16 +15,27 @@ import { BotaoBaixarPlano } from "./BaixarPdf";
 import { OQueFalta } from "./OQueFalta";
 import { BotaoReabrirPlano } from "./ReabrirPlano";
 import { useAuth } from "@/lib/auth";
-import { contarNaMeta } from "@/lib/metas-2027/consolidado";
 import {
-  lerPlanosEquipe,
-  linhaPlano,
-  padraoDasTaxas,
-  TEXTO_ESTADO,
-  type MembroPlano,
-} from "@/lib/meu-plano-2027/linha-equipe";
-import { SeloMetaPill } from "./SeloPlano";
-import { BuscaFiltroPlano } from "./BuscaFiltroPlano";
+  contarNaMeta,
+  planoComSelo,
+  SELO_META,
+  type MetaOficialGravada,
+} from "@/lib/metas-2027/consolidado";
+
+type Membro = {
+  user_id: string;
+  nome: string;
+  /** Legado: trilha escolhida antes do caminho único (o banco ainda devolve; o app não usa). */
+  trilha: string | null;
+  ativacao_inicio: string | null;
+  respostas: Respostas;
+  assinado_corretor_em: string | null;
+  assinado_broker_em: string | null;
+  meta_oficial_em: string | null;
+  /** Lido à parte de carreira_plano (a RPC só devolve a data). */
+  meta_oficial?: MetaOficialGravada | null;
+  updated_at: string | null;
+};
 /**
  * Telas que o broker/TL percorre ao abrir o plano (t_fb929978, Denis 23/11): a ordem do corretor, sem a p52 (o
  * cockpit, que já está no resumo do fim). Passo = posição nesta lista; `RESUMO` (= tamanho da lista) = o resumo.
@@ -58,35 +64,48 @@ export function EquipePlano({
   assina?: boolean;
 }) {
   const podeAssinar = assina ?? broker;
-  const [lista, setLista] = useState<MembroPlano[] | null>(null);
+  const [lista, setLista] = useState<Membro[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [taxas, setTaxas] = useState<TaxasFunil | null>(null);
   const [ocupado, setOcupado] = useState(false);
   // Abrir entra na 1ª tela; trocar de corretor volta para a 1ª tela.
   const [passo, setPasso] = useState(0);
   useEffect(() => setPasso(0), [aberto]);
-  // Busca e filtro (t_8960c522): só nesta tela, guardados aqui para sobreviver ao "Abrir" → "Equipe".
-  const [busca, setBusca] = useState("");
-  const [situacao, setSituacao] = useState<SituacaoFiltro>("todos");
   const { user } = useAuth();
 
   const carregar = useCallback(async () => {
     setErro(null);
-    // Leitura compartilhada com os rankings do painel de metas (t_adaaa240): carreira_plano_equipe + meta oficial
-    // GRAVADA (t_bd480fee), as mesmas pessoas que a RLS deixa ver.
-    const [r, t] = await Promise.all([
-      lerPlanosEquipe(),
+    const [r, t, mo] = await Promise.all([
+      planoDb.rpc("carreira_plano_equipe", { _ano: ANO_PLANO }),
       planoDb
         .from("carreira_taxas")
         .select("funil_v2_cre,funil_v1_v2,funil_folga")
         .is("user_id", null)
         .maybeSingle(),
+      // Valores da meta oficial GRAVADA no clique (t_bd480fee). A RLS de carreira_plano deixa ler exatamente as
+      // mesmas pessoas da lista (admin: imobiliária; gestor/TL: a equipe que lidera).
+      planoDb
+        .from("carreira_plano")
+        .select("user_id,meta_oficial")
+        .eq("ano", ANO_PLANO)
+        .not("meta_oficial", "is", null),
     ]);
-    if (r.erro != null) {
-      setErro(erroPlano(r.erro));
+    if (r.error || mo.error) {
+      setErro(erroPlano((r.error ?? mo.error)!.message));
       return;
     }
-    setLista(r.membros);
+    const gravadas = new Map(
+      ((mo.data ?? []) as { user_id: string; meta_oficial: MetaOficialGravada | null }[]).map(
+        (x) => [x.user_id, x.meta_oficial] as const,
+      ),
+    );
+    setLista(
+      ((r.data ?? []) as Membro[]).map((m) => ({
+        ...m,
+        respostas: (m.respostas ?? {}) as Respostas,
+        meta_oficial: gravadas.get(m.user_id) ?? null,
+      })),
+    );
     const x = t.data as {
       funil_v2_cre: number | null;
       funil_v1_v2: number | null;
@@ -98,15 +117,27 @@ export function EquipePlano({
     void carregar();
   }, [carregar]);
 
-  // Mesma regra do somarPlanos e dos painéis de metas (seloMeta, t_91ec7aa3), na função compartilhada com os
-  // rankings do painel de metas (linhaPlano, t_adaaa240). Só exibição; nada é gravado.
-  const linhas = useMemo(
-    () => (lista ?? []).map((m) => linhaPlano(m, padraoDasTaxas(taxas))),
-    [lista, taxas],
-  );
-  // Só exibição: os contadores do topo seguem usando `linhas` (o total).
-  const visiveis = useMemo(() => filtrarEquipe(linhas, busca, situacao), [linhas, busca, situacao]);
-  const porSituacao = useMemo(() => contarSituacoes(linhas), [linhas]);
+  const linhas = useMemo(() => {
+    // Mesma regra do somarPlanos e dos painéis de metas (seloMeta, t_91ec7aa3): conta quem tem a meta oficial
+    // GRAVADA (botão verde ou assinatura), dentro do limite. Só exibição; nada é gravado.
+    const n = (v: unknown) => (v == null ? null : Number(v));
+    const padrao = taxas
+      ? { v2cre: n(taxas.v2cre), v1v2: n(taxas.v1v2), folga: n(taxas.folga) }
+      : null;
+    return (lista ?? []).map((m) => ({
+      m,
+      p: progresso(m.respostas),
+      selo: planoComSelo(
+        {
+          assinadoEm: m.assinado_corretor_em,
+          respostas: m.respostas,
+          metaOficial: m.meta_oficial,
+          metaOficialEm: m.meta_oficial_em,
+        },
+        padrao,
+      ).selo,
+    }));
+  }, [lista, taxas]);
 
   if (erro) return <ErrorState onRetry={() => void carregar()}>{erro}</ErrorState>;
   if (!lista) return <ListSkeleton />;
@@ -319,57 +350,50 @@ export function EquipePlano({
             : "Ninguém da sua equipe começou o plano ainda."}
         </EmptyState>
       ) : (
-        <>
-          <BuscaFiltroPlano
-            busca={busca}
-            setBusca={setBusca}
-            situacao={situacao}
-            setSituacao={setSituacao}
-            porSituacao={porSituacao}
-            visiveis={visiveis.length}
-            total={linhas.length}
-          />
-          {visiveis.length === 0 ? (
-            <EmptyState>Ninguém encontrado com essa busca e esse filtro.</EmptyState>
-          ) : (
-            <ul className="divide-y rounded-xl border bg-card">
-              {visiveis.map(({ m: x, p, selo, estado }) => (
-                <li key={x.user_id} className="flex items-center gap-2 px-3 py-2.5">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <p className="truncate text-sm font-medium">{x.nome}</p>
-                      <SeloMetaPill selo={selo} />
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {p.telas}/{p.total} telas ·{" "}
-                      {estado === "nao_comecou" ? "" : `${TEXTO_ESTADO[estado]} · `}
-                      {x.updated_at ? `mexeu em ${quando(x.updated_at)}` : "não começou"}
-                    </p>
-                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
-                      <i
-                        className={`block h-full rounded-full ${p.pct === 100 ? "bg-emerald-600" : "bg-primary"}`}
-                        style={{ width: `${p.pct}%` }}
-                      />
-                    </div>
-                  </div>
-                  <b className="w-10 text-right text-sm tabular-nums">{p.pct}%</b>
-                  {x.updated_at || Object.keys(x.respostas).length ? (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => abrir(x.user_id)}
-                      data-testid="abrir-plano"
-                    >
-                      Abrir
-                    </Button>
-                  ) : (
-                    <span className="w-[3.75rem]" />
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </>
+        <ul className="divide-y rounded-xl border bg-card">
+          {linhas.map(({ m: x, p, selo }) => (
+            <li key={x.user_id} className="flex items-center gap-2 px-3 py-2.5">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <p className="truncate text-sm font-medium">{x.nome}</p>
+                  <Pill tom={SELO_META[selo].tom} className="py-0 text-[11px]">
+                    <span data-testid="selo-meta" data-selo={selo}>
+                      {SELO_META[selo].texto}
+                    </span>
+                  </Pill>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {p.telas}/{p.total} telas ·{" "}
+                  {x.assinado_corretor_em
+                    ? "✅ assinado · "
+                    : x.updated_at || Object.keys(x.respostas).length
+                      ? "📝 em preenchimento · "
+                      : ""}
+                  {x.updated_at ? `mexeu em ${quando(x.updated_at)}` : "não começou"}
+                </p>
+                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                  <i
+                    className={`block h-full rounded-full ${p.pct === 100 ? "bg-emerald-600" : "bg-primary"}`}
+                    style={{ width: `${p.pct}%` }}
+                  />
+                </div>
+              </div>
+              <b className="w-10 text-right text-sm tabular-nums">{p.pct}%</b>
+              {x.updated_at || Object.keys(x.respostas).length ? (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => abrir(x.user_id)}
+                  data-testid="abrir-plano"
+                >
+                  Abrir
+                </Button>
+              ) : (
+                <span className="w-[3.75rem]" />
+              )}
+            </li>
+          ))}
+        </ul>
       )}
       <p className="text-xs text-muted-foreground">
         {broker
