@@ -12,7 +12,10 @@
 ALTER TABLE public.lead_config
   ADD COLUMN IF NOT EXISTS c2s_token_hash text CHECK (c2s_token_hash ~ '^[0-9a-f]{64}$'),
   ADD COLUMN IF NOT EXISTS c2s_desde timestamptz,
-  ADD COLUMN IF NOT EXISTS c2s_aviso_whats boolean NOT NULL DEFAULT false;
+  ADD COLUMN IF NOT EXISTS c2s_aviso_whats boolean NOT NULL DEFAULT false,
+  -- O servidor tem 1 só C2S_API_TOKEN (conta C2S da Única). Buscar lead no C2S pelo id só vale para a imobiliária dona
+  -- dessa conta; nas outras, um token de webhook não pode puxar lead de outra conta (vazamento entre imobiliárias).
+  ADD COLUMN IF NOT EXISTS c2s_busca_api boolean NOT NULL DEFAULT false;
 CREATE UNIQUE INDEX IF NOT EXISTS lead_config_c2s_hash_uniq ON public.lead_config (c2s_token_hash)
   WHERE c2s_token_hash IS NOT NULL;
 
@@ -80,6 +83,20 @@ AS $function$
            '[^a-z ]', ' ', 'g'), '\s+', ' ', 'g')), '')
 $function$;
 
+-- Data/hora do C2S sem nunca falhar (valor fora do padrão = NULL; a entrada do lead não pode travar por isso).
+CREATE OR REPLACE FUNCTION public.lead_c2s_ts(_t text)
+ RETURNS timestamptz
+ LANGUAGE plpgsql
+ IMMUTABLE
+ SET search_path TO ''
+AS $function$
+BEGIN
+  IF _t IS NULL OR _t !~ '^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}' THEN RETURN NULL; END IF;
+  RETURN _t::timestamptz;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NULL;
+END $function$;
+
 -- 1º e-mail igual; 2º nome igual e ÚNICO entre quem pode ser responsável. Senão NULL (quem chama usa o padrão).
 CREATE OR REPLACE FUNCTION public.lead_c2s_responsavel(_org uuid, _email text, _nome text, OUT responsavel uuid, OUT casou text)
  LANGUAGE plpgsql
@@ -118,7 +135,9 @@ AS $function$
                            'não informado no C2S'),
     'Histórico: ' || coalesce(nullif(btrim(l.historico), ''), 'sem mensagens no C2S'),
     'O lead já está em Meus leads no ADM, sem prazo de aceite.'), 2000)
-  FROM (SELECT x.*, CASE WHEN x.mensagem LIKE 'Imóvel: %' THEN nullif(btrim(substr(x.mensagem, strpos(x.mensagem, E'\n') + 1)), '')
+  FROM (SELECT x.*, CASE WHEN x.mensagem LIKE 'Imóvel: %' THEN
+                           CASE WHEN strpos(x.mensagem, E'\n') > 0
+                                THEN nullif(btrim(substr(x.mensagem, strpos(x.mensagem, E'\n') + 1)), '') END
                          ELSE x.mensagem END AS historico
           FROM public.leads x WHERE x.id = _lead) l
 $function$;
@@ -147,16 +166,15 @@ BEGIN
   -- Um recebimento por vez por imobiliária (o C2S pode mandar on_create e reenvios ao mesmo tempo).
   PERFORM pg_advisory_xact_lock(hashtextextended('lead_c2s:' || _c.organization_id::text, 0));
 
+  -- Lead buscado pelo servidor no C2S (marca posta pelo servidor depois do GET): só na imobiliária dona da conta.
+  IF coalesce(_lead->>'_via_api', '') = 'true' AND NOT _c.c2s_busca_api THEN RETURN jsonb_build_object('r', 'invalido'); END IF;
   _x := CASE WHEN jsonb_typeof(_lead->'data') = 'object' THEN _lead->'data' ELSE _lead END;
   _a := CASE WHEN jsonb_typeof(_x->'attributes') = 'object' THEN _x->'attributes' END;
   _ext := CASE WHEN jsonb_typeof(_x->'id') IN ('string', 'number') THEN btrim(_x->>'id') END;
   IF _a IS NULL OR _ext IS NULL OR char_length(_ext) NOT BETWEEN 1 AND 200 THEN
     RETURN jsonb_build_object('r', 'invalido');
   END IF;
-  BEGIN
-    _criado := (_a->>'created_at')::timestamptz;
-  EXCEPTION WHEN OTHERS THEN _criado := NULL;
-  END;
+  _criado := public.lead_c2s_ts(_a->>'created_at');
   IF _criado IS NULL THEN RETURN jsonb_build_object('r', 'invalido'); END IF;
   -- Só leads novos (Denis 24/11: sem estoque antigo).
   IF _criado < _c.c2s_desde THEN RETURN jsonb_build_object('r', 'antigo'); END IF;
@@ -187,9 +205,9 @@ BEGIN
   -- Histórico: mensagens do C2S (cliente e corretor), mais antigas cortadas acima do limite.
   _msgs := CASE WHEN jsonb_typeof(_x->'messages') = 'array' AND jsonb_array_length(_x->'messages') > 0 THEN _x->'messages'
                 WHEN jsonb_typeof(_a->'messages') = 'array' THEN _a->'messages' ELSE '[]'::jsonb END;
-  SELECT string_agg(linha, E'\n' ORDER BY quando, ord) INTO _hist FROM (
-    SELECT m.ord, (m.v->>'created_at') AS quando,
-           coalesce(to_char((m.v->>'created_at')::timestamptz AT TIME ZONE 'America/Sao_Paulo', 'DD/MM HH24:MI') || ' ', '')
+  SELECT string_agg(linha, E'\n' ORDER BY quando NULLS FIRST, ord) INTO _hist FROM (
+    SELECT m.ord, public.lead_c2s_ts(m.v->>'created_at') AS quando,
+           coalesce(to_char(public.lead_c2s_ts(m.v->>'created_at') AT TIME ZONE 'America/Sao_Paulo', 'DD/MM HH24:MI') || ' ', '')
            || CASE WHEN m.v->>'sender_type' = 'Customer' THEN 'Cliente' ELSE 'Corretor/C2S' END || ': '
            || left(btrim(regexp_replace(coalesce(m.v->>'body', ''), '[[:space:]]+', ' ', 'g')), 400) AS linha
       FROM jsonb_array_elements(_msgs) WITH ORDINALITY m(v, ord)
@@ -207,14 +225,15 @@ BEGIN
 
   BEGIN
     _id := public.lead_inserir(_c.organization_id, _nome, _tel, _mail, 'c2s',
-             left(concat_ws(E'\n', 'Imóvel: ' || coalesce(concat_ws(' · ', 'ref. ' || _ref, _imovel), 'não informado no C2S'),
+             left(concat_ws(E'\n', 'Imóvel: ' || coalesce(nullif(concat_ws(' · ', 'ref. ' || _ref, _imovel), ''), 'não informado no C2S'),
                             nullif(_hist, '')), 4000),
              NULL, NULL, false, NULL, _ext);
   EXCEPTION WHEN unique_violation THEN
     RETURN jsonb_build_object('r', 'duplicado');
   END;
   -- Sem rodízio nem captador: só o corretor do C2S. Já aceito (sem prazo de aceite) e sem prazo por tempo.
-  UPDATE public.leads SET anuncio_codigo = _ref, imovel_interesse = _imovel, sem_prazo = true,
+  -- Sem ninguém (nem o padrão pode receber): segue a regra normal da imobiliária (sem_prazo=false) e fica registrado.
+  UPDATE public.leads SET anuncio_codigo = _ref, imovel_interesse = _imovel, sem_prazo = _resp IS NOT NULL,
          responsavel_id = _resp, atribuido_em = CASE WHEN _resp IS NOT NULL THEN now() END,
          aceito_em = CASE WHEN _resp IS NOT NULL THEN now() END,
          tentativas_aceite = CASE WHEN _resp IS NOT NULL THEN 1 ELSE 0 END, updated_at = now()
@@ -234,6 +253,12 @@ BEGIN
       VALUES (_c.organization_id, _id, _resp, 'c2s', 'Novo lead do C2S (texto montado no envio).')
       ON CONFLICT (lead_id, evento) DO NOTHING;
     END IF;
+  ELSE
+    INSERT INTO public.lead_eventos (organization_id, lead_id, tipo, para, nota)
+    VALUES (_c.organization_id, _id, 'nota', 'c2s sem responsavel',
+            left('C2S: corretor do C2S sem correspondência no ADM ('
+                 || coalesce(left(nullif(btrim(_s->>'name'), ''), 60), 'sem nome')
+                 || ') e o responsável padrão não pode receber; segue a distribuição da imobiliária.', 2000));
   END IF;
   RETURN jsonb_build_object('r', 'ok', 'casou', coalesce(_casou, CASE WHEN _resp IS NOT NULL THEN 'padrao' ELSE 'sem_responsavel' END));
 END $function$;
@@ -261,7 +286,8 @@ CREATE OR REPLACE FUNCTION public.lead_c2s_desligar(_org uuid)
  SECURITY DEFINER
  SET search_path TO ''
 AS $function$
-  UPDATE public.lead_config SET c2s_token_hash = NULL, c2s_desde = NULL, c2s_aviso_whats = false, updated_at = now()
+  UPDATE public.lead_config SET c2s_token_hash = NULL, c2s_desde = NULL, c2s_aviso_whats = false, c2s_busca_api = false,
+         updated_at = now()
    WHERE organization_id = _org
 $function$;
 
@@ -301,7 +327,8 @@ BEGIN
       INSERT INTO public.lead_avisos_corretor (organization_id, lead_id, user_id, evento, texto)
       VALUES (_org, _l.id, _responsavel_id, 'transferencia', 'Lead do C2S transferido (texto montado no envio).')
       ON CONFLICT (lead_id, evento) DO UPDATE
-        SET user_id = EXCLUDED.user_id, texto = EXCLUDED.texto, status = 'pendente', created_at = now(), enviado_em = NULL;
+        SET user_id = EXCLUDED.user_id, texto = EXCLUDED.texto, status = 'pendente', created_at = now(), enviado_em = NULL
+        WHERE public.lead_avisos_corretor.status <> 'enviando';  -- não reabre um aviso que está saindo agora
     END IF;
   ELSE
     PERFORM public.lead_notificar(_responsavel_id, _org, 'Novo lead para você',
@@ -457,6 +484,8 @@ BEGIN
 END $function$;
 
 -- 10) Permissões: funções novas só para o servidor (service_role) -----------------------------------------------------
+REVOKE ALL ON FUNCTION public.lead_c2s_ts(text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.lead_c2s_ts(text) TO service_role;
 REVOKE ALL ON FUNCTION public.lead_c2s_norm(text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.lead_c2s_responsavel(uuid, text, text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.lead_c2s_aviso_texto(uuid, boolean) FROM PUBLIC, anon, authenticated;

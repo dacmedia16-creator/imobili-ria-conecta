@@ -1,10 +1,13 @@
 -- Rollback de 20270102120000_leads_c2s (t_32f5458d). Corpos das 4 funções copiados de PRODUÇÃO em 24/11/2026
 
--- (pg_get_functiondef), antes da migration. Rodar numa transação. Apaga os leads de origem 'c2s' e os avisos novos.
+-- (pg_get_functiondef), antes da migration. PARTE 1 (segura): desliga a entrada/avisos e volta as 4 funções.
+
+-- Leads C2S já recebidos ficam (passam a seguir os prazos normais da imobiliária). Também cancelar o webhook no C2S.
 
 BEGIN;
 
-UPDATE public.lead_config SET c2s_token_hash = NULL, c2s_desde = NULL, c2s_aviso_whats = false WHERE c2s_token_hash IS NOT NULL OR c2s_aviso_whats;
+UPDATE public.lead_config SET c2s_token_hash = NULL, c2s_desde = NULL, c2s_aviso_whats = false, c2s_busca_api = false
+ WHERE c2s_token_hash IS NOT NULL OR c2s_aviso_whats OR c2s_busca_api;
 
 -- lead_inserir(uuid,text,text,text,text,text,uuid,uuid,boolean,text,text)
 CREATE OR REPLACE FUNCTION public.lead_inserir(_org uuid, _nome text, _telefone text, _email text, _origem text, _mensagem text, _capture_id uuid, _autor uuid, _simulado boolean, _consentimento text, _externo_id text)
@@ -202,37 +205,30 @@ BEGIN
   END LOOP;
 END $function$;
 
-DELETE FROM public.lead_avisos_corretor WHERE evento IN ('c2s', 'transferencia');
-
-DELETE FROM public.leads WHERE origem = 'c2s';
-
-DROP FUNCTION IF EXISTS public.lead_c2s_receber(text, jsonb);
-
-DROP FUNCTION IF EXISTS public.lead_c2s_token_gerar(uuid, timestamptz);
-
-DROP FUNCTION IF EXISTS public.lead_c2s_desligar(uuid);
-
-DROP FUNCTION IF EXISTS public.lead_c2s_aviso_texto(uuid, boolean);
-
-DROP FUNCTION IF EXISTS public.lead_c2s_responsavel(uuid, text, text);
-
-DROP FUNCTION IF EXISTS public.lead_c2s_norm(text);
-
-ALTER TABLE public.lead_avisos_corretor DROP CONSTRAINT IF EXISTS lead_avisos_corretor_evento_check;
-
-ALTER TABLE public.lead_avisos_corretor ADD CONSTRAINT lead_avisos_corretor_evento_check
-  CHECK (evento IN ('passagem', 'reenvio', 'historico', 'pronto', 'historico_pronto'));
-
-ALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_origem_check;
-
-ALTER TABLE public.leads ADD CONSTRAINT leads_origem_check
-  CHECK (origem IN ('manual', 'formulario', 'simulador', 'whatsapp', 'olx', 'meta', 'site', 'outro', 'grupo_olx'));
-
-ALTER TABLE public.leads DROP COLUMN IF EXISTS sem_prazo, DROP COLUMN IF EXISTS imovel_interesse;
-
-DROP INDEX IF EXISTS public.lead_config_c2s_hash_uniq;
-
-ALTER TABLE public.lead_config DROP COLUMN IF EXISTS c2s_token_hash, DROP COLUMN IF EXISTS c2s_desde,
-  DROP COLUMN IF EXISTS c2s_aviso_whats;
-
 COMMIT;
+
+-- PARTE 2 (DESTRUTIVA, opcional): só rodar se for remover a integração de vez e DEPOIS de voltar o front (o front
+-- lê sem_prazo/imovel_interesse; sem as colunas, a tela de leads quebra). Apaga os leads de origem 'c2s'.
+-- Para rodar: tire os '-- ' do bloco abaixo.
+
+-- BEGIN;
+-- DELETE FROM public.lead_avisos_corretor WHERE evento IN ('c2s', 'transferencia');
+-- DELETE FROM public.leads WHERE origem = 'c2s';
+-- DROP FUNCTION IF EXISTS public.lead_c2s_receber(text, jsonb);
+-- DROP FUNCTION IF EXISTS public.lead_c2s_token_gerar(uuid, timestamptz);
+-- DROP FUNCTION IF EXISTS public.lead_c2s_desligar(uuid);
+-- DROP FUNCTION IF EXISTS public.lead_c2s_aviso_texto(uuid, boolean);
+-- DROP FUNCTION IF EXISTS public.lead_c2s_responsavel(uuid, text, text);
+-- DROP FUNCTION IF EXISTS public.lead_c2s_norm(text);
+-- DROP FUNCTION IF EXISTS public.lead_c2s_ts(text);
+-- ALTER TABLE public.lead_avisos_corretor DROP CONSTRAINT IF EXISTS lead_avisos_corretor_evento_check;
+-- ALTER TABLE public.lead_avisos_corretor ADD CONSTRAINT lead_avisos_corretor_evento_check
+--   CHECK (evento IN ('passagem', 'reenvio', 'historico', 'pronto', 'historico_pronto'));
+-- ALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_origem_check;
+-- ALTER TABLE public.leads ADD CONSTRAINT leads_origem_check
+--   CHECK (origem IN ('manual', 'formulario', 'simulador', 'whatsapp', 'olx', 'meta', 'site', 'outro', 'grupo_olx'));
+-- ALTER TABLE public.leads DROP COLUMN IF EXISTS sem_prazo, DROP COLUMN IF EXISTS imovel_interesse;
+-- DROP INDEX IF EXISTS public.lead_config_c2s_hash_uniq;
+-- ALTER TABLE public.lead_config DROP COLUMN IF EXISTS c2s_token_hash, DROP COLUMN IF EXISTS c2s_desde,
+--   DROP COLUMN IF EXISTS c2s_aviso_whats, DROP COLUMN IF EXISTS c2s_busca_api;
+-- COMMIT;

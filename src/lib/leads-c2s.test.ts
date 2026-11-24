@@ -81,7 +81,8 @@ describe("handler do webhook C2S", () => {
     const buscar = vi.fn(async () => LEAD as Record<string, unknown>);
     expect((await post(rpc, { id: "abc123" }, TOKEN, buscar)).status).toBe(200);
     expect(buscar).toHaveBeenCalledWith("abc123");
-    expect(rpc).toHaveBeenCalledWith(TOKEN, LEAD.data);
+    // marca _via_api: o banco só aceita na imobiliária dona da conta C2S do servidor
+    expect(rpc).toHaveBeenCalledWith(TOKEN, { ...LEAD.data, _via_api: true });
     expect((await post(banco("ok"), { id: "abc123" })).status).toBe(400); // sem token do C2S no servidor
   });
   it("LGPD: nenhum log com nome, telefone, e-mail ou mensagem", async () => {
@@ -129,7 +130,7 @@ describe("regra 1 — mesmo corretor do C2S (Denis 24/11)", () => {
 
 describe("regra 2 — sem prazo de aceite; fica com o corretor até ser arquivado", () => {
   it("lead do C2S entra aceito e marcado sem_prazo", () => {
-    expect(fn("lead_c2s_receber")).toMatch(/sem_prazo = true/);
+    expect(fn("lead_c2s_receber")).toMatch(/sem_prazo = _resp IS NOT NULL/);
     expect(fn("lead_c2s_receber")).toMatch(
       /aceito_em = CASE WHEN _resp IS NOT NULL THEN now\(\) END/,
     );
@@ -213,9 +214,28 @@ describe("só leads novos, tudo desligado, permissões e rollback", () => {
     expect(ORIGENS).not.toContain("c2s"); // não entra no cadastro manual
     expect(ORIGEM_LABEL.c2s).toBe("C2S");
   });
+  it("revisão: data quebrada não trava a entrada; busca na API só na imobiliária dona da conta", () => {
+    expect(fn("lead_c2s_ts")).toMatch(/EXCEPTION WHEN OTHERS THEN\s+RETURN NULL/);
+    expect(fn("lead_c2s_receber")).not.toMatch(/->>'created_at'\)::timestamptz/);
+    expect(fn("lead_c2s_receber")).toMatch(/_via_api', ''\) = 'true' AND NOT _c\.c2s_busca_api/);
+    expect(MIG).toMatch(/c2s_busca_api boolean NOT NULL DEFAULT false/);
+  });
+  it("revisão: sem ninguém para receber, o lead segue a regra normal e fica registrado", () => {
+    expect(fn("lead_c2s_receber")).toMatch(/sem_prazo = _resp IS NOT NULL/);
+    expect(fn("lead_c2s_receber")).toMatch(/'c2s sem responsavel'/);
+  });
+  it("revisão: transferência não reabre aviso que está saindo", () => {
+    expect(fn("lead_atribuir")).toMatch(/WHERE public\.lead_avisos_corretor\.status <> 'enviando'/);
+  });
+  it("rollback: parte 1 segura (não apaga lead); parte 2 destrutiva comentada", () => {
+    const [p1, p2] = RB.split("-- PARTE 2");
+    expect(p1).not.toMatch(/^DELETE FROM public\.leads/m);
+    expect(p2).toMatch(/^-- DELETE FROM public\.leads WHERE origem = 'c2s';/m);
+  });
   it("rollback desfaz funções e colunas", () => {
-    expect(RB).toMatch(/DROP FUNCTION IF EXISTS public\.lead_c2s_receber/);
+    expect(RB).toMatch(/-- DROP FUNCTION IF EXISTS public\.lead_c2s_receber/);
     expect(RB).toMatch(/DROP COLUMN IF EXISTS sem_prazo/);
     expect(RB).toMatch(/DROP COLUMN IF EXISTS c2s_token_hash/);
+    expect(RB).toMatch(/CREATE OR REPLACE FUNCTION public\.leads_processar_prazos\(\)/);
   });
 });

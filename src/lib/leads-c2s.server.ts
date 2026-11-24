@@ -40,11 +40,30 @@ const resposta = (status: number, r: string) =>
     headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
   });
 
+/** Lê o corpo parando no limite (vale também sem content-length / envio em partes). */
 async function lerCorpo(request: Request): Promise<string | null> {
   const cl = Number(request.headers.get("content-length") ?? "0");
   if (cl > C2S_MAX_BYTES) return null;
-  const buf = await request.arrayBuffer();
-  if (buf.byteLength > C2S_MAX_BYTES) return null;
+  if (!request.body) return "";
+  const reader = request.body.getReader();
+  const partes: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > C2S_MAX_BYTES) {
+      await reader.cancel().catch(() => undefined);
+      return null;
+    }
+    partes.push(value);
+  }
+  const buf = new Uint8Array(total);
+  let pos = 0;
+  for (const p of partes) {
+    buf.set(p, pos);
+    pos += p.byteLength;
+  }
   return new TextDecoder().decode(buf);
 }
 
@@ -93,7 +112,8 @@ export async function receberLeadC2s(
       console.error("leads c2s: lead não encontrado no C2S");
       return resposta(503, "erro");
     }
-    lead = l;
+    // Marca para o banco: só a imobiliária dona da conta C2S do servidor aceita (lead_config.c2s_busca_api).
+    lead = { ...l, _via_api: true };
   }
   let data: unknown;
   try {
