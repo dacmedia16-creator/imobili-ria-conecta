@@ -35,6 +35,23 @@ import type { ChaveExplicacao } from "@/lib/metas-2027/explicacoes";
 import { InfoDica, RotuloInfo } from "./InfoDica";
 import { ContextoInfo } from "./contexto-info";
 import { NomeComPlano } from "./NomeComPlano";
+import {
+  filtrarGrupos,
+  lerPlanosEquipe,
+  linhaPlano,
+  linhaSemPlano,
+  padraoDasTaxas,
+  resumoGrupo,
+  textoResumoGrupo,
+  type LinhaPlano,
+} from "@/lib/meu-plano-2027/linha-equipe";
+import {
+  contarSituacoes,
+  filtrarEquipe,
+  type SituacaoFiltro,
+} from "@/lib/meu-plano-2027/filtro-equipe";
+import { EstadoPlanoTexto, SeloMetaPill } from "@/components/minha-carreira/meu-plano/SeloPlano";
+import { BuscaFiltroPlano } from "@/components/minha-carreira/meu-plano/BuscaFiltroPlano";
 
 // Painéis de metas 2027 — ETAPA 4 (cartão t_69d29df6, Denis 20/11): painel da IMOBILIÁRIA (broker/admin).
 // Tela NOVA: não altera o Painel da Equipe, o Farol nem os relatórios financeiros. A tela não faz conta: tudo sai
@@ -87,6 +104,11 @@ function curto(k: Indicador, v: number | null | undefined) {
 type Dados = {
   painel: PainelImobiliaria;
   direcaoBruta: DirecaoRpc | null;
+  /**
+   * Etiquetas do Meu Plano por pessoa (t_adaaa240): mesma leitura e mesma regra da tela "Meu Plano 2027 — equipe"
+   * (lerPlanosEquipe + linhaPlano). null = módulo desligado ou leitura recusada: o ranking fica sem etiquetas.
+   */
+  planos: Map<string, LinhaPlano> | null;
 };
 
 export function PainelMetasImobiliaria() {
@@ -136,13 +158,26 @@ export function PainelMetasImobiliaria() {
       anotacoes = an.error ? [] : ((an.data ?? []) as AnotacaoLida[]);
     }
     let padrao: TaxasFunil | null = null;
-    if (planos.modulo_plano) padrao = await lerTaxasPadrao();
+    let planosEquipe: Map<string, LinhaPlano> | null = null;
+    if (planos.modulo_plano) {
+      // Etiquetas: só exibição. Se a leitura falhar, o painel segue igual, sem as etiquetas.
+      const [tx, eq] = await Promise.all([
+        lerTaxasPadrao(),
+        lerPlanosEquipe().catch(() => ({ membros: undefined, erro: "falhou" })),
+      ]);
+      padrao = tx;
+      if (eq.membros)
+        planosEquipe = new Map(
+          eq.membros.map((m) => [m.user_id, linhaPlano(m, padraoDasTaxas(padrao))] as const),
+        );
+    }
     const direcaoBruta = (dir.data ?? null) as DirecaoRpc | null;
     // Quebra/estoque recusados (42501) = quem chama não pode ver a bruta: o bloco some, o resto do painel fica.
     const quebra: QuebraVendaRpc[] | null = qb.error ? null : normalizarQuebraRpc(qb.data);
     const estoque = est.error ? null : ((est.data ?? null) as EstoqueRpc | null);
     setDados({
       direcaoBruta,
+      planos: planosEquipe,
       painel: montarPainelImobiliaria({
         hoje,
         planos,
@@ -183,6 +218,7 @@ export function PainelMetasImobiliaria() {
           <ContextoInfo.Provider value={{ ano: dados.painel.base.anoDados, anoPlano: ANO_PLANO }}>
             <Conteudo
               p={dados.painel}
+              planos={dados.planos}
               direcaoBruta={dados.direcaoBruta}
               ehAdmin={ehAdmin}
               recarregar={carregar}
@@ -196,11 +232,13 @@ export function PainelMetasImobiliaria() {
 
 function Conteudo({
   p,
+  planos,
   direcaoBruta,
   ehAdmin,
   recarregar,
 }: {
   p: PainelImobiliaria;
+  planos: Map<string, LinhaPlano> | null;
   direcaoBruta: DirecaoRpc | null;
   ehAdmin: boolean;
   recarregar: () => Promise<void>;
@@ -318,6 +356,8 @@ function Conteudo({
           linhas={p.rankingEquipes}
           testid="ranking-equipes"
           abrePlano={p.base.moduloPlano}
+          planos={planos}
+          tipo="equipe"
         />
         <Ranking
           titulo="Ranking por corretor"
@@ -325,6 +365,8 @@ function Conteudo({
           linhas={p.rankingCorretores}
           testid="ranking-corretores"
           abrePlano={p.base.moduloPlano}
+          planos={planos}
+          tipo="corretor"
         />
       </div>
       <p className="text-xs text-muted-foreground">
@@ -876,6 +918,8 @@ function Ranking({
   linhas,
   testid,
   abrePlano = false,
+  planos = null,
+  tipo,
 }: {
   titulo: string;
   info: ChaveExplicacao;
@@ -883,67 +927,140 @@ function Ranking({
   testid: string;
   /** t_c9b0f633: o nome abre o Meu Plano 2027 (pessoa; na equipe, o do líder). Só com o módulo ligado. */
   abrePlano?: boolean;
+  /** t_adaaa240: etiquetas da tela "Meu Plano 2027 — equipe" por pessoa. null = sem etiquetas. */
+  planos?: Map<string, LinhaPlano> | null;
+  tipo: "equipe" | "corretor";
 }) {
+  // Busca + filtro (t_adaaa240, acréscimo de Denis 24/11): só ESCONDE linhas. A posição (i + 1), os totais e o
+  // farol continuam os do ranking inteiro.
+  const [busca, setBusca] = useState("");
+  const [situacao, setSituacao] = useState<SituacaoFiltro>("todos");
+  const doPlano = useCallback(
+    (id: string, nome = "") => planos?.get(id) ?? linhaSemPlano(id, nome),
+    [planos],
+  );
+  const pessoasDe = useCallback((l: LinhaRanking) => l.pessoas.map((id) => doPlano(id)), [doPlano]);
+  const comPosicao = useMemo(() => linhas.map((l, i) => ({ l, pos: i + 1 })), [linhas]);
+  const visiveis = useMemo(() => {
+    const sit = planos ? situacao : "todos";
+    if (tipo === "equipe")
+      return filtrarGrupos(
+        comPosicao.map((x) => ({ ...x, nome: x.l.nome, liderNome: x.l.liderNome })),
+        (x) => pessoasDe(x.l),
+        busca,
+        sit,
+      );
+    return filtrarEquipe(
+      comPosicao.map((x) => ({ ...x, ...doPlano(x.l.id, x.l.nome), nome: x.l.nome })),
+      busca,
+      sit,
+    );
+  }, [comPosicao, tipo, busca, situacao, planos, pessoasDe, doPlano]);
+  // Contagem no seletor: equipes com ao menos 1 pessoa naquela situação; corretores, as pessoas.
+  const porSituacao = useMemo(() => {
+    if (tipo === "corretor")
+      return contarSituacoes(linhas.map((l) => ({ ...doPlano(l.id, l.nome), nome: l.nome })));
+    const r = contarSituacoes([]);
+    for (const k of Object.keys(r) as SituacaoFiltro[])
+      r[k] = filtrarGrupos(linhas, pessoasDe, "", k).length;
+    return r;
+  }, [linhas, tipo, doPlano, pessoasDe]);
   return (
     <Bloco titulo={titulo} info={info} testid={testid}>
       {linhas.length === 0 ? (
         <p className="text-sm text-muted-foreground">Ninguém para mostrar ainda.</p>
       ) : (
-        <ol className="space-y-2">
-          {linhas.map((l, i) => (
-            <li
-              key={l.id}
-              className="flex items-start justify-between gap-2 border-t pt-2 first:border-t-0 first:pt-0"
-            >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">
-                  {i + 1}.{" "}
-                  <NomeComPlano
-                    userId={l.planoDe}
-                    ativo={abrePlano}
-                    titulo={
-                      l.liderNome
-                        ? `Abrir o plano de ${l.liderNome} (líder)`
-                        : `Abrir o plano de ${l.nome}`
-                    }
-                  >
-                    {l.nome}
-                  </NomeComPlano>
-                </p>
-                {l.liderNome ? (
-                  <p className="truncate text-xs text-muted-foreground">
-                    Líder:{" "}
-                    <NomeComPlano userId={l.planoDe} ativo={abrePlano}>
-                      {l.liderNome}
+        <div className="space-y-2">
+          <BuscaFiltroPlano
+            busca={busca}
+            setBusca={setBusca}
+            situacao={situacao}
+            setSituacao={setSituacao}
+            porSituacao={porSituacao}
+            visiveis={visiveis.length}
+            total={linhas.length}
+            unidade={tipo === "equipe" ? "equipes" : "corretores"}
+            placeholder={tipo === "equipe" ? "Buscar equipe ou líder" : "Buscar pelo nome"}
+            semSituacao={!planos}
+          />
+          {visiveis.length === 0 ? (
+            <p className="text-sm text-muted-foreground" data-testid="ranking-vazio-filtro">
+              Ninguém encontrado com essa busca e esse filtro.
+            </p>
+          ) : null}
+          <ol className="space-y-2">
+            {visiveis.map(({ l, pos }) => (
+              <li
+                key={l.id}
+                className="flex items-start justify-between gap-2 border-t pt-2 first:border-t-0 first:pt-0"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">
+                    {pos}.{" "}
+                    <NomeComPlano
+                      userId={l.planoDe}
+                      ativo={abrePlano}
+                      titulo={
+                        l.liderNome
+                          ? `Abrir o plano de ${l.liderNome} (líder)`
+                          : `Abrir o plano de ${l.nome}`
+                      }
+                    >
+                      {l.nome}
                     </NomeComPlano>
                   </p>
-                ) : null}
-                {l.sub ? <p className="truncate text-xs text-muted-foreground">{l.sub}</p> : null}
-                {l.aConferir > 0 ? (
-                  <p
-                    className="text-xs text-amber-800 dark:text-amber-200"
-                    data-testid="ranking-a-conferir"
-                  >
-                    ⚠{" "}
-                    {l.aConferir === 1
-                      ? "plano com valor a conferir"
-                      : `${l.aConferir} planos com valor a conferir`}
+                  {l.liderNome ? (
+                    <p className="truncate text-xs text-muted-foreground">
+                      Líder:{" "}
+                      <NomeComPlano userId={l.planoDe} ativo={abrePlano}>
+                        {l.liderNome}
+                      </NomeComPlano>
+                    </p>
+                  ) : null}
+                  {planos && tipo === "corretor" ? (
+                    <div
+                      className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"
+                      data-testid="ranking-etiquetas"
+                    >
+                      <SeloMetaPill selo={doPlano(l.id, l.nome).selo} />
+                      <EstadoPlanoTexto estado={doPlano(l.id, l.nome).estado} />
+                    </div>
+                  ) : null}
+                  {l.sub ? <p className="truncate text-xs text-muted-foreground">{l.sub}</p> : null}
+                  {planos && tipo === "equipe" ? (
+                    <p
+                      className="text-xs text-muted-foreground"
+                      data-testid="ranking-resumo-equipe"
+                    >
+                      {textoResumoGrupo(resumoGrupo(pessoasDe(l)))}
+                    </p>
+                  ) : null}
+                  {l.aConferir > 0 ? (
+                    <p
+                      className="text-xs text-amber-800 dark:text-amber-200"
+                      data-testid="ranking-a-conferir"
+                    >
+                      ⚠{" "}
+                      {l.aConferir === 1
+                        ? "plano com valor a conferir"
+                        : `${l.aConferir} planos com valor a conferir`}
+                    </p>
+                  ) : null}
+                  <p className="text-xs">
+                    {brl(l.realizado)}{" "}
+                    <span className="text-muted-foreground">
+                      de {brlOuTraco(l.meta)} · {pct(l.pctAno)} do ano · {pct(l.pctEsperado)} do
+                      esperado
+                    </span>
                   </p>
-                ) : null}
-                <p className="text-xs">
-                  {brl(l.realizado)}{" "}
-                  <span className="text-muted-foreground">
-                    de {brlOuTraco(l.meta)} · {pct(l.pctAno)} do ano · {pct(l.pctEsperado)} do
-                    esperado
-                  </span>
-                </p>
-              </div>
-              <Pill tom={TOM_FAROL[l.farol]} className="shrink-0">
-                {FAROL_META_ROTULO[l.farol]}
-              </Pill>
-            </li>
-          ))}
-        </ol>
+                </div>
+                <Pill tom={TOM_FAROL[l.farol]} className="shrink-0">
+                  {FAROL_META_ROTULO[l.farol]}
+                </Pill>
+              </li>
+            ))}
+          </ol>
+        </div>
       )}
     </Bloco>
   );
