@@ -385,26 +385,39 @@ export function ownerNamesSummary(form: Partial<CaptureForm> | null | undefined)
   return `${names[0]}, ${names[1]} e mais ${names.length - 2}`;
 }
 /**
- * Pode remover o proprietário N? O 1º nunca (mínimo 1). Os documentos ficam presos à posição
- * (owner_index), então só sai o ÚLTIMO, ou um do meio quando nem ele nem os seguintes têm
- * documentos (os seguintes sobem uma posição sem trocar de documento).
+ * Pode remover o proprietário N? O 1º nunca (mínimo 1). Documentos não bloqueiam mais
+ * (t_b3a9ed4f): o banco (exclusive_remove_owner) apaga os do N e renumera os seguintes na mesma
+ * transação, igual a ownerRemovalDocs. Status/arquivamento continuam decididos por `editable`.
  */
 export function canRemoveOwner(
   form: CaptureForm,
-  docs: CaptureDocument[],
+  _docs: CaptureDocument[],
   n: number,
 ): { ok: boolean; reason?: string } {
   const total = captureOwners(form).length;
   if (n <= 1 || n > total) return { ok: false, reason: "O 1º proprietário é obrigatório." };
-  if (n === total) return { ok: true };
-  const withDocs = docs.some((d) => d.owner_index >= n && d.owner_index <= total);
-  return withDocs
-    ? {
-        ok: false,
-        reason:
-          "Este proprietário ou um dos seguintes já tem documento anexado. Para não trocar documentos de pessoa, remova a partir do último.",
-      }
-    : { ok: true };
+  return { ok: true };
+}
+/**
+ * Documentos depois de remover o proprietário N (espelho de exclusive_remove_owner): os do N saem;
+ * os de N+1, N+2… descem um número e continuam com o mesmo arquivo (mesma pessoa). Imóvel (0) e
+ * os anteriores ficam iguais.
+ */
+export function ownerRemovalDocs(
+  docs: CaptureDocument[],
+  n: number,
+): { removed: CaptureDocument[]; kept: CaptureDocument[] } {
+  const removed = docs.filter((d) => d.owner_index === n);
+  const kept = docs
+    .filter((d) => d.owner_index !== n)
+    .map((d) => (d.owner_index > n ? { ...d, owner_index: d.owner_index - 1 } : d));
+  return { removed, kept };
+}
+/** Texto da confirmação da lixeira do proprietário N. */
+export function ownerRemovalMessage(docs: CaptureDocument[], n: number): string {
+  return docs.some((d) => d.owner_index === n)
+    ? `Remover o proprietário ${n}? Os documentos anexados dele também serão excluídos.`
+    : `Remover o proprietário ${n}?`;
 }
 export function removeOwner(form: CaptureForm, n: number): CaptureForm {
   const owners = captureOwners(form);

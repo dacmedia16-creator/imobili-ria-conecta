@@ -75,6 +75,41 @@ export const removerDocumentoCaptacao = createServerFn({ method: "POST" })
     return { ok: true as const, arquivo };
   });
 
+const RemoverProprietarioInput = z.object({
+  captureId: z.string().uuid(),
+  owner: z.number().int().min(2).max(60),
+  total: z.number().int().min(2).max(60),
+});
+
+/**
+ * Remove o proprietário N com os documentos dele (t_b3a9ed4f). O banco decide e faz tudo numa
+ * transação (exclusive_remove_owner: editor, rascunho/devolvida; apaga os documentos do N e desce
+ * os dos seguintes um número). Depois apaga do Storage os arquivos que ficaram sem uso.
+ */
+export const removerProprietarioCaptacao = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => RemoverProprietarioInput.parse(input))
+  .handler(async ({ data, context }) => {
+    const user = context.supabase as unknown as SupabaseClient;
+    const { data: paths, error } = await user.rpc("exclusive_remove_owner", {
+      _id: data.captureId,
+      _n: data.owner,
+      _total: data.total,
+    });
+    if (error) throw new Error(error.message);
+    const lista = Array.isArray(paths)
+      ? paths.filter((p): p is string => typeof p === "string")
+      : [];
+    if (!lista.length) return { ok: true as const, apagados: 0 };
+    const deps = await dependencias(user);
+    const r = await Promise.all(
+      lista.map((p) =>
+        apagarArquivoSemUso(deps, data.captureId, p).catch(() => "ignorado" as const),
+      ),
+    );
+    return { ok: true as const, apagados: r.filter((x) => x === "apagado").length };
+  });
+
 /**
  * Substituir: apaga o arquivo ANTIGO depois que o novo foi registrado. Só para o editor da captação
  * (rascunho/devolvida — mesmo momento em que ele pode remover), só caminho desta captação e só se
