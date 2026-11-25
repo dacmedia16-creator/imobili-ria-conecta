@@ -5266,7 +5266,7 @@ function SaleDetail() {
       )}
 
       {saving && (
-        <p className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-4 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground shadow">
+        <p className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] md:bottom-[calc(1rem+env(safe-area-inset-bottom))] right-4 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground shadow">
           Salvando…
         </p>
       )}

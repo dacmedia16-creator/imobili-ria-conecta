@@ -14,7 +14,18 @@ import {
   PanelLeftOpen,
   Eye,
   Undo2,
+  ChevronDown,
+  Search,
 } from "lucide-react";
+import { BarraInferior } from "@/components/BarraInferior";
+import { BuscaRapida } from "@/components/BuscaRapida";
+import {
+  alternarGrupo,
+  GRUPOS_FECHADOS_KEY,
+  grupoTemRota,
+  lerGruposFechados,
+  mostraBarraInferior,
+} from "@/lib/telas-lote2";
 import { supabase } from "@/integrations/supabase/client";
 import { NotificationBell } from "@/components/NotificationBell";
 import { useUnreadNotifications } from "@/hooks/use-unread-notifications";
@@ -69,6 +80,10 @@ function SidebarNav({
   onToggleCollapsed,
   unread,
   impersonationBanner,
+  onBuscar,
+  gruposFechados = [],
+  onAlternarGrupo,
+  pathname = "",
 }: {
   groups: NavGroup[];
   onNavigate?: () => void;
@@ -78,6 +93,12 @@ function SidebarNav({
   onToggleCollapsed?: () => void;
   unread: number;
   impersonationBanner?: ReactNode;
+  /** Abre a busca rápida (Ctrl+K). */
+  onBuscar?: () => void;
+  /** Grupos fechados pelo usuário (lembrados neste navegador). */
+  gruposFechados?: string[];
+  onAlternarGrupo?: (label: string) => void;
+  pathname?: string;
 }) {
   const { user, roles, signOut, impersonation, restoreSuperAdmin, platformContext } = useAuth();
   const endImpersonationFn = useServerFn(endOperationalImpersonation);
@@ -174,6 +195,30 @@ function SidebarNav({
               </button>,
             )}
         </div>
+        {onBuscar &&
+          withTip(
+            "Buscar tela (Ctrl+K)",
+            <div className={collapsed ? "px-2 pt-3" : "px-3 pt-3"}>
+              <button
+                type="button"
+                onClick={onBuscar}
+                data-testid="menu-buscar"
+                aria-label={collapsed ? "Buscar tela (Ctrl+K)" : undefined}
+                aria-keyshortcuts="Control+K"
+                className={`flex h-9 w-full items-center rounded-md border border-white/15 bg-white/5 text-sm text-white/75 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 ${collapsed ? "justify-center" : "gap-2 px-3"}`}
+              >
+                <Search className="h-4 w-4 shrink-0" aria-hidden />
+                {!collapsed && (
+                  <>
+                    <span className="flex-1 text-left">Buscar tela…</span>
+                    <kbd className="hidden rounded border border-white/20 px-1.5 font-mono text-[10px] text-white/70 md:inline">
+                      Ctrl K
+                    </kbd>
+                  </>
+                )}
+              </button>
+            </div>,
+          )}
         <nav
           aria-label="Menu principal"
           className={`min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain py-3 ${collapsed ? "px-2" : "px-3"}`}
@@ -181,6 +226,11 @@ function SidebarNav({
           {groups.map((group) => {
             const visible = group.items.filter((n) => n.show);
             if (visible.length === 0) return null;
+            // Grupo recolhível (t_29b7cd5e): lembra a escolha; o grupo da página aberta fica sempre aberto.
+            const podeFechar = Boolean(group.label && onAlternarGrupo && !collapsed);
+            const fechado =
+              podeFechar && gruposFechados.includes(group.label!) && !grupoTemRota(group, pathname);
+            const idLista = `menu-grupo-${idDaArea(group.label)}`;
             return (
               <div
                 key={group.label ?? "principal"}
@@ -190,6 +240,32 @@ function SidebarNav({
                 {group.label &&
                   (collapsed ? (
                     <div className="mx-2 mb-1 border-t border-white/10" aria-hidden />
+                  ) : podeFechar ? (
+                    <button
+                      type="button"
+                      onClick={() => onAlternarGrupo!(group.label!)}
+                      aria-expanded={!fechado}
+                      aria-controls={idLista}
+                      data-testid={`menu-grupo-botao-${idDaArea(group.label)}`}
+                      className="group/titulo flex w-full items-center gap-1.5 rounded px-3 pb-1 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-white/65 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                    >
+                      <span className="min-w-0 flex-1 truncate">{group.label}</span>
+                      {group.restricted && (
+                        <span className="inline-flex items-center gap-0.5 normal-case tracking-normal text-amber-300/90">
+                          <Lock className="h-2.5 w-2.5" aria-hidden />
+                          restrito
+                        </span>
+                      )}
+                      {fechado && (
+                        <span className="rounded-full bg-white/10 px-1.5 text-[10px] normal-case tracking-normal text-white/70">
+                          {visible.length}
+                        </span>
+                      )}
+                      <ChevronDown
+                        className={`h-3 w-3 shrink-0 transition-transform ${fechado ? "-rotate-90" : ""}`}
+                        aria-hidden
+                      />
+                    </button>
                   ) : (
                     <p className="flex items-center gap-1.5 px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/65">
                       {group.label}
@@ -201,46 +277,48 @@ function SidebarNav({
                       )}
                     </p>
                   ))}
-                {visible.map((n) => {
-                  const badge = n.to === "/notificacoes" && unread > 0;
-                  return withTip(
-                    badge ? `${n.label} (${unreadLabel} não lidas)` : n.label,
-                    <Link
-                      key={`${n.to}?${n.search?.aba ?? ""}`}
-                      to={n.to}
-                      search={n.search}
-                      data-tour={n.to === "/ajuda/wiki" ? "item-guias" : undefined}
-                      activeOptions={{ exact: n.to === "/" }}
-                      onClick={onNavigate}
-                      aria-label={
-                        collapsed || badge
-                          ? badge
-                            ? `${n.label}, ${unreadLabel} não lidas`
-                            : n.label
-                          : undefined
-                      }
-                      className={`relative flex touch-manipulation items-center max-md:min-h-11 rounded-md border-l-2 border-transparent py-2 text-sm text-white/95 [text-shadow:0_1px_2px_rgba(0,0,0,0.45)] hover:bg-white/15 hover:text-white ${collapsed ? "justify-center px-0" : "gap-3 px-3"}`}
-                      activeProps={{
-                        className: "bg-[#3453a4]/55 border-white text-white font-medium",
-                      }}
-                    >
-                      <n.icon className="h-4 w-4 shrink-0" aria-hidden />
-                      {!collapsed && (
-                        <span className="min-w-0 flex-1 truncate" title={n.label}>
-                          {n.label}
-                        </span>
-                      )}
-                      {badge &&
-                        (collapsed ? (
-                          <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-[#ff3b3b]" />
-                        ) : (
-                          <span className="ml-auto inline-flex min-w-[20px] items-center justify-center rounded-full bg-[#e11d2a] px-1.5 text-[11px] font-semibold leading-5 text-white">
-                            {unreadLabel}
+                <div id={idLista} hidden={fechado} className="space-y-0.5">
+                  {visible.map((n) => {
+                    const badge = n.to === "/notificacoes" && unread > 0;
+                    return withTip(
+                      badge ? `${n.label} (${unreadLabel} não lidas)` : n.label,
+                      <Link
+                        key={`${n.to}?${n.search?.aba ?? ""}`}
+                        to={n.to}
+                        search={n.search}
+                        data-tour={n.to === "/ajuda/wiki" ? "item-guias" : undefined}
+                        activeOptions={{ exact: n.to === "/" }}
+                        onClick={onNavigate}
+                        aria-label={
+                          collapsed || badge
+                            ? badge
+                              ? `${n.label}, ${unreadLabel} não lidas`
+                              : n.label
+                            : undefined
+                        }
+                        className={`relative flex touch-manipulation items-center max-md:min-h-11 rounded-md border-l-2 border-transparent py-2 text-sm text-white/95 [text-shadow:0_1px_2px_rgba(0,0,0,0.45)] hover:bg-white/15 hover:text-white ${collapsed ? "justify-center px-0" : "gap-3 px-3"}`}
+                        activeProps={{
+                          className: "bg-[#3453a4]/55 border-white text-white font-medium",
+                        }}
+                      >
+                        <n.icon className="h-4 w-4 shrink-0" aria-hidden />
+                        {!collapsed && (
+                          <span className="min-w-0 flex-1 truncate" title={n.label}>
+                            {n.label}
                           </span>
-                        ))}
-                    </Link>,
-                  );
-                })}
+                        )}
+                        {badge &&
+                          (collapsed ? (
+                            <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-[#ff3b3b]" />
+                          ) : (
+                            <span className="ml-auto inline-flex min-w-[20px] items-center justify-center rounded-full bg-[#e11d2a] px-1.5 text-[11px] font-semibold leading-5 text-white">
+                              {unreadLabel}
+                            </span>
+                          ))}
+                      </Link>,
+                    );
+                  })}
+                </div>
               </div>
             );
           })}
@@ -303,6 +381,27 @@ export function AppShell({ children }: { children: ReactNode }) {
   const userId = user?.id;
   const contextOrgId = platformContext?.organizationId ?? null;
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [buscaAberta, setBuscaAberta] = useState(false);
+  // Grupos do menu fechados pelo usuário (t_29b7cd5e); guardado neste navegador.
+  const [gruposFechados, setGruposFechados] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      setGruposFechados(lerGruposFechados(window.localStorage.getItem(GRUPOS_FECHADOS_KEY)));
+    } catch {
+      /* navegador sem localStorage: tudo aberto */
+    }
+  }, []);
+  const alternarGrupoMenu = (label: string) => {
+    setGruposFechados((atual) => {
+      const novo = alternarGrupo(atual, label);
+      try {
+        window.localStorage.setItem(GRUPOS_FECHADOS_KEY, JSON.stringify(novo));
+      } catch {
+        /* ignora */
+      }
+      return novo;
+    });
+  };
   // Menu recolhido (só ícones) no desktop; preferência guardada neste navegador.
   const [collapsed, setCollapsed] = useState(false);
   useEffect(() => {
@@ -475,6 +574,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     inPlatformContext: Boolean(platformContext),
   });
   const unread = useUnreadNotifications();
+  // Barra inferior do celular (t_29b7cd5e): some nas telas que já têm barra própria embaixo.
+  const barraInferior = mostraBarraInferior(pathname);
   // Na sessão "Ver como" os papéis carregados já são os da pessoa vista.
   const papelVerComo = roles.map((r) => ROLE_LABEL[r]).join(", ");
   // Dentro da gaveta do celular a faixa "Ver como" fica no topo do próprio menu.
@@ -582,6 +683,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           collapsed={collapsed}
           onToggleCollapsed={toggleCollapsed}
           unread={unread}
+          onBuscar={() => setBuscaAberta(true)}
+          gruposFechados={gruposFechados}
+          onAlternarGrupo={alternarGrupoMenu}
+          pathname={pathname}
         />
       </aside>
 
@@ -641,6 +746,13 @@ export function AppShell({ children }: { children: ReactNode }) {
                 unread={unread}
                 impersonationBanner={drawerImpersonationBanner}
                 onNavigate={() => setMobileNavOpen(false)}
+                onBuscar={() => {
+                  setMobileNavOpen(false);
+                  setBuscaAberta(true);
+                }}
+                gruposFechados={gruposFechados}
+                onAlternarGrupo={alternarGrupoMenu}
+                pathname={pathname}
               />
             </SheetContent>
           </Sheet>
@@ -650,7 +762,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <main
         id="conteudo-principal"
         tabIndex={-1}
-        className={`transition-[padding] duration-200 print:pl-0 ${collapsed ? "md:pl-16" : "md:pl-60"} ${topBar ? "pt-[calc(3rem+env(safe-area-inset-top))]" : ""} pb-[env(safe-area-inset-bottom)]`}
+        className={`transition-[padding] duration-200 print:pl-0 ${collapsed ? "md:pl-16" : "md:pl-60"} ${topBar ? "pt-[calc(3rem+env(safe-area-inset-top))]" : ""} ${barraInferior ? "max-md:pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-[env(safe-area-inset-bottom)]" : "pb-[env(safe-area-inset-bottom)]"}`}
       >
         <div className="mx-auto max-w-6xl p-4 md:p-8 print:max-w-none print:p-0">
           <div className="mb-4 hidden items-center justify-end gap-2 md:flex print:hidden">
@@ -662,6 +774,15 @@ export function AppShell({ children }: { children: ReactNode }) {
           {children}
         </div>
       </main>
+      {barraInferior && (
+        <BarraInferior
+          groups={navGroups}
+          pathname={pathname}
+          unread={unread}
+          onMais={() => setMobileNavOpen(true)}
+        />
+      )}
+      <BuscaRapida groups={navGroups} open={buscaAberta} onOpenChange={setBuscaAberta} />
       <MuralCelebrationListener />
       <ConviteDepoimento />
       {/* Ajuda MAX (t_b037935e): só em /locacoes, com Locação + chave ajuda_max_locacao (o banco confere). */}
