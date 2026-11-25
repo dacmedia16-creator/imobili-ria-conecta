@@ -1,4 +1,17 @@
 // Mantém as consultas com RLS do cliente; nunca publica um agregado com linhas truncadas.
+
+/** SQLSTATE 57014 = "canceling statement due to statement timeout" (limite de 8 s do papel
+ * authenticated). Em pico, uma página isolada pode passar do limite (t_205ec8f5, 24/11). */
+export function ehStatementTimeout(erro: unknown): boolean {
+  if (!erro || typeof erro !== "object") return false;
+  const e = erro as { code?: unknown; message?: unknown };
+  return (
+    e.code === "57014" ||
+    (typeof e.message === "string" &&
+      /canceling statement due to statement timeout/i.test(e.message))
+  );
+}
+
 export async function consultarTodasLinhas<T>(
   origem: string,
   pagina: (
@@ -14,7 +27,12 @@ export async function consultarTodasLinhas<T>(
   const linhas: T[] = [];
   let total: number | null = null;
   for (let inicio = 0; ; inicio += tamanho) {
-    const resultado = await pagina(inicio, inicio + tamanho - 1);
+    let resultado = await pagina(inicio, inicio + tamanho - 1);
+    // Repete UMA vez só a página que estourou o tempo; um 2º timeout (ou qualquer outro erro)
+    // segue para o erro abaixo — a tela mostra "Tentar de novo", nunca um total incompleto.
+    if (resultado.error && ehStatementTimeout(resultado.error)) {
+      resultado = await pagina(inicio, inicio + tamanho - 1);
+    }
     if (resultado.error || resultado.data == null || resultado.count == null) {
       throw new Error(
         `Dados financeiros incompletos (${origem}): ${resultado.error?.message ?? "resposta sem linhas/contagem"}`,

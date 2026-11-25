@@ -69,7 +69,10 @@ import {
   filtrosPadraoFinanceiro,
   podeAcessarCentralFinanceira,
 } from "@/lib/financeiro-dashboard-calc";
-import { fetchFinanceiroBundle } from "@/lib/financeiro-dashboard-query";
+import {
+  fetchFinanceiroBundle,
+  limparCacheFinanceiroBundle,
+} from "@/lib/financeiro-dashboard-query";
 import { resolverResumo } from "@/lib/vendas-resumo";
 import { criarCacheConsultas, ehErroDePermissao, type CacheConsultas } from "@/lib/cache-consultas";
 import { fetchVendasComerciaisPaginadas } from "@/lib/vendas-comerciais-query";
@@ -808,6 +811,7 @@ function SalesList() {
       toast.success("Venda excluída");
       setToDelete(null);
       resumoCacheRef.current?.limpar();
+      limparCacheFinanceiroBundle();
       setRefreshKey((k) => k + 1);
       router.invalidate();
     } catch (err: unknown) {
