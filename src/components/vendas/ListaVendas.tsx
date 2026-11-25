@@ -295,13 +295,37 @@ function SuaVezBadge() {
   );
 }
 
-const VEZ_DE_AGIR_TONE: Record<VezDeAgir, string> = {
+export const VEZ_DE_AGIR_TONE: Record<VezDeAgir, string> = {
   corretor: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200",
   gestor: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
   financeiro: "bg-orange-100 text-orange-900 dark:bg-orange-950 dark:text-orange-200",
   juridico: "bg-purple-100 text-purple-900 dark:bg-purple-950 dark:text-purple-200",
   concluido: "bg-green-100 text-green-900 dark:bg-green-950 dark:text-green-200",
 };
+
+/** Legenda curta das cores da coluna "Vez de agir" (t_d97f306e, item 8): cor + texto, as
+ * mesmas classes dos selos da lista. */
+export function LegendaVezDeAgir() {
+  return (
+    <div
+      className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground"
+      data-testid="legenda-vez"
+    >
+      <span className="font-medium">Vez de agir:</span>
+      {(Object.keys(VEZ_DE_AGIR_LABEL) as VezDeAgir[]).map((k) => (
+        <span
+          key={k}
+          className={`inline-flex rounded-full px-2 py-0.5 font-semibold ${VEZ_DE_AGIR_TONE[k]}`}
+        >
+          {VEZ_DE_AGIR_LABEL[k]}
+        </span>
+      ))}
+      <span className="inline-flex items-center gap-1">
+        <SuaVezBadge /> = a próxima ação é sua
+      </span>
+    </div>
+  );
+}
 
 function VezDeAgirBadge({ status }: { status: SaleStatus }) {
   const responsavel = vezDeAgir(status);

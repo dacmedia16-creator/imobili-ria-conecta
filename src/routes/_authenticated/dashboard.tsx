@@ -1,6 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, ROLE_LABEL } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,12 +18,6 @@ import {
   primeiraMaiuscula,
   type BuscaVendas,
 } from "@/lib/dashboard-links-vendas";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from "@/components/ui/chart";
 import { agruparContagemPorGrupoVenda, type GrupoVenda } from "@/lib/status";
 import { fetchLedMemberIds } from "@/lib/team";
 import { aplicarDatasRecentes } from "@/lib/dashboard-datas-recentes";
@@ -46,6 +39,13 @@ import {
 } from "@/lib/financeiro-dashboard-calc";
 import { fetchFinanceiroBundle, type FinanceiroBundle } from "@/lib/financeiro-dashboard-query";
 import { intervaloResumoMensal } from "@/lib/dashboard-resumo-mensal";
+import {
+  compararPeriodos,
+  larguraFaixa,
+  periodoComparacao,
+  textoComparacao,
+  type Comparacao,
+} from "@/lib/telas-lote3";
 import {
   PERIODO_LABEL,
   resolverPeriodo,
@@ -123,10 +123,6 @@ const FUNIL_GRUPOS: { key: GrupoVenda; label: string }[] = [
   { key: "confirmada", label: "Vendas confirmadas" },
   { key: "encerrada", label: "Encerradas sem venda" },
 ];
-
-const funilChartConfig = {
-  total: { label: "Vendas", color: "var(--color-chart-1)" },
-} satisfies ChartConfig;
 
 // Campos opcionais aqui (diferente de PeriodoSearch, que é o formato JÁ RESOLVIDO e estrito usado
 // por resolverPeriodo/validarPeriodoSearch) só pra não obrigar todo `navigate({ to: "/dashboard" })`
@@ -513,63 +509,38 @@ function DashboardCompleto() {
           <CardHeader>
             <CardTitle className="text-base">Situação atual das vendas</CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-4 lg:grid-cols-[1fr_260px]">
-            <ChartContainer config={funilChartConfig} className="aspect-auto h-[220px] w-full">
-              <BarChart data={funilData} layout="vertical" margin={{ left: 12 }}>
-                <CartesianGrid horizontal={false} strokeDasharray="3 3" />
-                <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} />
-                <YAxis
-                  type="category"
-                  dataKey="label"
-                  tickLine={false}
-                  axisLine={false}
-                  width={140}
-                />
-                <ChartTooltip
-                  content={
-                    <ChartTooltipContent
-                      formatter={(value, _name, _item, _index, payload) => {
-                        // "encerrada" fica fora do % — requisito 6 (não entra no percentual das
-                        // vendas ativas).
-                        const grupo = (payload as unknown as { key?: GrupoVenda } | undefined)?.key;
-                        const pct =
-                          grupo !== "encerrada" && totalAtivo > 0
-                            ? Math.round((Number(value) / totalAtivo) * 100)
-                            : null;
-                        return (
-                          <span className="font-medium text-foreground">
-                            {Number(value)} vendas{pct !== null ? ` (${pct}% das ativas)` : ""}
-                          </span>
-                        );
-                      }}
-                    />
-                  }
-                />
-                <Bar dataKey="total" fill="var(--color-total)" radius={4} />
-              </BarChart>
-            </ChartContainer>
-            <div className="flex flex-col justify-center gap-1.5">
+          {/* Faixas com número e % (t_d97f306e, item 7): o gráfico de barras achatava os grupos
+              pequenos (7 e 23 contra 695). A faixa tem largura mínima visível e o número fica sempre
+              escrito ao lado; os números são os mesmos de antes (dashboard_stats). */}
+          <CardContent>
+            <ul className="space-y-2.5" data-testid="situacao-faixas">
               {funilData.map(({ key, label, total }) => {
                 const pct =
                   key !== "encerrada" && totalAtivo > 0
                     ? Math.round((total / totalAtivo) * 100)
                     : null;
+                const maior = Math.max(...funilData.map((f) => f.total));
                 return (
-                  <div
-                    key={key}
-                    className="flex items-center justify-between rounded-md border p-2 text-sm"
-                  >
-                    <span className="text-muted-foreground">{label}</span>
-                    <span className="font-medium">
-                      {total}{" "}
-                      <span className="text-xs text-muted-foreground">
-                        {pct !== null ? `(${pct}% das ativas)` : "(fora do total ativo)"}
+                  <li key={key} className="space-y-1">
+                    <div className="flex items-baseline justify-between gap-2 text-sm">
+                      <span className="text-muted-foreground">{label}</span>
+                      <span className="font-semibold tabular-nums">
+                        {total}{" "}
+                        <span className="text-xs font-normal text-muted-foreground">
+                          {pct !== null ? `(${pct}% das ativas)` : "(fora do total ativo)"}
+                        </span>
                       </span>
-                    </span>
-                  </div>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-muted" aria-hidden>
+                      <div
+                        className={`h-full rounded-full ${key === "encerrada" ? "bg-slate-400" : "bg-primary"}`}
+                        style={{ width: `${larguraFaixa(total, maior)}%` }}
+                      />
+                    </div>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           </CardContent>
         </Card>
       )}
@@ -829,6 +800,7 @@ function ResumoGestorMes() {
   const [tentativa, setTentativa] = useState(0);
   const [deslocamentoMes, setDeslocamentoMes] = useState<0 | -1>(0);
   const periodo = useMemo(() => intervaloResumoMensal(deslocamentoMes), [deslocamentoMes]);
+  const periodoBase = useMemo(() => periodoComparacao(deslocamentoMes), [deslocamentoMes]);
 
   useEffect(() => {
     let cancelado = false;
@@ -846,17 +818,26 @@ function ResumoGestorMes() {
     };
   }, [tentativa]);
 
-  const resumo = useMemo(() => {
-    if (!bundle) return null;
-    const filtros = { ...filtrosPadraoFinanceiro(), dataDe: periodo.de, dataAte: periodo.ate };
+  // Mesma função para os dois períodos: a comparação usa exatamente a regra do mês mostrado
+  // (mesmo pacote, mesmos filtros e o mesmo calcularResumo); só o intervalo de datas muda.
+  const resumoDe = (b: FinanceiroBundle, p: { de: string; ate: string; hoje: string }) => {
+    const filtros = { ...filtrosPadraoFinanceiro(), dataDe: p.de, dataAte: p.ate };
     return calcularResumo({
-      parcelas: aplicarFiltrosParcelas(bundle.parcelas, filtros),
+      parcelas: aplicarFiltrosParcelas(b.parcelas, filtros),
       comissoes: [],
-      efetivadas: aplicarFiltrosEfetivacao(bundle.efetivadas, filtros),
-      divergenciasAbertas: bundle.divergencias.length,
-      hoje: periodo.hoje,
+      efetivadas: aplicarFiltrosEfetivacao(b.efetivadas, filtros),
+      divergenciasAbertas: b.divergencias.length,
+      hoje: p.hoje,
     });
-  }, [bundle, periodo]);
+  };
+  const resumo = useMemo(() => (bundle ? resumoDe(bundle, periodo) : null), [bundle, periodo]);
+  const anterior = useMemo(
+    () => (bundle ? resumoDe(bundle, periodoBase) : null),
+    [bundle, periodoBase],
+  );
+  const comparar = (
+    campo: "vgvEfetivado" | "comissaoBruta" | "receitaLiquidaImobiliaria" | "recebidoImobiliaria",
+  ) => compararPeriodos(resumo?.[campo], anterior?.[campo]);
 
   return (
     <section className="overflow-hidden rounded-xl border bg-card shadow-sm">
@@ -871,6 +852,11 @@ function ResumoGestorMes() {
           </h2>
           <p className="mt-2 max-w-sm text-sm leading-relaxed text-white/65">
             O essencial da operação em uma leitura. Os detalhes continuam disponíveis no Financeiro.
+          </p>
+          <p className="mt-2 max-w-sm text-xs leading-relaxed text-white/55">
+            {deslocamentoMes === 0
+              ? `Setas comparam com ${periodoBase.rotulo}: mesmos dias do mês anterior, mesma regra de cálculo.`
+              : `Setas comparam com ${periodoBase.rotulo}, mês inteiro, mesma regra de cálculo.`}
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
             <Button
@@ -895,7 +881,7 @@ function ResumoGestorMes() {
           </div>
         </div>
 
-        <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-px bg-border lg:grid-cols-4">
           {erro ? (
             <div className="col-span-full bg-card p-4">
               <ErrorState onRetry={() => setTentativa((t) => t + 1)}>
@@ -914,24 +900,32 @@ function ResumoGestorMes() {
                 icon={TrendingUp}
                 label="VGV atribuído à REMAX"
                 value={moeda(resumo.vgvEfetivado)}
+                comparacao={comparar("vgvEfetivado")}
+                rotuloComparacao={periodoBase.rotulo}
                 hint="VGV proporcional das vendas do mês, sem parceria externa"
               />
               <ResumoExecutivoCard
                 icon={CircleDollarSign}
                 label="Comissão gerada no mês"
                 value={moeda(resumo.comissaoBruta)}
+                comparacao={comparar("comissaoBruta")}
+                rotuloComparacao={periodoBase.rotulo}
                 hint="Vendas efetivadas no mês, com parceria externa descontada"
               />
               <ResumoExecutivoCard
                 icon={PiggyBank}
                 label="Receita líquida da imobiliária"
                 value={moeda(resumo.receitaLiquidaImobiliaria)}
+                comparacao={comparar("receitaLiquidaImobiliaria")}
+                rotuloComparacao={periodoBase.rotulo}
                 hint="O que sobra depois dos repasses internos e das parcerias"
               />
               <ResumoExecutivoCard
                 icon={Landmark}
                 label="Recebido no mês"
                 value={moeda(resumo.recebidoImobiliaria)}
+                comparacao={comparar("recebidoImobiliaria")}
+                rotuloComparacao={periodoBase.rotulo}
                 hint="Dinheiro efetivamente recebido pela REMAX no mês"
               />
             </>
@@ -948,24 +942,54 @@ function ResumoExecutivoCard({
   value,
   hint,
   danger = false,
+  comparacao,
+  rotuloComparacao,
 }: {
   icon: LucideIcon;
   label: string;
   value: string;
   hint?: string;
   danger?: boolean;
+  comparacao?: Comparacao;
+  rotuloComparacao?: string;
 }) {
   return (
-    <div className="min-h-36 bg-card p-4">
+    <div className="min-h-36 min-w-0 bg-card p-3 sm:p-4">
       <Icon className={`h-5 w-5 ${danger ? "text-destructive" : "text-muted-foreground"}`} />
-      <p className="mt-5 text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="mt-4 text-xs font-medium text-muted-foreground sm:mt-5">{label}</p>
       <p
-        className={`mt-1 text-xl font-semibold tracking-tight ${danger ? "text-destructive" : ""}`}
+        className={`mt-1 break-words text-lg font-semibold tracking-tight tabular-nums sm:text-xl ${danger ? "text-destructive" : ""}`}
       >
         {value}
       </p>
+      {comparacao && rotuloComparacao && (
+        <SeloComparacao comparacao={comparacao} rotulo={rotuloComparacao} />
+      )}
       {hint && <p className="mt-2 text-[11px] leading-snug text-muted-foreground">{hint}</p>}
     </div>
+  );
+}
+
+/** Seta + % contra o período anterior (t_d97f306e, item 7). Sempre com texto, nunca só cor; sem
+ * base confiável mostra "sem comparação". Sobe em verde e cai em âmbar: vermelho fica reservado
+ * para atraso e exclusão. */
+function SeloComparacao({ comparacao, rotulo }: { comparacao: Comparacao; rotulo: string }) {
+  const { curto, longo } = textoComparacao(comparacao, rotulo);
+  const tom =
+    comparacao.tipo === "variacao"
+      ? comparacao.sentido === "sobe"
+        ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+        : "bg-amber-500/15 text-amber-800 dark:text-amber-300"
+      : "bg-muted text-muted-foreground";
+  return (
+    <p
+      className={`mt-1.5 inline-flex max-w-full rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums ${tom}`}
+      title={longo}
+      data-testid="kpi-comparacao"
+    >
+      <span aria-hidden>{curto}</span>
+      <span className="sr-only">{longo}</span>
+    </p>
   );
 }
 
@@ -981,7 +1005,8 @@ function DashSection({ title, children }: { title: string; children: React.React
 }
 
 function KpiGrid({ children }: { children: React.ReactNode }) {
-  return <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{children}</div>;
+  // 2 por linha no celular (t_d97f306e, item 7): antes a primeira tela mostrava só 1 KPI.
+  return <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">{children}</div>;
 }
 
 type PainelItem = {

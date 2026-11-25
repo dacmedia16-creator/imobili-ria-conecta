@@ -7,7 +7,8 @@ export type ResumoMensalPeriodo = {
 
 /** Intervalo mensal do resumo do gestor, sempre baseado no calendário de São Paulo. */
 export function intervaloResumoMensal(
-  deslocamentoMes: 0 | -1,
+  // -2 = base de comparação do "Mês anterior" (t_d97f306e); mesma regra de calendário.
+  deslocamentoMes: 0 | -1 | -2,
   agora = new Date(),
 ): ResumoMensalPeriodo {
   const partes = new Intl.DateTimeFormat("en-US", {

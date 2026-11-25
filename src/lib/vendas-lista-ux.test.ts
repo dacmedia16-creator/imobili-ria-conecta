@@ -34,7 +34,9 @@ describe("tela Vendas — melhorias de interface (t_9a7afb5a)", () => {
   it("5. cartões com nome curto, aviso dentro e botão i acessível", () => {
     expect(tela).toContain('titulo="Efetivadas"');
     expect(tela).toContain('titulo="Lançadas"');
-    expect(tela).toContain(': "Não segue o filtro de status."');
+    // t_d97f306e (item 8): o aviso saiu da linha do cartão e ficou só no botão (i).
+    expect(tela).not.toContain(': "Não segue o filtro de status."');
+    expect(tela).toContain("O cartão de efetivadas não segue o filtro de status.");
     // Falha real do pacote: aviso no cartão em vez de R$ 0 (t_a42027c1).
     expect(tela).toContain('"Não foi possível carregar as efetivadas."');
     expect(tela).toContain("aria-label={`O que entra em ${titulo}`}");

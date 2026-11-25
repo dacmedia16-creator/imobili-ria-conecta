@@ -4,8 +4,8 @@
  * visual ser idêntico: cabeçalho com gradiente, KPI com ícone, etiqueta cor + texto, estado
  * vazio e skeleton. Só apresentação — nenhum cálculo, consulta ou regra mora aqui.
  */
-import type { ComponentType, ReactNode } from "react";
-import { AlertTriangle, Inbox, RotateCcw } from "lucide-react";
+import { useId, useState, type ComponentType, type ReactNode } from "react";
+import { AlertTriangle, ChevronDown, Inbox, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -39,7 +39,10 @@ export const TOM_PONTO: Record<Tom, string> = {
   slate: "bg-slate-500",
 };
 
-/** Cabeçalho da página: faixa com gradiente, ícone, título, explicação curta e ações. */
+/** Cabeçalho da página: faixa com gradiente, ícone, título, explicação curta e ações.
+ * Celular (t_d97f306e, item 9): faixa baixa, título numa linha, ações ao lado do título e a
+ * explicação recolhida no botão "Como funciona" — os dados aparecem já na primeira tela. No
+ * computador nada muda. */
 export function PageHeader({
   icon: Icon,
   title,
@@ -53,10 +56,12 @@ export function PageHeader({
   actions?: ReactNode;
   className?: string;
 }) {
+  const [explicacaoAberta, setExplicacaoAberta] = useState(false);
+  const idExplicacao = useId();
   return (
     <header
       className={cn(
-        "relative overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/10 via-card to-card p-4 shadow-sm sm:p-6",
+        "relative overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/10 via-card to-card px-3 py-2.5 shadow-sm sm:p-6",
         className,
       )}
     >
@@ -64,24 +69,55 @@ export function PageHeader({
         className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-primary/10 blur-3xl"
         aria-hidden
       />
-      <div className="relative flex flex-wrap items-start justify-between gap-4">
-        <div className="flex min-w-0 items-start gap-3">
+      <div className="relative flex flex-wrap items-center justify-between gap-2 sm:items-start sm:gap-4">
+        <div className="flex min-w-0 flex-1 basis-24 items-center gap-2.5 sm:flex-none sm:basis-auto sm:items-start sm:gap-3">
           <span
-            className="shrink-0 rounded-xl bg-primary p-2.5 text-primary-foreground shadow-sm"
+            className="shrink-0 rounded-lg bg-primary p-1.5 text-primary-foreground shadow-sm sm:rounded-xl sm:p-2.5"
             aria-hidden
           >
-            <Icon className="h-5 w-5" />
+            <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
           </span>
           <div className="min-w-0">
-            <h1 className="break-words text-xl font-semibold tracking-tight sm:text-2xl">
+            <h1 className="truncate text-lg font-semibold tracking-tight sm:whitespace-normal sm:break-words sm:text-2xl">
               {title}
             </h1>
             {description && (
-              <div className="mt-1 max-w-2xl text-sm text-muted-foreground">{description}</div>
+              <div
+                id={idExplicacao}
+                data-testid="cabecalho-explicacao"
+                className={cn(
+                  "mt-1 max-w-2xl text-sm text-muted-foreground",
+                  !explicacaoAberta && "max-sm:hidden",
+                )}
+              >
+                {description}
+              </div>
             )}
           </div>
         </div>
-        {actions && <div className="flex w-full flex-wrap gap-2 sm:w-auto">{actions}</div>}
+        {(actions || description) && (
+          <div className="flex flex-wrap items-center gap-1.5 sm:w-auto sm:gap-2">
+            {description && (
+              <button
+                type="button"
+                className="inline-flex h-9 items-center gap-0.5 rounded-md px-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:hidden"
+                aria-expanded={explicacaoAberta}
+                aria-controls={idExplicacao}
+                onClick={() => setExplicacaoAberta((v) => !v)}
+              >
+                Como funciona
+                <ChevronDown
+                  className={cn(
+                    "h-3.5 w-3.5 transition-transform motion-reduce:transition-none",
+                    explicacaoAberta && "rotate-180",
+                  )}
+                  aria-hidden
+                />
+              </button>
+            )}
+            {actions}
+          </div>
+        )}
       </div>
     </header>
   );

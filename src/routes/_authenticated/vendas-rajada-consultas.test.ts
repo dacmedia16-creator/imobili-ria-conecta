@@ -5,7 +5,7 @@ import { createElement, type ComponentType } from "react";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const contagem = { lista: 0, pacote: 0, midia: 0, historico: 0, abortadas: 0 };
+const contagem = { lista: 0, fila: 0, pacote: 0, midia: 0, historico: 0, abortadas: 0 };
 
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (options: Record<string, unknown>) => ({ options }),
@@ -86,33 +86,37 @@ vi.mock("@/lib/financeiro-dashboard-query", () => ({
 }));
 
 vi.mock("@/lib/vendas-comerciais-query", () => ({
-  fetchVendasComerciaisPaginadas: vi.fn(async (p: { signal?: AbortSignal }) => {
-    contagem.lista += 1;
-    await new Promise((r) => setTimeout(r, 30));
-    if (p.signal?.aborted) contagem.abortadas += 1;
-    return {
-      rows: [
-        {
-          id: "s-1",
-          status: "contrato_assinado",
-          valor_negociado: 500000,
-          imovel_id: null,
-          codigo_interno: "C1",
-          corretor_captador: null,
-          corretor_vendedor: null,
-          updated_at: dataNoMes,
-          created_at: dataNoMes,
-          corretor_id: "c-1",
-          modalidade: "venda",
-          data_assinatura: dataNoMes,
-          data_venda: dataNoMes,
-          corretores_ids: ["c-1"],
-        },
-      ],
-      total_count: 1,
-      total_valor: 500000,
-    };
-  }),
+  fetchVendasComerciaisPaginadas: vi.fn(
+    async (p: { signal?: AbortSignal; pageSize?: number; soMinhaVez?: boolean }) => {
+      // Contagem do atalho "★ Minha vez (N)" (t_d97f306e): 1 linha da fila, contada à parte.
+      if (p.pageSize === 1 && p.soMinhaVez) contagem.fila += 1;
+      else contagem.lista += 1;
+      await new Promise((r) => setTimeout(r, 30));
+      if (p.signal?.aborted) contagem.abortadas += 1;
+      return {
+        rows: [
+          {
+            id: "s-1",
+            status: "contrato_assinado",
+            valor_negociado: 500000,
+            imovel_id: null,
+            codigo_interno: "C1",
+            corretor_captador: null,
+            corretor_vendedor: null,
+            updated_at: dataNoMes,
+            created_at: dataNoMes,
+            corretor_id: "c-1",
+            modalidade: "venda",
+            data_assinatura: dataNoMes,
+            data_venda: dataNoMes,
+            corretores_ids: ["c-1"],
+          },
+        ],
+        total_count: 1,
+        total_valor: 500000,
+      };
+    },
+  ),
 }));
 
 vi.mock("@/lib/vendas-midia-filtro", async (original) => {
@@ -149,7 +153,7 @@ function textoResumo() {
 }
 
 beforeEach(() => {
-  Object.assign(contagem, { lista: 0, pacote: 0, midia: 0, historico: 0, abortadas: 0 });
+  Object.assign(contagem, { lista: 0, fila: 0, pacote: 0, midia: 0, historico: 0, abortadas: 0 });
   window.history.replaceState(null, "", "/vendas");
   window.sessionStorage.clear();
 });
@@ -193,6 +197,10 @@ describe("tela Vendas: rajada de filtros", () => {
     expect(inicial.lista).toBe(1);
     expect(inicial.pacote).toBe(1);
     expect(rajada.lista).toBe(1);
+    // Contagem do "★ Minha vez (N)": também espera a digitação parar (no máximo 1 na abertura e 1
+    // depois da rajada), nunca uma por tecla.
+    expect(inicial.fila).toBeLessThanOrEqual(1);
+    expect(contagem.fila - inicial.fila).toBeLessThanOrEqual(1);
     expect(rajada.pacote).toBe(0);
     expect(rajada.midia).toBeLessThanOrEqual(1);
     // Os números da tela continuam os mesmos depois da rajada.
