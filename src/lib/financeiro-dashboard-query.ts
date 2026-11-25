@@ -180,11 +180,58 @@ export type OpcoesFinanceiroBundle = {
   incluirInconsistencias?: boolean;
 };
 
+/** Carga compartilhada do pacote (t_205ec8f5). Em 24/11 o mesmo gestor pediu o pacote inteiro
+ * (~13 leituras pesadas) 2 vezes no mesmo segundo porque a tela montou de novo, e isso dobrou a
+ * pressão no banco no pico em que as leituras estouraram 8 s. Agora pedidos simultâneos ou dentro
+ * de BUNDLE_COMPARTILHADO_MS, do MESMO usuário e com a mesma opção, reaproveitam a mesma carga.
+ * Erro nunca fica guardado (o próximo pedido busca de novo).
+ * "Tentar de novo" sempre busca de novo, porque só aparece depois de um erro.
+ * shortcut: até BUNDLE_COMPARTILHADO_MS de defasagem entre telas; quem altera dados chama
+ * limparCacheFinanceiroBundle(). O cache é do módulo (some ao recarregar a página, o que já
+ * acontece ao entrar/sair do contexto de imobiliária da plataforma) e separado por usuário. */
+export const BUNDLE_COMPARTILHADO_MS = 15_000;
+const bundlesCompartilhados = new Map<
+  string,
+  { promessa: Promise<FinanceiroBundle>; criadaEm: number }
+>();
+
+export function limparCacheFinanceiroBundle() {
+  bundlesCompartilhados.clear();
+}
+
+async function usuarioAtual(): Promise<string | null> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.user.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchFinanceiroBundle(
   opcoes: OpcoesFinanceiroBundle = {},
 ): Promise<FinanceiroBundle> {
-  const hoje = hojeSaoPaulo();
   const incluirInconsistencias = opcoes.incluirInconsistencias ?? true;
+  // Sem usuário identificado, não compartilha (cada pedido faz a sua carga, como antes).
+  const uid = await usuarioAtual();
+  if (!uid) return carregarFinanceiroBundle(incluirInconsistencias);
+  const chave = `${uid}:${incluirInconsistencias ? "fin" : "base"}`;
+  const existente = bundlesCompartilhados.get(chave);
+  if (existente && Date.now() - existente.criadaEm < BUNDLE_COMPARTILHADO_MS)
+    return existente.promessa;
+  const promessa = carregarFinanceiroBundle(incluirInconsistencias);
+  bundlesCompartilhados.set(chave, { promessa, criadaEm: Date.now() });
+  promessa.catch(() => {
+    if (bundlesCompartilhados.get(chave)?.promessa === promessa)
+      bundlesCompartilhados.delete(chave);
+  });
+  return promessa;
+}
+
+async function carregarFinanceiroBundle(
+  incluirInconsistencias: boolean,
+): Promise<FinanceiroBundle> {
+  const hoje = hojeSaoPaulo();
 
   const [
     efetivadasRaw,
