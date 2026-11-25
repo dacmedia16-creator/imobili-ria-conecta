@@ -569,7 +569,7 @@ export function MetasDoMes({ base, inicial }: { base: BaseMetasMes; inicial?: Fi
         </div>
         {filtro.nivel !== "empresa" ? (
           <select
-            className="min-w-0 flex-1 rounded-md border bg-card px-2 py-1.5 text-sm sm:flex-none"
+            className="min-w-0 flex-1 rounded-md border bg-card px-2 py-1.5 text-base md:text-sm sm:flex-none"
             aria-label="Equipe"
             value={equipeSel ?? EQ_SEM}
             onChange={(e) => {
@@ -593,7 +593,7 @@ export function MetasDoMes({ base, inicial }: { base: BaseMetasMes; inicial?: Fi
         ) : null}
         {filtro.nivel === "corretor" ? (
           <select
-            className="min-w-0 flex-1 rounded-md border bg-card px-2 py-1.5 text-sm sm:flex-none"
+            className="min-w-0 flex-1 rounded-md border bg-card px-2 py-1.5 text-base md:text-sm sm:flex-none"
             aria-label="Corretor"
             value={filtro.pessoa}
             onChange={(e) => setFiltro({ nivel: "corretor", pessoa: e.target.value })}

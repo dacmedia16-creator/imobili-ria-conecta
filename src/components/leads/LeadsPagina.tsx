@@ -62,7 +62,7 @@ import { carregarOpcoes, lerConfig, listarLeads, listarMotivos } from "@/lib/lea
 import { clicavelPorTeclado } from "@/lib/clicavel";
 
 const SELECT =
-  "h-9 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
+  "h-9 w-full rounded-md border border-input bg-background px-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-ring";
 
 const dataCurta = (iso: string) =>
   new Date(iso).toLocaleString("pt-BR", {

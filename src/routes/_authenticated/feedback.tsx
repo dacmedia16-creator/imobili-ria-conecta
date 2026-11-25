@@ -267,7 +267,7 @@ function FeedbackPage() {
         {isManager && (
           <select
             aria-label="Corretor"
-            className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-2 text-sm sm:w-auto"
+            className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-2 text-base md:text-sm sm:w-auto"
             value={broker}
             onChange={(e) => setBroker(e.target.value)}
           >

@@ -29,7 +29,7 @@ function Select({
     <label className="flex flex-col gap-1 text-xs text-muted-foreground">
       {label}
       <select
-        className="h-9 rounded-md border bg-background px-2 text-sm text-foreground"
+        className="h-9 rounded-md border bg-background px-2 text-base md:text-sm text-foreground"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       >

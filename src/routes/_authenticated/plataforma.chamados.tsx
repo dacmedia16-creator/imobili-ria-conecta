@@ -42,7 +42,7 @@ const PAPEL: Record<string, string> = {
   financeiro: "Financeiro",
 };
 
-const selectCls = "h-9 rounded-md border bg-background px-2 text-sm";
+const selectCls = "h-9 rounded-md border bg-background px-2 text-base md:text-sm";
 
 function CentralChamados() {
   const [lista, setLista] = useState<ChamadoLinha[]>([]);

@@ -22,7 +22,7 @@ import { guardarMinuta, registrarAndamento, resolverAndamento } from "@/lib/loca
 import { LocacaoArquivoAcoes } from "./LocacaoArquivoAcoes";
 
 const SELECT =
-  "h-9 w-full rounded-md border border-input bg-background px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60";
+  "h-9 w-full rounded-md border border-input bg-background px-3 text-base md:text-sm disabled:cursor-not-allowed disabled:opacity-60";
 
 const ORIGEM_LABEL: Record<MinutaVersao["origem"], string> = {
   anexo: "anexada",

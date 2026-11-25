@@ -57,7 +57,7 @@ export function BuscaFiltroPlano({
             value={situacao}
             onChange={(e) => setSituacao(e.target.value as SituacaoFiltro)}
             aria-label="Filtrar por situação"
-            className="h-10 rounded-md border border-input bg-background px-3 text-sm sm:w-60"
+            className="h-10 rounded-md border border-input bg-background px-3 text-base md:text-sm sm:w-60"
             data-testid="filtro-situacao"
           >
             {OPCOES_SITUACAO.map((o) => (

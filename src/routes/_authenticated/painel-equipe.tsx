@@ -347,7 +347,7 @@ function PainelSkeleton() {
 }
 
 const SELECT_CLS =
-  "h-9 w-full rounded-md border bg-background px-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring sm:w-auto";
+  "h-9 w-full rounded-md border bg-background px-2 text-base md:text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring sm:w-auto";
 
 function PainelEquipePage() {
   const { hasAny, loading: authLoading } = useAuth();

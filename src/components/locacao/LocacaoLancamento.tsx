@@ -16,7 +16,7 @@ import { PARCERIA_LADO_LABEL, ladoValido, type ParceriaLado } from "@/lib/locaca
 import { LocacaoParceiroPagamento } from "@/components/locacao/LocacaoParceiroPagamento";
 
 const SELECT =
-  "h-9 w-full rounded-md border border-input bg-background px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60";
+  "h-9 w-full rounded-md border border-input bg-background px-3 text-base md:text-sm disabled:cursor-not-allowed disabled:opacity-60";
 
 export type Parceria = "nenhuma" | "remax" | "externa";
 export const PARCERIA_LABEL: Record<Parceria, string> = {

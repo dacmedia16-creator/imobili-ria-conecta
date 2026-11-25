@@ -41,7 +41,7 @@ const ABAS: { kind: OpportunityKind; label: string }[] = [
 ];
 
 const SELECT =
-  "h-9 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
+  "h-9 w-full rounded-md border border-input bg-background px-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-ring";
 
 const SELO = "rounded-md border px-2 py-0.5 text-[11px] font-semibold";
 const SELO_GRUPO = `${SELO} border-[#f1c86b] bg-[#fff1d6] text-[#8a5a00]`;

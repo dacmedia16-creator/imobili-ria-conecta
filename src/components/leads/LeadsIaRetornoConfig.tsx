@@ -14,7 +14,7 @@ import {
 import { MODELO_RE, MODELOS_SUGERIDOS } from "@/lib/leads-ia-modelo";
 
 const SELECT =
-  "h-9 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
+  "h-9 w-full rounded-md border border-input bg-background px-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-ring";
 
 /**
  * Card t_6f688b4b. Gestor/admin: modelo que ajuda a IA a entender o cliente (Gemini ou OpenRouter).

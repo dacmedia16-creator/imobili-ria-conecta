@@ -33,6 +33,9 @@ const db = supabase as unknown as SupabaseClient;
 const n = (x: number) => x.toLocaleString("pt-BR");
 const campo =
   "h-11 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm md:h-9";
+// <select> nativo: 16px no celular evita o zoom automático do iPhone (igual ao Input).
+const campoSelect =
+  "h-11 w-full min-w-0 rounded-md border border-input bg-background px-3 text-base md:text-sm md:h-9";
 
 /**
  * Lançamentos de tráfego pago do imóvel (t_f3f64be0). Só aparece para quem pode lançar (corretor responsável,
@@ -249,7 +252,7 @@ export function TrafegoPagoCard({
               Canal
               <select
                 aria-label="Canal"
-                className={campo}
+                className={campoSelect}
                 value={draft.canal}
                 onChange={set("canal")}
               >

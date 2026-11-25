@@ -75,7 +75,7 @@ async function geocodeConsultas(consultas: string[]): Promise<[number, number] |
 const PAPEIS: AppRole[] = [...PAPEIS_VENDAS_REGIAO];
 
 const selectCls =
-  "h-9 w-full rounded-md border border-input bg-background px-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring";
+  "h-9 w-full rounded-md border border-input bg-background px-2 text-base md:text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring";
 
 export const Route = createFileRoute("/_authenticated/mapa-captacoes")({
   head: () => ({ meta: [{ title: "Mapa de captações" }] }),

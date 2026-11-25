@@ -16,7 +16,7 @@ import { ORIGEM_LABEL, ORIGENS_SIMULADOR, type OrigemSimulador } from "@/lib/lea
 import { simularLeads } from "@/lib/leads-db";
 
 const SELECT =
-  "h-9 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
+  "h-9 w-full rounded-md border border-input bg-background px-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-ring";
 
 /**
  * Simulador (P2, gestor/admin): cria leads FICTÍCIOS para testar a distribuição.
