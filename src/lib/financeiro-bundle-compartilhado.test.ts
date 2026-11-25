@@ -33,6 +33,16 @@ vi.mock("@/integrations/supabase/client", () => {
       from: (t: string) => builder(t),
       rpc: async (nome: string) => {
         estado.leituras[`rpc:${nome}`] = (estado.leituras[`rpc:${nome}`] ?? 0) + 1;
+        // Parte B: comissões/parcerias vêm da RPC (conta como leitura das duas tabelas aqui).
+        if (nome === "financeiro_comissoes_parcerias_visiveis") {
+          for (const t of ["occurrence_commissions", "occurrence_partners"])
+            estado.leituras[t] = (estado.leituras[t] ?? 0) + 1;
+          if (estado.falharComissoes > 0) {
+            estado.falharComissoes -= 1;
+            return { data: null, error: { code: "42501", message: "permission denied" } };
+          }
+          return { data: { comissoes: [], parcerias: [] }, error: null };
+        }
         return { data: [], error: null };
       },
       auth: {

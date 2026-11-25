@@ -29,7 +29,8 @@ import type {
 } from "@/lib/financeiro-dashboard-types";
 import { hojeSaoPaulo } from "@/lib/hoje-sao-paulo";
 import { montarCorretoresPorVenda } from "@/lib/sale-participantes";
-import { consultarTodasLinhas } from "@/lib/consulta-paginada";
+import { consultarTodasLinhas, ehStatementTimeout } from "@/lib/consulta-paginada";
+import { isMissingRpc } from "@/lib/rpc-errors";
 import { dataAssinaturaOficial } from "@/lib/data-assinatura-oficial";
 
 type TeamRow = { id: string; nome: string; parent_team_id: string | null; lider_id: string | null };
@@ -228,10 +229,79 @@ export async function fetchFinanceiroBundle(
   return promessa;
 }
 
+export type ComissaoBundleRow = {
+  id: string;
+  occurrence_id: string;
+  papel: string;
+  nome: string | null;
+  percentual: number | null;
+  valor: number | null;
+  user_id: string | null;
+  managed_by_sale: boolean;
+  sale_commission_extra_id: string | null;
+  sem_cadastro_confirmado: boolean;
+};
+export type ParceriaBundleRow = { id: string; occurrence_id: string; valor: number | null };
+
+/** Comissões e parcerias que o usuário vê (t_205ec8f5 B). A RPC
+ * `financeiro_comissoes_parcerias_visiveis` devolve EXATAMENTE as linhas do RLS de SELECT dessas
+ * tabelas (conferido usuário a usuário em produção, numa transação desfeita), mas calcula as
+ * ocorrências visíveis UMA vez: para gestor, 1,1–2,1 s → ~0,37 s no banco. Banco ainda sem a
+ * migration (PGRST202/42883): cai no caminho antigo, leitura direta das tabelas com RLS. */
+export async function buscarComissoesEParcerias(): Promise<{
+  comissoes: ComissaoBundleRow[];
+  parcerias: ParceriaBundleRow[];
+}> {
+  const chamar = () =>
+    (
+      supabase.rpc as unknown as (fn: string) => Promise<{
+        data: { comissoes?: ComissaoBundleRow[]; parcerias?: ParceriaBundleRow[] } | null;
+        error: { code?: string; message: string } | null;
+      }>
+    )("financeiro_comissoes_parcerias_visiveis");
+  let res = await chamar();
+  if (res.error && ehStatementTimeout(res.error)) res = await chamar(); // mesma regra da parte A
+  if (res.error && isMissingRpc(res.error)) return buscarComissoesEParceriasPorTabela();
+  if (
+    res.error ||
+    !res.data ||
+    !Array.isArray(res.data.comissoes) ||
+    !Array.isArray(res.data.parcerias)
+  )
+    throw new Error(
+      `Dados financeiros incompletos (comissões e parcerias): ${res.error?.message ?? "resposta sem linhas"}`,
+    );
+  return { comissoes: res.data.comissoes, parcerias: res.data.parcerias };
+}
+
+async function buscarComissoesEParceriasPorTabela() {
+  const [comissoes, parcerias] = await Promise.all([
+    consultarTodasLinhas<ComissaoBundleRow>("comissões", (a, b) =>
+      supabase
+        .from("occurrence_commissions")
+        .select(
+          "id, occurrence_id, papel, nome, percentual, valor, user_id, managed_by_sale, sale_commission_extra_id, sem_cadastro_confirmado",
+          { count: "exact" },
+        )
+        .order("id")
+        .range(a, b),
+    ),
+    consultarTodasLinhas<ParceriaBundleRow>("parcerias", (a, b) =>
+      supabase
+        .from("occurrence_partners")
+        .select("id, occurrence_id, valor", { count: "exact" })
+        .order("id")
+        .range(a, b),
+    ),
+  ]);
+  return { comissoes, parcerias };
+}
+
 async function carregarFinanceiroBundle(
   incluirInconsistencias: boolean,
 ): Promise<FinanceiroBundle> {
   const hoje = hojeSaoPaulo();
+  const comissoesEParcerias = buscarComissoesEParcerias();
 
   const [
     efetivadasRaw,
@@ -278,23 +348,8 @@ async function carregarFinanceiroBundle(
         .order("id")
         .range(a, b),
     ),
-    consultarTodasLinhas("comissões", (a, b) =>
-      supabase
-        .from("occurrence_commissions")
-        .select(
-          "id, occurrence_id, papel, nome, percentual, valor, user_id, managed_by_sale, sale_commission_extra_id, sem_cadastro_confirmado",
-          { count: "exact" },
-        )
-        .order("id")
-        .range(a, b),
-    ),
-    consultarTodasLinhas("parcerias", (a, b) =>
-      supabase
-        .from("occurrence_partners")
-        .select("id, occurrence_id, valor", { count: "exact" })
-        .order("id")
-        .range(a, b),
-    ),
+    comissoesEParcerias.then((r) => r.comissoes),
+    comissoesEParcerias.then((r) => r.parcerias),
     consultarTodasLinhas("comissões extras", (a, b) =>
       supabase
         .from("sale_commission_extras")

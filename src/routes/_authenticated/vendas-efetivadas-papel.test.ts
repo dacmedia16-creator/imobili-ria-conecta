@@ -83,6 +83,9 @@ vi.mock("@/integrations/supabase/client", () => {
         });
       return Promise.resolve({ data: [], error: null });
     }
+    // RPC de comissões/parcerias visíveis (t_205ec8f5 B): devolve objeto, não lista.
+    if (nome === "financeiro_comissoes_parcerias_visiveis")
+      return Promise.resolve({ data: { comissoes: [], parcerias: [] }, error: null });
     return Promise.resolve({ data: [], error: null });
   };
   return { supabase: { from: () => builder(), rpc } };
