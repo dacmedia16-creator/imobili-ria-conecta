@@ -30,7 +30,8 @@ import {
   type ItemPrevia,
 } from "@/lib/captacao-transferencia";
 
-const SELECT = "h-9 w-full rounded-md border bg-background px-2 text-sm text-foreground";
+const SELECT =
+  "h-9 w-full rounded-md border bg-background px-2 text-base md:text-sm text-foreground";
 const OUTRO = "__outro__";
 
 export function TransferirCaptacaoDialog({

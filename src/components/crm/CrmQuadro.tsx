@@ -93,9 +93,12 @@ function Cartao({
 function ConteudoCartao({ lead, hoje, nomeDe, mostrarDono }: CartaoProps) {
   const est = estadoProximo(lead, hoje);
   const alerta = emAlerta(est);
+  const textoProximo = lead.proximo_contato_em
+    ? `${ESTADO_TXT[est] ? `${ESTADO_TXT[est]} · ` : ""}${diaMes(lead.proximo_contato_em)} — ${lead.proximo_contato_motivo ?? ""}`
+    : ESTADO_TXT.sem;
   return (
     <>
-      <div className="break-words font-medium">{lead.nome}</div>
+      <div className="break-words font-medium [overflow-wrap:anywhere]">{lead.nome}</div>
       {mostrarDono && (
         <div className="text-xs text-muted-foreground">
           {lead.no_banco_desde ? "No banco" : nomeDe(lead.responsavel_id)}
@@ -111,10 +114,15 @@ function ConteudoCartao({ lead, hoje, nomeDe, mostrarDono }: CartaoProps) {
             alerta ? "font-medium text-red-700 dark:text-red-300" : "text-muted-foreground",
           )}
         >
-          {alerta && <AlertTriangle className="h-3 w-3" aria-hidden />}
-          {lead.proximo_contato_em
-            ? `${ESTADO_TXT[est] ? `${ESTADO_TXT[est]} · ` : ""}${diaMes(lead.proximo_contato_em)} — ${lead.proximo_contato_motivo ?? ""}`
-            : ESTADO_TXT.sem}
+          {alerta && <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden />}
+          {/* Motivo longo: no máximo 2 linhas no cartão; o texto completo fica no title. */}
+          <span
+            className="line-clamp-2 min-w-0 [overflow-wrap:anywhere]"
+            title={textoProximo}
+            data-testid="crm-card-proximo"
+          >
+            {textoProximo}
+          </span>
         </div>
       )}
       {(lead.sale_id || lead.capture_convertida_id) && (
@@ -323,7 +331,7 @@ export function CrmQuadro({
                 onChange={(ev) => setAbaCel(ev.target.value as Etapa)}
                 aria-label="Escolher etapa"
                 data-testid="crm-etapa-select"
-                className="h-9 w-full truncate rounded-md border border-input bg-background px-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring"
+                className="h-9 w-full truncate rounded-md border border-input bg-background px-2 text-base md:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 {etapas.map((e, i) => (
                   <option key={e} value={e}>

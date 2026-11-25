@@ -49,6 +49,9 @@ const EMPTY: SelfSignupForm = {
 
 const input =
   "mt-1.5 w-full rounded-xl border border-white/15 bg-white/5 px-3.5 py-2.5 text-sm text-white placeholder:text-white/50 focus:border-[#e3c682] focus:outline-none";
+// <select> nativo: 16px no celular evita o zoom automático do iPhone (igual ao Input).
+const inputSelect =
+  "mt-1.5 w-full rounded-xl border border-white/15 bg-white/5 px-3.5 py-2.5 text-base md:text-sm text-white placeholder:text-white/50 focus:border-[#e3c682] focus:outline-none";
 const label = "block text-sm font-medium text-white/90";
 
 async function readLogo(file: File): Promise<Logo> {
@@ -287,7 +290,7 @@ function CadastroPage() {
             <label className={label}>
               UF *
               <select
-                className={input}
+                className={inputSelect}
                 value={form.uf}
                 onChange={(e) => set("uf", e.target.value)}
                 required

@@ -991,7 +991,7 @@ function ContratoDetalhe({
             <Label htmlFor="ct-garantia">Garantia</Label>
             <select
               id="ct-garantia"
-              className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+              className="h-9 w-full rounded-md border bg-background px-2 text-base md:text-sm"
               value={f.garantia}
               onChange={(e) => setF((x) => ({ ...x, garantia: e.target.value }))}
             >
@@ -1015,7 +1015,7 @@ function ContratoDetalhe({
             </Label>
             <select
               id="ct-indice"
-              className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+              className="h-9 w-full rounded-md border bg-background px-2 text-base md:text-sm"
               value={f.indice}
               onChange={(e) => setF((x) => ({ ...x, indice: e.target.value }))}
             >
@@ -1119,7 +1119,7 @@ function Repasse({ p, onAbrir }: { p: PainelFin; onAbrir: (c: Cobranca) => void 
             Extrato do proprietário
             <select
               aria-label="Proprietário"
-              className="h-9 max-w-full rounded-md border bg-background px-2 text-sm font-normal"
+              className="h-9 max-w-full rounded-md border bg-background px-2 text-base md:text-sm font-normal"
               value={atual}
               onChange={(e) => setProp(e.target.value)}
             >
@@ -1261,7 +1261,7 @@ function RegrasFin({
           <select
             id="rf-sobre"
             disabled={bloqueado}
-            className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+            className="h-9 w-full rounded-md border bg-background px-2 text-base md:text-sm"
             value={f.multaSobre}
             onChange={(e) =>
               setF((x) => ({ ...x, multaSobre: e.target.value as ConfigFin["multaSobre"] }))
@@ -1278,7 +1278,7 @@ function RegrasFin({
           <select
             id="rf-para"
             disabled={bloqueado}
-            className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+            className="h-9 w-full rounded-md border bg-background px-2 text-base md:text-sm"
             value={f.multaPara}
             onChange={(e) =>
               setF((x) => ({ ...x, multaPara: e.target.value as ConfigFin["multaPara"] }))
@@ -1298,7 +1298,7 @@ function RegrasFin({
           <select
             id="rf-indice"
             disabled={bloqueado}
-            className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+            className="h-9 w-full rounded-md border bg-background px-2 text-base md:text-sm"
             value={f.indice}
             onChange={(e) => setF((x) => ({ ...x, indice: e.target.value as ConfigFin["indice"] }))}
           >

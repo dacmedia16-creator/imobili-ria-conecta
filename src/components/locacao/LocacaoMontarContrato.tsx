@@ -247,7 +247,7 @@ export function LocacaoMontarContrato({
                 id="mont-seguradora"
                 value={v.seg_seguradora || ""}
                 disabled={busy}
-                className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+                className="h-9 w-full rounded-md border bg-background px-3 text-base md:text-sm"
                 onChange={(e) => mudar("d_seg_seguradora", e.target.value)}
               >
                 <option value="">— Escolha a seguradora —</option>
@@ -269,7 +269,7 @@ export function LocacaoMontarContrato({
                 id="mont-tipo-caucao"
                 value={v.cau_tipo || ""}
                 disabled={busy}
-                className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+                className="h-9 w-full rounded-md border bg-background px-3 text-base md:text-sm"
                 onChange={(e) => mudar("d_cau_tipo", e.target.value)}
               >
                 <option value="">— Escolha a modalidade —</option>
@@ -355,7 +355,7 @@ export function LocacaoMontarContrato({
                   value={valores[key] || ""}
                   disabled={busy}
                   onChange={(e) => mudar(key, e.target.value)}
-                  className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+                  className="h-9 w-full rounded-md border bg-background px-3 text-base md:text-sm"
                 >
                   <option value="">— Conferir —</option>
                   {cfg.opcoes.map((op) => (
@@ -406,7 +406,7 @@ export function LocacaoMontarContrato({
                   sexos[i] = e.target.value;
                   mudar("locadores_adicionais_sexo", sexos.slice(0, linhas.length).join("\n"));
                 }}
-                className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+                className="h-9 w-full rounded-md border bg-background px-3 text-base md:text-sm"
               >
                 <option value="">— Conferir —</option>
                 <option value="masculino">Masculino</option>
@@ -429,7 +429,7 @@ export function LocacaoMontarContrato({
                   sexos[i] = e.target.value;
                   mudar("locatarios_adicionais_sexo", sexos.slice(0, linhas.length).join("\n"));
                 }}
-                className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+                className="h-9 w-full rounded-md border bg-background px-3 text-base md:text-sm"
               >
                 <option value="">— Conferir —</option>
                 <option value="masculino">Masculino</option>

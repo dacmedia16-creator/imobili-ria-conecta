@@ -48,7 +48,7 @@ import {
 } from "@/components/locacao/LocacaoPreLinks";
 
 const SELECT =
-  "h-9 w-full rounded-md border border-input bg-background px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60";
+  "h-9 w-full rounded-md border border-input bg-background px-3 text-base md:text-sm disabled:cursor-not-allowed disabled:opacity-60";
 const GARANTIAS = Object.keys(GARANTIA_LABEL) as Garantia[];
 const COM_OBSERVACAO = new Set<Garantia>(["loft", "titulo_capitalizacao", "outras"]);
 

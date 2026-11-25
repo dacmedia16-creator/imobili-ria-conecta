@@ -240,7 +240,7 @@ export function FichaColaboradorForm({
         <Campo id="fc-rel" label="Religião" dica="Opcional. Só para conhecimento da empresa.">
           <select
             id="fc-rel"
-            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+            className="h-9 w-full rounded-md border border-input bg-background px-3 text-base md:text-sm"
             value={religiaoModo}
             onChange={(e) => {
               const v = e.target.value;

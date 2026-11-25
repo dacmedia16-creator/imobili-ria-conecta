@@ -266,7 +266,7 @@ function FichaColaboradoresPage() {
                   <select
                     id="ff-ordenar"
                     data-testid="ficha-ordenar-por"
-                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-base md:text-sm"
                     // "Mais antigos" (asc) só vem do clique no título; aqui continua "por data".
                     value={ordem === "nome" ? "nome" : "desc"}
                     onChange={(e) => setOrdem(e.target.value === "nome" ? "nome" : "desc")}
@@ -694,7 +694,7 @@ function Sel({
   return (
     <select
       id={id}
-      className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+      className="h-9 w-full rounded-md border border-input bg-background px-3 text-base md:text-sm"
       value={value}
       onChange={(e) => onChange(e.target.value)}
     >

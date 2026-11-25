@@ -237,7 +237,7 @@ function ExclusiveList() {
               {activeUnits.length > 1 && (
                 <select
                   aria-label="Unidade do contrato já assinado"
-                  className="h-9 rounded-md border bg-background px-2 text-sm"
+                  className="h-9 rounded-md border bg-background px-2 text-base md:text-sm"
                   value={manualUnit}
                   onChange={(e) => setManualUnit(e.target.value)}
                 >

@@ -540,7 +540,7 @@ function ComissoesAReceberPage() {
                   aria-label="Buscar recebimentos"
                 />
                 <select
-                  className="h-10 rounded-md border bg-background px-3 text-sm"
+                  className="h-10 rounded-md border bg-background px-3 text-base md:text-sm"
                   value={brokerFilter}
                   onChange={(e) => setBrokerFilter(e.target.value)}
                   aria-label="Filtrar por corretor"
@@ -553,7 +553,7 @@ function ComissoesAReceberPage() {
                   ))}
                 </select>
                 <select
-                  className="h-10 rounded-md border bg-background px-3 text-sm"
+                  className="h-10 rounded-md border bg-background px-3 text-base md:text-sm"
                   value={formFilter}
                   onChange={(e) => setFormFilter(e.target.value)}
                   aria-label="Filtrar por forma de recebimento"
@@ -583,7 +583,7 @@ function ComissoesAReceberPage() {
                   <Label htmlFor="deadline-filter">Pendências</Label>
                   <select
                     id="deadline-filter"
-                    className="h-9 rounded-md border bg-background px-2 text-sm"
+                    className="h-9 rounded-md border bg-background px-2 text-base md:text-sm"
                     value={deadlineFilter}
                     onChange={(e) => setDeadlineFilter(e.target.value as typeof deadlineFilter)}
                   >
