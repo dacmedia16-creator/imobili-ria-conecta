@@ -557,8 +557,8 @@ function FrontPage() {
         @media (min-width: 860px) { .hubpage .mheader-wrap { display: none; } }
         .hubpage .lp-wrap { max-width: 1180px; margin: 0 auto; padding: 0 18px; }
         @media (min-width: 860px) { .hubpage .lp-wrap { padding: 0 clamp(1rem, 3vw, 2.5rem); } }
-        .hubpage .lp-hero { padding: 36px 0 8px; }
-        @media (min-width: 860px) { .hubpage .lp-hero { padding: 40px 0 8px; } }
+        .hubpage .lp-hero { padding-block: 36px 8px; }
+        @media (min-width: 860px) { .hubpage .lp-hero { padding-block: 40px 8px; } }
         .hubpage .lp-hero h1 {
           margin: 0.8rem 0 0; max-width: 18ch;
           font-family: "Sora", ui-sans-serif, system-ui, sans-serif; font-weight: 800;
@@ -578,7 +578,7 @@ function FrontPage() {
         .hubpage .lp-btn:hover { background: var(--red-dark); transform: translateY(-1px); }
         .hubpage .lp-btn:active { transform: translateY(0) scale(0.98); }
         .hubpage .lp-small { margin: 0; color: rgba(255, 255, 255, 0.7); font-size: 0.85rem; }
-        .hubpage .lp-section { padding: 56px 0 0; }
+        .hubpage .lp-section { padding-block: 56px 0; }
         .hubpage .lp-h2 {
           margin: 0.7rem 0 0; max-width: 24ch; color: #fff;
           font-family: "Sora", ui-sans-serif, system-ui, sans-serif; font-weight: 800;
