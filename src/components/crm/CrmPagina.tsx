@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { KanbanSquare, Plus, Trophy, Users } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Inbox, KanbanSquare, Plus, Trophy, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { errorMessage } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { EmptyState, ListSkeleton, PageHeader, Pill } from "@/components/visual/base";
+import { EmptyState, ListSkeleton, PageHeader, Pill, TOM_PILL } from "@/components/visual/base";
+import { gruposDaFila, tituloHoje } from "@/lib/telas-lote1";
 import { LeadDetalhe } from "@/components/leads/LeadDetalhe";
 import { NovoLeadDialog } from "@/components/leads/NovoLeadDialog";
 import { CrmQuadro } from "@/components/crm/CrmQuadro";
@@ -37,17 +38,9 @@ import {
   type Funil,
 } from "@/lib/crm";
 import { definirFunil, listarLeadsCrm } from "@/lib/crm-db";
-import { clicavelPorTeclado } from "@/lib/clicavel";
 
 const SELECT =
   "h-9 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
-
-const FILA_TXT = {
-  aceite: { t: "Aguardando aceite", tom: "blue" },
-  atrasado: { t: "Atrasado", tom: "red" },
-  sem: { t: "Sem próximo passo", tom: "red" },
-  hoje: { t: "Hoje", tom: "amber" },
-} as const;
 
 // Texto do botão "É …? Trocar de funil" para cada funil de destino.
 const TROCA_TXT: Record<Funil, string> = {
@@ -122,6 +115,7 @@ export function CrmPagina() {
   );
   const doFunil = (f: Funil) => (leads ?? []).filter((l) => funilDe(l) === f);
   const fila = useMemo(() => filaDoDia(leads ?? [], hoje, user?.id), [leads, hoje, user?.id]);
+  const grupos = useMemo(() => gruposDaFila(fila), [fila]);
   const aberto = leads?.find((l) => l.id === abertoId) ?? null;
 
   const podeMexer = (l: Lead) =>
@@ -288,40 +282,150 @@ export function CrmPagina() {
         {quadro("captacao")}
         {quadro("locacao")}
 
-        <TabsContent value="fila" className="space-y-2">
-          <p className="text-sm text-muted-foreground">
-            Seus leads para hoje: primeiro os que aguardam aceite, depois os atrasados, os sem
-            próximo passo e os marcados para hoje.
-          </p>
+        <TabsContent value="fila" className="space-y-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-lg font-semibold tracking-tight" data-testid="fila-titulo">
+              {tituloHoje(hoje)}
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Ordem: aceite → atrasados → sem próximo passo → para hoje.
+            </p>
+          </div>
           {leads === null ? (
             <ListSkeleton />
-          ) : fila.length === 0 ? (
-            <EmptyState icon={Trophy}>Nada pendente para hoje.</EmptyState>
           ) : (
-            <div className="grid gap-2">
-              {fila.map(({ lead: l, motivo }) => (
-                <Card
-                  key={l.id}
-                  className="cursor-pointer transition hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  onClick={() => setAbertoId(l.id)}
-                  {...clicavelPorTeclado(() => setAbertoId(l.id), `Abrir lead ${l.nome}`)}
-                >
-                  <CardContent className="flex flex-wrap items-center justify-between gap-2 p-3">
-                    <div className="min-w-0">
-                      <div className="break-words font-medium">{l.nome}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {FUNIL[funilDe(l)].nome} · {nomeEtapa(funilDe(l), l.etapa as Etapa)} ·{" "}
-                        {ORIGEM_LABEL[l.origem]}
-                        {l.proximo_contato_em
-                          ? ` · ${diaMes(l.proximo_contato_em)} — ${l.proximo_contato_motivo ?? ""}`
-                          : ""}
-                      </div>
+            <>
+              {/* Contadores dos 4 grupos, com cor + texto (regra de Denis). Fila vazia: só o estado vazio. */}
+              {fila.length > 0 && (
+                <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4" data-testid="fila-contadores">
+                  {grupos.map((g) => (
+                    <li key={g.motivo}>
+                      <a
+                        href={`#fila-${g.motivo}`}
+                        onClick={(e) => {
+                          if (!g.total) e.preventDefault();
+                        }}
+                        aria-disabled={!g.total}
+                        className={`flex h-full flex-col rounded-lg border p-3 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                          g.total
+                            ? `${TOM_PILL[g.tom]} hover:shadow-sm`
+                            : "bg-card text-muted-foreground"
+                        }`}
+                      >
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium">{g.titulo}</span>
+                          <span className="text-2xl font-semibold tabular-nums">{g.total}</span>
+                        </span>
+                        <span className="mt-0.5 text-xs opacity-90">
+                          {g.total ? g.explica : "Nada aqui."}
+                        </span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {fila.length === 0 ? (
+                <EmptyState
+                  icon={Trophy}
+                  action={
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {gestor && (
+                        <Button size="sm" onClick={() => setNovo(true)}>
+                          <Plus className="mr-1 h-4 w-4" /> Novo lead
+                        </Button>
+                      )}
+                      <Button size="sm" variant="outline" asChild>
+                        <Link to={gestor ? "/painel-leads" : "/meus-leads"} hash="banco">
+                          <Inbox className="mr-1 h-4 w-4" /> Ver Banco da imobiliária
+                        </Link>
+                      </Button>
                     </div>
-                    <Pill tom={FILA_TXT[motivo].tom}>{FILA_TXT[motivo].t}</Pill>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                  }
+                >
+                  {(leads ?? []).length === 0
+                    ? "Você ainda não tem leads no CRM. Pegue um no Banco da imobiliária para começar."
+                    : "Tudo em dia: nenhum lead pendente para hoje."}
+                </EmptyState>
+              ) : (
+                grupos
+                  .filter((g) => g.total > 0)
+                  .map((g) => (
+                    <section
+                      key={g.motivo}
+                      id={`fila-${g.motivo}`}
+                      className="scroll-mt-4 space-y-1.5"
+                      aria-labelledby={`fila-${g.motivo}-titulo`}
+                      data-testid={`fila-grupo-${g.motivo}`}
+                    >
+                      <h3
+                        id={`fila-${g.motivo}-titulo`}
+                        className="flex items-center gap-2 text-sm font-semibold"
+                      >
+                        <Pill tom={g.tom}>{g.titulo}</Pill>
+                        <span className="tabular-nums text-muted-foreground">{g.total}</span>
+                      </h3>
+                      <ul className="divide-y rounded-lg border bg-card">
+                        {g.itens.map(({ lead: l, motivo }) => {
+                          const f = funilDe(l);
+                          return (
+                            <li
+                              key={l.id}
+                              className="grid gap-2 px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                            >
+                              <button
+                                type="button"
+                                className="min-w-0 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                onClick={() => setAbertoId(l.id)}
+                                aria-label={`Abrir lead ${l.nome}`}
+                              >
+                                <div className="truncate font-medium">{l.nome}</div>
+                                <div className="truncate text-xs text-muted-foreground">
+                                  {FUNIL[f].nome} · {nomeEtapa(f, l.etapa as Etapa)} ·{" "}
+                                  {ORIGEM_LABEL[l.origem]}
+                                  {l.proximo_contato_em
+                                    ? ` · ${diaMes(l.proximo_contato_em)} — ${l.proximo_contato_motivo ?? ""}`
+                                    : ""}
+                                </div>
+                              </button>
+                              <div className="flex flex-wrap gap-1.5 sm:justify-end">
+                                {motivo === "aceite" ? (
+                                  <Button size="sm" onClick={() => setAbertoId(l.id)}>
+                                    Abrir e aceitar
+                                  </Button>
+                                ) : (
+                                  <>
+                                    {podeMexer(l) && (
+                                      <Button
+                                        size="sm"
+                                        variant={motivo === "hoje" ? "outline" : "default"}
+                                        onClick={() =>
+                                          setPedido({ lead: l, para: null, tipo: "proximo" })
+                                        }
+                                      >
+                                        {l.proximo_contato_em
+                                          ? "Remarcar"
+                                          : "Definir próximo contato"}
+                                      </Button>
+                                    )}
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => setAbertoId(l.id)}
+                                    >
+                                      Abrir
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </section>
+                  ))
+              )}
+            </>
           )}
         </TabsContent>
       </Tabs>
@@ -355,7 +459,8 @@ export function CrmPagina() {
           onCreated={() => void carregar()}
         />
       )}
-      {leads !== null && leads.length === 0 && (
+      {/* Na fila do dia o estado vazio é um só, com botões (t_7bd432c2). */}
+      {leads !== null && leads.length === 0 && aba !== "fila" && (
         <EmptyState icon={Users}>Nenhum lead ainda.</EmptyState>
       )}
     </div>

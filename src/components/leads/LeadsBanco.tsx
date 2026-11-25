@@ -1,35 +1,40 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { EmptyState, Pill } from "@/components/visual/base";
+import { EmptyState, ListSkeleton, Pill } from "@/components/visual/base";
+import { Paginacao } from "@/components/visual/Paginacao";
 import { errorMessage } from "@/lib/errors";
 import { ORIGEM_LABEL, type LeadBanco } from "@/lib/leads";
 import { listarBanco, pegarLead } from "@/lib/leads-db";
-
-const dataCurta = (iso: string) =>
-  new Date(iso).toLocaleString("pt-BR", {
-    timeZone: "America/Sao_Paulo",
-    dateStyle: "short",
-    timeStyle: "short",
-  });
+import {
+  ordenarBanco,
+  paginar,
+  POR_PAGINA_LEADS,
+  resumoMensagem,
+  tempoCurto,
+} from "@/lib/telas-lote1";
 
 /**
  * Banco "Leads da imobiliária" (P3). Qualquer corretor da imobiliária pega um lead para si;
  * o gestor redistribui abrindo o lead no painel. Telefone/e-mail só aparecem depois de pegar.
+ * t_7bd432c2: linhas compactas, quem espera há mais tempo primeiro, mensagem recolhida e 25 por vez.
+ * A lista vem da mesma RPC (lead_banco_listar): quem vê o banco continua sendo decidido no banco.
  */
 export function LeadsBanco({
   podePegar,
   versao,
   onChanged,
+  onTotal,
 }: {
   podePegar: boolean;
   versao: number;
   onChanged: () => void;
+  onTotal?: (n: number | null) => void;
 }) {
   const [itens, setItens] = useState<LeadBanco[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [pagina, setPagina] = useState(1);
 
   const carregar = useCallback(async () => {
     try {
@@ -43,6 +48,14 @@ export function LeadsBanco({
   useEffect(() => {
     void carregar();
   }, [carregar, versao]);
+
+  useEffect(() => {
+    onTotal?.(itens ? itens.length : null);
+  }, [itens, onTotal]);
+
+  const ordenados = useMemo(() => ordenarBanco(itens ?? []), [itens]);
+  const pag = paginar(ordenados, pagina, POR_PAGINA_LEADS);
+  const agora = Date.now();
 
   const pegar = async (id: string) => {
     setBusy(id);
@@ -59,45 +72,76 @@ export function LeadsBanco({
   };
 
   return (
-    <section className="space-y-2" aria-labelledby="banco-titulo">
-      <h2 id="banco-titulo" className="text-base font-semibold">
-        Leads da imobiliária ({itens?.length ?? 0})
-      </h2>
-      <p className="text-xs text-muted-foreground">
-        Leads sem dono: não foram aceitos a tempo ou ficaram sem atendimento.
-        {podePegar ? " Pegue um para você." : ""}
-      </p>
-      {itens && itens.length === 0 ? (
+    <section className="space-y-3" aria-labelledby="banco-titulo">
+      <div>
+        <h2 id="banco-titulo" className="text-base font-semibold">
+          Banco da imobiliária ({itens?.length ?? 0})
+        </h2>
+        <p className="text-xs text-muted-foreground">
+          Leads sem dono: não foram aceitos a tempo ou ficaram sem atendimento. Quem espera há mais
+          tempo aparece primeiro.
+          {podePegar ? " Pegue um para você." : ""}
+        </p>
+      </div>
+      {itens === null ? (
+        <ListSkeleton rows={4} label="Carregando o banco de leads" />
+      ) : itens.length === 0 ? (
         <EmptyState icon={Inbox}>Nenhum lead no banco agora.</EmptyState>
       ) : (
-        <div className="grid gap-2">
-          {(itens ?? []).map((l) => (
-            <Card key={l.id}>
-              <CardContent className="flex flex-wrap items-center justify-between gap-2 p-3">
-                <div className="min-w-0">
-                  <div className="break-words font-medium">{l.nome}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {ORIGEM_LABEL[l.origem]} · no banco desde {dataCurta(l.no_banco_desde)}
-                    {l.com_imovel ? " · com imóvel" : ""}
-                  </div>
-                  {l.mensagem && (
-                    <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                      {l.mensagem}
+        <>
+          <ul className="divide-y rounded-lg border bg-card" data-testid="banco-lista">
+            {pag.itens.map((l) => {
+              const espera = agora - new Date(l.no_banco_desde).getTime();
+              const resumo = resumoMensagem(l.mensagem);
+              return (
+                <li
+                  key={l.id}
+                  className="grid gap-2 px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                  data-testid="banco-linha"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="truncate font-medium">{l.nome}</span>
+                      <Pill tom={espera >= 3 * 86_400_000 ? "red" : "amber"}>
+                        No banco há {tempoCurto(espera)}
+                      </Pill>
+                      {l.simulado && <Pill tom="slate">Simulado</Pill>}
                     </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {l.simulado && <Pill tom="slate">Simulado</Pill>}
+                    <div className="text-xs text-muted-foreground">
+                      {ORIGEM_LABEL[l.origem]}
+                      {l.com_imovel ? " · com imóvel" : ""}
+                    </div>
+                    {resumo && (
+                      <details className="group mt-0.5 text-xs text-muted-foreground">
+                        <summary className="cursor-pointer list-none truncate marker:hidden">
+                          <span className="group-open:hidden">{resumo} · </span>
+                          <span className="font-medium text-primary underline-offset-2 hover:underline">
+                            <span className="group-open:hidden">ver mensagem</span>
+                            <span className="hidden group-open:inline">ocultar mensagem</span>
+                          </span>
+                        </summary>
+                        <p className="mt-1 whitespace-pre-line break-words rounded-md bg-muted/50 p-2">
+                          {l.mensagem}
+                        </p>
+                      </details>
+                    )}
+                  </div>
                   {podePegar && (
-                    <Button size="sm" disabled={busy !== null} onClick={() => void pegar(l.id)}>
-                      Pegar para mim
+                    <Button
+                      size="sm"
+                      className="w-full sm:w-auto"
+                      disabled={busy !== null}
+                      onClick={() => void pegar(l.id)}
+                    >
+                      {busy === l.id ? "Pegando…" : "Pegar para mim"}
                     </Button>
                   )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                </li>
+              );
+            })}
+          </ul>
+          <Paginacao {...pag} rotulo="leads no banco" onIr={setPagina} />
+        </>
       )}
     </section>
   );
