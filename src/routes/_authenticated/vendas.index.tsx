@@ -56,6 +56,7 @@ import {
   SlidersHorizontal,
   ChevronDown,
   FileText,
+  X,
 } from "lucide-react";
 import { EmptyState, ListSkeleton, PageHeader } from "@/components/visual/base";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -90,7 +91,8 @@ import {
   pagamentoFilterParam,
   pagamentoFilterValido,
 } from "@/lib/vendas-pagamento-filtro";
-import { ListaVendas } from "@/components/vendas/ListaVendas";
+import { LegendaVezDeAgir, ListaVendas } from "@/components/vendas/ListaVendas";
+import { chipsFiltrosVendas, rotuloMinhaVez, type ChaveChipVendas } from "@/lib/telas-lote3";
 import {
   PAPEIS_COLUNA_LIDER,
   mapaLiderPorCorretor,
@@ -241,6 +243,8 @@ function SalesList() {
   // Falha de verdade (rede/500) no pacote do cartão Efetivadas: mostra aviso, nunca R$ 0 calado.
   const [efetivadasFalhou, setEfetivadasFalhou] = useState(false);
   const [soMinhaVez, setSoMinhaVez] = useState(savedListState?.soMinhaVez ?? false);
+  // Quantas vendas da lista filtrada esperam a minha ação (atalho "★ Minha vez (N)", t_d97f306e).
+  const [minhaVezTotal, setMinhaVezTotal] = useState<number | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [teamOptions, setTeamOptions] = useState<{ id: string; label: string }[]>([]);
   const [memberIdsByTeam, setMemberIdsByTeam] = useState<Record<string, string[]>>({});
@@ -269,6 +273,11 @@ function SalesList() {
   const esteiraPendingKeyRef = useRef("");
 
   const canFilterByTeam = hasAny(["juridico", "admin", "super_admin", "financeiro"]);
+  // admin/super_admin enxerga tudo por definição — "Sua vez" é pra quem tem uma fila operacional
+  // de verdade, não pra quem só está supervisionando o sistema.
+  const isOverseer = hasAny(["admin", "super_admin"]);
+  const podeTerFila =
+    !isOverseer && hasAny(["corretor", "gestor", "team_leader", "juridico", "financeiro"]);
   // Filtros guardados em "Mais filtros" (computador). Abre sozinho se algum já vier ligado (URL/sessão).
   const maisFiltrosAtivos =
     (canFilterByTeam && equipeFilter !== "todas" ? 1 : 0) +
@@ -758,6 +767,33 @@ function SalesList() {
     };
   }, [load, page, refreshKey, waitingForSavedTeamFilter, filterKey, carregarTudo]);
 
+  // Contagem do atalho "★ Minha vez (N)": a mesma RPC da fila (list_vendas_comerciais_paginadas_fila,
+  // SECURITY INVOKER/RLS) com os filtros da tela e 1 linha só — usa o total_count. Com o atalho
+  // ligado, o total da lista já é esse número. Falha = atalho sem número, nunca um número inventado.
+  useEffect(() => {
+    if (!podeTerFila || waitingForSavedTeamFilter || soMinhaVez) return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      fetchVendasComerciaisPaginadas({
+        page: 0,
+        pageSize: 1,
+        soMinhaVez: true,
+        ...buildFilters(),
+        signal: controller.signal,
+      })
+        .then((r) => setMinhaVezTotal(r.total_count))
+        .catch(() => {
+          if (!controller.signal.aborted) setMinhaVezTotal(null);
+        });
+    }, FILTRO_DEBOUNCE_MS);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [podeTerFila, waitingForSavedTeamFilter, soMinhaVez, buildFilters, refreshKey]);
+  // Atalho ligado: o total da própria lista (mesma RPC da fila) já é o número, sem consulta extra.
+  const minhaVezRotulo = soMinhaVez ? (loading ? null : totalCount) : minhaVezTotal;
+
   const goToPage = (nextPage: number) => {
     const total = carregarTudo ? esteiraTotalRef.current : totalCount;
     if (loading || nextPage < 0 || (total !== null && nextPage * PAGE_SIZE >= total)) return;
@@ -781,16 +817,11 @@ function SalesList() {
     }
   };
 
-  // admin/super_admin enxerga tudo por definição — "Sua vez" é pra quem tem uma fila operacional
-  // de verdade, não pra quem só está supervisionando o sistema.
-  const isOverseer = hasAny(["admin", "super_admin"]);
-  const podeTerFila =
-    !isOverseer && hasAny(["corretor", "gestor", "team_leader", "juridico", "financeiro"]);
   const saleIsMinhaVez = useCallback(
     (s: SalesListRow) => vendaEhMinhaVez(s, { userId: user?.id, hasAny, teamIds }),
     [user?.id, hasAny, teamIds],
   );
-  // Quando "Só minha vez" está ativo, a RPC já filtra antes da paginação. Não filtre a página
+  // Quando "Minha vez" está ativo, a RPC já filtra antes da paginação. Não filtre a página
   // novamente no navegador: isso faria a fila voltar a depender apenas das 10 linhas carregadas.
   const diasNaEtapa = (s: SalesListRow) =>
     Date.now() - new Date(stageSince[s.id] ?? s.created_at).getTime();
@@ -854,6 +885,47 @@ function SalesList() {
     setMidiaFilter("todas");
     setPagamentoFilter("todas");
     setEsteiraEtapa("todas");
+  };
+  const chipsFiltros = chipsFiltrosVendas(
+    {
+      soMinhaVez,
+      statusFilter,
+      vezFilter,
+      dataDe,
+      dataAte,
+      periodoPadrao,
+      esteira,
+      q,
+      equipeFilter,
+      podeFiltrarEquipe: canFilterByTeam,
+      midiaFilter,
+      pagamentoFilter,
+    },
+    {
+      status: (k) =>
+        k === ESTEIRA_FILTER
+          ? "Na esteira"
+          : k === VENDIDOS_FILTER
+            ? "Vendidos"
+            : (STATUS_LABEL[k as SaleStatus] ?? k),
+      vez: (k) => VEZ_DE_AGIR_LABEL[k as VezDeAgir] ?? k,
+      equipe: (k) => teamOptions.find((t) => t.id === k)?.label ?? "selecionada",
+      midia: (k) => MIDIA_FILTER_OPTIONS.find((m) => m.key === k)?.label ?? k,
+      pagamento: (k) => PAGAMENTO_FILTER_OPTIONS.find((m) => m.key === k)?.label ?? k,
+    },
+  );
+  const tirarFiltro = (chave: ChaveChipVendas) => {
+    if (chave === "minhaVez") setSoMinhaVez(false);
+    if (chave === "status") {
+      setStatusFilter("todas");
+      setEsteiraEtapa("todas");
+    }
+    if (chave === "vez") setVezFilter("todas");
+    if (chave === "periodo") aplicarPeriodo(periodoPadrao);
+    if (chave === "q") setQ("");
+    if (chave === "equipe") setEquipeFilter("todas");
+    if (chave === "midia") setMidiaFilter("todas");
+    if (chave === "pagamento") setPagamentoFilter("todas");
   };
   const isMobile = useCelular();
   const totalPages = listTotal ? Math.ceil(listTotal / PAGE_SIZE) : 0;
@@ -957,6 +1029,20 @@ function SalesList() {
               onChange={(e) => setQ(e.target.value)}
               className="flex-1 md:max-w-sm"
             />
+            {podeTerFila && (
+              <Button
+                type="button"
+                variant={soMinhaVez ? "default" : "outline"}
+                size="sm"
+                className={`shrink-0 ${soMinhaVez ? "" : "border-orange-400 text-orange-800 hover:bg-orange-50 dark:text-orange-300"}`}
+                aria-pressed={soMinhaVez}
+                data-testid="atalho-minha-vez"
+                title="Só as vendas em que a próxima ação é sua"
+                onClick={() => setSoMinhaVez((v) => !v)}
+              >
+                {rotuloMinhaVez(minhaVezRotulo)}
+              </Button>
+            )}
             <Button
               type="button"
               variant="outline"
@@ -997,11 +1083,11 @@ function SalesList() {
               </SelectContent>
             </Select>
             <Select value={vezFilter} onValueChange={setVezFilter}>
-              <SelectTrigger aria-label="Aguardando ação de" className="md:w-56">
-                <SelectValue placeholder="Aguardando ação de" />
+              <SelectTrigger aria-label="Vez de agir" className="md:w-56">
+                <SelectValue placeholder="Vez de agir" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="todas">Aguardando ação de…</SelectItem>
+                <SelectItem value="todas">Vez de agir: todos</SelectItem>
                 {Object.entries(VEZ_DE_AGIR_LABEL).map(([key, label]) => (
                   <SelectItem key={key} value={key}>
                     {label}
@@ -1067,17 +1153,6 @@ function SalesList() {
                 Mês anterior
               </Button>
             </div>
-            {podeTerFila && (
-              <Button
-                type="button"
-                variant={soMinhaVez ? "default" : "outline"}
-                size="sm"
-                aria-pressed={soMinhaVez}
-                onClick={() => setSoMinhaVez((v) => !v)}
-              >
-                Só minha vez
-              </Button>
-            )}
             <Button
               type="button"
               variant={maisFiltrosAtivos > 0 ? "secondary" : "outline"}
@@ -1146,6 +1221,32 @@ function SalesList() {
               </Select>
             </div>
           </div>
+          {chipsFiltros.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5" data-testid="chips-filtros-vendas">
+              <span className="text-xs text-muted-foreground">Filtros ativos:</span>
+              {chipsFiltros.map((c) => (
+                <button
+                  key={c.chave}
+                  type="button"
+                  onClick={() => tirarFiltro(c.chave)}
+                  aria-label={`Tirar filtro ${c.texto}`}
+                  className="inline-flex max-w-full items-center gap-1 rounded-full border border-primary/30 bg-primary/5 py-0.5 pl-2.5 pr-1.5 text-xs font-medium text-foreground hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span className="truncate">{c.texto}</span>
+                  <X className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                </button>
+              ))}
+              {chipsFiltros.length > 1 && (
+                <button
+                  type="button"
+                  onClick={limparFiltros}
+                  className="rounded-full px-2 py-0.5 text-xs text-muted-foreground underline-offset-2 hover:underline"
+                >
+                  Limpar tudo
+                </button>
+              )}
+            </div>
+          )}
           {esteira && (
             <p className="text-xs text-muted-foreground">
               O filtro de mês não vale para a esteira: ela mostra tudo o que está aberto hoje.
@@ -1217,16 +1318,15 @@ function SalesList() {
                     : `${contratosAssinadosCount} ${contratosAssinadosCount === 1 ? "venda" : "vendas"} · VGV REMAX`
                 }
                 aviso={
-                  efetivadasFalhou
-                    ? "Atualize a página ou tente de novo em instantes."
-                    : "Não segue o filtro de status."
+                  efetivadasFalhou ? "Atualize a página ou tente de novo em instantes." : undefined
                 }
                 alerta={efetivadasFalhou}
                 explicacao={
                   <>
-                    Vendas com contrato assinado no período.{" "}
+                    Vendas com contrato assinado no período (data da assinatura).{" "}
                     <span>VGV REMAX, sem a parte de parceiros.</span>{" "}
-                    <span>O cartão de efetivadas não segue o filtro de status.</span>
+                    <span>O cartão de efetivadas não segue o filtro de status.</span>{" "}
+                    <span>Segue o período, a mídia e o pagamento.</span>
                   </>
                 }
               />
@@ -1309,15 +1409,16 @@ function SalesList() {
           )}
           {!loading && displayedSales.length > 0 && (
             <>
-              {!esteira && listTotal !== null && (
-                <p
-                  className="mb-3 text-sm font-medium"
-                  role="status"
-                  data-testid="vendas-encontradas"
-                >
-                  {listTotal} {listTotal === 1 ? "venda encontrada" : "vendas encontradas"}
-                </p>
-              )}
+              <div className="mb-3 flex flex-col gap-1.5 md:flex-row md:items-center md:justify-between">
+                {!esteira && listTotal !== null ? (
+                  <p className="text-sm font-medium" role="status" data-testid="vendas-encontradas">
+                    {listTotal} {listTotal === 1 ? "venda encontrada" : "vendas encontradas"}
+                  </p>
+                ) : (
+                  <span />
+                )}
+                <LegendaVezDeAgir />
+              </div>
               <ListaVendas
                 vendas={displayedSales}
                 profileName={profileName}

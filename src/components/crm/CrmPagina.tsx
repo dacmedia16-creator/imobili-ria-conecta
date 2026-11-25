@@ -359,21 +359,48 @@ export function CrmPagina() {
         description="Funil de Venda (compradores), Funil de Captação (proprietários) e Funil de Locação (aluguel). Todo lead em andamento precisa de um próximo contato."
         actions={
           gestor ? (
-            <Button onClick={() => setNovo(true)}>
-              <Plus className="mr-1 h-4 w-4" /> Novo lead
+            <Button onClick={() => setNovo(true)} className="max-sm:h-9 max-sm:w-9 max-sm:p-0">
+              <Plus className="h-4 w-4 sm:mr-1" aria-hidden />
+              <span className="max-sm:sr-only">Novo lead</span>
             </Button>
           ) : undefined
         }
       />
 
       <Tabs value={aba} onValueChange={setAba}>
-        <TabsList className="flex h-auto flex-wrap justify-start">
-          <TabsTrigger value="venda">Funil de Venda ({doFunil("venda").length})</TabsTrigger>
-          <TabsTrigger value="captacao">
-            Funil de Captação ({doFunil("captacao").length})
-          </TabsTrigger>
-          <TabsTrigger value="locacao">Funil de Locação ({doFunil("locacao").length})</TabsTrigger>
-          <TabsTrigger value="fila">Minha fila do dia ({fila.length})</TabsTrigger>
+        {/* Celular (t_d97f306e, item 9): nomes curtos e contador pequeno, as 4 abas numa linha. */}
+        <TabsList className="grid h-auto w-full grid-cols-4 sm:flex sm:w-auto sm:flex-wrap sm:justify-start">
+          {(
+            [
+              { v: "venda", longo: "Funil de Venda", curto: "Venda", n: doFunil("venda").length },
+              {
+                v: "captacao",
+                longo: "Funil de Captação",
+                curto: "Captação",
+                n: doFunil("captacao").length,
+              },
+              {
+                v: "locacao",
+                longo: "Funil de Locação",
+                curto: "Locação",
+                n: doFunil("locacao").length,
+              },
+              { v: "fila", longo: "Minha fila do dia", curto: "Fila", n: fila.length },
+            ] as const
+          ).map((a) => (
+            <TabsTrigger
+              key={a.v}
+              value={a.v}
+              aria-label={`${a.longo} (${a.n})`}
+              className="gap-1 px-1.5 text-xs sm:px-3 sm:text-sm"
+            >
+              <span className="sm:hidden">{a.curto}</span>
+              <span className="max-sm:hidden">{a.longo}</span>
+              <span className="rounded-full bg-muted px-1.5 text-[10px] font-semibold tabular-nums text-muted-foreground sm:text-[11px]">
+                {a.n}
+              </span>
+            </TabsTrigger>
+          ))}
         </TabsList>
 
         {quadro("venda")}
