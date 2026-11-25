@@ -19,9 +19,13 @@ export function especialistasAgencyUrl(slug: string): string {
   return `${ESPECIALISTAS_URL}/${encodeURIComponent(slug)}`;
 }
 
-export const HUB_TITLE = "UniHub — Todos os sistemas MAX em um só lugar";
+// Texto aprovado por Denis em 25/11/2026 (t_881aad7e): "em minutos" e não "5 minutos", porque a medição
+// t_3f74b72e só prova o tempo depois de preenchidos os dados. Limites conferidos em seo-publico.test.ts.
+export const HUB_TITLE_MAX = 60;
+export const HUB_DESCRIPTION_MAX = 155;
+export const HUB_TITLE = "UniHub | Estudo de mercado em minutos para imobiliárias";
 export const HUB_DESCRIPTION =
-  "UniHub reúne os sistemas MAX para imobiliárias e corretores: gestão administrativa, estudo de mercado, visitas, treinamento e a página pública para achar um corretor especialista por região.";
+  "Faça o estudo de mercado em minutos e use um modelo de sucesso para a sua imobiliária: visitas com prova, contratos e equipe num só lugar.";
 
 /** Meta "robots" das páginas públicas em produção (o __root põe noindex no resto). */
 export const ROBOTS_INDEX = "index, follow, max-image-preview:large";

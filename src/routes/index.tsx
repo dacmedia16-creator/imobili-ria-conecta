@@ -198,6 +198,65 @@ const SESSENTA_DIAS_URL = contaMaxLoginUrl("sessenta-dias-max");
 
 const ADM_MAX_LOGIN_URL = contaMaxLoginUrl("adm-max", "/reservas-salas");
 
+/** Botão do topo (t_881aad7e): mesmo destino do cartão Estudo de Mercado (passa pelo login da Conta MAX). */
+const ESTUDO_MERCADO_URL = contaMaxLoginUrl("estudo-mercado-max");
+
+/** Texto aprovado por Denis em 25/11/2026 (t_881aad7e). "em minutos", não "5 minutos" (medição t_3f74b72e). */
+const CARTOES_CORRETOR = [
+  {
+    titulo: "Estudo de mercado sem sofrimento",
+    texto:
+      "Comparáveis de qualquer portal, valor sugerido e argumento pronto para conversar com o proprietário.",
+  },
+  {
+    titulo: "Visita com prova",
+    texto: "Ficha assinada e confirmação por código registram a visita e protegem a sua comissão.",
+  },
+  {
+    titulo: "Contrato de exclusividade pronto",
+    texto: "Os dados já vêm preenchidos e a assinatura é digital, pela Clicksign.",
+  },
+];
+
+const CARTOES_IMOBILIARIA = [
+  {
+    titulo: "Captações no mesmo padrão",
+    texto:
+      "Todo corretor entrega um estudo completo e profissional, com o mesmo formato, saiba ele fazer ou não.",
+  },
+  {
+    titulo: "Tudo sob seu olhar",
+    texto: "Vendas, comissões, captações e equipes no ADM MAX, num lugar só.",
+  },
+  {
+    titulo: "Time que cresce com método",
+    texto:
+      "Academia MAX para treinar, 60 Dias MAX para acompanhar quem chega e Recruta MAX para atrair gente nova.",
+  },
+];
+
+function GrupoCartoes({
+  titulo,
+  itens,
+}: {
+  titulo: string;
+  itens: { titulo: string; texto: string }[];
+}) {
+  return (
+    <div className="lp-group">
+      <h3 className="lp-group-title">{titulo}</h3>
+      <ul className="lp-cards">
+        {itens.map((c) => (
+          <li key={c.titulo} className="lp-card">
+            <h4>{c.titulo}</h4>
+            <p>{c.texto}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /** Ícones das pílulas do topo (mesmo traço do botão Reserva de Sala). */
 function ReservaIcon() {
   return (
@@ -398,9 +457,9 @@ function FrontPage() {
         .hubpage .logo img { width: 100%; height: auto; display: block; transition: transform 0.15s ease, opacity 0.15s ease; }
         .hubpage .logo:hover img { transform: translateY(-1px); opacity: 0.85; }
         .hubpage .titleblock { position: absolute; left: 3.4%; top: 6%; width: 48%; }
-        .hubpage .titleblock h1 { margin: 0.9rem 0 0; font-size: clamp(2.2rem, 5vw, 5rem); }
-        .hubpage .titleblock h1 a, .hubpage .mhero .mtitle a { text-decoration: none; }
-        .hubpage .titleblock p:not(.eyebrow) { margin: 0.7rem 0 0; font-size: clamp(0.7rem, 1.15vw, 1.3rem); color: var(--gray); font-weight: 400; }
+        .hubpage .titleblock .htitle { margin: 0.9rem 0 0; font-size: clamp(2.2rem, 5vw, 5rem); }
+        /* t_881aad7e */ .hubpage .titleblock .htitle a, .hubpage .mhero .mtitle a { text-decoration: none; }
+        .hubpage .titleblock p:not(.eyebrow):not(.htitle) { margin: 0.7rem 0 0; font-size: clamp(0.7rem, 1.15vw, 1.3rem); color: var(--gray); font-weight: 400; }
         /* Botões do topo (Sistemas REMAX Brasil + Reserva de Sala, t_06bb81c4): mesma pílula, lado a lado. */
         .hubpage .top-actions {
           position: absolute; right: 3.4%; top: 15.5%; z-index: 4;
@@ -465,7 +524,7 @@ function FrontPage() {
         .hubpage .mobile-reservation-link svg .accent { stroke: var(--red); }
         .hubpage .mhero { margin-top: 40px; text-align: left; }
         .hubpage .mhero .mtitle { margin: 0.8rem 0 0; font-size: 3rem; }
-        .hubpage .mhero p:not(.eyebrow) { margin: 0.6rem 0 0; color: var(--gray); font-size: 0.95rem; }
+        .hubpage .mhero p:not(.eyebrow):not(.htitle) { margin: 0.6rem 0 0; color: var(--gray); font-size: 0.95rem; }
 
         .hubpage .mhub { position: relative; width: 100%; max-width: 420px; margin: 22px auto 0; padding: 0 2px; }
         .hubpage .mhub-hint { margin: 6px 0 0; text-align: center; color: var(--gray); font-size: 0.78rem; }
@@ -492,6 +551,66 @@ function FrontPage() {
         }
         .hubpage .mfoot .fico svg { width: 55%; height: 55%; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
         .hubpage .mfoot p { margin: 0; color: rgba(255, 255, 255, 0.85); font-weight: 500; font-size: 0.85rem; line-height: 1.3; }
+
+        /* ---------- página inicial com texto aprovado (t_881aad7e) ---------- */
+        .hubpage .mheader-wrap { max-width: 560px; margin: 0 auto; padding: 0 18px; }
+        @media (min-width: 860px) { .hubpage .mheader-wrap { display: none; } }
+        .hubpage .lp-wrap { max-width: 1180px; margin: 0 auto; padding: 0 18px; }
+        @media (min-width: 860px) { .hubpage .lp-wrap { padding: 0 clamp(1rem, 3vw, 2.5rem); } }
+        .hubpage .lp-hero { padding-block: 36px 8px; }
+        @media (min-width: 860px) { .hubpage .lp-hero { padding-block: 40px 8px; } }
+        .hubpage .lp-hero h1 {
+          margin: 0.8rem 0 0; max-width: 18ch;
+          font-family: "Sora", ui-sans-serif, system-ui, sans-serif; font-weight: 800;
+          letter-spacing: -0.035em; line-height: 1.05; color: #fff;
+          font-size: clamp(2.05rem, 5.2vw, 4rem); text-wrap: balance;
+        }
+        .hubpage .lp-hero h1 .sky { color: var(--blue-line); }
+        .hubpage .lp-sub { margin: 1.1rem 0 0; max-width: 62ch; color: var(--gray); font-size: clamp(1rem, 1.35vw, 1.2rem); line-height: 1.55; }
+        .hubpage .lp-cta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; margin-top: 26px; }
+        .hubpage .lp-btn {
+          display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+          min-height: 52px; padding: 0 26px; border-radius: 999px;
+          background: var(--red); color: #fff; font-weight: 700; font-size: 1rem; text-decoration: none;
+          box-shadow: 0 14px 34px -14px rgba(220, 28, 46, 0.85);
+          transition: background 0.2s ease, transform 0.15s ease;
+        }
+        .hubpage .lp-btn:hover { background: var(--red-dark); transform: translateY(-1px); }
+        .hubpage .lp-btn:active { transform: translateY(0) scale(0.98); }
+        .hubpage .lp-small { margin: 0; color: rgba(255, 255, 255, 0.7); font-size: 0.85rem; }
+        .hubpage .lp-section { padding-block: 56px 0; }
+        .hubpage .lp-h2 {
+          margin: 0.7rem 0 0; max-width: 24ch; color: #fff;
+          font-family: "Sora", ui-sans-serif, system-ui, sans-serif; font-weight: 800;
+          letter-spacing: -0.03em; line-height: 1.1; font-size: clamp(1.6rem, 3.2vw, 2.6rem); text-wrap: balance;
+        }
+        .hubpage .lp-ba { display: grid; gap: 14px; margin-top: 26px; }
+        @media (min-width: 760px) { .hubpage .lp-ba { grid-template-columns: 1fr 1fr; } }
+        .hubpage .lp-ba-item { border-radius: 20px; padding: 22px 22px 24px; border: 1px solid rgba(255, 255, 255, 0.1); background: var(--card-bg); }
+        .hubpage .lp-ba-item.depois { border-color: rgba(143, 180, 232, 0.4); background: linear-gradient(160deg, rgba(42, 79, 134, 0.55), rgba(7, 19, 37, 0.75)); }
+        .hubpage .lp-tag { display: inline-block; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gray); }
+        .hubpage .lp-ba-item.depois .lp-tag { color: var(--gold); }
+        .hubpage .lp-ba-item p { margin: 10px 0 0; color: rgba(255, 255, 255, 0.88); font-size: 1rem; line-height: 1.55; }
+        .hubpage .lp-fecho { margin: 20px 0 0; color: #fff; font-weight: 600; font-size: clamp(1rem, 1.4vw, 1.15rem); }
+        .hubpage .lp-groups { display: grid; gap: 28px; margin-top: 8px; }
+        @media (min-width: 960px) { .hubpage .lp-groups { grid-template-columns: 1fr 1fr; gap: 32px; } }
+        .hubpage .lp-group-title { margin: 0 0 12px; color: var(--gold); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; }
+        .hubpage .lp-cards { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+        .hubpage .lp-card { border-radius: 18px; padding: 18px 20px; background: var(--card-bg); border: 1px solid rgba(255, 255, 255, 0.1); border-left: 3px solid var(--red); }
+        .hubpage .lp-card h4 { margin: 0; color: #fff; font-family: "Sora", ui-sans-serif, sans-serif; font-weight: 600; font-size: 1.05rem; letter-spacing: -0.01em; }
+        .hubpage .lp-card p { margin: 6px 0 0; color: var(--gray); font-size: 0.95rem; line-height: 1.5; }
+        .hubpage .lp-strip { margin: 28px 0 0; padding: 16px 20px; border-radius: 16px; border: 1px dashed rgba(143, 180, 232, 0.35); color: rgba(255, 255, 255, 0.82); font-size: 0.92rem; line-height: 1.5; }
+        .hubpage .lp-strip strong { color: #fff; }
+        .hubpage .lp-close {
+          margin: 56px 0 8px; padding: clamp(28px, 4vw, 48px); border-radius: 24px; text-align: left;
+          background: linear-gradient(120deg, var(--navy-800), rgba(7, 19, 37, 0.9));
+          border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.8);
+          position: relative; overflow: hidden;
+        }
+        .hubpage .lp-close::after { content: ""; position: absolute; right: -60px; bottom: -60px; width: 220px; height: 220px; border-radius: 999px; background: radial-gradient(circle, rgba(220, 28, 46, 0.35), transparent 70%); pointer-events: none; }
+        .hubpage .lp-close .lp-h2 { max-width: 28ch; }
+        .hubpage .lp-close p { margin: 14px 0 0; max-width: 60ch; color: var(--gray); font-size: 1.02rem; line-height: 1.55; }
+        @media (prefers-reduced-motion: reduce) { .hubpage .lp-btn { transition: none; } }
       `}</style>
 
       <div className="hub-bg maxhub-grid-lines" aria-hidden="true" />
@@ -505,181 +624,255 @@ function FrontPage() {
         </Link>
       </header>
       <main>
-      <section className="stage" aria-label="Sistemas MAX">
-        <div className="canvas">
-          <div className="dotgrid" />
-          <div className="corner-navy" />
-          <div className="corner-seam" />
-          <div className="corner-red" />
+        <div className="mheader-wrap">
+          <div className="mheader">
+            <Link to="/auth" className="brand" aria-label="UniHub — entrar no portal">
+              <MaxHubLogo nome={["Uni", "Hub"]} />
+            </Link>
+          </div>
+        </div>
 
-          <div className="titleblock">
+        {/* ---------- topo com o texto aprovado (t_881aad7e); a roda vem logo abaixo ---------- */}
+        <section className="lp-wrap lp-hero" aria-labelledby="lp-titulo">
+          <p className="eyebrow">Estudo de mercado</p>
+          <h1 id="lp-titulo">
+            Já pensou fazer seu estudo de mercado <span className="sky">em minutos</span>?
+          </h1>
+          <p className="lp-sub">
+            Comparáveis de qualquer portal, valor sugerido e um PDF pronto para mostrar ao
+            proprietário. No UniHub, o estudo de mercado deixa de ser a tarefa que trava a captação.
+          </p>
+          <div className="lp-cta-row">
+            <a href={ESTUDO_MERCADO_URL} className="lp-btn">
+              Fazer um estudo de mercado →
+            </a>
+            <p className="lp-small">Um login só (Google) para todos os sistemas MAX.</p>
+          </div>
+        </section>
+
+        <section className="stage" aria-label="Sistemas MAX">
+          <div className="canvas">
+            <div className="dotgrid" />
+            <div className="corner-navy" />
+            <div className="corner-seam" />
+            <div className="corner-red" />
+
+            <div className="titleblock">
+              <p className="eyebrow">Plataforma integrada</p>
+              <p className="htitle">
+                <Link to="/auth" aria-label="UniHub — entrar no portal">
+                  Uni<span className="sky">Hub</span>
+                  <span className="dot">.</span>
+                </Link>
+              </p>
+              <p>Todos os sistemas MAX em um só lugar</p>
+            </div>
+
+            <div className="top-actions">
+              <Link to="/sistemas-remax" className="reservation-link">
+                <SistemasRemaxIcon />
+                <span>Sistemas Gerais / REMAX Brasil</span>
+              </Link>
+              <a
+                href={ADM_MAX_LOGIN_URL}
+                className="reservation-link"
+                aria-label="Abrir reserva de sala"
+              >
+                <ReservaIcon />
+                <span>Reserva de Sala</span>
+              </a>
+            </div>
+
+            <div className="hub">
+              <HubWheel items={rodaItens} />
+            </div>
+
+            {cards.map((c) =>
+              c.href ? (
+                <a
+                  key={c.id}
+                  className="card-link"
+                  href={c.href}
+                  {...(c.href.startsWith("/")
+                    ? {}
+                    : { target: "_blank", rel: "noopener noreferrer" })}
+                >
+                  <div className="card" style={c.pos}>
+                    <span className="access-badge">Acessar →</span>
+                    <CardIcon card={c} />
+                    <span className="txt">
+                      <h3>{c.title}</h3>
+                      <p>
+                        {c.lines[0]}
+                        <br />
+                        {c.lines[1]}
+                      </p>
+                    </span>
+                  </div>
+                </a>
+              ) : (
+                <div key={c.id} className="card-link">
+                  <div className="card soon" style={c.pos}>
+                    <span className="soon-badge">Em breve</span>
+                    <CardIcon card={c} />
+                    <span className="txt">
+                      <h3>{c.title}</h3>
+                      <p>
+                        {c.lines[0]}
+                        <br />
+                        {c.lines[1]}
+                      </p>
+                    </span>
+                  </div>
+                </div>
+              ),
+            )}
+
+            <div className="footbar">
+              <span className="fico">
+                <svg viewBox="0 0 24 24">
+                  <path d="M3 18 9 11l4 3 8-9" />
+                  <path d="M15 4h6v6" />
+                </svg>
+              </span>
+              <span className="fdiv" />
+              <p>Soluções integradas para gestão, recrutamento, capacitação e crescimento.</p>
+            </div>
+          </div>
+        </section>
+
+        {/* ---------- lista mobile ---------- */}
+        {/* Um só h1 na página (SEO, t_e014564f): no celular o título visual é um <p> com o mesmo estilo. */}
+        <section className="mobile-stage" aria-label="Sistemas MAX no celular">
+          <div className="mhero">
             <p className="eyebrow">Plataforma integrada</p>
-            <h1 className="htitle">
+            <p className="htitle mtitle">
               <Link to="/auth" aria-label="UniHub — entrar no portal">
                 Uni<span className="sky">Hub</span>
                 <span className="dot">.</span>
               </Link>
-            </h1>
+            </p>
             <p>Todos os sistemas MAX em um só lugar</p>
+            <div className="mactions">
+              <Link to="/sistemas-remax" className="mobile-reservation-link">
+                <SistemasRemaxIcon />
+                <span>Sistemas Gerais / REMAX Brasil</span>
+              </Link>
+              <a
+                href={ADM_MAX_LOGIN_URL}
+                className="mobile-reservation-link"
+                aria-label="Abrir reserva de sala"
+              >
+                <ReservaIcon />
+                <span>Reserva de Sala</span>
+              </a>
+            </div>
           </div>
 
-          <div className="top-actions">
-            <Link to="/sistemas-remax" className="reservation-link">
-              <SistemasRemaxIcon />
-              <span>Sistemas Gerais / REMAX Brasil</span>
-            </Link>
-            <a
-              href={ADM_MAX_LOGIN_URL}
-              className="reservation-link"
-              aria-label="Abrir reserva de sala"
-            >
-              <ReservaIcon />
-              <span>Reserva de Sala</span>
-            </a>
-          </div>
-
-          <div className="hub">
+          <div className="mhub">
             <HubWheel items={rodaItens} />
           </div>
+          <p className="mhub-hint">Toque num sistema da roda ou escolha na lista abaixo.</p>
 
-          {cards.map((c) =>
-            c.href ? (
-              <a
-                key={c.id}
-                className="card-link"
-                href={c.href}
-                {...(c.href.startsWith("/")
-                  ? {}
-                  : { target: "_blank", rel: "noopener noreferrer" })}
-              >
-                <div className="card" style={c.pos}>
+          <div className="mlist">
+            {cards.map((c) =>
+              c.href ? (
+                <a
+                  key={c.id}
+                  className="mcard"
+                  href={c.href}
+                  {...(c.href.startsWith("/")
+                    ? {}
+                    : { target: "_blank", rel: "noopener noreferrer" })}
+                >
                   <span className="access-badge">Acessar →</span>
                   <CardIcon card={c} />
                   <span className="txt">
                     <h3>{c.title}</h3>
                     <p>
-                      {c.lines[0]}
-                      <br />
-                      {c.lines[1]}
+                      {c.lines[0]} {c.lines[1]}
                     </p>
                   </span>
-                </div>
-              </a>
-            ) : (
-              <div key={c.id} className="card-link">
-                <div className="card soon" style={c.pos}>
+                </a>
+              ) : (
+                <div key={c.id} className="mcard soon">
                   <span className="soon-badge">Em breve</span>
                   <CardIcon card={c} />
                   <span className="txt">
                     <h3>{c.title}</h3>
                     <p>
-                      {c.lines[0]}
-                      <br />
-                      {c.lines[1]}
+                      {c.lines[0]} {c.lines[1]}
                     </p>
                   </span>
                 </div>
-              </div>
-            ),
-          )}
+              ),
+            )}
+          </div>
 
-          <div className="footbar">
+          <div className="mfoot">
             <span className="fico">
               <svg viewBox="0 0 24 24">
                 <path d="M3 18 9 11l4 3 8-9" />
                 <path d="M15 4h6v6" />
               </svg>
             </span>
-            <span className="fdiv" />
             <p>Soluções integradas para gestão, recrutamento, capacitação e crescimento.</p>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* ---------- lista mobile ---------- */}
-      {/* Um só h1 na página (SEO, t_e014564f): no celular o título visual é um <p> com o mesmo estilo. */}
-      <section className="mobile-stage" aria-label="Sistemas MAX no celular">
-        <div className="mheader">
-          <Link to="/auth" className="brand" aria-label="UniHub — entrar no portal">
-            <MaxHubLogo nome={["Uni", "Hub"]} />
-          </Link>
-        </div>
-
-        <div className="mhero">
-          <p className="eyebrow">Plataforma integrada</p>
-          <p className="htitle mtitle">
-            <Link to="/auth" aria-label="UniHub — entrar no portal">
-              Uni<span className="sky">Hub</span>
-              <span className="dot">.</span>
-            </Link>
-          </p>
-          <p>Todos os sistemas MAX em um só lugar</p>
-          <div className="mactions">
-            <Link to="/sistemas-remax" className="mobile-reservation-link">
-              <SistemasRemaxIcon />
-              <span>Sistemas Gerais / REMAX Brasil</span>
-            </Link>
-            <a
-              href={ADM_MAX_LOGIN_URL}
-              className="mobile-reservation-link"
-              aria-label="Abrir reserva de sala"
-            >
-              <ReservaIcon />
-              <span>Reserva de Sala</span>
-            </a>
+        <section className="lp-wrap lp-section" aria-labelledby="lp-antes-depois">
+          <p className="eyebrow">Antes x depois</p>
+          <h2 id="lp-antes-depois" className="lp-h2">
+            O estudo de mercado não precisa tomar a sua tarde
+          </h2>
+          <div className="lp-ba">
+            <div className="lp-ba-item">
+              <span className="lp-tag">Antes</span>
+              <p>
+                Muitos corretores não sabem fazer. Quem sabe leva de 1 a 4 horas, e cada um faz de
+                um jeito.
+              </p>
+            </div>
+            <div className="lp-ba-item depois">
+              <span className="lp-tag">Depois</span>
+              <p>
+                Você escolhe o imóvel, o sistema traz os comparáveis, sugere o valor e monta o
+                argumento para o proprietário. Sai em PDF profissional, em minutos.
+              </p>
+            </div>
           </div>
-        </div>
+          <p className="lp-fecho">
+            Mais tempo para visitar e captar. Mais padrão em toda a imobiliária.
+          </p>
+        </section>
 
-        <div className="mhub">
-          <HubWheel items={rodaItens} />
-        </div>
-        <p className="mhub-hint">Toque num sistema da roda ou escolha na lista abaixo.</p>
+        <section className="lp-wrap lp-section" aria-label="O que o UniHub faz">
+          <div className="lp-groups">
+            <GrupoCartoes titulo="Para o corretor" itens={CARTOES_CORRETOR} />
+            <GrupoCartoes titulo="Para a imobiliária" itens={CARTOES_IMOBILIARIA} />
+          </div>
+          <p className="lp-strip">
+            <strong>Também no UniHub:</strong> Metas/Meu Plano 2027, Locação MAX, Ache um
+            especialista (o corretor aparece por região) e Simulador de Crédito, com a Obah Crédito.
+          </p>
+        </section>
 
-        <div className="mlist">
-          {cards.map((c) =>
-            c.href ? (
-              <a
-                key={c.id}
-                className="mcard"
-                href={c.href}
-                {...(c.href.startsWith("/")
-                  ? {}
-                  : { target: "_blank", rel: "noopener noreferrer" })}
-              >
-                <span className="access-badge">Acessar →</span>
-                <CardIcon card={c} />
-                <span className="txt">
-                  <h3>{c.title}</h3>
-                  <p>
-                    {c.lines[0]} {c.lines[1]}
-                  </p>
-                </span>
-              </a>
-            ) : (
-              <div key={c.id} className="mcard soon">
-                <span className="soon-badge">Em breve</span>
-                <CardIcon card={c} />
-                <span className="txt">
-                  <h3>{c.title}</h3>
-                  <p>
-                    {c.lines[0]} {c.lines[1]}
-                  </p>
-                </span>
-              </div>
-            ),
-          )}
-        </div>
-
-        <div className="mfoot">
-          <span className="fico">
-            <svg viewBox="0 0 24 24">
-              <path d="M3 18 9 11l4 3 8-9" />
-              <path d="M15 4h6v6" />
-            </svg>
-          </span>
-          <p>Soluções integradas para gestão, recrutamento, capacitação e crescimento.</p>
-        </div>
-      </section>
+        <section className="lp-wrap" aria-labelledby="lp-fechamento">
+          <div className="lp-close">
+            <h2 id="lp-fechamento" className="lp-h2">
+              Não somos um sistema. Somos um modelo de sucesso para a sua imobiliária.
+            </h2>
+            <p>
+              Estudo de mercado, visitas, contratos, equipe e metas num só lugar, com um login só.
+              Comece pelo estudo de mercado.
+            </p>
+            <div className="lp-cta-row">
+              <Link to="/auth" className="lp-btn">
+                Conhecer o UniHub
+              </Link>
+            </div>
+          </div>
+        </section>
       </main>
 
       <footer className="mx-auto max-w-6xl px-4 py-6 text-center text-xs text-white/60">
