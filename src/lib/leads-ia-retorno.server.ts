@@ -45,6 +45,7 @@ import {
 import { montarExtrator, type EscolhaModelo, type UsoModelo } from "./leads-ia-modelo";
 import { textoToque15 } from "./leads-ia-toque15";
 import { lembretesVistoriaRodada } from "./locacao-avisos.server";
+import { canalAvisoCorretor } from "./leads-aviso-corretor-canal.server";
 import {
   AVISO_SEM_RESPOSTA,
   falasSemResposta,
@@ -502,7 +503,8 @@ export async function receberRetornoZionTalk(
 }
 
 /**
- * t_63c55cee: envia ao corretor a resposta do aceite pelo WhatsApp (mesmo número da IA). Uma vez só (o banco já
+ * t_63c55cee: envia ao corretor a resposta do aceite pelo WhatsApp do chip da IA (é o número em que o "ACEITO"
+ * chegou; a resposta volta pelo mesmo número). Uma vez só (o banco já
  * deduplicou a mensagem); falhou = fica "falhou", nunca repete. Log só com o código do erro.
  */
 export async function responderCorretor(
@@ -828,13 +830,18 @@ export type DepsAvisoCorretor = Pick<DepsRetorno, "env" | "fetchFn"> & {
   avisoResultado: (avisoId: string, ok: boolean) => Promise<unknown>;
 };
 
-/** Envia os avisos pendentes ao corretor (WhatsApp, mesmo número da IA). Falhou = fica "falhou"; nunca repete. */
+/**
+ * Envia os avisos pendentes ao corretor pelo MESMO WhatsApp dos avisos de status de venda (t_637c2c20, Denis 26/11;
+ * canal em leads-aviso-corretor-canal.server.ts). NÃO usa o chip da IA, que fica só para a conversa com o cliente.
+ * Envio desligado ou chave dos avisos de venda ausente: nada é reservado e o aviso fica pendente (o sino já foi);
+ * sem fallback para o chip da IA. Falhou = fica "falhou"; nunca repete.
+ */
 export async function enviarAvisosCorretor(
   leadId: string | null,
   deps: DepsAvisoCorretor,
 ): Promise<number> {
-  const canal = escolherCanal(deps.env, deps.fetchFn);
-  if (canal.nome !== "ziontalk") return 0; // envio real desligado: o aviso fica pendente (o sino já foi)
+  const enviar = canalAvisoCorretor(deps.env);
+  if (!enviar) return 0;
   const { data, error } = await deps.avisosReservar(leadId);
   if (error) {
     console.error("leads ia aviso corretor: reservar falhou", error.code ?? "sem_codigo");
@@ -843,14 +850,10 @@ export async function enviarAvisosCorretor(
   let enviados = 0;
   for (const a of (data as Array<{ aviso_id: string; telefone: string; texto: string }> | null) ??
     []) {
-    const r = await canal.enviar(a.telefone, a.texto);
-    await deps.avisoResultado(a.aviso_id, r.status === "enviada");
-    if (r.status === "enviada") enviados++;
-    else
-      console.error(
-        "leads ia aviso corretor: envio falhou",
-        r.status === "falhou" ? r.erro : r.status,
-      );
+    const r = await enviar(a.telefone, a.texto);
+    await deps.avisoResultado(a.aviso_id, r === "enviada");
+    if (r === "enviada") enviados++;
+    else console.error("leads ia aviso corretor: envio falhou", r);
   }
   return enviados;
 }
@@ -987,7 +990,7 @@ export async function depsRetornoAquecerReais(
     receber: async (token, msg) =>
       await db.rpc("lead_aquecer_retorno_receber", { _token: token, _msg: msg }),
     canalAquecer: canal,
-    avisos: undefined, // aviso ao corretor sai na rodada do pg_cron, pelo chip de atendimento (não é o cliente)
+    avisos: undefined, // aviso ao corretor sai na rodada do pg_cron, pelo WhatsApp dos avisos de venda (não é o cliente)
   };
 }
 
