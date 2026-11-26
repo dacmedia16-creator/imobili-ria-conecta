@@ -7,7 +7,8 @@ const MIG = readFileSync(
   "supabase/migrations/20261031010000_leads_ia_aviso_corretor_telefone_historico.sql",
   "utf8",
 );
-const ENV = { LEADS_IA_ENVIO_REAL: "on", ZIONTALK_LEADS_IA_API_KEY: "k" };
+// t_637c2c20: o aviso ao corretor sai pelo WhatsApp dos avisos de venda (ZIONTALK_API_KEY, fetch global).
+const ENV = { LEADS_IA_ENVIO_REAL: "on", ZIONTALK_API_KEY: "kv" };
 const fn = (nome: string) => {
   const i = MIG.indexOf(`CREATE OR REPLACE FUNCTION public.${nome}(`);
   expect(i, nome).toBeGreaterThanOrEqual(0);
@@ -68,11 +69,11 @@ describe("servidor: aviso e histórico em ordem, sem telefone/conteúdo no log",
       enviados.push(new URLSearchParams(String(init?.body)).get("msg") ?? "");
       return new Response("", { status: n++ === 0 ? 201 : 500 });
     }) as unknown as typeof fetch;
+    vi.stubGlobal("fetch", fetchFn);
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
     const resultado = vi.fn(async () => null);
     const ok = await enviarAvisosCorretor("lead-1", {
       env: ENV,
-      fetchFn,
       avisosReservar: async () => ({
         data: [
           { aviso_id: "a1", telefone: "5515999990000", texto: "Telefone: (15) 99999-1234" },
@@ -89,5 +90,6 @@ describe("servidor: aviso e histórico em ordem, sem telefone/conteúdo no log",
     const log = JSON.stringify(err.mock.calls);
     expect(log).not.toMatch(/99999|5515|Conversa|Telefone/);
     err.mockRestore();
+    vi.unstubAllGlobals();
   });
 });

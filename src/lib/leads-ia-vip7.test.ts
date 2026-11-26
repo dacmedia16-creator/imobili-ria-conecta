@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   enviarAvisosCorretor,
   primeiraAutoUmaVez,
@@ -14,6 +14,9 @@ const RB = readFileSync(
 );
 const ZZ = readFileSync("docs/sql/dados/20261030_zz_nicole_vip7.sql", "utf8");
 const ENV = { LEADS_IA_ENVIO_REAL: "on", ZIONTALK_LEADS_IA_API_KEY: "k" };
+// t_637c2c20: o aviso ao corretor sai pelo WhatsApp dos avisos de venda (ZIONTALK_API_KEY, fetch global).
+const ENV_AVISO = { ...ENV, ZIONTALK_API_KEY: "kv" };
+afterEach(() => vi.unstubAllGlobals());
 const fn = (nome: string) => {
   const i = MIG.indexOf(`CREATE OR REPLACE FUNCTION public.${nome}(`);
   expect(i, nome).toBeGreaterThanOrEqual(0);
@@ -128,12 +131,12 @@ describe("config da ZZ e rollback em 1 passo", () => {
 
 describe("servidor: 1ª mensagem automática e aviso ao corretor", () => {
   const zion = () => vi.fn(async () => new Response("", { status: 201 }));
-  it("aviso: envia pelo canal da IA e marca o resultado", async () => {
+  it("aviso: envia pelo canal dos avisos de venda e marca o resultado", async () => {
     const z = zion();
+    vi.stubGlobal("fetch", z);
     const avisoResultado = vi.fn(async () => undefined);
     const n = await enviarAvisosCorretor("l1", {
-      env: ENV,
-      fetchFn: z as unknown as typeof fetch,
+      env: ENV_AVISO,
       avisoResultado,
       avisosReservar: vi.fn(async () => ({
         data: [
@@ -159,9 +162,12 @@ describe("servidor: 1ª mensagem automática e aviso ao corretor", () => {
   });
   it("aviso: ZionTalk falhou = 'falhou' (sem repetir)", async () => {
     const avisoResultado = vi.fn(async () => undefined);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("", { status: 500 })),
+    );
     await enviarAvisosCorretor("l1", {
-      env: ENV,
-      fetchFn: vi.fn(async () => new Response("", { status: 500 })) as unknown as typeof fetch,
+      env: ENV_AVISO,
       avisoResultado,
       avisosReservar: vi.fn(async () => ({
         data: [{ aviso_id: "a1", telefone: "15999990000", texto: "x" }],
@@ -219,7 +225,7 @@ describe("servidor: 1ª mensagem automática e aviso ao corretor", () => {
         headers: { "x-leads-ia-segredo": SEG },
       }),
       {
-        env: { ...ENV, LEADS_IA_REENGAJAR_SEGREDO: SEG },
+        env: { ...ENV_AVISO, LEADS_IA_REENGAJAR_SEGREDO: SEG },
         fetchFn: zion() as unknown as typeof fetch,
         reengajarReservar: vi.fn(async () => ({ data: [], error: null })),
         reservar: vi.fn(),
