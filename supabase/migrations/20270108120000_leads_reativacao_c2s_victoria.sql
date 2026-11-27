@@ -1,5 +1,8 @@
 -- t_5fcada08 (Denis 27/11/2026, tópico 6238): reativação dos leads arquivados da C2S na Única, TUDO DESLIGADO.
--- Nada muda para ninguém enquanto lead_config.aquecer_reativacao = false (padrão) e aquecer_sair_* = NULL (padrão).
+-- Com tudo desligado (aquecer_reativacao = false e aquecer_sair_* = NULL, os padrões), o que MUDA na hora para TODAS as
+-- imobiliárias que usam a assistente (Única, Piloto C2S, ZZ) é só: (a) o nome mostrado ao lead passa a ser Victoria (item 4);
+-- (b) o SAIR passa a reconhecer também pedidos de saída inequívocos por extenso, quando são a mensagem inteira (item 5).
+-- Os itens 1 a 3 só agem com aquecer_reativacao = true ou aquecer_sair_* preenchidos.
 --  1) Freio de SAIR por chip com taxa/amostra próprias (aquecer_sair_taxa/_min; NULL = regra antiga), comparação "passou de".
 --  2) Modo reativação (aquecer_reativacao): 1ª mensagem e lembrete novos; só leads da importação (externo_id 'c2s-reativ:%'),
 --     sem depender da lista de liberados; resposta ÚNICA ao SAIR/"não" com convite do treinamento (1 vez por telefone,
@@ -7,6 +10,7 @@
 --     (aceito, sem prazo, resumo), sem aviso ao corretor.
 --  3) Lead sem responsável e sem_prazo nunca vai ao banco/rodízio (hoje 0 leads nessa condição).
 --  4) Nome da assistente: Victoria (padrão da coluna, textos de reserva e as 3 imobiliárias que usam a assistente).
+--  5) SAIR por extenso (global): só frases inteiras e inequívocas; frase com complemento continua NÃO sendo saída.
 BEGIN;
 
 ALTER TABLE public.lead_config
@@ -97,8 +101,11 @@ CREATE OR REPLACE FUNCTION public.lead_ia_e_optout(_t text)
 AS $function$
   SELECT public.lead_ia_norm(_t) ~ '^\s*(quero |pode )?(sair|parar|pare|stop|cancelar|descadastrar|remover)[\s,.!]*(por favor|pf|pfv|obrigad[oa])?[\s.!]*$'
       OR public.lead_ia_norm(_t) ~ '(nao (quero|desejo) (mais )?(receber|mensage)|nao me (mande|envie|chame|procure)|(para|parar|pare) de (me )?(mandar|enviar)|remov(a|e|er) (o )?meu (numero|contato|telefone)|(me )?(tira|tire|remove|remova) (da|dessa|desta|de sua|da sua) lista|descadastr)'
-      -- t_5fcada08: a 1ª mensagem nova diz "é só me avisar" (sem a palavra SAIR): aceita os pedidos naturais.
-      OR public.lead_ia_norm(_t) ~ '(nao (me )?(escreva|escreve|mande|manda|chame|chama|procure|procura) mais|nao precisa (mais )?(me )?(escrever|mandar|chamar)|(pode|podem) (parar de (me )?(mandar|enviar|escrever|chamar)|me tirar d|tirar meu (numero|contato)|(remover|excluir|apagar) meu (numero|contato))|nao quero mais (receber|mensage|contato)|para de me (escrever|mandar|chamar)|^\s*(me )?(tira|tire|exclui|exclua|apaga|apague)( meu (numero|contato))?[\s.!]*$)'
+      -- t_5fcada08: a 1ª mensagem nova diz "é só me avisar" (sem a palavra SAIR). Aceita também pedidos de saída
+      -- inequívocos escritos por extenso, SÓ quando são a mensagem inteira ("não me escreva mais", "pode parar de me
+      -- mandar mensagem", "me tira da lista"). Com complemento ("não precisa mandar o endereço", "pode me tirar uma
+      -- dúvida", "não me manda mais essa casa") NÃO é saída. Vale para todas as imobiliárias.
+      OR public.lead_ia_norm(_t) ~ '^\s*(por favor[\s,]*)?((voce |vc )?(pode|podem|poderia|poderiam) parar de (me )?(mandar|enviar|escrever|chamar)( mais)?( (mensage(m|ns)|msgs?))?|(nao|n) (me )?(escreva|escreve|mande|manda|envie|envia|chame|chama|procure|procura) mais( (mensage(m|ns)|msgs?))?|(nao|n) precisa mais me (escrever|chamar|procurar|mandar (mensage(m|ns)|msgs?))|(para|pare) de me (escrever|chamar|procurar|mandar (mensage(m|ns)|msgs?))|(nao|n) quero mais (receber( (mensage(m|ns)|msgs?))?|mensage(m|ns)|msgs?|contato)|(pode |podem )?(me )?(tira|tire|tirar|exclui|exclua|excluir|remove|remova|remover|apaga|apague|apagar) (o )?meu (numero|contato|telefone)( da (sua )?lista)?|(pode |podem )?me (tira|tire|tirar) da (sua )?lista)[\s,.!]*(por favor|pf|pfv|obrigad[oa]|grat[oa])?[\s.!]*$'
 $function$;
 
 -- 1ª mensagem e lembrete do modo reativação (as variantes antigas ficam iguais).
