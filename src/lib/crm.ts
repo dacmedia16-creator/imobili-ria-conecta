@@ -3,13 +3,17 @@
 // é a proteção real: RLS do módulo Leads + RPCs crm_* que exigem próximo contato, aceite e papel.
 import { ORIGEM_LABEL, type Lead, type Origem } from "@/lib/leads";
 
-/** Etapas do CRM: as do módulo Leads + "avaliacao" (só no funil de captação; CHECK leads_etapa_do_funil). */
+/**
+ * Etapas do CRM: as do módulo Leads + "avaliacao" e "acompanhamento" (só no funil de captação;
+ * CHECK leads_etapa_do_funil). "acompanhamento" = Acompanhamento pós-dossiê (t_ab39e04e, Denis 27/11).
+ */
 export type Etapa =
   | "novo"
   | "em_atendimento"
   | "visita_agendada"
   | "avaliacao"
   | "proposta"
+  | "acompanhamento"
   | "ganho"
   | "perdido";
 const encerrado = (e: string) => e === "ganho" || e === "perdido";
@@ -42,15 +46,27 @@ export const FUNIL: Record<Funil, FunilDef> = {
     },
     conv: "Converter em venda",
   },
+  // Método Denis (t_ab39e04e, 27/11): 1ª visita conhece o proprietário, 2ª visita leva o dossiê e o
+  // acompanhamento pós-dossiê fecha a exclusividade (80% das dele saíram depois do dia do dossiê).
+  // Sem migrar dados: avaliacao e proposta só trocaram o rótulo; "acompanhamento" é a única etapa nova.
   captacao: {
     nome: "Funil de Captação",
     publico: "proprietário",
-    etapas: ["novo", "em_atendimento", "avaliacao", "proposta", "ganho", "perdido"],
+    etapas: [
+      "novo",
+      "em_atendimento",
+      "avaliacao",
+      "proposta",
+      "acompanhamento",
+      "ganho",
+      "perdido",
+    ],
     label: {
-      novo: "Novo",
+      novo: "Novo contato",
       em_atendimento: "Em contato",
-      avaliacao: "Avaliação",
-      proposta: "Proposta de exclusividade",
+      avaliacao: "1ª visita (conhecer o proprietário)",
+      proposta: "2ª visita (dossiê)",
+      acompanhamento: "Acompanhamento pós-dossiê",
       ganho: "Captado",
       perdido: "Perdido",
     },
@@ -151,6 +167,44 @@ export function validarProximo(data: string, motivo: string, hoje: string): stri
   if (data > somarDias(hoje, 366)) return "Data do próximo contato longe demais (até 1 ano).";
   if (motivo.trim().length > 200) return "Motivo longo demais (até 200 caracteres).";
   return null;
+}
+
+/** Acompanhamento pós-dossiê: próximo contato sugerido de 7 em 7 dias (Denis escolheu 7). */
+export const DIAS_ACOMPANHAMENTO = 7;
+export const MOTIVO_ACOMPANHAMENTO = "Perguntar como está a procura pelo imóvel";
+/** Retorno sugerido no funil de venda (proposta recusada / visita não realizada). O 1º é o padrão. */
+export const DIAS_RETORNO_VENDA = [7, 10, 15] as const;
+
+export type SugestaoProximo = { data: string; motivo: string; atalhos: readonly number[] };
+
+/**
+ * Próximo contato pré-preenchido no diálogo (só sugestão: o corretor altera; data + motivo seguem
+ * obrigatórios). `para` = etapa de destino; null = só registrar o contato, continuando na etapa.
+ * - Captação → Acompanhamento pós-dossiê (ou registrar nele): hoje + 7 e motivo sugerido.
+ * - Venda: proposta recusada (sai da Proposta para trás) ou visita não realizada (sai da Visita para
+ *   trás), ou registrar contato parado na Visita/Proposta: hoje + 7, com atalhos 7/10/15 e sem motivo.
+ * Fora disso: null (o diálogo mantém o comportamento de antes).
+ */
+export function sugestaoProximo(
+  l: Pick<Lead, "etapa" | "funil">,
+  para: Etapa | null,
+  hoje: string,
+): SugestaoProximo | null {
+  const f = funilDe(l);
+  const atual = l.etapa as Etapa;
+  const destino = para ?? atual;
+  if (f === "captacao") {
+    return destino === "acompanhamento"
+      ? { data: somarDias(hoje, DIAS_ACOMPANHAMENTO), motivo: MOTIVO_ACOMPANHAMENTO, atalhos: [] }
+      : null;
+  }
+  if (f !== "venda") return null;
+  const ordem = FUNIL.venda.etapas;
+  const recuo =
+    (atual === "proposta" || atual === "visita_agendada") &&
+    (para === null || (ordem.indexOf(para) >= 0 && ordem.indexOf(para) < ordem.indexOf(atual)));
+  if (!recuo || encerrado(destino)) return null;
+  return { data: somarDias(hoje, DIAS_RETORNO_VENDA[0]), motivo: "", atalhos: DIAS_RETORNO_VENDA };
 }
 
 /** Lead vinculado a venda/captação (é o que conta como convertido). */

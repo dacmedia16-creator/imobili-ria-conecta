@@ -61,10 +61,12 @@ describe("funis", () => {
       "Perdido",
     ]);
     expect(FUNIL.captacao.etapas.map((e) => FUNIL.captacao.label[e])).toEqual([
-      "Novo",
+      // Método Denis (t_ab39e04e, 27/11): rótulos novos; as etapas internas são as mesmas + acompanhamento.
+      "Novo contato",
       "Em contato",
-      "Avaliação",
-      "Proposta de exclusividade",
+      "1ª visita (conhecer o proprietário)",
+      "2ª visita (dossiê)",
+      "Acompanhamento pós-dossiê",
       "Captado",
       "Perdido",
     ]);
