@@ -459,7 +459,7 @@ export function perguntouSeCorretora(t: string): boolean {
 }
 /** Resposta sincera em 1 frase + 1 pergunta para retomar. Nunca diz que é corretora nem pessoa. */
 export function textoCorretora(ctx: Pick<ContextoIa, "ia_nome" | "org_nome">): string {
-  const nome = (ctx.ia_nome || "Nicole").trim();
+  const nome = (ctx.ia_nome || "Victoria").trim();
   return `Sou a ${nome}, assistente virtual${ctx.org_nome ? ` da ${ctx.org_nome}` : ""}, e um corretor da equipe continua seu atendimento e acompanha a visita. Quer agendar uma visita para conhecer?`;
 }
 
@@ -1987,7 +1987,7 @@ export async function proximaResposta(
   // \"É robô?\": não se apresenta como robô, mas não mente se perguntarem direto (limite decidido com Denis).
   if (perguntouSeRobo(texto)) {
     dados.ofereceu_corretor = true;
-    const quem = `Sou a ${(ctx.ia_nome || "Nicole").trim()}, assistente${ctx.org_nome ? ` da ${ctx.org_nome}` : ""}, e respondo por aqui com ajuda de um sistema.`;
+    const quem = `Sou a ${(ctx.ia_nome || "Victoria").trim()}, assistente${ctx.org_nome ? ` da ${ctx.org_nome}` : ""}, e respondo por aqui com ajuda de um sistema.`;
     return {
       passo: ctx.passo === "fim" ? "visita" : ctx.passo,
       dados,

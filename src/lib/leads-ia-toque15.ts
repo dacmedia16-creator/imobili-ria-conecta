@@ -129,10 +129,10 @@ export function montarMensagensToque15(
   e: { ia_nome: string; org_nome: string; cliente: string },
   historico: FalaHistorico[],
 ): { sistema: string; usuario: string } {
-  const sistema = INSTRUCAO_TOQUE15.replace("{NOME}", e.ia_nome || "Nicole").replace("{ORG}", e.org_nome || "imobiliária");
+  const sistema = INSTRUCAO_TOQUE15.replace("{NOME}", e.ia_nome || "Victoria").replace("{ORG}", e.org_nome || "imobiliária");
   const falas = historico
     .slice(-8)
-    .map((f) => `${f.autor === "cliente" ? "Cliente" : e.ia_nome || "Nicole"}: ${mascararContato(f.texto).replace(/https?:\/\/\S+/g, "[link]")}`)
+    .map((f) => `${f.autor === "cliente" ? "Cliente" : e.ia_nome || "Victoria"}: ${mascararContato(f.texto).replace(/https?:\/\/\S+/g, "[link]")}`)
     .join("\n");
   return {
     sistema,
