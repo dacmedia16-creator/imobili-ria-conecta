@@ -161,8 +161,8 @@ export function CrmMoverDialog({
                 className="text-xs text-muted-foreground"
                 data-testid="crm-sugestao-acompanhamento"
               >
-                Sugestão do acompanhamento pós-dossiê: retorno em {DIAS_ACOMPANHAMENTO} dias.
-                Pode alterar.
+                Sugestão do acompanhamento pós-dossiê: retorno em {DIAS_ACOMPANHAMENTO} dias. Pode
+                alterar.
               </p>
             )}
             <label className="block">
@@ -216,8 +216,8 @@ export function CrmMoverDialog({
             ) : captacaoLigada ? (
               <>
                 <p className="text-muted-foreground">
-                  “Converter em captação” cria a captação exclusiva com o proprietário já preenchido. Você
-                  vira o captador.
+                  “Converter em captação” cria a captação exclusiva com o proprietário já
+                  preenchido. Você vira o captador.
                 </p>
                 <select
                   className={SELECT}
@@ -279,7 +279,9 @@ export function CrmMoverDialog({
               <Button
                 variant="outline"
                 disabled={busy}
-                onClick={() => run(() => moverLead(lead.id, "ganho"), `Movido para ${nomeEtapa(f, "ganho")}.`)}
+                onClick={() =>
+                  run(() => moverLead(lead.id, "ganho"), `Movido para ${nomeEtapa(f, "ganho")}.`)
+                }
               >
                 Só mover (vincular depois)
               </Button>
