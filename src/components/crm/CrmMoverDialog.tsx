@@ -16,11 +16,13 @@ import { errorMessage } from "@/lib/errors";
 import type { Lead, MotivoPerda } from "@/lib/leads";
 import type { ExclusiveUnit } from "@/lib/exclusive-captures";
 import {
+  DIAS_ACOMPANHAMENTO,
   FUNIL,
   funilDe,
   hojeSP,
   nomeEtapa,
   somarDias,
+  sugestaoProximo,
   validarProximo,
   type Etapa,
   type Pedido,
@@ -64,9 +66,17 @@ export function CrmMoverDialog({
   const [unidade, setUnidade] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // Sugestão do Método Denis (t_ab39e04e): +7 no acompanhamento pós-dossiê; 7/10/15 no retorno da venda.
+  const sugestao =
+    pedido?.tipo === "proximo" ? sugestaoProximo(pedido.lead, pedido.para, hoje) : null;
+
   useEffect(() => {
-    setData(pedido?.lead.proximo_contato_em && pedido.lead.proximo_contato_em >= hoje ? pedido.lead.proximo_contato_em : somarDias(hoje, 1));
-    setMotivo(pedido?.para === null ? (pedido.lead.proximo_contato_motivo ?? "") : "");
+    const s = pedido?.tipo === "proximo" ? sugestaoProximo(pedido.lead, pedido.para, hoje) : null;
+    // Com sugestão: data sugerida; motivo sugerido (acompanhamento) ou o de antes (venda, sem motivo pronto).
+    const atual = pedido?.lead.proximo_contato_em;
+    setData(s ? s.data : atual && atual >= hoje ? atual : somarDias(hoje, 1));
+    const motivoAntes = pedido?.para === null ? (pedido.lead.proximo_contato_motivo ?? "") : "";
+    setMotivo(s?.motivo || motivoAntes);
     setPerda("");
     setObs("");
     setUnidade(unidades.length === 1 ? unidades[0].id : "");
@@ -126,6 +136,35 @@ export function CrmMoverDialog({
                 onChange={(e) => setData(e.target.value)}
               />
             </label>
+            {sugestao && sugestao.atalhos.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2" data-testid="crm-atalhos-retorno">
+                <span className="text-xs text-muted-foreground">Retornar em:</span>
+                {sugestao.atalhos.map((d) => {
+                  const alvo = somarDias(hoje, d);
+                  return (
+                    <Button
+                      key={d}
+                      type="button"
+                      size="sm"
+                      variant={data === alvo ? "default" : "outline"}
+                      aria-pressed={data === alvo}
+                      onClick={() => setData(alvo)}
+                    >
+                      {d} dias
+                    </Button>
+                  );
+                })}
+              </div>
+            )}
+            {sugestao && sugestao.atalhos.length === 0 && (
+              <p
+                className="text-xs text-muted-foreground"
+                data-testid="crm-sugestao-acompanhamento"
+              >
+                Sugestão do acompanhamento pós-dossiê: retorno em {DIAS_ACOMPANHAMENTO} dias. Pode
+                alterar.
+              </p>
+            )}
             <label className="block">
               <span className="text-xs text-muted-foreground">Motivo</span>
               <Input
@@ -177,8 +216,8 @@ export function CrmMoverDialog({
             ) : captacaoLigada ? (
               <>
                 <p className="text-muted-foreground">
-                  “Converter em captação” cria a captação exclusiva com o proprietário já preenchido. Você
-                  vira o captador.
+                  “Converter em captação” cria a captação exclusiva com o proprietário já
+                  preenchido. Você vira o captador.
                 </p>
                 <select
                   className={SELECT}
@@ -240,7 +279,9 @@ export function CrmMoverDialog({
               <Button
                 variant="outline"
                 disabled={busy}
-                onClick={() => run(() => moverLead(lead.id, "ganho"), `Movido para ${nomeEtapa(f, "ganho")}.`)}
+                onClick={() =>
+                  run(() => moverLead(lead.id, "ganho"), `Movido para ${nomeEtapa(f, "ganho")}.`)
+                }
               >
                 Só mover (vincular depois)
               </Button>

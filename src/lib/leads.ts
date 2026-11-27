@@ -12,10 +12,14 @@ export const ETAPAS = [
 ] as const;
 export type Etapa = (typeof ETAPAS)[number];
 
-// "avaliacao" só existe no funil de captação do CRM (migration 20261029100000); fica fora de ETAPAS.
-export const ETAPA_LABEL: Record<Etapa | "avaliacao", string> = {
+// "avaliacao" e "acompanhamento" só existem no funil de captação do CRM (migrations 20261029100000 e
+// 20270107120000, Método Denis t_ab39e04e); ficam fora de ETAPAS. "proposta" é comum aos funis: no
+// painel Leads segue "Proposta" (no quadro de captação o rótulo é "2ª visita (dossiê)").
+export type EtapaCaptacao = "avaliacao" | "acompanhamento";
+export const ETAPA_LABEL: Record<Etapa | EtapaCaptacao, string> = {
   novo: "Novo",
-  avaliacao: "Avaliação",
+  avaliacao: "1ª visita (conhecer o proprietário)",
+  acompanhamento: "Acompanhamento pós-dossiê",
   em_atendimento: "Em atendimento",
   visita_agendada: "Visita agendada",
   proposta: "Proposta",
@@ -25,11 +29,12 @@ export const ETAPA_LABEL: Record<Etapa | "avaliacao", string> = {
 
 /** Tom do Pill (visual/base) por etapa: sempre cor + texto. */
 export const ETAPA_TOM: Record<
-  Etapa | "avaliacao",
+  Etapa | EtapaCaptacao,
   "blue" | "amber" | "violet" | "slate" | "green" | "red"
 > = {
   novo: "blue",
   avaliacao: "violet",
+  acompanhamento: "amber",
   em_atendimento: "amber",
   visita_agendada: "violet",
   proposta: "slate",
