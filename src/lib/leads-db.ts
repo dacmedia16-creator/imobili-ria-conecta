@@ -252,7 +252,7 @@ export async function lerIaConfig(): Promise<IaConfig> {
   const { data: t15 } = await db.from("lead_config").select("ia_toque15").maybeSingle();
   return {
     ia_ativa: false,
-    ia_nome: "Nicole",
+    ia_nome: "Victoria",
     ia_boas_vindas: null,
     ia_canal: "teste",
     ia_primeira_msg: null,

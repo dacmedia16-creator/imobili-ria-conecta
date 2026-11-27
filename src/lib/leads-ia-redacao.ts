@@ -84,7 +84,7 @@ export type FalaHistorico = { autor: "ia" | "cliente" | "sistema"; texto: string
 
 /** Resposta honesta, curta, quando o cliente pergunta DIRETAMENTE se é robô/IA (limite decidido com Denis). */
 export function textoRobo(ctx: Pick<ContextoIa, "ia_nome" | "org_nome">): string {
-  const nome = (ctx.ia_nome || "Nicole").trim();
+  const nome = (ctx.ia_nome || "Victoria").trim();
   return `Sou a ${nome}, assistente${ctx.org_nome ? ` da ${ctx.org_nome}` : ""}, e respondo por aqui com ajuda de um sistema. Se preferir falar com um corretor, te passo agora. Quer?`;
 }
 
@@ -272,7 +272,7 @@ Cliente: "pq enviou várias opções?" -> "Te mandei outras opções porque voc�
 
 export function montarMensagens(e: EntradaModelo): { sistema: string; usuario: string } {
   const { ctx } = e;
-  const sistema = INSTRUCAO.replace("{NOME}", (ctx.ia_nome || "Nicole").trim()).replace(
+  const sistema = INSTRUCAO.replace("{NOME}", (ctx.ia_nome || "Victoria").trim()).replace(
     "{ORG}",
     ctx.org_nome?.trim() || "imobiliária",
   );
