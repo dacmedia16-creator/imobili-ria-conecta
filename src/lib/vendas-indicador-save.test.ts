@@ -14,6 +14,7 @@ import {
   responsaveisDaVenda,
 } from "./sale-permissions";
 import { saleManagementCapabilities } from "./sale-management-capabilities";
+import { criarFilaUnicaPorChave } from "./fila-unica-por-chave";
 import { extraSemPessoaCadastrada } from "./sale-financial-calc";
 import { erroValorNegociadoNoPatch, mensagemErroTetoBanco } from "./valor-negociado-trava";
 import { COMISSAO_PAPEIS } from "./status";
@@ -106,6 +107,7 @@ function harness(initial = fixture()) {
     user: { id: "gestor-fixture" },
     teamIds: new Set(["owner-fixture"]),
     podeSincronizarResumo,
+    criarFilaUnicaPorChave,
     saleManagementCapabilities,
     extraSemPessoaCadastrada,
     erroValorNegociadoNoPatch,
@@ -280,6 +282,7 @@ function harness(initial = fixture()) {
   vm.createContext(context);
   for (const name of [
     "resumoSaveErrorMessage",
+    "syncOccurrenceCommissionsFila",
     "syncOccurrenceCommissions",
     "syncOccurrencePartnerFromSale",
     "updResumo",
