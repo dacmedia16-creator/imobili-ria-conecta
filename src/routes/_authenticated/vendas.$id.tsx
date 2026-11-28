@@ -255,6 +255,7 @@ import type {
   SaleUpdate,
 } from "@/lib/database.types";
 import { errorMessage, mensagemErro } from "@/lib/errors";
+import { criarFilaUnicaPorChave } from "@/lib/fila-unica-por-chave";
 import {
   DETAIL_NOT_FOUND_MESSAGE,
   isDetailRouteId,
@@ -6657,9 +6658,15 @@ function CommentsPanel({
  * indicador, líder), deixando a pessoa presa em relatórios e recebendo comissão mesmo depois de
  * removida. Lança o erro em vez de engolir — quem chama decide como mostrar pro usuário.
  */
-async function syncOccurrenceCommissions(saleId: string) {
+// Único ponto do front que chama a RPC. Single-flight por venda: cliques repetidos, autosave e o
+// botão "Puxar da revisão do gestor" nunca rodam em paralelo para a mesma venda (em 27/11, 8
+// chamadas simultâneas disputaram o lock e estouraram o timeout — 57014). Ver fila-unica-por-chave.
+const syncOccurrenceCommissionsFila = criarFilaUnicaPorChave(async (saleId: string) => {
   const { error } = await supabase.rpc("sync_occurrence_commissions", { _sale_id: saleId });
   if (error) throw error;
+});
+async function syncOccurrenceCommissions(saleId: string) {
+  await syncOccurrenceCommissionsFila(saleId);
 }
 
 // Apenas este fluxo: não amplia errorMessage global nem expõe message/details/hint do banco.
@@ -7004,14 +7011,27 @@ function OccurrencePanel({
   // indicador/extras daquele lado), restaurando a dupla contagem que a RPC existe pra evitar. Grava
   // direto no banco (não fica num buffer local esperando "Salvar") — managed_by_sale já protege
   // qualquer linha manual de ser tocada por esse sync.
+  // Trava de envio: enquanto a sincronização está em andamento o botão fica desabilitado e cliques
+  // extras são ignorados (o ref cobre o duplo clique antes do re-render).
+  const pullingRef = useRef(false);
+  const [pulling, setPulling] = useState(false);
   const pullFromSaleSplit = async () => {
-    const { error } = await supabase.rpc("sync_occurrence_commissions", { _sale_id: saleId });
-    if (error) {
-      toast.error(mensagemErro(error));
-      return;
+    if (pullingRef.current) return;
+    pullingRef.current = true;
+    setPulling(true);
+    try {
+      try {
+        await syncOccurrenceCommissions(saleId);
+      } catch (error) {
+        toast.error(mensagemErro(error));
+        return;
+      }
+      toast.success("Comissões sincronizadas com a revisão do gestor.");
+      await load();
+    } finally {
+      pullingRef.current = false;
+      setPulling(false);
     }
-    toast.success("Comissões sincronizadas com a revisão do gestor.");
-    await load();
   };
   const delCommission = (id: string) => {
     setFormComms((rows) => rows.filter((r) => r.id !== id));
@@ -7925,8 +7945,17 @@ function OccurrencePanel({
           </div>
           {canWrite && (
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={pullFromSaleSplit}>
-                Puxar da revisão do gestor
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={pullFromSaleSplit}
+                disabled={pulling}
+                aria-busy={pulling}
+              >
+                {pulling && (
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin motion-reduce:animate-none" />
+                )}
+                {pulling ? "Sincronizando…" : "Puxar da revisão do gestor"}
               </Button>
               <Button size="sm" variant="outline" onClick={addCommission}>
                 <Plus className="mr-1 h-4 w-4" />
